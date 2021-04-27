@@ -7,7 +7,7 @@ use k8s_openapi::api::core::v1::{
 };
 use kube::api::ListParams;
 use kube::Api;
-use stackable_nifi_crd::{NiFiConfig, NiFiSpec, NiFiCluster};
+use stackable_nifi_crd::{NiFiCluster, NiFiConfig, NiFiSpec};
 use stackable_operator::client::Client;
 use stackable_operator::controller::{Controller, ControllerStrategy, ReconciliationState};
 use stackable_operator::k8s_utils::LabelOptionalValueMap;
