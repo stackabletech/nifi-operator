@@ -120,7 +120,7 @@ impl NiFiState {
                         .context
                         .resource
                         .spec
-                        .servers
+                        .nodes
                         .selectors
                         .get(role_group)
                     {
@@ -288,7 +288,7 @@ impl ControllerStrategy for NiFiStrategy {
         let mut eligible_nodes = HashMap::new();
 
         let role_groups: Vec<RoleGroup> = nifi_spec
-            .servers
+            .nodes
             .selectors
             .iter()
             .map(|(group_name, selector_config)| RoleGroup {

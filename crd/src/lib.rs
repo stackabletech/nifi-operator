@@ -20,8 +20,8 @@ use std::collections::HashMap;
 #[serde(rename_all = "camelCase")]
 pub struct NiFiSpec {
     pub version: NiFiVersion,
-    pub zookeeper_ref: Option<String>,
-    pub servers: NodeGroup<NiFiConfig>,
+    pub zookeeper_connect_string: Option<String>,
+    pub nodes: NodeGroup<NiFiConfig>,
 }
 
 #[allow(non_camel_case_types)]

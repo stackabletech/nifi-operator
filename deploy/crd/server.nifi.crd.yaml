@@ -20,7 +20,7 @@ spec:
           properties:
             spec:
               properties:
-                servers:
+                nodes:
                   properties:
                     selectors:
                       additionalProperties:
@@ -85,11 +85,11 @@ spec:
                   enum:
                     - 1.13.2
                   type: string
-                zookeeperRef:
+                zookeeperConnectString:
                   nullable: true
                   type: string
               required:
-                - servers
+                - nodes
                 - version
               type: object
             status:
