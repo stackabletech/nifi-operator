@@ -17,4 +17,7 @@ pub enum Error {
         #[from]
         source: serde_json::Error,
     },
+
+    #[error("No selector found for role group: {role_group}")]
+    RoleGroupSelectorMissing { role_group: String },
 }

@@ -3,7 +3,7 @@ name = "stackable-nifi-crd"
 version = "0.1.0"
 authors = ["Malte Sander <malte.sander.it@gmail.com>"]
 edition = "2018"
-description = "Contains the NiFi CRD structs and utilities"
+description = "Contains the Apache NiFi CRD structs and utilities"
 license = "OSL-3.0"
 
 [dependencies]

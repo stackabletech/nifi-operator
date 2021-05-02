@@ -30,21 +30,21 @@ use tracing::{debug, info, trace, warn};
 type NiFiReconcileResult = ReconcileResult<error::Error>;
 
 #[derive(EnumIter, Debug, Display, PartialEq, Eq, Hash)]
-pub enum NiFiNodeType {
-    Server,
+pub enum NiFiRole {
+    Node,
 }
 
 struct NiFiState {
     context: ReconciliationContext<NiFiCluster>,
     existing_pods: Vec<Pod>,
-    eligible_nodes: HashMap<NiFiNodeType, HashMap<String, Vec<Node>>>,
+    eligible_nodes: HashMap<NiFiRole, HashMap<String, Vec<Node>>>,
 }
 
 impl NiFiState {
     pub fn get_full_pod_node_map(&self) -> Vec<(Vec<Node>, LabelOptionalValueMap)> {
         let mut eligible_nodes_map = vec![];
 
-        for node_type in NiFiNodeType::iter() {
+        for node_type in NiFiRole::iter() {
             if let Some(eligible_nodes_for_role) = self.eligible_nodes.get(&node_type) {
                 for (group_name, eligible_nodes) in eligible_nodes_for_role {
                     // Create labels to identify eligible nodes
@@ -65,7 +65,7 @@ impl NiFiState {
     }
 
     pub fn get_deletion_labels(&self) -> BTreeMap<String, Option<Vec<String>>> {
-        let roles = NiFiNodeType::iter()
+        let roles = NiFiRole::iter()
             .map(|role| role.to_string())
             .collect::<Vec<_>>();
         let mut mandatory_labels = BTreeMap::new();
@@ -88,11 +88,12 @@ impl NiFiState {
                 return Ok(());
             }
             Err(e) => {
-                // TODO: This is shit, but works for now. If there is an actual error in comms with
+                // TODO: This is shit, but works for now. If there is an actual error in comes with
                 //   K8S, it will most probably also occur further down and be properly handled
                 debug!("Error getting ConfigMap [{}]: [{:?}]", name, e);
             }
         }
+
         let config = create_config_file(config);
 
         let mut data = BTreeMap::new();
@@ -109,34 +110,25 @@ impl NiFiState {
         // The iteration happens in two stages here, to accommodate the way our operators think
         // about nodes and roles.
         // The hierarchy is:
-        // - Roles (for example Datanode, Namenode, NiFi Server)
-        //   - Node groups for this role (user defined)
-        //      - Individual nodes
-        for node_type in NiFiNodeType::iter() {
-            if let Some(nodes_for_role) = self.eligible_nodes.get(&node_type) {
+        // - Roles (for example Datanode, Namenode, NiFi Node)
+        //   - Role groups for this role (user defined)
+        for nifi_role in NiFiRole::iter() {
+            if let Some(nodes_for_role) = self.eligible_nodes.get(&nifi_role) {
                 for (role_group, nodes) in nodes_for_role {
                     // extract selector for nifi config
-                    let nifi_config = match self
-                        .context
-                        .resource
-                        .spec
-                        .nodes
-                        .selectors
-                        .get(role_group)
-                    {
-                        Some(selector) => &selector.config,
-                        None => {
-                            warn!(
-                                    "No config found in selector for role [{}], this should not happen!",
-                                    &role_group
-                                );
-                            continue;
-                        }
-                    };
+                    let nifi_config =
+                        match self.context.resource.spec.nodes.selectors.get(role_group) {
+                            Some(selector) => &selector.config,
+                            None => {
+                                return Err(Error::RoleGroupSelectorMissing {
+                                    role_group: role_group.to_string(),
+                                })
+                            }
+                        };
 
-                    // Create config map for this rolegroup
+                    // Create config map for this role group
                     let pod_name =
-                        format!("nifi-{}-{}-{}", self.context.name(), role_group, node_type)
+                        format!("nifi-{}-{}-{}", self.context.name(), role_group, nifi_role)
                             .to_lowercase();
 
                     let cm_name = format!("{}-config", pod_name);
@@ -146,7 +138,7 @@ impl NiFiState {
 
                     debug!(
                         "Identify missing pods for [{}] role and group [{}]",
-                        node_type, role_group
+                        nifi_role, role_group
                     );
                     trace!(
                         "candidate_nodes[{}]: [{:?}]",
@@ -167,12 +159,12 @@ impl NiFiState {
                     );
                     trace!(
                         "labels: [{:?}]",
-                        get_node_and_group_labels(role_group, &node_type)
+                        get_node_and_group_labels(role_group, &nifi_role)
                     );
                     let nodes_that_need_pods = k8s_utils::find_nodes_that_need_pods(
                         nodes,
                         &self.existing_pods,
-                        &get_node_and_group_labels(role_group, &node_type),
+                        &get_node_and_group_labels(role_group, &nifi_role),
                     );
 
                     for node in nodes_that_need_pods {
@@ -188,13 +180,13 @@ impl NiFiState {
                                 .name
                                 .as_deref()
                                 .unwrap_or("<no node name found>"),
-                            node_type,
+                            nifi_role,
                             role_group
                         );
 
                         let mut node_labels = BTreeMap::new();
                         node_labels
-                            .insert(String::from(APP_COMPONENT_LABEL), node_type.to_string());
+                            .insert(String::from(APP_COMPONENT_LABEL), nifi_role.to_string());
                         node_labels
                             .insert(String::from(APP_ROLE_GROUP_LABEL), String::from(role_group));
                         node_labels.insert(String::from(APP_INSTANCE_LABEL), self.context.name());
@@ -298,7 +290,7 @@ impl ControllerStrategy for NiFiStrategy {
             .collect();
 
         eligible_nodes.insert(
-            NiFiNodeType::Server,
+            NiFiRole::Node,
             role_utils::find_nodes_that_fit_selectors(
                 &context.client,
                 None,
@@ -334,7 +326,7 @@ pub async fn create_controller(client: Client) {
         .await;
 }
 
-fn get_node_and_group_labels(group_name: &str, node_type: &NiFiNodeType) -> LabelOptionalValueMap {
+fn get_node_and_group_labels(group_name: &str, node_type: &NiFiRole) -> LabelOptionalValueMap {
     let mut node_labels = BTreeMap::new();
     node_labels.insert(
         String::from(APP_COMPONENT_LABEL),

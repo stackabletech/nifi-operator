@@ -1400,7 +1400,6 @@ dependencies = [
 name = "stackable-nifi-operator-server"
 version = "0.1.0-nightly"
 dependencies = [
- "anyhow",
  "serde_yaml",
  "stackable-nifi-crd",
  "stackable-nifi-operator",
