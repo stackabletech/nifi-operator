@@ -9,6 +9,7 @@ license = "OSL-3.0"
 [dependencies]
 stackable-nifi-crd = { path = "../crd" }
 stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", branch = "main" }
+stackable-zookeeper-crd = { git = "https://github.com/stackabletech/zookeeper-operator.git", branch = "conn_string"}
 
 async-trait = "0.1"
 futures = "0.3"

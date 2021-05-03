@@ -1,4 +1,7 @@
+mod config;
 mod error;
+
+use crate::config::{create_bootstrap_conf, create_nifi_properties, create_state_management_xml};
 use crate::error::Error;
 use async_trait::async_trait;
 use futures::Future;
@@ -7,7 +10,7 @@ use k8s_openapi::api::core::v1::{
 };
 use kube::api::ListParams;
 use kube::Api;
-use stackable_nifi_crd::{NiFiCluster, NiFiConfig, NiFiSpec};
+use stackable_nifi_crd::{NiFiCluster, NiFiConfig, NiFiSpec, ZookeeperReference};
 use stackable_operator::client::Client;
 use stackable_operator::controller::{Controller, ControllerStrategy, ReconciliationState};
 use stackable_operator::k8s_utils::LabelOptionalValueMap;
@@ -19,6 +22,7 @@ use stackable_operator::reconcile::{
 };
 use stackable_operator::role_utils::RoleGroup;
 use stackable_operator::{k8s_utils, metadata, role_utils};
+use stackable_zookeeper_crd::util::{get_zk_connection_info, is_valid_node};
 use std::collections::{BTreeMap, HashMap};
 use std::pin::Pin;
 use std::time::Duration;
@@ -30,21 +34,21 @@ use tracing::{debug, info, trace, warn};
 type NiFiReconcileResult = ReconcileResult<error::Error>;
 
 #[derive(EnumIter, Debug, Display, PartialEq, Eq, Hash)]
-pub enum NiFiRole {
+pub enum NiFiNodeType {
     Node,
 }
 
 struct NiFiState {
     context: ReconciliationContext<NiFiCluster>,
     existing_pods: Vec<Pod>,
-    eligible_nodes: HashMap<NiFiRole, HashMap<String, Vec<Node>>>,
+    eligible_nodes: HashMap<NiFiNodeType, HashMap<String, Vec<Node>>>,
 }
 
 impl NiFiState {
     pub fn get_full_pod_node_map(&self) -> Vec<(Vec<Node>, LabelOptionalValueMap)> {
         let mut eligible_nodes_map = vec![];
 
-        for node_type in NiFiRole::iter() {
+        for node_type in NiFiNodeType::iter() {
             if let Some(eligible_nodes_for_role) = self.eligible_nodes.get(&node_type) {
                 for (group_name, eligible_nodes) in eligible_nodes_for_role {
                     // Create labels to identify eligible nodes
@@ -65,7 +69,7 @@ impl NiFiState {
     }
 
     pub fn get_deletion_labels(&self) -> BTreeMap<String, Option<Vec<String>>> {
-        let roles = NiFiRole::iter()
+        let roles = NiFiNodeType::iter()
             .map(|role| role.to_string())
             .collect::<Vec<_>>();
         let mut mandatory_labels = BTreeMap::new();
@@ -94,10 +98,37 @@ impl NiFiState {
             }
         }
 
-        let config = create_config_file(config);
+        let zk_ref: &ZookeeperReference = &self.context.resource.spec.zookeeper_reference;
+
+        // retrieve zookeeper connect string
+        let zookeeper_info =
+            get_zk_connection_info(&self.context.client, &zk_ref.name, &zk_ref.namespace, None)
+                .await?;
+
+        if let Some(chroot) = zk_ref.chroot.as_deref() {
+            is_valid_node(chroot)?;
+        }
+
+        info!(
+            "Found zookeeper reference: {}",
+            &zookeeper_info.connection_string
+        );
+
+        let bootstrap_conf = create_bootstrap_conf();
+        let nifi_properties = create_nifi_properties(
+            &self.context.resource.spec,
+            config,
+            &zookeeper_info.connection_string,
+        );
+        let state_management_xml = create_state_management_xml(
+            &self.context.resource.spec,
+            &zookeeper_info.connection_string,
+        );
 
         let mut data = BTreeMap::new();
-        data.insert("nifi.properties".to_string(), config);
+        data.insert("bootstrap.conf".to_string(), bootstrap_conf);
+        data.insert("nifi.properties".to_string(), nifi_properties);
+        data.insert("state-management.xml".to_string(), state_management_xml);
 
         // And now create the actual ConfigMap
         let cm =
@@ -110,25 +141,34 @@ impl NiFiState {
         // The iteration happens in two stages here, to accommodate the way our operators think
         // about nodes and roles.
         // The hierarchy is:
-        // - Roles (for example Datanode, Namenode, NiFi Node)
-        //   - Role groups for this role (user defined)
-        for nifi_role in NiFiRole::iter() {
-            if let Some(nodes_for_role) = self.eligible_nodes.get(&nifi_role) {
+        // - Roles (for example Datanode, Namenode, NiFi Server)
+        //   - Node groups for this role (user defined)
+        //      - Individual nodes
+        for node_type in NiFiNodeType::iter() {
+            if let Some(nodes_for_role) = self.eligible_nodes.get(&node_type) {
                 for (role_group, nodes) in nodes_for_role {
                     // extract selector for nifi config
-                    let nifi_config =
-                        match self.context.resource.spec.nodes.selectors.get(role_group) {
-                            Some(selector) => &selector.config,
-                            None => {
-                                return Err(Error::RoleGroupSelectorMissing {
-                                    role_group: role_group.to_string(),
-                                })
-                            }
-                        };
+                    let nifi_config = match self
+                        .context
+                        .resource
+                        .spec
+                        .nodes
+                        .selectors
+                        .get(role_group)
+                    {
+                        Some(selector) => &selector.config,
+                        None => {
+                            warn!(
+                                    "No config found in selector for role [{}], this should not happen!",
+                                    &role_group
+                                );
+                            continue;
+                        }
+                    };
 
-                    // Create config map for this role group
+                    // Create config map for this rolegroup
                     let pod_name =
-                        format!("nifi-{}-{}-{}", self.context.name(), role_group, nifi_role)
+                        format!("nifi-{}-{}-{}", self.context.name(), role_group, node_type)
                             .to_lowercase();
 
                     let cm_name = format!("{}-config", pod_name);
@@ -138,7 +178,7 @@ impl NiFiState {
 
                     debug!(
                         "Identify missing pods for [{}] role and group [{}]",
-                        nifi_role, role_group
+                        node_type, role_group
                     );
                     trace!(
                         "candidate_nodes[{}]: [{:?}]",
@@ -159,12 +199,12 @@ impl NiFiState {
                     );
                     trace!(
                         "labels: [{:?}]",
-                        get_node_and_group_labels(role_group, &nifi_role)
+                        get_node_and_group_labels(role_group, &node_type)
                     );
                     let nodes_that_need_pods = k8s_utils::find_nodes_that_need_pods(
                         nodes,
                         &self.existing_pods,
-                        &get_node_and_group_labels(role_group, &nifi_role),
+                        &get_node_and_group_labels(role_group, &node_type),
                     );
 
                     for node in nodes_that_need_pods {
@@ -180,13 +220,13 @@ impl NiFiState {
                                 .name
                                 .as_deref()
                                 .unwrap_or("<no node name found>"),
-                            nifi_role,
+                            node_type,
                             role_group
                         );
 
                         let mut node_labels = BTreeMap::new();
                         node_labels
-                            .insert(String::from(APP_COMPONENT_LABEL), nifi_role.to_string());
+                            .insert(String::from(APP_COMPONENT_LABEL), node_type.to_string());
                         node_labels
                             .insert(String::from(APP_ROLE_GROUP_LABEL), String::from(role_group));
                         node_labels.insert(String::from(APP_INSTANCE_LABEL), self.context.name());
@@ -290,7 +330,7 @@ impl ControllerStrategy for NiFiStrategy {
             .collect();
 
         eligible_nodes.insert(
-            NiFiRole::Node,
+            NiFiNodeType::Node,
             role_utils::find_nodes_that_fit_selectors(
                 &context.client,
                 None,
@@ -326,7 +366,7 @@ pub async fn create_controller(client: Client) {
         .await;
 }
 
-fn get_node_and_group_labels(group_name: &str, node_type: &NiFiRole) -> LabelOptionalValueMap {
+fn get_node_and_group_labels(group_name: &str, node_type: &NiFiNodeType) -> LabelOptionalValueMap {
     let mut node_labels = BTreeMap::new();
     node_labels.insert(
         String::from(APP_COMPONENT_LABEL),
@@ -360,9 +400,13 @@ fn build_pod(
             containers: vec![Container {
                 image: Some(format!("nifi:{}", resource.spec.version.to_string())),
                 name: "nifi".to_string(),
-                command: Some(create_nifi_start_command(config)),
+                command: Some(create_nifi_start_command(&resource.spec, config)),
                 volume_mounts: Some(vec![VolumeMount {
-                    mount_path: "config".to_string(),
+                    mount_path: format!(
+                        "{}/nifi-{}/conf",
+                        "{{packageroot}}",
+                        resource.spec.version.to_string()
+                    ),
                     name: "config-volume".to_string(),
                     ..VolumeMount::default()
                 }]),
@@ -383,12 +427,7 @@ fn build_pod(
     Ok(pod)
 }
 
-fn create_nifi_start_command(_config: &NiFiConfig) -> Vec<String> {
-    // TODO: removed hardcoded version
-    let command = vec![String::from("nifi-1.13.2/bin/nifi.sh run")];
+fn create_nifi_start_command(spec: &NiFiSpec, _config: &NiFiConfig) -> Vec<String> {
+    let command = vec![format!("nifi-{}/bin/nifi.sh run", spec.version.to_string())];
     command
-}
-
-fn create_config_file(_config: &NiFiConfig) -> String {
-    format!("")
 }
