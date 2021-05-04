@@ -1,4 +1,4 @@
-use stackable_nifi_crd::{NiFiConfig, NiFiSpec};
+use stackable_nifi_crd::{NifiConfig, NifiSpec};
 use std::collections::BTreeMap;
 
 pub fn create_bootstrap_conf() -> String {
@@ -89,7 +89,7 @@ pub fn create_bootstrap_conf() -> String {
     format_properties(bootstrap)
 }
 
-pub fn create_nifi_properties(spec: &NiFiSpec, config: &NiFiConfig, zk_ref: &str) -> String {
+pub fn create_nifi_properties(spec: &NifiSpec, config: &NifiConfig, zk_ref: &str) -> String {
     let mut properties = BTreeMap::new();
     // Core Properties
     properties.insert(
@@ -673,7 +673,7 @@ pub fn create_nifi_properties(spec: &NiFiSpec, config: &NiFiConfig, zk_ref: &str
     format_properties(properties)
 }
 
-pub fn create_state_management_xml(spec: &NiFiSpec, zk_ref: &str) -> String {
+pub fn create_state_management_xml(spec: &NifiSpec, zk_ref: &str) -> String {
     let mut state_management = String::new();
 
     state_management.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n");

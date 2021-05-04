@@ -17,9 +17,9 @@ use std::collections::HashMap;
 #[kube(status = "NifiStatus")]
 #[serde(rename_all = "camelCase")]
 pub struct NifiSpec {
-    pub version: NiFiVersion,
+    pub version: NifiVersion,
     pub zookeeper_reference: ZookeeperReference,
-    pub nodes: NodeGroup<NiFiConfig>,
+    pub nodes: RoleGroup<NifiConfig>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, Serialize)]
