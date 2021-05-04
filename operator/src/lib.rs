@@ -7,7 +7,7 @@ use k8s_openapi::api::core::v1::{
 };
 use kube::api::ListParams;
 use kube::Api;
-use stackable_nifi_crd::{NiFiCluster, NiFiConfig, NiFiSpec};
+use stackable_nifi_crd::{NifiCluster, NifiConfig, NifiSpec};
 use stackable_operator::client::Client;
 use stackable_operator::controller::{Controller, ControllerStrategy, ReconciliationState};
 use stackable_operator::k8s_utils::LabelOptionalValueMap;
@@ -27,24 +27,24 @@ use strum_macros::Display;
 use strum_macros::EnumIter;
 use tracing::{debug, info, trace, warn};
 
-type NiFiReconcileResult = ReconcileResult<error::Error>;
+type NifiReconcileResult = ReconcileResult<error::Error>;
 
 #[derive(EnumIter, Debug, Display, PartialEq, Eq, Hash)]
-pub enum NiFiRole {
+pub enum NifiRole {
     Node,
 }
 
-struct NiFiState {
-    context: ReconciliationContext<NiFiCluster>,
+struct NifiState {
+    context: ReconciliationContext<NifiCluster>,
     existing_pods: Vec<Pod>,
-    eligible_nodes: HashMap<NiFiRole, HashMap<String, Vec<Node>>>,
+    eligible_nodes: HashMap<NifiRole, HashMap<String, Vec<Node>>>,
 }
 
-impl NiFiState {
+impl NifiState {
     pub fn get_full_pod_node_map(&self) -> Vec<(Vec<Node>, LabelOptionalValueMap)> {
         let mut eligible_nodes_map = vec![];
 
-        for node_type in NiFiRole::iter() {
+        for node_type in NifiRole::iter() {
             if let Some(eligible_nodes_for_role) = self.eligible_nodes.get(&node_type) {
                 for (group_name, eligible_nodes) in eligible_nodes_for_role {
                     // Create labels to identify eligible nodes
@@ -65,7 +65,7 @@ impl NiFiState {
     }
 
     pub fn get_deletion_labels(&self) -> BTreeMap<String, Option<Vec<String>>> {
-        let roles = NiFiRole::iter()
+        let roles = NifiRole::iter()
             .map(|role| role.to_string())
             .collect::<Vec<_>>();
         let mut mandatory_labels = BTreeMap::new();
@@ -75,7 +75,7 @@ impl NiFiState {
         mandatory_labels
     }
 
-    async fn create_config_map(&self, name: &str, config: &NiFiConfig) -> Result<(), Error> {
+    async fn create_config_map(&self, name: &str, config: &NifiConfig) -> Result<(), Error> {
         match self
             .context
             .client
@@ -106,13 +106,13 @@ impl NiFiState {
         Ok(())
     }
 
-    async fn create_missing_pods(&mut self) -> NiFiReconcileResult {
+    async fn create_missing_pods(&mut self) -> NifiReconcileResult {
         // The iteration happens in two stages here, to accommodate the way our operators think
         // about nodes and roles.
         // The hierarchy is:
-        // - Roles (for example Datanode, Namenode, NiFi Node)
+        // - Roles (for example Datanode, Namenode, Nifi Node)
         //   - Role groups for this role (user defined)
-        for nifi_role in NiFiRole::iter() {
+        for nifi_role in NifiRole::iter() {
             if let Some(nodes_for_role) = self.eligible_nodes.get(&nifi_role) {
                 for (role_group, nodes) in nodes_for_role {
                     // extract selector for nifi config
@@ -213,7 +213,7 @@ impl NiFiState {
     }
 }
 
-impl ReconciliationState for NiFiState {
+impl ReconciliationState for NifiState {
     type Error = error::Error;
 
     fn reconcile(
@@ -254,18 +254,18 @@ impl ReconciliationState for NiFiState {
 }
 
 #[derive(Debug)]
-struct NiFiStrategy {}
+struct NifiStrategy {}
 
-impl NiFiStrategy {
-    pub fn new() -> NiFiStrategy {
-        NiFiStrategy {}
+impl NifiStrategy {
+    pub fn new() -> NifiStrategy {
+        NifiStrategy {}
     }
 }
 
 #[async_trait]
-impl ControllerStrategy for NiFiStrategy {
-    type Item = NiFiCluster;
-    type State = NiFiState;
+impl ControllerStrategy for NifiStrategy {
+    type Item = NifiCluster;
+    type State = NifiState;
     type Error = error::Error;
 
     async fn init_reconcile_state(
@@ -275,7 +275,7 @@ impl ControllerStrategy for NiFiStrategy {
         let existing_pods = context.list_pods().await?;
         trace!("Found [{}] pods", existing_pods.len());
 
-        let nifi_spec: NiFiSpec = context.resource.spec.clone();
+        let nifi_spec: NifiSpec = context.resource.spec.clone();
 
         let mut eligible_nodes = HashMap::new();
 
@@ -290,7 +290,7 @@ impl ControllerStrategy for NiFiStrategy {
             .collect();
 
         eligible_nodes.insert(
-            NiFiRole::Node,
+            NifiRole::Node,
             role_utils::find_nodes_that_fit_selectors(
                 &context.client,
                 None,
@@ -299,7 +299,7 @@ impl ControllerStrategy for NiFiStrategy {
             .await?,
         );
 
-        Ok(NiFiState {
+        Ok(NifiState {
             context,
             existing_pods,
             eligible_nodes,
@@ -311,7 +311,7 @@ impl ControllerStrategy for NiFiStrategy {
 ///
 /// This is an async method and the returned future needs to be consumed to make progress.
 pub async fn create_controller(client: Client) {
-    let nifi_api: Api<NiFiCluster> = client.get_all_api();
+    let nifi_api: Api<NifiCluster> = client.get_all_api();
     let pods_api: Api<Pod> = client.get_all_api();
     let configmaps_api: Api<ConfigMap> = client.get_all_api();
 
@@ -319,14 +319,14 @@ pub async fn create_controller(client: Client) {
         .owns(pods_api, ListParams::default())
         .owns(configmaps_api, ListParams::default());
 
-    let strategy = NiFiStrategy::new();
+    let strategy = NifiStrategy::new();
 
     controller
         .run(client, strategy, Duration::from_secs(10))
         .await;
 }
 
-fn get_node_and_group_labels(group_name: &str, node_type: &NiFiRole) -> LabelOptionalValueMap {
+fn get_node_and_group_labels(group_name: &str, node_type: &NifiRole) -> LabelOptionalValueMap {
     let mut node_labels = BTreeMap::new();
     node_labels.insert(
         String::from(APP_COMPONENT_LABEL),
@@ -340,12 +340,12 @@ fn get_node_and_group_labels(group_name: &str, node_type: &NiFiRole) -> LabelOpt
 }
 
 fn build_pod(
-    resource: &NiFiCluster,
+    resource: &NifiCluster,
     node: &str,
     labels: &BTreeMap<String, String>,
     pod_name: &str,
     cm_name: &str,
-    config: &NiFiConfig,
+    config: &NifiConfig,
 ) -> Result<Pod, Error> {
     let pod = Pod {
         metadata: metadata::build_metadata(
@@ -383,12 +383,12 @@ fn build_pod(
     Ok(pod)
 }
 
-fn create_nifi_start_command(_config: &NiFiConfig) -> Vec<String> {
+fn create_nifi_start_command(_config: &NifiConfig) -> Vec<String> {
     // TODO: removed hardcoded version
     let command = vec![String::from("nifi-1.13.2/bin/nifi.sh run")];
     command
 }
 
-fn create_config_file(_config: &NiFiConfig) -> String {
+fn create_config_file(_config: &NifiConfig) -> String {
     format!("")
 }

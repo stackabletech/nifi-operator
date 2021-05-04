@@ -5,7 +5,7 @@ metadata:
 spec:
   group: nifi.stackable.tech
   names:
-    kind: NiFiCluster
+    kind: NifiCluster
     plural: nificlusters
     shortNames:
       - nifi
@@ -16,7 +16,7 @@ spec:
       name: v1
       schema:
         openAPIV3Schema:
-          description: "Auto-generated derived type for NiFiSpec via `CustomResource`"
+          description: "Auto-generated derived type for NifiSpec via `CustomResource`"
           properties:
             spec:
               properties:
@@ -85,9 +85,6 @@ spec:
                   enum:
                     - 1.13.2
                   type: string
-                zookeeperConnectString:
-                  nullable: true
-                  type: string
               required:
                 - nodes
                 - version
@@ -97,7 +94,7 @@ spec:
               type: object
           required:
             - spec
-          title: NiFiCluster
+          title: NifiCluster
           type: object
       served: true
       storage: true
