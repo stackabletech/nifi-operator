@@ -10,13 +10,13 @@ use std::collections::HashMap;
 #[kube(
     group = "nifi.stackable.tech",
     version = "v1",
-    kind = "NiFiCluster",
+    kind = "NifiCluster",
     shortname = "nifi",
     namespaced
 )]
-#[kube(status = "NiFiStatus")]
+#[kube(status = "NifiStatus")]
 #[serde(rename_all = "camelCase")]
-pub struct NiFiSpec {
+pub struct NifiSpec {
     pub version: NiFiVersion,
     pub zookeeper_reference: ZookeeperReference,
     pub nodes: NodeGroup<NiFiConfig>,
@@ -43,18 +43,18 @@ pub struct ZookeeperReference {
     strum_macros::Display,
     strum_macros::EnumString,
 )]
-pub enum NiFiVersion {
+pub enum NifiVersion {
     #[serde(rename = "1.13.2")]
     #[strum(serialize = "1.13.2")]
     v1_13_2,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, Serialize)]
-pub struct NiFiStatus {}
+pub struct NifiStatus {}
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct NodeGroup<T> {
+pub struct RoleGroup<T> {
     pub selectors: HashMap<String, SelectorAndConfig<T>>,
 }
 
@@ -70,13 +70,13 @@ pub struct SelectorAndConfig<T> {
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct NiFiConfig {
+pub struct NifiConfig {
     pub http_port: Option<u16>,
     pub node_protocol_port: Option<u16>,
     pub node_load_balancing_port: Option<u16>,
 }
 
-impl Crd for NiFiCluster {
+impl Crd for NifiCluster {
     const RESOURCE_NAME: &'static str = "nificlusters.nifi.stackable.tech";
     const CRD_DEFINITION: &'static str = include_str!("../../deploy/crd/server.nifi.crd.yaml");
 }
