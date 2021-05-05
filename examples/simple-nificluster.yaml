@@ -23,7 +23,7 @@ spec:
       default2:
         selector:
           matchLabels:
-            kubernetes.io/hostname: mdesktop
+            kubernetes.io/hostname: bawa-virtualbox
         instances: 1
         instancesPerNode: 1
         config:

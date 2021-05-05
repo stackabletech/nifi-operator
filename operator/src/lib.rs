@@ -79,7 +79,12 @@ impl NifiState {
         mandatory_labels
     }
 
-    async fn create_config_map(&self, name: &str, config: &NifiConfig) -> Result<(), Error> {
+    async fn create_config_map(
+        &self,
+        name: &str,
+        config: &NifiConfig,
+        node_name: &str,
+    ) -> Result<(), Error> {
         match self
             .context
             .client
@@ -119,6 +124,7 @@ impl NifiState {
             &self.context.resource.spec,
             config,
             &zookeeper_info.connection_string,
+            node_name,
         );
         let state_management_xml = create_state_management_xml(
             &self.context.resource.spec,
@@ -164,16 +170,6 @@ impl NifiState {
                             continue;
                         }
                     };
-
-                    // Create config map for this role group
-                    let pod_name =
-                        format!("nifi-{}-{}-{}", self.context.name(), role_group, nifi_role)
-                            .to_lowercase();
-
-                    let cm_name = format!("{}-config", pod_name);
-                    debug!("pod_name: [{}], cm_name: [{}]", pod_name, cm_name);
-
-                    self.create_config_map(&cm_name, nifi_config).await?;
 
                     debug!(
                         "Identify missing pods for [{}] role and group [{}]",
@@ -234,6 +230,14 @@ impl NifiState {
                             self.context.resource.spec.version.to_string(),
                         );
 
+                        let pod_name =
+                            format!("nifi-{}-{}-{}", self.context.name(), role_group, nifi_role)
+                                .to_lowercase();
+
+                        // Create config map for this role group
+                        let cm_name = format!("{}-config", pod_name);
+                        debug!("pod_name: [{}], cm_name: [{}]", pod_name, cm_name);
+
                         // Create a pod for this node, role and group combination
                         let pod = build_pod(
                             &self.context.resource,
@@ -243,7 +247,20 @@ impl NifiState {
                             &cm_name,
                             nifi_config,
                         )?;
-                        self.context.client.create(&pod).await?;
+
+                        let created_pod = self.context.client.create(&pod).await?;
+                        info!("Created pod [{:?}]", created_pod);
+
+                        if let Some(spec) = created_pod.spec {
+                            if let Some(node_name) = &spec.node_name {
+                                self.create_config_map(&cm_name, nifi_config, node_name)
+                                    .await?;
+                            } else {
+                                // TODO: error handling
+                                info!("Created pod [{}] has no node name assigned!", pod_name);
+                            }
+                            info!("Created pod [{}] has no spec!", pod_name);
+                        }
                     }
                 }
             }

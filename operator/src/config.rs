@@ -89,7 +89,12 @@ pub fn create_bootstrap_conf() -> String {
     format_properties(bootstrap)
 }
 
-pub fn create_nifi_properties(spec: &NifiSpec, config: &NifiConfig, zk_ref: &str) -> String {
+pub fn create_nifi_properties(
+    spec: &NifiSpec,
+    config: &NifiConfig,
+    zk_ref: &str,
+    node_name: &str,
+) -> String {
     let mut properties = BTreeMap::new();
     // Core Properties
     properties.insert(
@@ -361,9 +366,9 @@ pub fn create_nifi_properties(spec: &NifiSpec, config: &NifiConfig, zk_ref: &str
     );
 
     // Site to Site properties
-    properties.insert("nifi.remote.input.host", "".to_string());
+    properties.insert("nifi.remote.input.host", node_name.to_string());
     properties.insert("nifi.remote.input.secure", "false".to_string());
-    properties.insert("nifi.remote.input.socket.port", "".to_string());
+    properties.insert("nifi.remote.input.socket.port", "9999".to_string());
     properties.insert("nifi.remote.input.http.enabled", "true".to_string());
     properties.insert(
         "nifi.remote.input.http.transaction.ttl",
@@ -380,8 +385,7 @@ pub fn create_nifi_properties(spec: &NifiSpec, config: &NifiConfig, zk_ref: &str
     // For security, NiFi will present the UI on 127.0.0.1 and only be accessible through this loopback interface.
     // Be aware that changing these properties may affect how your instance can be accessed without any restriction.
     // We recommend configuring HTTPS instead. The administrators guide provides instructions on how to do this.
-
-    properties.insert("nifi.web.http.host", "127.0.0.1".to_string());
+    properties.insert("nifi.web.http.host", node_name.to_string());
 
     if let Some(http_port) = &config.http_port {
         properties.insert("nifi.web.http.port", http_port.to_string());
@@ -554,7 +558,7 @@ pub fn create_nifi_properties(spec: &NifiSpec, config: &NifiConfig, zk_ref: &str
 
     // cluster node properties (only configure for cluster nodes)
     properties.insert("nifi.cluster.is.node", "true".to_string());
-    properties.insert("nifi.cluster.node.address", "mdesktop".to_string());
+    properties.insert("nifi.cluster.node.address", node_name.to_string());
     if let Some(node_protocol_port) = &config.node_protocol_port {
         properties.insert(
             "nifi.cluster.node.protocol.port",
@@ -571,11 +575,13 @@ pub fn create_nifi_properties(spec: &NifiSpec, config: &NifiConfig, zk_ref: &str
         "100".to_string(),
     );
     properties.insert("nifi.cluster.firewall.file", "".to_string());
+    // TODO: set to 1 min for testing (default 5)
     properties.insert(
         "nifi.cluster.flow.election.max.wait.time",
-        "5 mins".to_string(),
+        "1 mins".to_string(),
     );
-    properties.insert("nifi.cluster.flow.election.max.candidates", "".to_string());
+    // TODO: set 1 for testing (default empty)
+    properties.insert("nifi.cluster.flow.election.max.candidates", "1".to_string());
 
     // cluster load balancing properties
     properties.insert("nifi.cluster.load.balance.host", "".to_string());
