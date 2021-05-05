@@ -20,12 +20,14 @@ In contrast to the other Stackable operators, the config properties overwrite th
 
 === Zookeeper
 
-The state provider is zookeeper for now.
-Working with versions:
+The state provider is zookeeper for now. The compatible zookeeper operator branch is:
+https://github.com/stackabletech/zookeeper-operator/tree/conn_string[conn_string]
+
+Tested with version:
 
 * 3.5.8
 
-Not working with versions:
+Not working with version:
 
 * 3.4.14
 
