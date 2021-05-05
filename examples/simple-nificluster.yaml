@@ -20,14 +20,14 @@ spec:
           httpPort: 10000
           nodeProtocolPort: 10443
           nodeLoadBalancingPort: 6342
-      default2:
-        selector:
-          matchLabels:
-            kubernetes.io/hostname: bawa-virtualbox
-        instances: 1
-        instancesPerNode: 1
-        config:
-          httpPort: 11000
-          nodeProtocolPort: 11443
-          nodeLoadBalancingPort: 16342
+#      default2:
+#        selector:
+#          matchLabels:
+#            kubernetes.io/hostname: bawa-virtualbox
+#        instances: 1
+#        instancesPerNode: 1
+#        config:
+#          httpPort: 11000
+#          nodeProtocolPort: 11443
+#          nodeLoadBalancingPort: 16342
 
