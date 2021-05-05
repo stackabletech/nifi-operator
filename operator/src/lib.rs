@@ -94,7 +94,7 @@ impl NifiState {
         .await?;
 
         if let Some(chroot) = zk_ref.chroot.as_deref() {
-            stackable_zookeeper_crd::util::is_valid_node(chroot)?;
+            stackable_zookeeper_crd::util::is_valid_zookeeper_path(chroot)?;
         }
 
         debug!(
