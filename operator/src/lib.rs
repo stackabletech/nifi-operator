@@ -97,7 +97,7 @@ impl NifiState {
             stackable_zookeeper_crd::util::is_valid_node(chroot)?;
         }
 
-        info!(
+        debug!(
             "Received zookeeper connect string: [{}]",
             &zookeeper_info.connection_string
         );
@@ -128,13 +128,13 @@ impl NifiState {
             Ok(config_map) => {
                 if let Some(existing_config_map_data) = config_map.data {
                     if existing_config_map_data == data {
-                        info!(
+                        debug!(
                             "ConfigMap [{}] already exists with identical data, skipping creation!",
                             cm_name
                         );
                         return Ok(());
                     } else {
-                        info!(
+                        debug!(
                             "ConfigMap [{}] already exists, but differs, recreating it!",
                             cm_name
                         );
@@ -170,7 +170,7 @@ impl NifiState {
             let spec = match &pod.spec {
                 Some(spec) => spec,
                 None => {
-                    info!("Pod [{}] has no spec set yet. Waiting...!", &pod_name);
+                    debug!("Pod [{}] has no spec set yet. Waiting...!", &pod_name);
                     return Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(10)));
                 }
             };
@@ -178,7 +178,7 @@ impl NifiState {
             let node_name = match &spec.node_name {
                 Some(node_name) => node_name,
                 None => {
-                    info!("Pod [{}] has no node_name set yet. Waiting...", &pod_name);
+                    debug!("Pod [{}] has no node_name set yet. Waiting...", &pod_name);
                     return Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(10)));
                 }
             };
@@ -201,7 +201,7 @@ impl NifiState {
                     self.create_config_map(&cm_name, &config, node_name).await?
                 }
                 None => {
-                    error!("Role group [{}] does not have a config. Please check your custom resource!", role_group);
+                    error!("Role group [{}] does not have a config. This is a bug and should not happen!", role_group);
                     continue;
                 }
             };
