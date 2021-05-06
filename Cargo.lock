@@ -1398,6 +1398,7 @@ dependencies = [
  "serde",
  "serde_json",
  "stackable-operator",
+ "stackable-zookeeper-crd",
  "strum",
  "strum_macros",
 ]
@@ -1466,7 +1467,7 @@ dependencies = [
 [[package]]
 name = "stackable-zookeeper-crd"
 version = "0.1.0"
-source = "git+https://github.com/stackabletech/zookeeper-operator.git?branch=conn_string#505da4603ee3017208e54f169ef53677a6e6fcb9"
+source = "git+https://github.com/stackabletech/zookeeper-operator.git?branch=main#b51cdf3884cd248995f959a9c1e24fb6a6ed66aa"
 dependencies = [
  "k8s-openapi",
  "kube",

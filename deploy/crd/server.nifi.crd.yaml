@@ -5,7 +5,7 @@ metadata:
 spec:
   group: nifi.stackable.tech
   names:
-    kind: NiFiCluster
+    kind: NifiCluster
     plural: nificlusters
     shortNames:
       - nifi
@@ -16,7 +16,7 @@ spec:
       name: v1
       schema:
         openAPIV3Schema:
-          description: "Auto-generated derived type for NiFiSpec via `CustomResource`"
+          description: "Auto-generated derived type for NifiSpec via `CustomResource`"
           properties:
             spec:
               properties:
@@ -96,6 +96,7 @@ spec:
                     - 1.13.2
                   type: string
                 zookeeperReference:
+                  description: Contains all necessary information identify a Stackable managed ZooKeeper ensemble and build a connection string for it. The main purpose for this struct is for other operators that need to reference a ZooKeeper ensemble to use in their CRDs. This has the benefit of keeping references to ZooKeeper ensembles consistent throughout the entire stack.
                   properties:
                     chroot:
                       nullable: true
@@ -118,7 +119,7 @@ spec:
               type: object
           required:
             - spec
-          title: NiFiCluster
+          title: NifiCluster
           type: object
       served: true
       storage: true

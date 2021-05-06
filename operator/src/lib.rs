@@ -10,7 +10,7 @@ use futures::Future;
 use k8s_openapi::api::core::v1::{ConfigMap, Node, Pod};
 use kube::api::ListParams;
 use kube::Api;
-use stackable_nifi_crd::{NifiCluster, NifiConfig, NifiSpec, ZookeeperReference};
+use stackable_nifi_crd::{NifiCluster, NifiConfig, NifiSpec};
 use stackable_operator::client::Client;
 use stackable_operator::controller::{Controller, ControllerStrategy, ReconciliationState};
 use stackable_operator::k8s_utils::LabelOptionalValueMap;
@@ -82,20 +82,22 @@ impl NifiState {
         config: &NifiConfig,
         node_name: &str,
     ) -> Result<(), Error> {
-        let zk_ref: &ZookeeperReference = &self.context.resource.spec.zookeeper_reference;
-
-        // retrieve zookeeper connect string
-        let zookeeper_info = stackable_zookeeper_crd::util::get_zk_connection_info(
-            &self.context.client,
-            &zk_ref.name,
-            &zk_ref.namespace,
-            None,
-        )
-        .await?;
+        let mut zk_ref: stackable_zookeeper_crd::util::ZookeeperReference =
+            self.context.resource.spec.zookeeper_reference.clone();
 
         if let Some(chroot) = zk_ref.chroot.as_deref() {
             stackable_zookeeper_crd::util::is_valid_zookeeper_path(chroot)?;
         }
+
+        // retrieve zookeeper connect string
+        // we have to remove the chroot to only get the url and port
+        // nifi has its own config properties for the chroot and fails if the
+        // connect string is passed like: zookeeper_node:2181/nifi
+        zk_ref.chroot = None;
+
+        let zookeeper_info =
+            stackable_zookeeper_crd::util::get_zk_connection_info(&self.context.client, &zk_ref)
+                .await?;
 
         debug!(
             "Received zookeeper connect string: [{}]",

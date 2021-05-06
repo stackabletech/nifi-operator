@@ -18,16 +18,8 @@ use std::collections::HashMap;
 #[serde(rename_all = "camelCase")]
 pub struct NifiSpec {
     pub version: NifiVersion,
-    pub zookeeper_reference: ZookeeperReference,
+    pub zookeeper_reference: stackable_zookeeper_crd::util::ZookeeperReference,
     pub nodes: RoleGroup<NifiConfig>,
-}
-
-#[derive(Clone, Debug, Default, Deserialize, JsonSchema, Serialize)]
-pub struct ZookeeperReference {
-    pub name: String,
-    // TODO: Option and default to "default"?
-    pub namespace: String,
-    pub chroot: Option<String>,
 }
 
 #[allow(non_camel_case_types)]
