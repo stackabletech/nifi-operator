@@ -1,5 +1,5 @@
 apiVersion: nifi.stackable.tech/v1
-kind: NiFiCluster
+kind: NifiCluster
 metadata:
 name: simple-nificluster
 spec:

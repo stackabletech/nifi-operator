@@ -18,9 +18,9 @@ For now this operator works only with a special branch of the Stackable Agent: h
 
 In contrast to the other Stackable operators, the config properties overwrite the property files (bootstrap.conf, nifi.properties...) in the deployed Apache NiFi package structure. There is no extra config directory.
 
-=== Zookeeper
+=== ZooKeeper
 
-The state provider is zookeeper.
+The state provider is ZooKeeper.
 
 Tested with version:
 
@@ -35,37 +35,40 @@ Not working with version:
 
 The cluster is configured via a YAML file.
 
-  apiVersion: nifi.stackable.tech/v1
-  kind: NiFiCluster
-  metadata:
-  name: simple-nificluster
-  spec:
-    version: "1.13.2"
-    zookeeperReference:
-      name: simple
-      namespace: default
-      chroot: /nifi
-    nodes:
-      selectors:
-        default:
-          selector:
-            matchLabels:
-              kubernetes.io/hostname: nifi-node-1
-            instances: 1
-            instancesPerNode: 1
-            config:
-              httpPort: 10000
-              nodeProtocolPort: 10443
-              nodeLoadBalancingPort: 6342
-        default2:
-          selector:
-            matchLabels:
-              kubernetes.io/hostname: nifi-node-2
-            instances: 1
-            instancesPerNode: 1
-            config:
-              httpPort: 11000
-              nodeProtocolPort: 11443
-              nodeLoadBalancingPort: 16342
+[source,yaml]
+----
 
+apiVersion: nifi.stackable.tech/v1
+kind: NiFiCluster
+metadata:
+name: simple-nificluster
+spec:
+version: "1.13.2"
+zookeeperReference:
+  name: simple
+  namespace: default
+  chroot: /nifi
+nodes:
+  selectors:
+    default:
+      selector:
+        matchLabels:
+          kubernetes.io/hostname: nifi-node-1
+        instances: 1
+        instancesPerNode: 1
+        config:
+          httpPort: 10000
+          nodeProtocolPort: 10443
+          nodeLoadBalancingPort: 6342
+    default2:
+      selector:
+        matchLabels:
+          kubernetes.io/hostname: nifi-node-2
+        instances: 1
+        instancesPerNode: 1
+        config:
+          httpPort: 11000
+          nodeProtocolPort: 11443
+          nodeLoadBalancingPort: 16342
+----
 As of now only some port settings are available.

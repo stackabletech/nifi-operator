@@ -3,7 +3,7 @@ name = "stackable-nifi-operator"
 version = "0.1.0"
 authors = ["Malte Sander <malte.sander.it@gmail.com>"]
 edition = "2018"
-description = "Kubernetes Operator library to deal with Apache NiFi custom resources"
+description = "Kubernetes Operator library to handle Apache NiFi custom resources"
 license = "OSL-3.0"
 
 [dependencies]
@@ -18,8 +18,9 @@ kube = { version = "0.52", default-features = false, features = ["jsonpatch"] }
 kube-runtime = "0.52"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-thiserror = "1.0"
-tokio = { version = "1.5", features = ["macros"] }
-tracing = "0.1"
 strum = "0.20"
 strum_macros = "0.20"
+thiserror = "1.0"
+tokio = { version = "1", features = ["macros"] }
+tracing = "0.1"
+

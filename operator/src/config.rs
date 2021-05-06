@@ -1,7 +1,11 @@
 use stackable_nifi_crd::{NifiConfig, NifiSpec};
 use std::collections::BTreeMap;
 
-pub fn create_bootstrap_conf() -> String {
+/// Create the NiFi bootstrap.conf
+// TODO:
+//    1) create from product-conf and return the hashmap for better testing
+//    2) adapt all directories to separated config and data directories
+pub fn build_bootstrap_conf() -> String {
     let mut bootstrap = BTreeMap::new();
     // Java command to use when running NiFi
     bootstrap.insert("java", "java".to_string());
@@ -73,7 +77,6 @@ pub fn create_bootstrap_conf() -> String {
     //bootstrap.insert("java.arg.19", "-Daj.weaving.loadersToSkip=sun.misc.Launcher$AppClassLoader,jdk.internal.loader.ClassLoaders$AppClassLoader,org.eclipse.jetty.webapp.WebAppClassLoader,org.apache.jasper.servlet.JasperLoader,org.jvnet.hk2.internal.DelegatingClassLoader,org.apache.nifi.nar.NarClassLoader".to_string());
 
     // XML File that contains the definitions of the notification services
-    // TODO: adapt "conf" to {{configroot}}
     //bootstrap.insert(
     //    "notification.services.file",
     //    "./conf/bootstrap-notification-services.xml".to_string(),
@@ -89,7 +92,11 @@ pub fn create_bootstrap_conf() -> String {
     format_properties(bootstrap)
 }
 
-pub fn create_nifi_properties(
+/// Create the NiFi nifi.properties
+// TODO:
+//    1) create from product-conf and return the hashmap for better testing
+//    2) adapt all directories to separated config and data directories
+pub fn build_nifi_properties(
     spec: &NifiSpec,
     config: &NifiConfig,
     zk_ref: &str,
@@ -679,45 +686,37 @@ pub fn create_nifi_properties(
     format_properties(properties)
 }
 
-pub fn create_state_management_xml(spec: &NifiSpec, zk_ref: &str) -> String {
-    let mut state_management = String::new();
-
-    state_management.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n");
-    state_management.push_str("<stateManagement>\n");
-
-    state_management.push_str("  <local-provider>\n");
-    state_management.push_str("    <id>local-provider</id>\n");
-    state_management.push_str("    <class>org.apache.nifi.controller.state.providers.local.WriteAheadLocalStateProvider</class>\n");
-    state_management.push_str("    <property name=\"Directory\">./state/local</property>\n");
-    state_management.push_str("    <property name=\"Always Sync\">false</property>\n");
-    state_management.push_str("    <property name=\"Partitions\">16</property>\n");
-    state_management.push_str("    <property name=\"Checkpoint Interval\">2 mins</property>\n");
-    state_management.push_str("  </local-provider>\n");
-
-    state_management.push_str("  <cluster-provider>\n");
-    state_management.push_str("    <id>zk-provider</id>\n");
-    state_management.push_str("    <class>org.apache.nifi.controller.state.providers.zookeeper.ZooKeeperStateProvider</class>\n");
-    // TODO: adapt connect string
-    state_management.push_str(&format!(
-        "    <property name=\"Connect String\">{}</property>\n",
-        zk_ref
-    ));
-    state_management.push_str(&format!(
-        "    <property name=\"Root Node\">{}</property>\n",
+pub fn build_state_management_xml(spec: &NifiSpec, zk_ref: &str) -> String {
+    format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
+        <stateManagement>
+          <local-provider>
+          <id>local-provider</id>
+            <class>org.apache.nifi.controller.state.providers.local.WriteAheadLocalStateProvider</class>
+            <property name=\"Directory\">./state/local</property>
+            <property name=\"Always Sync\">false</property>
+            <property name=\"Partitions\">16</property>
+            <property name=\"Checkpoint Interval\">2 mins</property>
+          </local-provider>
+          <cluster-provider>
+            <id>zk-provider</id>
+            <class>org.apache.nifi.controller.state.providers.zookeeper.ZooKeeperStateProvider</class>
+            <property name=\"Connect String\">{}</property>
+            <property name=\"Root Node\">{}</property>
+            <property name=\"Session Timeout\">10 seconds</property>
+            <property name=\"Access Control\">Open</property>
+          </cluster-provider>
+        </stateManagement>",
+        zk_ref,
         &spec
             .zookeeper_reference
             .chroot
             .clone()
             .unwrap_or_else(|| "".to_string())
-    ));
-    state_management.push_str("    <property name=\"Session Timeout\">10 seconds</property>\n");
-    state_management.push_str("    <property name=\"Access Control\">Open</property>\n");
-    state_management.push_str("  </cluster-provider>\n");
-
-    state_management.push_str("</stateManagement>\n");
-    state_management
+    )
 }
 
+// TODO: Use crate like https://crates.io/crates/java-properties to have save handling of escapes etc.
 fn format_properties(properties: BTreeMap<&str, String>) -> String {
     let mut result = String::new();
 

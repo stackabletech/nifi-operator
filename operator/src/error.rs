@@ -18,7 +18,7 @@ pub enum Error {
         source: serde_json::Error,
     },
 
-    #[error("Error from zookeeper: {source}")]
+    #[error("Error from ZooKeeper: {source}")]
     ZookeeperError {
         #[from]
         source: stackable_zookeeper_crd::error::Error,

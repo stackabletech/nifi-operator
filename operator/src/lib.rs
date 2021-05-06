@@ -2,7 +2,7 @@ mod config;
 mod error;
 mod pod_utils;
 
-use crate::config::{create_bootstrap_conf, create_nifi_properties, create_state_management_xml};
+use crate::config::{build_bootstrap_conf, build_nifi_properties, build_state_management_xml};
 use crate::error::Error;
 use crate::pod_utils::build_labels;
 use async_trait::async_trait;
@@ -14,7 +14,7 @@ use stackable_nifi_crd::{NifiCluster, NifiConfig, NifiSpec};
 use stackable_operator::client::Client;
 use stackable_operator::controller::{Controller, ControllerStrategy, ReconciliationState};
 use stackable_operator::k8s_utils::LabelOptionalValueMap;
-use stackable_operator::labels::{APP_COMPONENT_LABEL, APP_INSTANCE_LABEL, APP_ROLE_GROUP_LABEL};
+use stackable_operator::labels;
 use stackable_operator::reconcile::{
     ContinuationStrategy, ReconcileFunctionAction, ReconcileResult, ReconciliationContext,
 };
@@ -71,17 +71,17 @@ impl NifiState {
             .collect::<Vec<_>>();
         let mut mandatory_labels = BTreeMap::new();
 
-        mandatory_labels.insert(String::from(APP_COMPONENT_LABEL), Some(roles));
-        mandatory_labels.insert(String::from(APP_INSTANCE_LABEL), None);
+        mandatory_labels.insert(String::from(labels::APP_COMPONENT_LABEL), Some(roles));
+        mandatory_labels.insert(String::from(labels::APP_INSTANCE_LABEL), None);
         mandatory_labels
     }
 
-    async fn create_config_map(
+    async fn build_config_map(
         &self,
         cm_name: &str,
         config: &NifiConfig,
         node_name: &str,
-    ) -> Result<(), Error> {
+    ) -> Result<Option<ConfigMap>, Error> {
         let mut zk_ref: stackable_zookeeper_crd::util::ZookeeperReference =
             self.context.resource.spec.zookeeper_reference.clone();
 
@@ -100,18 +100,18 @@ impl NifiState {
                 .await?;
 
         debug!(
-            "Received zookeeper connect string: [{}]",
+            "Received ZooKeeper connect string: [{}]",
             &zookeeper_info.connection_string
         );
 
-        let bootstrap_conf = create_bootstrap_conf();
-        let nifi_properties = create_nifi_properties(
+        let bootstrap_conf = build_bootstrap_conf();
+        let nifi_properties = build_nifi_properties(
             &self.context.resource.spec,
             config,
             &zookeeper_info.connection_string,
             node_name,
         );
-        let state_management_xml = create_state_management_xml(
+        let state_management_xml = build_state_management_xml(
             &self.context.resource.spec,
             &zookeeper_info.connection_string,
         );
@@ -124,7 +124,7 @@ impl NifiState {
         match self
             .context
             .client
-            .get::<ConfigMap>(cm_name, Some(&"default".to_string()))
+            .get::<ConfigMap>(cm_name, Some(&self.context.namespace()))
             .await
         {
             Ok(config_map) => {
@@ -134,7 +134,7 @@ impl NifiState {
                             "ConfigMap [{}] already exists with identical data, skipping creation!",
                             cm_name
                         );
-                        return Ok(());
+                        return Ok(None);
                     } else {
                         debug!(
                             "ConfigMap [{}] already exists, but differs, recreating it!",
@@ -155,61 +155,8 @@ impl NifiState {
             &cm_name,
             data,
         )?;
-        self.context.client.create(&cm).await?;
-        Ok(())
-    }
 
-    async fn wait_for_host_name_and_create_config_map(&self) -> NifiReconcileResult {
-        for pod in &self.existing_pods {
-            let pod_name = match &pod.metadata.name {
-                Some(name) => name,
-                None => {
-                    error!("Pod has no name set. This should not happen!");
-                    return Ok(ReconcileFunctionAction::Done);
-                }
-            };
-
-            let spec = match &pod.spec {
-                Some(spec) => spec,
-                None => {
-                    debug!("Pod [{}] has no spec set yet. Waiting...!", &pod_name);
-                    return Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(10)));
-                }
-            };
-
-            let node_name = match &spec.node_name {
-                Some(node_name) => node_name,
-                None => {
-                    debug!("Pod [{}] has no node_name set yet. Waiting...", &pod_name);
-                    return Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(10)));
-                }
-            };
-
-            let role_group = match pod_utils::get_pod_label(pod, APP_ROLE_GROUP_LABEL) {
-                Some(role_group) => role_group,
-                None => {
-                    error!(
-                        "Pod is missing label [{}]. This is a bug and should not happen!",
-                        APP_ROLE_GROUP_LABEL
-                    );
-                    continue;
-                }
-            };
-
-            match pod_utils::get_selector_config(&role_group, &self.context.resource.spec) {
-                Some(config) => {
-                    let cm_name = format!("{}-config", &pod_name);
-                    debug!("Creating config map [{}] for pod [{}]", cm_name, pod_name);
-                    self.create_config_map(&cm_name, &config, node_name).await?
-                }
-                None => {
-                    error!("Role group [{}] does not have a config. This is a bug and should not happen!", role_group);
-                    continue;
-                }
-            };
-        }
-
-        Ok(ReconcileFunctionAction::Continue)
+        Ok(Some(cm))
     }
 
     async fn create_missing_pods(&mut self) -> NifiReconcileResult {
@@ -269,9 +216,12 @@ impl NifiState {
                             role_group
                         );
 
-                        let version = self.context.resource.spec.version.to_string();
-                        let labels =
-                            build_labels(&nifi_role, role_group, &self.context.name(), &version);
+                        let labels = build_labels(
+                            &nifi_role,
+                            role_group,
+                            &self.context.name(),
+                            &self.context.resource.spec.version.to_string(),
+                        );
 
                         let pod_name =
                             format!("nifi-{}-{}-{}", self.context.name(), role_group, nifi_role)
@@ -287,11 +237,22 @@ impl NifiState {
                             node_name,
                             &pod_name,
                             &cm_name,
-                            &version,
                             labels,
                         )?;
 
                         self.context.client.create(&pod).await?;
+
+                        if let Some(config) =
+                            pod_utils::get_selector_config(&role_group, &self.context.resource.spec)
+                        {
+                            if let Some(cm) =
+                                self.build_config_map(&cm_name, &config, node_name).await?
+                            {
+                                self.context.client.create(&cm).await?;
+                            }
+                        } else {
+                            error!("Role group [{}] does not have a config. This is a bug and should not happen!", role_group);
+                        }
                     }
                 }
             }
@@ -317,8 +278,6 @@ impl ReconciliationState for NifiState {
                     &self.get_deletion_labels(),
                     ContinuationStrategy::OneRequeue,
                 )
-                .await?
-                .then(self.wait_for_host_name_and_create_config_map())
                 .await?
                 .then(
                     self.context
@@ -417,9 +376,12 @@ pub async fn create_controller(client: Client) {
 
 fn get_node_and_group_labels(group_name: &str, role: &NifiRole) -> LabelOptionalValueMap {
     let mut node_labels = BTreeMap::new();
-    node_labels.insert(String::from(APP_COMPONENT_LABEL), Some(role.to_string()));
     node_labels.insert(
-        String::from(APP_ROLE_GROUP_LABEL),
+        String::from(labels::APP_COMPONENT_LABEL),
+        Some(role.to_string()),
+    );
+    node_labels.insert(
+        String::from(labels::APP_ROLE_GROUP_LABEL),
         Some(String::from(group_name)),
     );
     node_labels
