@@ -76,6 +76,16 @@ impl NifiState {
         mandatory_labels
     }
 
+    /// Builds and checks the existence of a config map in multiple steps.
+    /// 1) Validate the provided ZookeeperReference from the custom resource
+    /// 2) Retrieve the ZooKeeper connection string
+    /// 3) Create the desired config map data using the config properties and ZooKeeper connection string
+    /// 4) Check if a config map with identical name exists
+    ///     * if so compare the data content of the created and existing config map
+    ///         - if identical return None (signals nothing needs to be created)
+    ///         - if differing build the config map with the new data and return it
+    ///     * if no config map found, build the config map with the new data and return it
+    ///  
     async fn build_config_map(
         &self,
         cm_name: &str,
@@ -242,9 +252,15 @@ impl NifiState {
 
                         self.context.client.create(&pod).await?;
 
+                        // we need a NifiConfig to create proper config map data
                         if let Some(config) =
                             pod_utils::get_selector_config(&role_group, &self.context.resource.spec)
                         {
+                            // build_config_map returns an Option<ConfigMap>:
+                            // None signals that a config map with identical name and data already exists -> nothing to be done
+                            // Some(ConfigMap) is returned if the config map either does not exists yet or the data differs -> create/override it
+                            // TODO: after the review i actually do not like the flow of that. Returning None if everything is ok does
+                            //    not make that much sense to me. Needs improvement.
                             if let Some(cm) =
                                 self.build_config_map(&cm_name, &config, node_name).await?
                             {
