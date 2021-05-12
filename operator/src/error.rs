@@ -18,6 +18,9 @@ pub enum Error {
         source: serde_json::Error,
     },
 
-    #[error("No selector found for role group: {role_group}")]
-    RoleGroupSelectorMissing { role_group: String },
+    #[error("Error from ZooKeeper: {source}")]
+    ZookeeperError {
+        #[from]
+        source: stackable_zookeeper_crd::error::Error,
+    },
 }

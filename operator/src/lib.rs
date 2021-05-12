@@ -1,31 +1,32 @@
+mod config;
 mod error;
+mod pod_utils;
+
+use crate::config::{build_bootstrap_conf, build_nifi_properties, build_state_management_xml};
 use crate::error::Error;
+use crate::pod_utils::build_labels;
 use async_trait::async_trait;
 use futures::Future;
-use k8s_openapi::api::core::v1::{
-    ConfigMap, ConfigMapVolumeSource, Container, Node, Pod, PodSpec, Volume, VolumeMount,
-};
+use k8s_openapi::api::core::v1::{ConfigMap, Node, Pod};
 use kube::api::ListParams;
 use kube::Api;
 use stackable_nifi_crd::{NifiCluster, NifiConfig, NifiSpec};
 use stackable_operator::client::Client;
 use stackable_operator::controller::{Controller, ControllerStrategy, ReconciliationState};
 use stackable_operator::k8s_utils::LabelOptionalValueMap;
-use stackable_operator::labels::{
-    APP_COMPONENT_LABEL, APP_INSTANCE_LABEL, APP_ROLE_GROUP_LABEL, APP_VERSION_LABEL,
-};
+use stackable_operator::labels;
 use stackable_operator::reconcile::{
     ContinuationStrategy, ReconcileFunctionAction, ReconcileResult, ReconciliationContext,
 };
 use stackable_operator::role_utils::RoleGroup;
-use stackable_operator::{k8s_utils, metadata, role_utils};
+use stackable_operator::{k8s_utils, role_utils};
 use std::collections::{BTreeMap, HashMap};
 use std::pin::Pin;
 use std::time::Duration;
 use strum::IntoEnumIterator;
 use strum_macros::Display;
 use strum_macros::EnumIter;
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 
 type NifiReconcileResult = ReconcileResult<error::Error>;
 
@@ -70,40 +71,102 @@ impl NifiState {
             .collect::<Vec<_>>();
         let mut mandatory_labels = BTreeMap::new();
 
-        mandatory_labels.insert(String::from(APP_COMPONENT_LABEL), Some(roles));
-        mandatory_labels.insert(String::from(APP_INSTANCE_LABEL), None);
+        mandatory_labels.insert(String::from(labels::APP_COMPONENT_LABEL), Some(roles));
+        mandatory_labels.insert(String::from(labels::APP_INSTANCE_LABEL), None);
         mandatory_labels
     }
 
-    async fn create_config_map(&self, name: &str, config: &NifiConfig) -> Result<(), Error> {
+    /// Builds and checks the existence of a config map in multiple steps.
+    /// 1) Validate the provided ZookeeperReference from the custom resource
+    /// 2) Retrieve the ZooKeeper connection string
+    /// 3) Create the desired config map data using the config properties and ZooKeeper connection string
+    /// 4) Check if a config map with identical name exists
+    ///     * if so compare the data content of the created and existing config map
+    ///         - if identical return None (signals nothing needs to be created)
+    ///         - if differing build the config map with the new data and return it
+    ///     * if no config map found, build the config map with the new data and return it
+    ///  
+    async fn build_config_map(
+        &self,
+        cm_name: &str,
+        config: &NifiConfig,
+        node_name: &str,
+    ) -> Result<Option<ConfigMap>, Error> {
+        let mut zk_ref: stackable_zookeeper_crd::util::ZookeeperReference =
+            self.context.resource.spec.zookeeper_reference.clone();
+
+        if let Some(chroot) = zk_ref.chroot.as_deref() {
+            stackable_zookeeper_crd::util::is_valid_zookeeper_path(chroot)?;
+        }
+
+        // retrieve zookeeper connect string
+        // we have to remove the chroot to only get the url and port
+        // nifi has its own config properties for the chroot and fails if the
+        // connect string is passed like: zookeeper_node:2181/nifi
+        zk_ref.chroot = None;
+
+        let zookeeper_info =
+            stackable_zookeeper_crd::util::get_zk_connection_info(&self.context.client, &zk_ref)
+                .await?;
+
+        debug!(
+            "Received ZooKeeper connect string: [{}]",
+            &zookeeper_info.connection_string
+        );
+
+        let bootstrap_conf = build_bootstrap_conf();
+        let nifi_properties = build_nifi_properties(
+            &self.context.resource.spec,
+            config,
+            &zookeeper_info.connection_string,
+            node_name,
+        );
+        let state_management_xml = build_state_management_xml(
+            &self.context.resource.spec,
+            &zookeeper_info.connection_string,
+        );
+
+        let mut data = BTreeMap::new();
+        data.insert("bootstrap.conf".to_string(), bootstrap_conf);
+        data.insert("nifi.properties".to_string(), nifi_properties);
+        data.insert("state-management.xml".to_string(), state_management_xml);
+
         match self
             .context
             .client
-            .get::<ConfigMap>(name, Some(&"default".to_string()))
+            .get::<ConfigMap>(cm_name, Some(&self.context.namespace()))
             .await
         {
-            // TODO: check and compare content here
-            Ok(_) => {
-                debug!("ConfigMap [{}] already exists, skipping creation!", name);
-                return Ok(());
+            Ok(config_map) => {
+                if let Some(existing_config_map_data) = config_map.data {
+                    if existing_config_map_data == data {
+                        debug!(
+                            "ConfigMap [{}] already exists with identical data, skipping creation!",
+                            cm_name
+                        );
+                        return Ok(None);
+                    } else {
+                        debug!(
+                            "ConfigMap [{}] already exists, but differs, recreating it!",
+                            cm_name
+                        );
+                    }
+                }
             }
             Err(e) => {
                 // TODO: This is shit, but works for now. If there is an actual error in comes with
                 //   K8S, it will most probably also occur further down and be properly handled
-                debug!("Error getting ConfigMap [{}]: [{:?}]", name, e);
+                debug!("Error getting ConfigMap [{}]: [{:?}]", cm_name, e);
             }
         }
 
-        let config = create_config_file(config);
+        let cm = stackable_operator::config_map::create_config_map(
+            &self.context.resource,
+            &cm_name,
+            data,
+        )?;
 
-        let mut data = BTreeMap::new();
-        data.insert("nifi.properties".to_string(), config);
-
-        // And now create the actual ConfigMap
-        let cm =
-            stackable_operator::config_map::create_config_map(&self.context.resource, &name, data)?;
-        self.context.client.create(&cm).await?;
-        Ok(())
+        Ok(Some(cm))
     }
 
     async fn create_missing_pods(&mut self) -> NifiReconcileResult {
@@ -115,27 +178,6 @@ impl NifiState {
         for nifi_role in NifiRole::iter() {
             if let Some(nodes_for_role) = self.eligible_nodes.get(&nifi_role) {
                 for (role_group, nodes) in nodes_for_role {
-                    // extract selector for nifi config
-                    let nifi_config =
-                        match self.context.resource.spec.nodes.selectors.get(role_group) {
-                            Some(selector) => &selector.config,
-                            None => {
-                                return Err(Error::RoleGroupSelectorMissing {
-                                    role_group: role_group.to_string(),
-                                })
-                            }
-                        };
-
-                    // Create config map for this role group
-                    let pod_name =
-                        format!("nifi-{}-{}-{}", self.context.name(), role_group, nifi_role)
-                            .to_lowercase();
-
-                    let cm_name = format!("{}-config", pod_name);
-                    debug!("pod_name: [{}], cm_name: [{}]", pod_name, cm_name);
-
-                    self.create_config_map(&cm_name, nifi_config).await?;
-
                     debug!(
                         "Identify missing pods for [{}] role and group [{}]",
                         nifi_role, role_group
@@ -184,27 +226,49 @@ impl NifiState {
                             role_group
                         );
 
-                        let mut node_labels = BTreeMap::new();
-                        node_labels
-                            .insert(String::from(APP_COMPONENT_LABEL), nifi_role.to_string());
-                        node_labels
-                            .insert(String::from(APP_ROLE_GROUP_LABEL), String::from(role_group));
-                        node_labels.insert(String::from(APP_INSTANCE_LABEL), self.context.name());
-                        node_labels.insert(
-                            String::from(APP_VERSION_LABEL),
-                            self.context.resource.spec.version.to_string(),
+                        let labels = build_labels(
+                            &nifi_role,
+                            role_group,
+                            &self.context.name(),
+                            &self.context.resource.spec.version.to_string(),
                         );
 
+                        let pod_name =
+                            format!("nifi-{}-{}-{}", self.context.name(), role_group, nifi_role)
+                                .to_lowercase();
+
+                        // Create config map for this role group
+                        let cm_name = format!("{}-config", pod_name);
+                        debug!("pod_name: [{}], cm_name: [{}]", pod_name, cm_name);
+
                         // Create a pod for this node, role and group combination
-                        let pod = build_pod(
+                        let pod = pod_utils::build_pod(
                             &self.context.resource,
                             node_name,
-                            &node_labels,
                             &pod_name,
                             &cm_name,
-                            nifi_config,
+                            labels,
                         )?;
+
                         self.context.client.create(&pod).await?;
+
+                        // we need a NifiConfig to create proper config map data
+                        if let Some(config) =
+                            pod_utils::get_selector_config(&role_group, &self.context.resource.spec)
+                        {
+                            // build_config_map returns an Option<ConfigMap>:
+                            // None signals that a config map with identical name and data already exists -> nothing to be done
+                            // Some(ConfigMap) is returned if the config map either does not exists yet or the data differs -> create/override it
+                            // TODO: after the review i actually do not like the flow of that. Returning None if everything is ok does
+                            //    not make that much sense to me. Needs improvement.
+                            if let Some(cm) =
+                                self.build_config_map(&cm_name, &config, node_name).await?
+                            {
+                                self.context.client.create(&cm).await?;
+                            }
+                        } else {
+                            error!("Role group [{}] does not have a config. This is a bug and should not happen!", role_group);
+                        }
                     }
                 }
             }
@@ -326,69 +390,15 @@ pub async fn create_controller(client: Client) {
         .await;
 }
 
-fn get_node_and_group_labels(group_name: &str, node_type: &NifiRole) -> LabelOptionalValueMap {
+fn get_node_and_group_labels(group_name: &str, role: &NifiRole) -> LabelOptionalValueMap {
     let mut node_labels = BTreeMap::new();
     node_labels.insert(
-        String::from(APP_COMPONENT_LABEL),
-        Some(node_type.to_string()),
+        String::from(labels::APP_COMPONENT_LABEL),
+        Some(role.to_string()),
     );
     node_labels.insert(
-        String::from(APP_ROLE_GROUP_LABEL),
+        String::from(labels::APP_ROLE_GROUP_LABEL),
         Some(String::from(group_name)),
     );
     node_labels
-}
-
-fn build_pod(
-    resource: &NifiCluster,
-    node: &str,
-    labels: &BTreeMap<String, String>,
-    pod_name: &str,
-    cm_name: &str,
-    config: &NifiConfig,
-) -> Result<Pod, Error> {
-    let pod = Pod {
-        metadata: metadata::build_metadata(
-            pod_name.to_string(),
-            Some(labels.clone()),
-            resource,
-            false,
-        )?,
-        spec: Some(PodSpec {
-            node_name: Some(node.to_string()),
-            tolerations: Some(stackable_operator::krustlet::create_tolerations()),
-            containers: vec![Container {
-                image: Some(format!("nifi:{}", resource.spec.version.to_string())),
-                name: "nifi".to_string(),
-                command: Some(create_nifi_start_command(config)),
-                volume_mounts: Some(vec![VolumeMount {
-                    mount_path: "config".to_string(),
-                    name: "config-volume".to_string(),
-                    ..VolumeMount::default()
-                }]),
-                ..Container::default()
-            }],
-            volumes: Some(vec![Volume {
-                name: "config-volume".to_string(),
-                config_map: Some(ConfigMapVolumeSource {
-                    name: Some(cm_name.to_string()),
-                    ..ConfigMapVolumeSource::default()
-                }),
-                ..Volume::default()
-            }]),
-            ..PodSpec::default()
-        }),
-        ..Pod::default()
-    };
-    Ok(pod)
-}
-
-fn create_nifi_start_command(_config: &NifiConfig) -> Vec<String> {
-    // TODO: removed hardcoded version
-    let command = vec![String::from("nifi-1.13.2/bin/nifi.sh run")];
-    command
-}
-
-fn create_config_file(_config: &NifiConfig) -> String {
-    format!("")
 }

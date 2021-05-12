@@ -27,7 +27,17 @@ spec:
                         properties:
                           config:
                             properties:
-                              port:
+                              httpPort:
+                                format: uint16
+                                minimum: 0.0
+                                nullable: true
+                                type: integer
+                              nodeLoadBalancingPort:
+                                format: uint16
+                                minimum: 0.0
+                                nullable: true
+                                type: integer
+                              nodeProtocolPort:
                                 format: uint16
                                 minimum: 0.0
                                 nullable: true
@@ -85,9 +95,24 @@ spec:
                   enum:
                     - 1.13.2
                   type: string
+                zookeeperReference:
+                  description: Contains all necessary information identify a Stackable managed ZooKeeper ensemble and build a connection string for it. The main purpose for this struct is for other operators that need to reference a ZooKeeper ensemble to use in their CRDs. This has the benefit of keeping references to ZooKeeper ensembles consistent throughout the entire stack.
+                  properties:
+                    chroot:
+                      nullable: true
+                      type: string
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                  required:
+                    - name
+                    - namespace
+                  type: object
               required:
                 - nodes
                 - version
+                - zookeeperReference
               type: object
             status:
               nullable: true

@@ -18,6 +18,7 @@ use std::collections::HashMap;
 #[serde(rename_all = "camelCase")]
 pub struct NifiSpec {
     pub version: NifiVersion,
+    pub zookeeper_reference: stackable_zookeeper_crd::util::ZookeeperReference,
     pub nodes: RoleGroup<NifiConfig>,
 }
 
@@ -62,7 +63,9 @@ pub struct SelectorAndConfig<T> {
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiConfig {
-    pub port: Option<u16>,
+    pub http_port: Option<u16>,
+    pub node_protocol_port: Option<u16>,
+    pub node_load_balancing_port: Option<u16>,
 }
 
 impl Crd for NifiCluster {
