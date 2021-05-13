@@ -1,74 +1,7 @@
 = Stackable Operator for Apache NiFi
 
-This Kubernetes Operator deploys and manages Apache NiFi.
+This is a Kubernetes Operator to manage Apache NiFi clusters.
 
-== Building
+It is written by https://www.stackable.de[Stackable] in Rust, and it is supposed to be used with the https://github.com/stackabletech/agent[Stackable Agent] instead of the Kubernetes kubelet.
 
-This operator is written in Rust.
-It is developed against the latest Rust release (1.51 at the time of writing this), earlier versions might work but are untested.
-
-    cargo build --release
-
-
-== Dependencies
-
-=== Stackable Agent
-
-For now this operator works only with a special branch of the Stackable Agent: https://github.com/stackabletech/agent/tree/volume_mount_package_root_hack_for_nifi[volume_mount_package_root_hack_for_nifi]
-
-In contrast to the other Stackable operators, the config properties overwrite the property files (bootstrap.conf, nifi.properties...) in the deployed Apache NiFi package structure. There is no extra config directory.
-
-=== ZooKeeper
-
-The state provider is ZooKeeper.
-
-Tested with version:
-
-* 3.5.8
-
-Not working with version:
-
-* 3.4.14
-
-
-== Configuration
-
-The cluster is configured via a YAML file.
-
-[source,yaml]
-----
-
-apiVersion: nifi.stackable.tech/v1
-kind: NiFiCluster
-metadata:
-name: simple-nificluster
-spec:
-version: "1.13.2"
-zookeeperReference:
-  name: simple
-  namespace: default
-  chroot: /nifi
-nodes:
-  selectors:
-    default:
-      selector:
-        matchLabels:
-          kubernetes.io/hostname: nifi-node-1
-        instances: 1
-        instancesPerNode: 1
-        config:
-          httpPort: 10000
-          nodeProtocolPort: 10443
-          nodeLoadBalancingPort: 6342
-    default2:
-      selector:
-        matchLabels:
-          kubernetes.io/hostname: nifi-node-2
-        instances: 1
-        instancesPerNode: 1
-        config:
-          httpPort: 11000
-          nodeProtocolPort: 11443
-          nodeLoadBalancingPort: 16342
-----
-As of now only some port settings are available.
+The docs can be found in the `docs` subdirectory, and they are published together with docs for all other Stackable products at https://docs.stackable.tech.

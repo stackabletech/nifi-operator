@@ -1,0 +1,5 @@
+name: nifi
+version: master
+title: Stackable Operator for Apache NiFi
+nav:
+  - modules/ROOT/nav.adoc
