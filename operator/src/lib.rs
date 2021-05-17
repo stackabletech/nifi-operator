@@ -86,12 +86,12 @@ impl NifiState {
     ///         - if differing build the config map with the new data and return it
     ///     * if no config map found, build the config map with the new data and return it
     ///  
-    async fn build_config_map(
+    async fn create_config_map(
         &self,
         cm_name: &str,
         config: &NifiConfig,
         node_name: &str,
-    ) -> Result<Option<ConfigMap>, Error> {
+    ) -> Result<(), Error> {
         let mut zk_ref: stackable_zookeeper_crd::util::ZookeeperReference =
             self.context.resource.spec.zookeeper_reference.clone();
 
@@ -131,25 +131,32 @@ impl NifiState {
         data.insert("nifi.properties".to_string(), nifi_properties);
         data.insert("state-management.xml".to_string(), state_management_xml);
 
+        // And now create the actual ConfigMap
+        let config_map = stackable_operator::config_map::create_config_map(
+            &self.context.resource,
+            &cm_name,
+            data.clone(),
+        )?;
+
         match self
             .context
             .client
             .get::<ConfigMap>(cm_name, Some(&self.context.namespace()))
             .await
         {
-            Ok(config_map) => {
-                if let Some(existing_config_map_data) = config_map.data {
+            Ok(existing_config_map) => {
+                if let Some(existing_config_map_data) = existing_config_map.data {
                     if existing_config_map_data == data {
                         debug!(
                             "ConfigMap [{}] already exists with identical data, skipping creation!",
                             cm_name
                         );
-                        return Ok(None);
                     } else {
                         debug!(
                             "ConfigMap [{}] already exists, but differs, recreating it!",
                             cm_name
                         );
+                        self.context.client.update(&config_map).await?;
                     }
                 }
             }
@@ -157,16 +164,11 @@ impl NifiState {
                 // TODO: This is shit, but works for now. If there is an actual error in comes with
                 //   K8S, it will most probably also occur further down and be properly handled
                 debug!("Error getting ConfigMap [{}]: [{:?}]", cm_name, e);
+                self.context.client.create(&config_map).await?;
             }
         }
 
-        let cm = stackable_operator::config_map::create_config_map(
-            &self.context.resource,
-            &cm_name,
-            data,
-        )?;
-
-        Ok(Some(cm))
+        Ok(())
     }
 
     async fn create_missing_pods(&mut self) -> NifiReconcileResult {
@@ -256,16 +258,7 @@ impl NifiState {
                         if let Some(config) =
                             pod_utils::get_selector_config(&role_group, &self.context.resource.spec)
                         {
-                            // build_config_map returns an Option<ConfigMap>:
-                            // None signals that a config map with identical name and data already exists -> nothing to be done
-                            // Some(ConfigMap) is returned if the config map either does not exists yet or the data differs -> create/override it
-                            // TODO: after the review i actually do not like the flow of that. Returning None if everything is ok does
-                            //    not make that much sense to me. Needs improvement.
-                            if let Some(cm) =
-                                self.build_config_map(&cm_name, &config, node_name).await?
-                            {
-                                self.context.client.create(&cm).await?;
-                            }
+                            self.create_config_map(&cm_name, &config, node_name).await?;
                         } else {
                             error!("Role group [{}] does not have a config. This is a bug and should not happen!", role_group);
                         }
