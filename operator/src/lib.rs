@@ -82,9 +82,9 @@ impl NifiState {
     /// 3) Create the desired config map data using the config properties and ZooKeeper connection string
     /// 4) Check if a config map with identical name exists
     ///     * if so compare the data content of the created and existing config map
-    ///         - if identical return None (signals nothing needs to be created)
-    ///         - if differing build the config map with the new data and return it
-    ///     * if no config map found, build the config map with the new data and return it
+    ///         - if identical do nothing
+    ///         - if different, create the config map with new data and update
+    ///     * if no config map found, create the config map with the new data
     ///  
     async fn create_config_map(
         &self,
