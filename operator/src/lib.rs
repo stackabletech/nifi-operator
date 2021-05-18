@@ -12,6 +12,7 @@ use kube::api::ListParams;
 use kube::Api;
 use stackable_nifi_crd::{NifiCluster, NifiConfig, NifiSpec};
 use stackable_operator::client::Client;
+use stackable_operator::config_map;
 use stackable_operator::controller::{Controller, ControllerStrategy, ReconciliationState};
 use stackable_operator::k8s_utils::LabelOptionalValueMap;
 use stackable_operator::labels;
@@ -132,11 +133,7 @@ impl NifiState {
         data.insert("state-management.xml".to_string(), state_management_xml);
 
         // And now create the actual ConfigMap
-        let config_map = stackable_operator::config_map::create_config_map(
-            &self.context.resource,
-            &cm_name,
-            data.clone(),
-        )?;
+        let config_map = config_map::create_config_map(&self.context.resource, &cm_name, data)?;
 
         match self
             .context
@@ -144,21 +141,21 @@ impl NifiState {
             .get::<ConfigMap>(cm_name, Some(&self.context.namespace()))
             .await
         {
-            Ok(existing_config_map) => {
-                if let Some(existing_config_map_data) = existing_config_map.data {
-                    if existing_config_map_data == data {
-                        debug!(
-                            "ConfigMap [{}] already exists with identical data, skipping creation!",
-                            cm_name
-                        );
-                    } else {
-                        debug!(
-                            "ConfigMap [{}] already exists, but differs, recreating it!",
-                            cm_name
-                        );
-                        self.context.client.update(&config_map).await?;
-                    }
-                }
+            Ok(ConfigMap {
+                data: existing_config_map_data,
+                ..
+            }) if existing_config_map_data == config_map.data => {
+                debug!(
+                    "ConfigMap [{}] already exists with identical data, skipping creation!",
+                    cm_name
+                );
+            }
+            Ok(_) => {
+                debug!(
+                    "ConfigMap [{}] already exists, but differs, updating it!",
+                    cm_name
+                );
+                self.context.client.update(&config_map).await?;
             }
             Err(e) => {
                 // TODO: This is shit, but works for now. If there is an actual error in comes with
