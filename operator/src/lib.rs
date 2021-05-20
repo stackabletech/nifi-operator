@@ -232,9 +232,14 @@ impl NifiState {
                             &self.context.resource.spec.version.to_string(),
                         );
 
-                        let pod_name =
-                            format!("nifi-{}-{}-{}", self.context.name(), role_group, nifi_role)
-                                .to_lowercase();
+                        let pod_name = format!(
+                            "nifi-{}-{}-{}-{}",
+                            self.context.name(),
+                            role_group,
+                            nifi_role,
+                            node_name
+                        )
+                        .to_lowercase();
 
                         // Create config map for this role group
                         let cm_name = format!("{}-config", pod_name);
