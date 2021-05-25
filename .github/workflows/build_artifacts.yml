@@ -61,7 +61,7 @@ jobs:
       - name: Build
         run: ~/.cargo/bin/cargo +nightly build --verbose --release
       - name: Build RPM package
-        run: packaging/buildrpm.sh stackable-zookeeper-operator-server
+        run: packaging/buildrpm.sh stackable-nifi-operator-server
       - name: Check workflow permissions
         id: check_permissions
         uses: scherermichael-oss/action-has-permission@1.0.6
