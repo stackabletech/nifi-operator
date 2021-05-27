@@ -1,10 +1,10 @@
 [package]
-name = "stackable-nifi-crd"
-version = "0.1.0"
 authors = ["Malte Sander <malte.sander.it@gmail.com>"]
-edition = "2018"
 description = "Contains the Apache NiFi CRD structs and utilities"
+edition = "2018"
 license = "OSL-3.0"
+name = "stackable-nifi-crd"
+version = "0.1.0-nightly"
 
 [dependencies]
 stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", branch = "main" }

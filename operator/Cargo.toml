@@ -1,10 +1,10 @@
 [package]
-name = "stackable-nifi-operator"
-version = "0.1.0"
 authors = ["Malte Sander <malte.sander.it@gmail.com>"]
+description = "Stackable Operator for Apache NiFi - The Operator Library"
 edition = "2018"
-description = "Kubernetes Operator library to handle Apache NiFi custom resources"
 license = "OSL-3.0"
+name = "stackable-nifi-operator"
+version = "0.1.0-nightly"
 
 [dependencies]
 stackable-nifi-crd = { path = "../crd" }
@@ -16,11 +16,10 @@ futures = "0.3"
 k8s-openapi = { version = "0.11", default-features = false, features = ["v1_20"] }
 kube = { version = "0.52", default-features = false, features = ["jsonpatch"] }
 kube-runtime = "0.52"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 strum = "0.20"
 strum_macros = "0.20"
-thiserror = "1.0"
+thiserror = "1"
 tokio = { version = "1", features = ["macros"] }
 tracing = "0.1"
-
