@@ -1,4 +1,3 @@
-use stackable_nifi_crd::NifiCluster;
 use stackable_operator::{client, error};
 
 #[tokio::main]
