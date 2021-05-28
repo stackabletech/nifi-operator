@@ -70,5 +70,5 @@ pub struct NifiConfig {
 
 impl Crd for NifiCluster {
     const RESOURCE_NAME: &'static str = "nificlusters.nifi.stackable.tech";
-    const CRD_DEFINITION: &'static str = include_str!("../../deploy/crd/server.nifi.crd.yaml");
+    const CRD_DEFINITION: &'static str = include_str!("../../deploy/crd/nificluster.crd.yaml");
 }

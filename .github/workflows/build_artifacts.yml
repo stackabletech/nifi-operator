@@ -77,3 +77,5 @@ jobs:
           -u 'github:${{ secrets.NEXUS_PASSWORD }}'
           --upload-file "./$(find  target/rpm/RPMS/x86_64/ -name *.rpm)"
           "${{ env.REPO_RPM_DEV_URL }}/el${{ matrix.node }}/"
+      - name: Clean
+        run: ~/.cargo/bin/cargo clean
