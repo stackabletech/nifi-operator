@@ -1,5 +1,16 @@
-use stackable_nifi_crd::{NifiConfig, NifiSpec};
-use std::collections::BTreeMap;
+use product_config::types::PropertyNameKind;
+use product_config::ProductConfigManager;
+use stackable_nifi_crd::{NifiCluster, NifiConfig, NifiRole, NifiSpec};
+use stackable_operator::error::OperatorResult;
+use stackable_operator::product_config_utils::{
+    transform_all_roles_to_config, validate_all_roles_and_groups_config,
+    ValidatedRoleConfigByPropertyKind,
+};
+use std::collections::{BTreeMap, HashMap};
+
+pub const NIFI_BOOTSTRAP_CONF: &str = "bootstrap.conf";
+pub const NIFI_PROPERTIES: &str = "nifi.properties";
+pub const NIFI_STATE_MANAGEMENT_XML: &str = "state-management.xml";
 
 /// Create the NiFi bootstrap.conf
 // TODO:
@@ -713,6 +724,46 @@ pub fn build_state_management_xml(spec: &NifiSpec, zk_ref: &str) -> String {
             .chroot
             .clone()
             .unwrap_or_else(|| "".to_string())
+    )
+}
+
+/// Defines all required spark roles (Master, Worker, History-Server) and their required
+/// configuration. In this case we need two files: `spark-defaults.conf` and `spark-env.sh`.
+/// Additionally require some env variables like `SPARK_NO_DAEMONIZE` and `SPARK_CONFIG_DIR`,
+/// (which will be added automatically by the product config).
+///
+/// The roles and their configs are then validated and complemented by the product config.
+///
+/// # Arguments
+/// * `resource`        - The SparkCluster containing the role definitions.
+/// * `product_config`  - The product config to validate and complement the user config.
+///
+pub fn validated_product_config(
+    resource: &NifiCluster,
+    product_config: &ProductConfigManager,
+) -> OperatorResult<ValidatedRoleConfigByPropertyKind> {
+    let mut roles = HashMap::new();
+    roles.insert(
+        NifiRole::Node.to_string(),
+        (
+            vec![
+                PropertyNameKind::File(NIFI_BOOTSTRAP_CONF.to_string()),
+                PropertyNameKind::File(NIFI_PROPERTIES.to_string()),
+                PropertyNameKind::File(NIFI_STATE_MANAGEMENT_XML.to_string()),
+                PropertyNameKind::Env,
+            ],
+            resource.spec.nodes.clone().into(),
+        ),
+    );
+
+    let role_config = transform_all_roles_to_config(resource, roles);
+
+    validate_all_roles_and_groups_config(
+        &resource.spec.version.to_string(),
+        &role_config,
+        &product_config,
+        false,
+        false,
     )
 }
 

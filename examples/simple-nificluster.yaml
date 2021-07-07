@@ -9,13 +9,12 @@ spec:
     namespace: default
     chroot: /nifi
   nodes:
-    selectors:
+    roleGroups:
       default:
         selector:
           matchLabels:
             kubernetes.io/hostname: nifi-node-1
-        instances: 1
-        instancesPerNode: 1
+        replicas: 1
         config:
           httpPort: 10000
           nodeProtocolPort: 10443
@@ -24,8 +23,7 @@ spec:
         selector:
           matchLabels:
             kubernetes.io/hostname: nifi-node-2
-        instances: 1
-        instancesPerNode: 1
+        replicas: 1
         config:
           httpPort: 11000
           nodeProtocolPort: 11443

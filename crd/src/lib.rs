@@ -1,10 +1,15 @@
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
 use kube::CustomResource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use stackable_operator::label_selector::schema;
+use stackable_operator::product_config_utils::{ConfigError, Configuration};
+use stackable_operator::role_utils::Role;
 use stackable_operator::Crd;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
+use strum_macros::Display;
+use strum_macros::EnumIter;
+
+pub const APP_NAME: &str = "nifi";
+pub const MANAGED_BY: &str = "nifi-operator";
 
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
 #[kube(
@@ -19,7 +24,7 @@ use std::collections::HashMap;
 pub struct NifiSpec {
     pub version: NifiVersion,
     pub zookeeper_reference: stackable_zookeeper_crd::util::ZookeeperReference,
-    pub nodes: RoleGroup<NifiConfig>,
+    pub nodes: Role<NifiConfig>,
 }
 
 #[allow(non_camel_case_types)]
@@ -44,28 +49,47 @@ pub enum NifiVersion {
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, Serialize)]
 pub struct NifiStatus {}
 
-#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RoleGroup<T> {
-    pub selectors: HashMap<String, SelectorAndConfig<T>>,
-}
-
-#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SelectorAndConfig<T> {
-    pub instances: u16,
-    pub instances_per_node: u8,
-    pub config: T,
-    #[schemars(schema_with = "schema")]
-    pub selector: Option<LabelSelector>,
-}
-
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiConfig {
     pub http_port: Option<u16>,
     pub node_protocol_port: Option<u16>,
     pub node_load_balancing_port: Option<u16>,
+}
+
+impl Configuration for NifiConfig {
+    type Configurable = NifiCluster;
+
+    fn compute_env(
+        &self,
+        _resource: &Self::Configurable,
+        _role_name: &str,
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
+        Ok(BTreeMap::new())
+    }
+
+    fn compute_cli(
+        &self,
+        _resource: &Self::Configurable,
+        _role_name: &str,
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
+        Ok(BTreeMap::new())
+    }
+
+    fn compute_files(
+        &self,
+        _resource: &Self::Configurable,
+        _role_name: &str,
+        _file: &str,
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
+        let config = BTreeMap::new();
+        Ok(config)
+    }
+}
+
+#[derive(EnumIter, Debug, Display, PartialEq, Eq, Hash)]
+pub enum NifiRole {
+    Node,
 }
 
 impl Crd for NifiCluster {
