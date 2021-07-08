@@ -1,6 +1,9 @@
 use product_config::types::PropertyNameKind;
 use product_config::ProductConfigManager;
-use stackable_nifi_crd::{NifiCluster, NifiConfig, NifiRole, NifiSpec};
+use stackable_nifi_crd::{
+    NifiCluster, NifiRole, NifiSpec, NIFI_CLUSTER_LOAD_BALANCE_PORT,
+    NIFI_CLUSTER_NODE_PROTOCOL_PORT, NIFI_WEB_HTTP_PORT,
+};
 use stackable_operator::error::OperatorResult;
 use stackable_operator::product_config_utils::{
     transform_all_roles_to_config, validate_all_roles_and_groups_config,
@@ -109,7 +112,9 @@ pub fn build_bootstrap_conf() -> String {
 //    2) adapt all directories to separated config and data directories
 pub fn build_nifi_properties(
     spec: &NifiSpec,
-    config: &NifiConfig,
+    http_port: Option<&String>,
+    protocol_port: Option<&String>,
+    load_balance_port: Option<&String>,
     zk_ref: &str,
     node_name: &str,
 ) -> String {
@@ -405,8 +410,8 @@ pub fn build_nifi_properties(
     // We recommend configuring HTTPS instead. The administrators guide provides instructions on how to do this.
     properties.insert("nifi.web.http.host", node_name.to_string());
 
-    if let Some(http_port) = &config.http_port {
-        properties.insert("nifi.web.http.port", http_port.to_string());
+    if let Some(port) = http_port {
+        properties.insert(NIFI_WEB_HTTP_PORT, port.to_string());
     }
 
     properties.insert("nifi.web.http.network.interface.default", "".to_string());
@@ -577,9 +582,9 @@ pub fn build_nifi_properties(
     // cluster node properties (only configure for cluster nodes)
     properties.insert("nifi.cluster.is.node", "true".to_string());
     properties.insert("nifi.cluster.node.address", node_name.to_string());
-    if let Some(node_protocol_port) = &config.node_protocol_port {
+    if let Some(node_protocol_port) = protocol_port {
         properties.insert(
-            "nifi.cluster.node.protocol.port",
+            NIFI_CLUSTER_NODE_PROTOCOL_PORT,
             node_protocol_port.to_string(),
         );
     }
@@ -603,9 +608,9 @@ pub fn build_nifi_properties(
 
     // cluster load balancing properties
     properties.insert("nifi.cluster.load.balance.host", "".to_string());
-    if let Some(node_load_balancing_port) = &config.node_load_balancing_port {
+    if let Some(node_load_balancing_port) = load_balance_port {
         properties.insert(
-            "nifi.cluster.load.balance.port",
+            NIFI_CLUSTER_LOAD_BALANCE_PORT,
             node_load_balancing_port.to_string(),
         );
     }

@@ -10,6 +10,10 @@ use strum_macros::EnumIter;
 pub const APP_NAME: &str = "nifi";
 pub const MANAGED_BY: &str = "nifi-operator";
 
+pub const NIFI_WEB_HTTP_PORT: &str = "nifi.web.http.port";
+pub const NIFI_CLUSTER_NODE_PROTOCOL_PORT: &str = "nifi.cluster.node.protocol.port";
+pub const NIFI_CLUSTER_LOAD_BALANCE_PORT: &str = "nifi.cluster.load.balance.port";
+
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
 #[kube(
     group = "nifi.stackable.tech",
@@ -52,8 +56,9 @@ pub struct NifiStatus {}
 #[serde(rename_all = "camelCase")]
 pub struct NifiConfig {
     pub http_port: Option<u16>,
-    pub node_protocol_port: Option<u16>,
-    pub node_load_balancing_port: Option<u16>,
+    // TODO: This has no default value, maybe remove the option?
+    pub protocol_port: Option<u16>,
+    pub load_balance_port: Option<u16>,
 }
 
 impl Configuration for NifiConfig {
@@ -81,12 +86,30 @@ impl Configuration for NifiConfig {
         _role_name: &str,
         _file: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        let config = BTreeMap::new();
-        Ok(config)
+        let mut result = BTreeMap::new();
+
+        if let Some(http_port) = &self.http_port {
+            result.insert(NIFI_WEB_HTTP_PORT.to_string(), Some(http_port.to_string()));
+        }
+        if let Some(protocol_port) = &self.protocol_port {
+            result.insert(
+                NIFI_CLUSTER_NODE_PROTOCOL_PORT.to_string(),
+                Some(protocol_port.to_string()),
+            );
+        }
+        if let Some(load_balance_port) = &self.load_balance_port {
+            result.insert(
+                NIFI_CLUSTER_LOAD_BALANCE_PORT.to_string(),
+                Some(load_balance_port.to_string()),
+            );
+        }
+
+        Ok(result)
     }
 }
 
 #[derive(EnumIter, Debug, Display, PartialEq, Eq, Hash)]
 pub enum NifiRole {
+    #[strum(serialize = "node")]
     Node,
 }

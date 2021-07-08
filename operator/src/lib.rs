@@ -16,7 +16,10 @@ use kube::Api;
 use kube::ResourceExt;
 use product_config::types::PropertyNameKind;
 use product_config::ProductConfigManager;
-use stackable_nifi_crd::{NifiCluster, NifiConfig, NifiRole, NifiSpec, APP_NAME, MANAGED_BY};
+use stackable_nifi_crd::{
+    NifiCluster, NifiRole, NifiSpec, APP_NAME, MANAGED_BY, NIFI_CLUSTER_LOAD_BALANCE_PORT,
+    NIFI_CLUSTER_NODE_PROTOCOL_PORT, NIFI_WEB_HTTP_PORT,
+};
 use stackable_operator::builder::{
     ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
 };
@@ -165,102 +168,11 @@ impl NifiState {
         Ok(())
     }
 
-    /// Builds and checks the existence of a config map in multiple steps.
-    /// 1) Validate the provided ZookeeperReference from the custom resource
-    /// 2) Retrieve the ZooKeeper connection string
-    /// 3) Create the desired config map data using the config properties and ZooKeeper connection string
-    /// 4) Check if a config map with identical name exists
-    ///     * if so compare the data content of the created and existing config map
-    ///         - if identical do nothing
-    ///         - if different, create the config map with new data and update
-    ///     * if no config map found, create the config map with the new data
-    ///  
-    // async fn create_config_map(
-    //     &self,
-    //     cm_name: &str,
-    //     config: &NifiConfig,
-    //     node_name: &str,
-    // ) -> Result<(), Error> {
-    //     let mut zk_ref: stackable_zookeeper_crd::util::ZookeeperReference =
-    //         self.context.resource.spec.zookeeper_reference.clone();
-    //
-    //     if let Some(chroot) = zk_ref.chroot.as_deref() {
-    //         stackable_zookeeper_crd::util::is_valid_zookeeper_path(chroot)?;
-    //     }
-    //
-    //     // retrieve zookeeper connect string
-    //     // we have to remove the chroot to only get the url and port
-    //     // nifi has its own config properties for the chroot and fails if the
-    //     // connect string is passed like: zookeeper_node:2181/nifi
-    //     zk_ref.chroot = None;
-    //
-    //     let zookeeper_info =
-    //         stackable_zookeeper_crd::util::get_zk_connection_info(&self.context.client, &zk_ref)
-    //             .await?;
-    //
-    //     debug!(
-    //         "Received ZooKeeper connect string: [{}]",
-    //         &zookeeper_info.connection_string
-    //     );
-    //
-    //     let bootstrap_conf = build_bootstrap_conf();
-    //     let nifi_properties = build_nifi_properties(
-    //         &self.context.resource.spec,
-    //         config,
-    //         &zookeeper_info.connection_string,
-    //         node_name,
-    //     );
-    //     let state_management_xml = build_state_management_xml(
-    //         &self.context.resource.spec,
-    //         &zookeeper_info.connection_string,
-    //     );
-    //
-    //     let mut data = BTreeMap::new();
-    //     data.insert("bootstrap.conf".to_string(), bootstrap_conf);
-    //     data.insert("nifi.properties".to_string(), nifi_properties);
-    //     data.insert("state-management.xml".to_string(), state_management_xml);
-    //
-    //     // And now create the actual ConfigMap
-    //     let config_map = config_map::create_config_map(&self.context.resource, &cm_name, data)?;
-    //
-    //     match self
-    //         .context
-    //         .client
-    //         .get::<ConfigMap>(cm_name, Some(&self.context.namespace()))
-    //         .await
-    //     {
-    //         Ok(ConfigMap {
-    //             data: existing_config_map_data,
-    //             ..
-    //         }) if existing_config_map_data == config_map.data => {
-    //             debug!(
-    //                 "ConfigMap [{}] already exists with identical data, skipping creation!",
-    //                 cm_name
-    //             );
-    //         }
-    //         Ok(_) => {
-    //             debug!(
-    //                 "ConfigMap [{}] already exists, but differs, updating it!",
-    //                 cm_name
-    //             );
-    //             self.context.client.update(&config_map).await?;
-    //         }
-    //         Err(e) => {
-    //             // TODO: This is shit, but works for now. If there is an actual error in comes with
-    //             //   K8S, it will most probably also occur further down and be properly handled
-    //             debug!("Error getting ConfigMap [{}]: [{:?}]", cm_name, e);
-    //             self.context.client.create(&config_map).await?;
-    //         }
-    //     }
-    //
-    //     Ok(())
-    // }
-
     async fn create_missing_pods(&mut self) -> NifiReconcileResult {
         // The iteration happens in two stages here, to accommodate the way our operators think
         // about nodes and roles.
         // The hierarchy is:
-        // - Roles (for example Datanode, Namenode, Nifi Node)
+        // - Roles (Nifi Node)
         //   - Role groups for this role (user defined)
         for role in NifiRole::iter() {
             let role_str = &role.to_string();
@@ -332,46 +244,6 @@ impl NifiState {
                         }
 
                         self.context.client.create(&pod).await?;
-
-                        // let labels = build_labels(
-                        //     &role,
-                        //     role_group,
-                        //     &self.context.name(),
-                        //     &self.context.resource.spec.version.to_string(),
-                        // );
-                        //
-                        // let pod_name = format!(
-                        //     "nifi-{}-{}-{}-{}",
-                        //     self.context.name(),
-                        //     role_group,
-                        //     role,
-                        //     node_name
-                        // )
-                        // .to_lowercase();
-                        //
-                        // // Create config map for this role group
-                        // let cm_name = format!("{}-config", pod_name);
-                        // debug!("pod_name: [{}], cm_name: [{}]", pod_name, cm_name);
-                        //
-                        // // we need a NifiConfig to create proper config map data
-                        // if let Some(config) =
-                        //     pod_utils::get_selector_config(&role_group, &self.context.resource.spec)
-                        // {
-                        //     self.create_config_map(&cm_name, &config, node_name).await?;
-                        // } else {
-                        //     error!("Role group [{}] does not have a config. This is a bug and should not happen!", role_group);
-                        // }
-                        //
-                        // // Create a pod for this node, role and group combination
-                        // let pod = pod_utils::build_pod(
-                        //     &self.context.resource,
-                        //     node_name,
-                        //     &pod_name,
-                        //     &cm_name,
-                        //     labels,
-                        // )?;
-                        //
-                        // self.context.client.create(&pod).await?;
                     }
                 }
             }
@@ -399,6 +271,8 @@ impl NifiState {
                 .map(|(k, v)| (k.to_string(), Some(v.to_string())))
                 .collect();
 
+            let zk_connect_string = &self.zookeeper_info.as_ref().unwrap().connection_string;
+
             match property_name_kind {
                 PropertyNameKind::File(file_name) => match file_name.as_str() {
                     config::NIFI_BOOTSTRAP_CONF => {
@@ -407,15 +281,15 @@ impl NifiState {
                     config::NIFI_PROPERTIES => {
                         cm_data.insert(
                             file_name.to_string(),
+                            // TODO: Improve the product config and properties handling here
+                            //    now we "hardcode" the properties we require. NiFi has lots of
+                            //    settings which we should process in a better manner.
                             build_nifi_properties(
                                 &self.context.resource.spec,
-                                // TODO: get real config
-                                &NifiConfig {
-                                    http_port: None,
-                                    node_load_balancing_port: None,
-                                    node_protocol_port: None,
-                                },
-                                &self.zookeeper_info.as_ref().unwrap().connection_string,
+                                config.get(NIFI_WEB_HTTP_PORT),
+                                config.get(NIFI_CLUSTER_NODE_PROTOCOL_PORT),
+                                config.get(NIFI_CLUSTER_LOAD_BALANCE_PORT),
+                                zk_connect_string,
                                 node_name,
                             ),
                         );
@@ -425,7 +299,7 @@ impl NifiState {
                             file_name.to_string(),
                             build_state_management_xml(
                                 &self.context.resource.spec,
-                                &self.zookeeper_info.as_ref().unwrap().connection_string,
+                                zk_connect_string,
                             ),
                         );
                     }
@@ -531,7 +405,6 @@ impl ReconciliationState for NifiState {
     ) -> Pin<Box<dyn Future<Output = Result<ReconcileFunctionAction, Self::Error>> + Send + '_>>
     {
         info!("========================= Starting reconciliation =========================");
-        debug!("Deletion Labels: [{:?}]", &self.required_pod_labels());
 
         Box::pin(async move {
             self.context
