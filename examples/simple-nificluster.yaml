@@ -1,4 +1,4 @@
-apiVersion: nifi.stackable.tech/v1
+apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
 metadata:
   name: simple-nificluster

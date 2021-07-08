@@ -1,5 +1,5 @@
 use stackable_nifi_crd::NifiCluster;
-use stackable_operator::crd::Crd;
+use stackable_operator::crd::CustomResourceExt;
 use stackable_operator::{client, error};
 use tracing::{error, info};
 
@@ -13,7 +13,7 @@ async fn main() -> Result<(), error::Error> {
 
     if let Err(error) = stackable_operator::crd::wait_until_crds_present(
         &client,
-        vec![NifiCluster::RESOURCE_NAME],
+        vec![&NifiCluster::crd_name()],
         None,
     )
     .await

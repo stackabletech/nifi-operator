@@ -1,3 +1,4 @@
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -12,8 +13,7 @@ spec:
     singular: nificluster
   scope: Namespaced
   versions:
-    - additionalPrinterColumns: []
-      name: v1
+    - name: v1alpha1
       schema:
         openAPIV3Schema:
           description: "Auto-generated derived type for NifiSpec via `CustomResource`"
@@ -22,10 +22,52 @@ spec:
               properties:
                 nodes:
                   properties:
-                    selectors:
+                    cliOverrides:
+                      additionalProperties:
+                        type: string
+                      nullable: true
+                      type: object
+                    config:
+                      nullable: true
+                      properties:
+                        httpPort:
+                          format: uint16
+                          minimum: 0.0
+                          nullable: true
+                          type: integer
+                        nodeLoadBalancingPort:
+                          format: uint16
+                          minimum: 0.0
+                          nullable: true
+                          type: integer
+                        nodeProtocolPort:
+                          format: uint16
+                          minimum: 0.0
+                          nullable: true
+                          type: integer
+                      type: object
+                    configOverrides:
+                      additionalProperties:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      nullable: true
+                      type: object
+                    envOverrides:
+                      additionalProperties:
+                        type: string
+                      nullable: true
+                      type: object
+                    roleGroups:
                       additionalProperties:
                         properties:
+                          cliOverrides:
+                            additionalProperties:
+                              type: string
+                            nullable: true
+                            type: object
                           config:
+                            nullable: true
                             properties:
                               httpPort:
                                 format: uint16
@@ -43,12 +85,20 @@ spec:
                                 nullable: true
                                 type: integer
                             type: object
-                          instances:
+                          configOverrides:
+                            additionalProperties:
+                              additionalProperties:
+                                type: string
+                              type: object
+                            nullable: true
+                            type: object
+                          envOverrides:
+                            additionalProperties:
+                              type: string
+                            nullable: true
+                            type: object
+                          replicas:
                             format: uint16
-                            minimum: 0.0
-                            type: integer
-                          instancesPerNode:
-                            format: uint8
                             minimum: 0.0
                             type: integer
                           selector:
@@ -82,21 +132,19 @@ spec:
                                 type: object
                             type: object
                         required:
-                          - config
-                          - instances
-                          - instancesPerNode
+                          - replicas
                           - selector
                         type: object
                       type: object
                   required:
-                    - selectors
+                    - roleGroups
                   type: object
                 version:
                   enum:
                     - 1.13.2
                   type: string
                 zookeeperReference:
-                  description: Contains all necessary information identify a Stackable managed ZooKeeper ensemble and build a connection string for it. The main purpose for this struct is for other operators that need to reference a ZooKeeper ensemble to use in their CRDs. This has the benefit of keeping references to ZooKeeper ensembles consistent throughout the entire stack.
+                  description: Contains all necessary information identify a Stackable managed ZooKeeper ensemble and build a connection string for it. The main purpose for this struct is for other operators that need to reference a ZooKeeper ensemble to use in their CRDs. This has the benefit of keeping references to Zookeeper ensembles consistent throughout the entire stack.
                   properties:
                     chroot:
                       nullable: true

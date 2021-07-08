@@ -3,7 +3,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use stackable_operator::product_config_utils::{ConfigError, Configuration};
 use stackable_operator::role_utils::Role;
-use stackable_operator::Crd;
 use std::collections::BTreeMap;
 use strum_macros::Display;
 use strum_macros::EnumIter;
@@ -14,7 +13,7 @@ pub const MANAGED_BY: &str = "nifi-operator";
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
 #[kube(
     group = "nifi.stackable.tech",
-    version = "v1",
+    version = "v1alpha1",
     kind = "NifiCluster",
     shortname = "nifi",
     namespaced
@@ -90,9 +89,4 @@ impl Configuration for NifiConfig {
 #[derive(EnumIter, Debug, Display, PartialEq, Eq, Hash)]
 pub enum NifiRole {
     Node,
-}
-
-impl Crd for NifiCluster {
-    const RESOURCE_NAME: &'static str = "nificlusters.nifi.stackable.tech";
-    const CRD_DEFINITION: &'static str = include_str!("../../deploy/crd/nificluster.crd.yaml");
 }

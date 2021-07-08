@@ -727,10 +727,11 @@ pub fn build_state_management_xml(spec: &NifiSpec, zk_ref: &str) -> String {
     )
 }
 
-/// Defines all required spark roles (Master, Worker, History-Server) and their required
-/// configuration. In this case we need two files: `spark-defaults.conf` and `spark-env.sh`.
-/// Additionally require some env variables like `SPARK_NO_DAEMONIZE` and `SPARK_CONFIG_DIR`,
-/// (which will be added automatically by the product config).
+/// Defines all required roles and their required configuration. In this case we need three files:
+/// `bootstrap.conf`, `nifi.properties` and `state-management.xml`.
+///
+/// We do not require any env variables yet. We will however utilize them to change the
+/// configuration directory (check https://github.com/apache/nifi/pull/2985).
 ///
 /// The roles and their configs are then validated and complemented by the product config.
 ///
