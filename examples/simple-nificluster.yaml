@@ -13,7 +13,7 @@ spec:
       default:
         selector:
           matchLabels:
-            kubernetes.io/hostname: mdesktop
+            kubernetes.io/hostname: debian
         replicas: 1
         config:
           httpPort: 10000
@@ -22,7 +22,7 @@ spec:
       default2:
         selector:
           matchLabels:
-            kubernetes.io/hostname: bawa-virtualbox
+            kubernetes.io/hostname: debian
         replicas: 1
         config:
           httpPort: 11000

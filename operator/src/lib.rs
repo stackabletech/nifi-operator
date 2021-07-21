@@ -1,17 +1,16 @@
 mod config;
 mod error;
-mod pod_utils;
 
 use crate::config::{
     build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
     validated_product_config,
 };
 use crate::error::Error;
-use crate::pod_utils::build_nifi_start_command;
 use async_trait::async_trait;
 use futures::Future;
 use k8s_openapi::api::core::v1::{ConfigMap, EnvVar, Node, Pod};
 use kube::api::ListParams;
+use kube::error::ErrorResponse;
 use kube::Api;
 use kube::ResourceExt;
 use product_config::types::PropertyNameKind;
@@ -39,7 +38,7 @@ use stackable_operator::reconcile::{
 use stackable_operator::role_utils::{
     get_role_and_group_labels, list_eligible_nodes_for_role_and_group,
 };
-use stackable_operator::{k8s_utils, role_utils};
+use stackable_operator::{k8s_utils, pod_utils, role_utils};
 use stackable_zookeeper_crd::util::ZookeeperConnectionInformation;
 use std::collections::{BTreeMap, HashMap};
 use std::pin::Pin;
@@ -128,6 +127,7 @@ impl NifiState {
     /// - Create if no config map of that name exists
     /// - Update if config map exists but the content differs
     /// - Do nothing if the config map exists and the content is identical
+    /// - Forward any kube errors that may appear
     // TODO: move to operator-rs
     async fn create_config_map(&self, config_map: ConfigMap) -> Result<(), Error> {
         let cm_name = match config_map.metadata.name.as_deref() {
@@ -157,12 +157,13 @@ impl NifiState {
                 );
                 self.context.client.update(&config_map).await?;
             }
-            Err(e) => {
-                // TODO: This is shit, but works for now. If there is an actual error in comes with
-                //   K8S, it will most probably also occur further down and be properly handled
-                debug!("Error getting ConfigMap [{}]: [{:?}]", cm_name, e);
+            Err(stackable_operator::error::Error::KubeError {
+                source: kube::error::Error::Api(ErrorResponse { reason, .. }),
+            }) if reason == "NotFound" => {
+                debug!("Error getting ConfigMap [{}]: [{:?}]", cm_name, reason);
                 self.context.client.create(&config_map).await?;
             }
+            Err(e) => return Err(Error::OperatorError { source: e }),
         }
 
         Ok(())
@@ -323,11 +324,11 @@ impl NifiState {
             }
         }
 
-        let pod_name = pod_utils::build_pod_name(
+        let pod_name = pod_utils::get_pod_name(
             APP_NAME,
             &self.context.name(),
-            &role.to_string(),
             role_group,
+            &role.to_string(),
             node_name,
         );
 
@@ -354,13 +355,7 @@ impl NifiState {
             format!("{}/nifi-{}/conf", "{{packageroot}}", version),
         );
 
-        // add remaining env variables
-        // TODO: operator-rs builder should offer an add_env_vars to avoid that loop
-        for env in env_vars {
-            if let Some(val) = env.value {
-                container_builder.add_env_var(env.name, val);
-            }
-        }
+        container_builder.add_env_vars(env_vars);
 
         let pod = PodBuilder::new()
             .metadata(
@@ -512,4 +507,13 @@ pub async fn create_controller(client: Client) {
     controller
         .run(client, strategy, Duration::from_secs(10))
         .await;
+}
+
+/// Retrieve the config belonging to a role group selector.
+///
+/// # Arguments
+/// * `spec` - The custom resource spec definition to extract the version
+///
+fn build_nifi_start_command(spec: &NifiSpec) -> Vec<String> {
+    vec![format!("nifi-{}/bin/nifi.sh run", spec.version.to_string())]
 }
