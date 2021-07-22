@@ -25,6 +25,8 @@ deny = [
 ]
 
 exceptions = [
+    { name = "stackable-opa-crd", allow = ["OSL-3.0"] },
+    { name = "stackable-zookeeper-crd", allow = ["OSL-3.0"] },
     { name = "stackable-nifi-crd", allow = ["OSL-3.0"] },
     { name = "stackable-nifi-operator-server", allow = ["OSL-3.0"] },
     { name = "stackable-nifi-operator", allow = ["OSL-3.0"] },
