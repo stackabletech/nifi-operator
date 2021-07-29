@@ -1,3 +1,4 @@
+use k8s_openapi::api::core::v1::Pod;
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde::Deserialize;
 use tracing::{debug, info, trace, warn};
@@ -43,5 +44,16 @@ impl MonitoringStatus {
         }
     }
 
-    pub fn reporting_task_ids() {}
+    pub fn reporting_task_ids(&self, pods: &[&Pod]) {
+        // 1) retrieve node_name
+        // 2) retrieve "http" port from container ports
+        // 3) query GET <node_name>:<port>/nifi-api/flow/reporting-tasks
+        // 4) check for Stackable prometheus_reporting_tasks and get id and status (Running / stopped)
+        // 5) check if configured port (in nifi) equals the container port (in pod)
+        // 6) return list of task ids
+    }
+
+    pub fn create_reporting_task(&self, port: &str) {}
+
+    pub fn set_reporting_task_status(&self, task_id: &str) {}
 }

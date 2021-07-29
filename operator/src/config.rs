@@ -726,9 +726,8 @@ pub fn build_state_management_xml(spec: &NifiSpec, zk_ref: &str) -> String {
         zk_ref,
         &spec
             .zookeeper_reference
-            .chroot
-            .clone()
-            .unwrap_or_else(|| "".to_string())
+            .chroot.as_deref()
+            .unwrap_or_else(|| "")
     )
 }
 
