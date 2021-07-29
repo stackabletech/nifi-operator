@@ -1,5 +1,19 @@
-use stackable_nifi_crd::{NifiConfig, NifiSpec};
-use std::collections::BTreeMap;
+use product_config::types::PropertyNameKind;
+use product_config::ProductConfigManager;
+use stackable_nifi_crd::{
+    NifiCluster, NifiRole, NifiSpec, NIFI_CLUSTER_LOAD_BALANCE_PORT,
+    NIFI_CLUSTER_NODE_PROTOCOL_PORT, NIFI_WEB_HTTP_PORT,
+};
+use stackable_operator::error::OperatorResult;
+use stackable_operator::product_config_utils::{
+    transform_all_roles_to_config, validate_all_roles_and_groups_config,
+    ValidatedRoleConfigByPropertyKind,
+};
+use std::collections::{BTreeMap, HashMap};
+
+pub const NIFI_BOOTSTRAP_CONF: &str = "bootstrap.conf";
+pub const NIFI_PROPERTIES: &str = "nifi.properties";
+pub const NIFI_STATE_MANAGEMENT_XML: &str = "state-management.xml";
 
 /// Create the NiFi bootstrap.conf
 // TODO:
@@ -98,7 +112,9 @@ pub fn build_bootstrap_conf() -> String {
 //    2) adapt all directories to separated config and data directories
 pub fn build_nifi_properties(
     spec: &NifiSpec,
-    config: &NifiConfig,
+    http_port: Option<&String>,
+    protocol_port: Option<&String>,
+    load_balance_port: Option<&String>,
     zk_ref: &str,
     node_name: &str,
 ) -> String {
@@ -394,8 +410,8 @@ pub fn build_nifi_properties(
     // We recommend configuring HTTPS instead. The administrators guide provides instructions on how to do this.
     properties.insert("nifi.web.http.host", node_name.to_string());
 
-    if let Some(http_port) = &config.http_port {
-        properties.insert("nifi.web.http.port", http_port.to_string());
+    if let Some(port) = http_port {
+        properties.insert(NIFI_WEB_HTTP_PORT, port.to_string());
     }
 
     properties.insert("nifi.web.http.network.interface.default", "".to_string());
@@ -566,9 +582,9 @@ pub fn build_nifi_properties(
     // cluster node properties (only configure for cluster nodes)
     properties.insert("nifi.cluster.is.node", "true".to_string());
     properties.insert("nifi.cluster.node.address", node_name.to_string());
-    if let Some(node_protocol_port) = &config.node_protocol_port {
+    if let Some(node_protocol_port) = protocol_port {
         properties.insert(
-            "nifi.cluster.node.protocol.port",
+            NIFI_CLUSTER_NODE_PROTOCOL_PORT,
             node_protocol_port.to_string(),
         );
     }
@@ -592,9 +608,9 @@ pub fn build_nifi_properties(
 
     // cluster load balancing properties
     properties.insert("nifi.cluster.load.balance.host", "".to_string());
-    if let Some(node_load_balancing_port) = &config.node_load_balancing_port {
+    if let Some(node_load_balancing_port) = load_balance_port {
         properties.insert(
-            "nifi.cluster.load.balance.port",
+            NIFI_CLUSTER_LOAD_BALANCE_PORT,
             node_load_balancing_port.to_string(),
         );
     }
@@ -713,6 +729,47 @@ pub fn build_state_management_xml(spec: &NifiSpec, zk_ref: &str) -> String {
             .chroot
             .clone()
             .unwrap_or_else(|| "".to_string())
+    )
+}
+
+/// Defines all required roles and their required configuration. In this case we need three files:
+/// `bootstrap.conf`, `nifi.properties` and `state-management.xml`.
+///
+/// We do not require any env variables yet. We will however utilize them to change the
+/// configuration directory (check https://github.com/apache/nifi/pull/2985).
+///
+/// The roles and their configs are then validated and complemented by the product config.
+///
+/// # Arguments
+/// * `resource`        - The SparkCluster containing the role definitions.
+/// * `product_config`  - The product config to validate and complement the user config.
+///
+pub fn validated_product_config(
+    resource: &NifiCluster,
+    product_config: &ProductConfigManager,
+) -> OperatorResult<ValidatedRoleConfigByPropertyKind> {
+    let mut roles = HashMap::new();
+    roles.insert(
+        NifiRole::Node.to_string(),
+        (
+            vec![
+                PropertyNameKind::File(NIFI_BOOTSTRAP_CONF.to_string()),
+                PropertyNameKind::File(NIFI_PROPERTIES.to_string()),
+                PropertyNameKind::File(NIFI_STATE_MANAGEMENT_XML.to_string()),
+                PropertyNameKind::Env,
+            ],
+            resource.spec.nodes.clone().into(),
+        ),
+    );
+
+    let role_config = transform_all_roles_to_config(resource, roles);
+
+    validate_all_roles_and_groups_config(
+        &resource.spec.version.to_string(),
+        &role_config,
+        &product_config,
+        false,
+        false,
     )
 }
 

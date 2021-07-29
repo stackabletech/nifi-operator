@@ -23,4 +23,7 @@ pub enum Error {
         #[from]
         source: stackable_zookeeper_crd::error::Error,
     },
+
+    #[error("Invalid Configmap. No name found which is required to query the ConfigMap.")]
+    InvalidConfigMap,
 }

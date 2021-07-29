@@ -1,15 +1,23 @@
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
 use kube::CustomResource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use stackable_operator::label_selector::schema;
-use stackable_operator::Crd;
-use std::collections::HashMap;
+use stackable_operator::product_config_utils::{ConfigError, Configuration};
+use stackable_operator::role_utils::Role;
+use std::collections::BTreeMap;
+use strum_macros::Display;
+use strum_macros::EnumIter;
+
+pub const APP_NAME: &str = "nifi";
+pub const MANAGED_BY: &str = "nifi-operator";
+
+pub const NIFI_WEB_HTTP_PORT: &str = "nifi.web.http.port";
+pub const NIFI_CLUSTER_NODE_PROTOCOL_PORT: &str = "nifi.cluster.node.protocol.port";
+pub const NIFI_CLUSTER_LOAD_BALANCE_PORT: &str = "nifi.cluster.load.balance.port";
 
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
 #[kube(
     group = "nifi.stackable.tech",
-    version = "v1",
+    version = "v1alpha1",
     kind = "NifiCluster",
     shortname = "nifi",
     namespaced
@@ -19,7 +27,7 @@ use std::collections::HashMap;
 pub struct NifiSpec {
     pub version: NifiVersion,
     pub zookeeper_reference: stackable_zookeeper_crd::util::ZookeeperReference,
-    pub nodes: RoleGroup<NifiConfig>,
+    pub nodes: Role<NifiConfig>,
 }
 
 #[allow(non_camel_case_types)]
@@ -44,31 +52,64 @@ pub enum NifiVersion {
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, Serialize)]
 pub struct NifiStatus {}
 
-#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RoleGroup<T> {
-    pub selectors: HashMap<String, SelectorAndConfig<T>>,
-}
-
-#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SelectorAndConfig<T> {
-    pub instances: u16,
-    pub instances_per_node: u8,
-    pub config: T,
-    #[schemars(schema_with = "schema")]
-    pub selector: Option<LabelSelector>,
-}
-
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiConfig {
     pub http_port: Option<u16>,
-    pub node_protocol_port: Option<u16>,
-    pub node_load_balancing_port: Option<u16>,
+    // TODO: This has no default value, maybe remove the option?
+    pub protocol_port: Option<u16>,
+    pub load_balance_port: Option<u16>,
 }
 
-impl Crd for NifiCluster {
-    const RESOURCE_NAME: &'static str = "nificlusters.nifi.stackable.tech";
-    const CRD_DEFINITION: &'static str = include_str!("../../deploy/crd/nificluster.crd.yaml");
+impl Configuration for NifiConfig {
+    type Configurable = NifiCluster;
+
+    fn compute_env(
+        &self,
+        _resource: &Self::Configurable,
+        _role_name: &str,
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
+        Ok(BTreeMap::new())
+    }
+
+    fn compute_cli(
+        &self,
+        _resource: &Self::Configurable,
+        _role_name: &str,
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
+        Ok(BTreeMap::new())
+    }
+
+    fn compute_files(
+        &self,
+        _resource: &Self::Configurable,
+        _role_name: &str,
+        _file: &str,
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
+        let mut result = BTreeMap::new();
+
+        if let Some(http_port) = &self.http_port {
+            result.insert(NIFI_WEB_HTTP_PORT.to_string(), Some(http_port.to_string()));
+        }
+        if let Some(protocol_port) = &self.protocol_port {
+            result.insert(
+                NIFI_CLUSTER_NODE_PROTOCOL_PORT.to_string(),
+                Some(protocol_port.to_string()),
+            );
+        }
+        if let Some(load_balance_port) = &self.load_balance_port {
+            result.insert(
+                NIFI_CLUSTER_LOAD_BALANCE_PORT.to_string(),
+                Some(load_balance_port.to_string()),
+            );
+        }
+
+        Ok(result)
+    }
+}
+
+#[derive(EnumIter, Debug, Display, PartialEq, Eq, Hash)]
+pub enum NifiRole {
+    #[strum(serialize = "node")]
+    Node,
 }
