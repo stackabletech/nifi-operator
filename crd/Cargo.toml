@@ -20,9 +20,6 @@ serde_yaml = "0.8"
 strum = "0.21"
 strum_macros = "0.21"
 
-[dev-dependencies]
-k8s-openapi = { version = "0.12", default-features = false, features = ["v1_20"] }
-
 [features]
 default = ["native-tls"]
 native-tls = ["kube/native-tls"]

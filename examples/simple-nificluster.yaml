@@ -13,19 +13,10 @@ spec:
       default:
         selector:
           matchLabels:
-            kubernetes.io/hostname: debian
+            kubernetes.io/arch: stackable-linux
         replicas: 1
         config:
           httpPort: 10000
           protocolPort: 10443
           loadBalancePort: 6342
-      default2:
-        selector:
-          matchLabels:
-            kubernetes.io/hostname: debian
-        replicas: 1
-        config:
-          httpPort: 11000
-          protocolPort: 11443
-          loadBalancePort: 16342
 

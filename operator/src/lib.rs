@@ -88,7 +88,7 @@ impl NifiState {
         Ok(ReconcileFunctionAction::Continue)
     }
 
-    /// Required labels for pods. Pods without any of these will deleted and replaced.
+    /// Required labels for pods. Pods without any of these will be deleted and replaced.
     pub fn required_pod_labels(&self) -> BTreeMap<String, Option<Vec<String>>> {
         let roles = NifiRole::iter()
             .map(|role| role.to_string())
@@ -304,7 +304,10 @@ impl NifiState {
                             ),
                         );
                     }
-                    _ => {}
+                    _ => {
+                        warn!("Unknown filename [{}] was provided in product config. Possible values are {:?}", 
+                              file_name, vec![config::NIFI_BOOTSTRAP_CONF, config::NIFI_PROPERTIES, config::NIFI_STATE_MANAGEMENT_XML]);
+                    }
                 },
                 PropertyNameKind::Env => {
                     for (property_name, property_value) in transformed_config {
