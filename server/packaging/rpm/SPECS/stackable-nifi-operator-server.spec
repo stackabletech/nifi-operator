@@ -5,7 +5,9 @@
 %define _version %{getenv:PACKAGE_VERSION}
 %define _release %{getenv:PACKAGE_RELEASE}
 %define _name %{getenv:PACKAGE_NAME}
-%define _bindir /opt/stackable/%{_name}
+%define _bindir /opt/stackable/%{getenv:WORKSPACE_NAME}
+%define _productconfigdir /etc/stackable/%{getenv:WORKSPACE_NAME}/config-spec
+%define _crddir /etc/stackable/%{getenv:WORKSPACE_NAME}/crd
 %define _description %{getenv:PACKAGE_DESCRIPTION}
 
 Name: %{_name}
@@ -52,3 +54,6 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 %{_bindir}/*
 %{_servicedir}/%{name}.service
+%{_productconfigdir}/*
+%{_crddir}/*
+
