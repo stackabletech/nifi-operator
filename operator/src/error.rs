@@ -1,3 +1,5 @@
+use std::num::ParseIntError;
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("Kubernetes reported error: {source}")]
@@ -10,6 +12,12 @@ pub enum Error {
     OperatorError {
         #[from]
         source: stackable_operator::error::Error,
+    },
+
+    #[error("Error from parsing: {source}")]
+    ParseError {
+        #[from]
+        source: ParseIntError,
     },
 
     #[error("Error from serde_json: {source}")]

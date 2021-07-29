@@ -13,6 +13,7 @@ pub const MANAGED_BY: &str = "nifi-operator";
 pub const NIFI_WEB_HTTP_PORT: &str = "nifi.web.http.port";
 pub const NIFI_CLUSTER_NODE_PROTOCOL_PORT: &str = "nifi.cluster.node.protocol.port";
 pub const NIFI_CLUSTER_LOAD_BALANCE_PORT: &str = "nifi.cluster.load.balance.port";
+pub const NIFI_CLUSTER_METRICS_PORT: &str = "metricsPort";
 
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
 #[kube(
@@ -56,9 +57,9 @@ pub struct NifiStatus {}
 #[serde(rename_all = "camelCase")]
 pub struct NifiConfig {
     pub http_port: Option<u16>,
-    // TODO: This has no default value, maybe remove the option?
     pub protocol_port: Option<u16>,
     pub load_balance_port: Option<u16>,
+    pub metrics_port: Option<u16>,
 }
 
 impl Configuration for NifiConfig {
@@ -69,7 +70,14 @@ impl Configuration for NifiConfig {
         _resource: &Self::Configurable,
         _role_name: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        Ok(BTreeMap::new())
+        let mut result = BTreeMap::new();
+        if let Some(metrics_port) = &self.metrics_port {
+            result.insert(
+                NIFI_CLUSTER_METRICS_PORT.to_string(),
+                Some(metrics_port.to_string()),
+            );
+        }
+        Ok(result)
     }
 
     fn compute_cli(

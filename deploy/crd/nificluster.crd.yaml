@@ -40,6 +40,11 @@ spec:
                           minimum: 0.0
                           nullable: true
                           type: integer
+                        metricsPort:
+                          format: uint16
+                          minimum: 0.0
+                          nullable: true
+                          type: integer
                         protocolPort:
                           format: uint16
                           minimum: 0.0
@@ -79,6 +84,11 @@ spec:
                                 minimum: 0.0
                                 nullable: true
                                 type: integer
+                              metricsPort:
+                                format: uint16
+                                minimum: 0.0
+                                nullable: true
+                                type: integer
                               protocolPort:
                                 format: uint16
                                 minimum: 0.0
@@ -100,6 +110,7 @@ spec:
                           replicas:
                             format: uint16
                             minimum: 0.0
+                            nullable: true
                             type: integer
                           selector:
                             description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
@@ -132,7 +143,6 @@ spec:
                                 type: object
                             type: object
                         required:
-                          - replicas
                           - selector
                         type: object
                       type: object

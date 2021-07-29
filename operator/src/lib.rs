@@ -1,5 +1,6 @@
 mod config;
 mod error;
+mod monitoring;
 
 use crate::config::{
     build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
@@ -17,7 +18,7 @@ use product_config::types::PropertyNameKind;
 use product_config::ProductConfigManager;
 use stackable_nifi_crd::{
     NifiCluster, NifiRole, NifiSpec, APP_NAME, MANAGED_BY, NIFI_CLUSTER_LOAD_BALANCE_PORT,
-    NIFI_CLUSTER_NODE_PROTOCOL_PORT, NIFI_WEB_HTTP_PORT,
+    NIFI_CLUSTER_METRICS_PORT, NIFI_CLUSTER_NODE_PROTOCOL_PORT, NIFI_WEB_HTTP_PORT,
 };
 use stackable_operator::builder::{
     ConfigMapBuilder, ContainerBuilder, ContainerPortBuilder, ObjectMetaBuilder, PodBuilder,
@@ -264,6 +265,10 @@ impl NifiState {
         let mut config_maps = vec![];
         let mut env_vars = vec![];
         let mut cm_data = BTreeMap::new();
+        let mut http_port: Option<&String> = None;
+        let mut protocol_port: Option<&String> = None;
+        let mut load_balance: Option<&String> = None;
+        let mut metrics_port: Option<String> = None;
 
         for (property_name_kind, config) in validated_config {
             // we need to convert to <String, String> to <String, Option<String>> to deal with
@@ -282,6 +287,10 @@ impl NifiState {
                         cm_data.insert(file_name.to_string(), build_bootstrap_conf());
                     }
                     config::NIFI_PROPERTIES => {
+                        http_port = config.get(NIFI_WEB_HTTP_PORT);
+                        protocol_port = config.get(NIFI_CLUSTER_NODE_PROTOCOL_PORT);
+                        load_balance = config.get(NIFI_CLUSTER_LOAD_BALANCE_PORT);
+
                         cm_data.insert(
                             file_name.to_string(),
                             // TODO: Improve the product config and properties handling here
@@ -289,9 +298,9 @@ impl NifiState {
                             //    settings which we should process in a better manner.
                             build_nifi_properties(
                                 &self.context.resource.spec,
-                                config.get(NIFI_WEB_HTTP_PORT),
-                                config.get(NIFI_CLUSTER_NODE_PROTOCOL_PORT),
-                                config.get(NIFI_CLUSTER_LOAD_BALANCE_PORT),
+                                http_port,
+                                protocol_port,
+                                load_balance,
                                 zk_connect_string,
                                 node_name,
                             ),
@@ -315,6 +324,13 @@ impl NifiState {
                     for (property_name, property_value) in transformed_config {
                         if property_name.is_empty() {
                             warn!("Received empty property_name for ENV... skipping");
+                            continue;
+                        }
+
+                        // if a metrics port is provided (for now by user, it is not required in
+                        // product config to be able to not configure any monitoring / metrics)
+                        if property_name == NIFI_CLUSTER_METRICS_PORT {
+                            metrics_port = property_value.clone();
                             continue;
                         }
 
@@ -361,12 +377,40 @@ impl NifiState {
         );
         container_builder.add_env_vars(env_vars);
 
+        if let Some(port) = http_port {
+            container_builder.add_container_port(
+                ContainerPortBuilder::new(port.parse()?)
+                    .name("http")
+                    .build(),
+            );
+        }
+
+        if let Some(port) = protocol_port {
+            container_builder.add_container_port(
+                ContainerPortBuilder::new(port.parse()?)
+                    .name("protocol")
+                    .build(),
+            );
+        }
+
+        if let Some(port) = load_balance {
+            container_builder.add_container_port(
+                ContainerPortBuilder::new(port.parse()?)
+                    .name("loadbalance")
+                    .build(),
+            );
+        }
+
         let mut annotations = BTreeMap::new();
-        // only add metrics container port and annotation if available
-        annotations.insert(SHOULD_BE_SCRAPED.to_string(), "true".to_string());
-        // TODO: make configurable
-        container_builder
-            .add_container_port(ContainerPortBuilder::new(21000).name("metrics").build());
+        if let Some(port) = metrics_port {
+            // only add metrics container port and annotation if available
+            annotations.insert(SHOULD_BE_SCRAPED.to_string(), "true".to_string());
+            container_builder.add_container_port(
+                ContainerPortBuilder::new(port.parse()?)
+                    .name("metrics")
+                    .build(),
+            );
+        }
 
         let pod = PodBuilder::new()
             .metadata(

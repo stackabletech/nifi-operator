@@ -13,10 +13,11 @@ spec:
       default:
         selector:
           matchLabels:
-            kubernetes.io/arch: stackable-linux
+            kubernetes.io/hostname: mdesktop
         replicas: 1
         config:
           httpPort: 10000
           protocolPort: 10443
           loadBalancePort: 6342
+          metricsPort: 30000
 

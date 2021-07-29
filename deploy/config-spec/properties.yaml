@@ -64,3 +64,19 @@ properties:
           required: true
       asOfVersion: "0.0.0"
       description: "Load balancing port. Only set in cluster mode (default: 6342)."
+
+  - property: &nifiClusterMetricsPort
+      propertyNames:
+        - name: "metricsPort"
+          kind:
+            type: "env"
+      datatype:
+        type: "integer"
+        min: "1024"
+        max: "65535"
+        unit: *unitPort
+      roles:
+        - name: "node"
+          required: false
+      asOfVersion: "0.0.0"
+      description: "The port where Prometheus metrics are exposed."
