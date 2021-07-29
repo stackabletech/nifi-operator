@@ -8,7 +8,7 @@ use crate::config::{
 use crate::error::Error;
 use async_trait::async_trait;
 use futures::Future;
-use k8s_openapi::api::core::v1::{ConfigMap, EnvVar, Node, Pod};
+use k8s_openapi::api::core::v1::{ConfigMap, EnvVar, Pod};
 use kube::api::ListParams;
 use kube::error::ErrorResponse;
 use kube::Api;
@@ -20,7 +20,7 @@ use stackable_nifi_crd::{
     NIFI_CLUSTER_NODE_PROTOCOL_PORT, NIFI_WEB_HTTP_PORT,
 };
 use stackable_operator::builder::{
-    ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
+    ConfigMapBuilder, ContainerBuilder, ContainerPortBuilder, ObjectMetaBuilder, PodBuilder,
 };
 use stackable_operator::client::Client;
 use stackable_operator::controller::{Controller, ControllerStrategy, ReconciliationState};
@@ -36,7 +36,7 @@ use stackable_operator::reconcile::{
     ContinuationStrategy, ReconcileFunctionAction, ReconcileResult, ReconciliationContext,
 };
 use stackable_operator::role_utils::{
-    get_role_and_group_labels, list_eligible_nodes_for_role_and_group,
+    get_role_and_group_labels, list_eligible_nodes_for_role_and_group, EligibleNodesForRoleAndGroup,
 };
 use stackable_operator::{k8s_utils, pod_utils, role_utils};
 use stackable_zookeeper_crd::util::ZookeeperConnectionInformation;
@@ -48,13 +48,14 @@ use strum::IntoEnumIterator;
 use tracing::{debug, info, trace, warn};
 
 const FINALIZER_NAME: &str = "nifi.stackable.tech/cleanup";
+const SHOULD_BE_SCRAPED: &str = "monitoring.stackable.tech/should_be_scraped";
 
 type NifiReconcileResult = ReconcileResult<error::Error>;
 
 struct NifiState {
     context: ReconciliationContext<NifiCluster>,
     existing_pods: Vec<Pod>,
-    eligible_nodes: HashMap<String, HashMap<String, Vec<Node>>>,
+    eligible_nodes: EligibleNodesForRoleAndGroup,
     zookeeper_info: Option<ZookeeperConnectionInformation>,
     validated_role_config: ValidatedRoleConfigByPropertyKind,
 }
@@ -178,7 +179,7 @@ impl NifiState {
         for role in NifiRole::iter() {
             let role_str = &role.to_string();
             if let Some(nodes_for_role) = self.eligible_nodes.get(role_str) {
-                for (role_group, nodes) in nodes_for_role {
+                for (role_group, (nodes, replicas)) in nodes_for_role {
                     debug!(
                         "Identify missing pods for [{}] role and group [{}]",
                         role_str, role_group
@@ -208,6 +209,7 @@ impl NifiState {
                         nodes,
                         &self.existing_pods,
                         &get_role_and_group_labels(role_str, role_group),
+                        *replicas,
                     );
 
                     for node in nodes_that_need_pods {
@@ -357,8 +359,14 @@ impl NifiState {
             cm_name.clone(),
             format!("{}/nifi-{}/conf", "{{packageroot}}", version),
         );
-
         container_builder.add_env_vars(env_vars);
+
+        let mut annotations = BTreeMap::new();
+        // only add metrics container port and annotation if available
+        annotations.insert(SHOULD_BE_SCRAPED.to_string(), "true".to_string());
+        // TODO: make configurable
+        container_builder
+            .add_container_port(ContainerPortBuilder::new(21000).name("metrics").build());
 
         let pod = PodBuilder::new()
             .metadata(
@@ -366,6 +374,7 @@ impl NifiState {
                     .name(pod_name)
                     .namespace(&self.context.client.default_namespace)
                     .with_labels(labels)
+                    .with_annotations(annotations)
                     .ownerreference_from_resource(&self.context.resource, Some(true), Some(true))?
                     .build()?,
             )
