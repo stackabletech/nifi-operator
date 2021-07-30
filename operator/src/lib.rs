@@ -51,6 +51,13 @@ use tracing::{debug, info, trace, warn};
 const FINALIZER_NAME: &str = "nifi.stackable.tech/cleanup";
 const SHOULD_BE_SCRAPED: &str = "monitoring.stackable.tech/should_be_scraped";
 
+const HTTP_PORT_NAME: &str = "http";
+const PROTOCOL_PORT_NAME: &str = "protocol";
+const LOAD_BALANCE_PORT_NAME: &str = "loadbalance";
+const METRICS_PORT_NAME: &str = "metrics";
+
+const CONTAINER_NAME: &str = "nifi";
+
 type NifiReconcileResult = ReconcileResult<error::Error>;
 
 struct NifiState {
@@ -365,8 +372,8 @@ impl NifiState {
             role_group,
         );
 
-        let mut container_builder = ContainerBuilder::new("nifi");
-        container_builder.image(format!("nifi:{}", version));
+        let mut container_builder = ContainerBuilder::new(CONTAINER_NAME);
+        container_builder.image(format!("{}:{}", CONTAINER_NAME, version));
         container_builder.command(build_nifi_start_command(&self.context.resource.spec));
         // TODO: For now we set the mount path to the NiFi package config folder.
         //   This needs to be investigated and changed into an separate config folder.
@@ -380,7 +387,7 @@ impl NifiState {
         if let Some(port) = http_port {
             container_builder.add_container_port(
                 ContainerPortBuilder::new(port.parse()?)
-                    .name("http")
+                    .name(HTTP_PORT_NAME)
                     .build(),
             );
         }
@@ -388,7 +395,7 @@ impl NifiState {
         if let Some(port) = protocol_port {
             container_builder.add_container_port(
                 ContainerPortBuilder::new(port.parse()?)
-                    .name("protocol")
+                    .name(PROTOCOL_PORT_NAME)
                     .build(),
             );
         }
@@ -396,7 +403,7 @@ impl NifiState {
         if let Some(port) = load_balance {
             container_builder.add_container_port(
                 ContainerPortBuilder::new(port.parse()?)
-                    .name("loadbalance")
+                    .name(LOAD_BALANCE_PORT_NAME)
                     .build(),
             );
         }
@@ -407,7 +414,7 @@ impl NifiState {
             annotations.insert(SHOULD_BE_SCRAPED.to_string(), "true".to_string());
             container_builder.add_container_port(
                 ContainerPortBuilder::new(port.parse()?)
-                    .name("metrics")
+                    .name(METRICS_PORT_NAME)
                     .build(),
             );
         }
