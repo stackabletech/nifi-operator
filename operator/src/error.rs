@@ -1,7 +1,7 @@
 use std::num::ParseIntError;
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub enum NifiError {
     #[error("Kubernetes reported error: {source}")]
     KubeError {
         #[from]
@@ -18,6 +18,12 @@ pub enum Error {
     ParseError {
         #[from]
         source: ParseIntError,
+    },
+
+    #[error("Reqwest reported error: {source}")]
+    ReqwestError {
+        #[from]
+        source: reqwest::Error,
     },
 
     #[error("Error from serde_json: {source}")]

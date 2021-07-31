@@ -20,4 +20,14 @@ spec:
           protocolPort: 10443
           loadBalancePort: 6342
           metricsPort: 30000
+#      default2:
+#        selector:
+#          matchLabels:
+#            kubernetes.io/hostname: bawa-virtualbox
+#        replicas: 1
+#        config:
+#          httpPort: 10001
+#          protocolPort: 10444
+#          loadBalancePort: 6343
+#          metricsPort: 30001
 

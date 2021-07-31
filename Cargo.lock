@@ -1575,7 +1575,6 @@ dependencies = [
  "kube",
  "product-config",
  "reqwest",
- "schemars",
  "serde",
  "serde_json",
  "stackable-nifi-crd",

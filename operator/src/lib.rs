@@ -6,7 +6,8 @@ use crate::config::{
     build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
     validated_product_config,
 };
-use crate::error::Error;
+use crate::error::NifiError;
+use crate::monitoring::MonitoringStatus;
 use async_trait::async_trait;
 use futures::Future;
 use k8s_openapi::api::core::v1::{ConfigMap, EnvVar, Pod};
@@ -58,14 +59,15 @@ const METRICS_PORT_NAME: &str = "metrics";
 
 const CONTAINER_NAME: &str = "nifi";
 
-type NifiReconcileResult = ReconcileResult<error::Error>;
+type NifiReconcileResult = ReconcileResult<error::NifiError>;
 
 struct NifiState {
     context: ReconciliationContext<NifiCluster>,
-    existing_pods: Vec<Pod>,
     eligible_nodes: EligibleNodesForRoleAndGroup,
-    zookeeper_info: Option<ZookeeperConnectionInformation>,
+    existing_pods: Vec<Pod>,
+    monitoring: Arc<MonitoringStatus>,
     validated_role_config: ValidatedRoleConfigByPropertyKind,
+    zookeeper_info: Option<ZookeeperConnectionInformation>,
 }
 
 impl NifiState {
@@ -138,9 +140,9 @@ impl NifiState {
     /// - Do nothing if the config map exists and the content is identical
     /// - Forward any kube errors that may appear
     // TODO: move to operator-rs
-    async fn create_config_map(&self, config_map: ConfigMap) -> Result<(), Error> {
+    async fn create_config_map(&self, config_map: ConfigMap) -> Result<(), NifiError> {
         let cm_name = match config_map.metadata.name.as_deref() {
-            None => return Err(Error::InvalidConfigMap),
+            None => return Err(NifiError::InvalidConfigMap),
             Some(name) => name,
         };
 
@@ -172,7 +174,7 @@ impl NifiState {
                 debug!("Error getting ConfigMap [{}]: [{:?}]", cm_name, reason);
                 self.context.client.create(&config_map).await?;
             }
-            Err(e) => return Err(Error::OperatorError { source: e }),
+            Err(e) => return Err(NifiError::OperatorError { source: e }),
         }
 
         Ok(())
@@ -241,7 +243,7 @@ impl NifiState {
                             .create_pod_and_config_maps(
                                 &role,
                                 role_group,
-                                &node_name,
+                                node_name,
                                 config_for_role_and_group(
                                     role_str,
                                     role_group,
@@ -268,7 +270,7 @@ impl NifiState {
         role_group: &str,
         node_name: &str,
         validated_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
-    ) -> Result<(Pod, Vec<ConfigMap>), Error> {
+    ) -> Result<(Pod, Vec<ConfigMap>), NifiError> {
         let mut config_maps = vec![];
         let mut env_vars = vec![];
         let mut cm_data = BTreeMap::new();
@@ -453,10 +455,28 @@ impl NifiState {
 
         Ok((pod, config_maps))
     }
+
+    async fn enable_monitoring(&self) -> NifiReconcileResult {
+        return match self
+            .monitoring
+            .reporting_task_ids(
+                &self.existing_pods,
+                &self.context.resource.spec.version.to_string(),
+            )
+            .await
+        {
+            Err(error::NifiError::ReqwestError { source: request }) => {
+                warn!("Could not connect to NiFi rest api. Probably the server is not ready yet ... waiting: {}", request);
+                Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(5)))
+            }
+            Err(err) => Err(err),
+            Ok(action) => Ok(action),
+        };
+    }
 }
 
 impl ReconciliationState for NifiState {
-    type Error = error::Error;
+    type Error = error::NifiError;
 
     fn reconcile(
         &mut self,
@@ -483,7 +503,7 @@ impl ReconciliationState for NifiState {
                 .await?
                 .then(
                     self.context
-                        .wait_for_running_and_ready_pods(&self.existing_pods.as_slice()),
+                        .wait_for_running_and_ready_pods(self.existing_pods.as_slice()),
                 )
                 .await?
                 .then(self.context.delete_excess_pods(
@@ -493,6 +513,8 @@ impl ReconciliationState for NifiState {
                 ))
                 .await?
                 .then(self.create_missing_pods())
+                .await?
+                .then(self.enable_monitoring())
                 .await
         })
     }
@@ -500,12 +522,14 @@ impl ReconciliationState for NifiState {
 
 struct NifiStrategy {
     config: Arc<ProductConfigManager>,
+    monitoring: Arc<MonitoringStatus>,
 }
 
 impl NifiStrategy {
-    pub fn new(config: ProductConfigManager) -> NifiStrategy {
+    pub fn new(config: ProductConfigManager, monitoring: MonitoringStatus) -> NifiStrategy {
         NifiStrategy {
             config: Arc::new(config),
+            monitoring: Arc::new(monitoring),
         }
     }
 }
@@ -514,7 +538,7 @@ impl NifiStrategy {
 impl ControllerStrategy for NifiStrategy {
     type Item = NifiCluster;
     type State = NifiState;
-    type Error = error::Error;
+    type Error = error::NifiError;
 
     async fn init_reconcile_state(
         &self,
@@ -544,6 +568,7 @@ impl ControllerStrategy for NifiStrategy {
         Ok(NifiState {
             validated_role_config: validated_product_config(&context.resource, &self.config)?,
             context,
+            monitoring: self.monitoring.clone(),
             existing_pods,
             eligible_nodes,
             zookeeper_info: None,
@@ -565,7 +590,10 @@ pub async fn create_controller(client: Client) {
 
     let product_config =
         ProductConfigManager::from_yaml_file("deploy/config-spec/properties.yaml").unwrap();
-    let strategy = NifiStrategy::new(product_config);
+
+    let monitoring = MonitoringStatus::new(reqwest::Client::new());
+
+    let strategy = NifiStrategy::new(product_config, monitoring);
 
     controller
         .run(client, strategy, Duration::from_secs(10))
