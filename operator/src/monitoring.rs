@@ -1,13 +1,10 @@
-use crate::{NifiError, METRICS_PORT_NAME};
-use crate::{CONTAINER_NAME, HTTP_PORT_NAME};
+use crate::{CONTAINER_NAME, HTTP_PORT_NAME, METRICS_PORT_NAME};
 use k8s_openapi::api::core::v1::{Container, Pod};
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::Response;
 use serde::{Deserialize, Serialize};
-use stackable_operator::reconcile::ReconcileFunctionAction;
 use std::convert::TryFrom;
-use std::time::Duration;
-use tracing::{info, warn};
+use tracing::{debug, error, warn};
 
 const PROMETHEUS_REPORTING_TASK_NAME: &str = "StackablePrometheusReportingTask";
 const PROMETHEUS_REPORTING_TASK_TYPE: &str =
@@ -15,6 +12,46 @@ const PROMETHEUS_REPORTING_TASK_TYPE: &str =
 
 const PROMETHEUS_REPORTING_TASK_BUNDLE_GROUP: &str = "org.apache.nifi";
 const PROMETHEUS_REPORTING_TASK_BUNDLE_ARTIFACT: &str = "nifi-prometheus-nar";
+
+pub const NO_TASK_ID: &str = "<no-task-id>";
+
+#[derive(Debug, thiserror::Error)]
+pub enum NifiMonitoringError {
+    #[error("Missing node_name for pod [{pod_name}].")]
+    PodNodeNameMissing { pod_name: String },
+
+    #[error("Missing uid for pod [{pod_name}].")]
+    PodUidMissing { pod_name: String },
+
+    #[error("Missing spec for pod [{pod_name}].")]
+    PodSpecMissing { pod_name: String },
+
+    #[error(
+        "Container [{container_name}] missing required container_port [{container_port_name}]."
+    )]
+    PodContainerPortMissing {
+        container_name: String,
+        container_port_name: String,
+    },
+
+    #[error("Reqwest reported error: {source}")]
+    ReqwestError {
+        #[from]
+        source: reqwest::Error,
+    },
+
+    #[error("Error during parsing integer: {reason}")]
+    ParseIntError { reason: String },
+
+    #[error("ReportingTask [{task_name} - {task_id}] metrics port [{task_port}] does not match container '{container_name}' port [{metrics_port}]")]
+    BadReportingTaskPort {
+        task_name: String,
+        task_id: String,
+        task_port: String,
+        container_name: String,
+        metrics_port: String,
+    },
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -36,6 +73,15 @@ pub struct ReportingTask {
     pub state: Option<ReportingTaskState>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<ReportingTaskStatus>,
+}
+
+impl ReportingTask {
+    pub fn name(&self) -> String {
+        if let Some(ReportingTaskComponent { name, .. }) = &self.component {
+            return name.clone();
+        }
+        "<no-name-set>".to_string()
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -105,6 +151,39 @@ pub enum ReportingTaskValidation {
     Valid,
 }
 
+pub struct PodMonitoringInfo {
+    pub node_name: String,
+    pub http_port: u16,
+    pub metric_port: u16,
+    pub uid: String,
+}
+
+impl PodMonitoringInfo {
+    /// Return the Host address containing of the node_name and the http_port.
+    pub fn http_host(&self) -> String {
+        format!("{}:{}", self.node_name, self.http_port)
+    }
+
+    pub fn list_reporting_tasks_url(&self) -> String {
+        format!("http://{}/nifi-api/flow/reporting-tasks", self.http_host())
+    }
+
+    pub fn create_reporting_task_url(&self) -> String {
+        format!(
+            "http://{}/nifi-api/controller/reporting-tasks",
+            self.http_host()
+        )
+    }
+
+    pub fn update_reporting_task_status_url(&self, task_id: &str) -> String {
+        format!(
+            "http://{}/nifi-api/reporting-tasks/{}/run-status",
+            self.http_host(),
+            task_id
+        )
+    }
+}
+
 pub struct MonitoringStatus {
     pub client: reqwest::Client,
     pub headers: HeaderMap,
@@ -126,7 +205,7 @@ impl MonitoringStatus {
                     header_map.insert(key, val);
                 }
                 Err(err) => {
-                    warn!(
+                    debug!(
                         "Invalid header item [{} -> {}] for Monitoring requests: {}",
                         key,
                         value,
@@ -142,278 +221,13 @@ impl MonitoringStatus {
         }
     }
 
-    pub async fn start_reporting_tasks(
+    pub async fn find_reporting_task(
         &self,
-        pods: &[Pod],
-        version: &str,
-    ) -> Result<ReconcileFunctionAction, NifiError> {
-        let node_names_and_http_container_ports_and_uids =
-            self.node_names_and_container_ports_and_uids(pods)?;
-
-        for (node_name, http_port, metric_port, uid) in node_names_and_http_container_ports_and_uids
-        {
-            let url = &format!(
-                "http://{}:{}/nifi-api/flow/reporting-tasks",
-                node_name, http_port
-            );
-
-            let tasks: ReportingTasks = self.client.get(url).send().await?.json().await?;
-
-            // find reporting task for pod
-            let task = self.find_task_for_pod(&tasks, &uid, version);
-
-            // if we have a task, check if state is running, otherwise set to running
-            if let Some(my_task) = task {
-                let task_id = my_task.id.as_deref().unwrap_or("<no-id-found>");
-                // check if configured port (in nifi) equals the container port (in pod)
-                if let Some(ReportingTaskComponent { properties, .. }) = &my_task.component {
-                    if properties.metrics_endpoint_port != metric_port {
-                        warn!("ReportingTask [{}] metrics port [{}] does not match container '{}' port [{}] ",
-                                    task_id, properties.metrics_endpoint_port, METRICS_PORT_NAME, metric_port);
-                        // TODO: what to do here? Delete and recreate? Update?
-                        continue;
-                    }
-                }
-
-                if let Some(status) = &my_task.status {
-                    if status.run_status == ReportingTaskState::Stopped {
-                        info!(
-                            "Task [{}] has status [{}]. Starting it...",
-                            task_id,
-                            ReportingTaskState::Stopped.to_string()
-                        );
-
-                        self.reporting_task_status(
-                            &node_name,
-                            &http_port,
-                            task_id,
-                            &uid,
-                            ReportingTaskState::Running,
-                        )
-                        .await?;
-                    }
-                }
-            }
-            // no task available yet -> create
-            else {
-                info!(
-                    "Found missing monitoring task for [{}:{}]. Creating it..",
-                    node_name, http_port
-                );
-
-                self.create_reporting_task(&node_name, &http_port, &uid, &metric_port, version)
-                    .await?;
-
-                // we need a requeue after creation to start the task
-                return Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(5)));
-            }
-        }
-
-        Ok(ReconcileFunctionAction::Continue)
-    }
-
-    pub async fn create_reporting_task(
-        &self,
-        node_name: &str,
-        http_port: &str,
-        uid: &str,
-        metrics_port: &str,
-        version: &str,
-    ) -> Result<Response, reqwest::Error> {
-        let task = ReportingTask {
-            revision: ReportingTaskRevision {
-                client_id: Some(uid.to_string()),
-                version: 0,
-            },
-            id: None,
-            disconnected_node_acknowledged: Some(false),
-            component: Some(ReportingTaskComponent {
-                typ: PROMETHEUS_REPORTING_TASK_TYPE.to_string(),
-                name: build_task_name(uid),
-                bundle: ReportingTaskComponentBundle {
-                    group: PROMETHEUS_REPORTING_TASK_BUNDLE_GROUP.to_string(),
-                    artifact: PROMETHEUS_REPORTING_TASK_BUNDLE_ARTIFACT.to_string(),
-                    version: version.to_string(),
-                },
-                properties: ReportingTaskComponentProperties {
-                    metrics_endpoint_port: metrics_port.to_string(),
-                    instance_id: "${hostname(true)}".to_string(),
-                    metrics_strategy: "All Components".to_string(),
-                    send_jvm: "true".to_string(),
-                    ssl_context: None,
-                    client_auth: "No Authentication".to_string(),
-                },
-            }),
-            state: None,
-            status: None,
-        };
-
-        let url = &format!(
-            "http://{}:{}/nifi-api/controller/reporting-tasks",
-            node_name, http_port
-        );
-
-        self.post(url, &task).await
-    }
-
-    pub async fn reporting_task_status(
-        &self,
-        node_name: &str,
-        http_port: &str,
-        task_id: &str,
-        uid: &str,
-        state: ReportingTaskState,
-    ) -> Result<Response, reqwest::Error> {
-        let new_task = ReportingTask {
-            revision: ReportingTaskRevision {
-                version: 0,
-                client_id: Some(uid.to_string()),
-            },
-            disconnected_node_acknowledged: Some(true),
-            state: Some(state),
-            id: None,
-            component: None,
-            status: None,
-        };
-
-        self.put(
-            &format!(
-                "http://{}:{}/nifi-api/reporting-tasks/{}/run-status",
-                node_name, http_port, task_id
-            ),
-            &new_task,
-        )
-        .await
-    }
-
-    async fn post<T>(&self, url: &str, body: &T) -> Result<Response, reqwest::Error>
-    where
-        T: Serialize + ?Sized,
-    {
-        self.client
-            .post(url)
-            .headers(self.headers.clone())
-            .json(body)
-            .send()
-            .await
-    }
-
-    async fn put<T>(&self, url: &str, body: &T) -> Result<Response, reqwest::Error>
-    where
-        T: Serialize + ?Sized,
-    {
-        self.client
-            .put(url)
-            .headers(self.headers.clone())
-            .json(body)
-            .send()
-            .await
-    }
-
-    fn container_port(
-        &self,
-        containers: &[Container],
-        container_name: &str,
-        port_name: &str,
-    ) -> Option<u16> {
-        for container in containers {
-            if container.name != container_name {
-                continue;
-            }
-
-            for ports in &container.ports {
-                if ports.name.as_deref() == Some(port_name) {
-                    return u16::try_from(ports.container_port).ok();
-                }
-            }
-        }
-        None
-    }
-
-    fn node_names_and_container_ports_and_uids(
-        &self,
-        pods: &[Pod],
-    ) -> Result<Vec<(String, String, String, String)>, NifiError> {
-        let mut result = vec![];
-
-        for pod in pods {
-            let pod_name = pod.metadata.name.as_ref().unwrap();
-
-            let spec = match &pod.spec {
-                None => {
-                    warn!("Pod [{}] does not have any spec. Skipping...", pod_name);
-                    continue;
-                }
-                Some(pod_spec) => pod_spec,
-            };
-
-            let node_name = match &spec.node_name {
-                None => {
-                    warn!(
-                        "Pod [{}] does not have any node_name set. Skipping...",
-                        pod_name
-                    );
-                    continue;
-                }
-                Some(name) => name,
-            };
-
-            let http_port = match self.container_port(
-                spec.containers.as_slice(),
-                CONTAINER_NAME,
-                HTTP_PORT_NAME,
-            ) {
-                None => {
-                    warn!(
-                        "No container_port [{}] found in container [{}].",
-                        HTTP_PORT_NAME, CONTAINER_NAME
-                    );
-                    continue;
-                }
-                Some(port) => port,
-            };
-
-            let metric_port = match self.container_port(
-                spec.containers.as_slice(),
-                CONTAINER_NAME,
-                METRICS_PORT_NAME,
-            ) {
-                None => {
-                    warn!(
-                        "No container_port [{}] found in container [{}].",
-                        METRICS_PORT_NAME, CONTAINER_NAME
-                    );
-                    continue;
-                }
-                Some(port) => port,
-            };
-
-            let uid = match &pod.metadata.uid {
-                None => {
-                    warn!("No uid found in pod [{}].", pod_name);
-                    continue;
-                }
-                Some(port) => port,
-            };
-
-            result.push((
-                node_name.clone(),
-                http_port.to_string(),
-                metric_port.to_string(),
-                uid.clone(),
-            ));
-        }
-
-        Ok(result)
-    }
-
-    fn find_task_for_pod<'a>(
-        &self,
-        tasks: &'a ReportingTasks,
-        uid: &str,
+        monitoring_info: &[PodMonitoringInfo],
         nifi_version: &str,
-    ) -> Option<&'a ReportingTask> {
-        for task in &tasks.reporting_tasks {
+    ) -> Result<Option<ReportingTask>, NifiMonitoringError> {
+        let tasks = self.list_reporting_tasks(monitoring_info).await?;
+        for task in tasks {
             if let Some(ReportingTaskComponent {
                 typ,
                 name,
@@ -426,7 +240,7 @@ impl MonitoringStatus {
                 ..
             }) = &task.component
             {
-                if typ != PROMETHEUS_REPORTING_TASK_TYPE && name != &build_task_name(uid) {
+                if typ != PROMETHEUS_REPORTING_TASK_TYPE && name != &build_task_name() {
                     continue;
                 }
 
@@ -438,14 +252,284 @@ impl MonitoringStatus {
                 }
 
                 // task type and name, bundle group, artifact and version match
-                return Some(task);
+                return Ok(Some(task));
             }
         }
 
-        None
+        Ok(None)
+    }
+
+    /// List all available ReportingTasks from a NiFi node REST endpoint.
+    /// Will try pod after pod until the first can be queried via REST.
+    pub async fn list_reporting_tasks(
+        &self,
+        monitoring_info: &[PodMonitoringInfo],
+    ) -> Result<Vec<ReportingTask>, NifiMonitoringError> {
+        // We try all pods here in case there are network or other problems
+        // and the first pod we encounter is not reachable.
+        // We return however after the first pod that accepts requests.
+        // ReportingTasks are shared via all pods/nifi nodes so one responding pod is sufficient.
+        for info in monitoring_info {
+            let url = info.list_reporting_tasks_url();
+
+            match self
+                .client
+                .get(&url)
+                .send()
+                .await?
+                .json::<ReportingTasks>()
+                .await
+            {
+                Ok(tasks) => {
+                    return Ok(tasks.reporting_tasks);
+                }
+                // continue here if we have more pods to check
+                Err(err) => {
+                    warn!(
+                        "Skipping url [{}] that is currently not reachable with error: {}",
+                        &url,
+                        err.to_string()
+                    );
+                    continue;
+                }
+            };
+        }
+
+        Ok(Vec::new())
+    }
+
+    pub fn info(&self, pods: &[Pod]) -> Result<Vec<PodMonitoringInfo>, NifiMonitoringError> {
+        let mut result = vec![];
+        for pod in pods {
+            result.push(pod_monitoring_info(pod)?);
+        }
+        Ok(result)
+    }
+
+    pub async fn create_reporting_task(
+        &self,
+        monitoring_info: &PodMonitoringInfo,
+        version: &str,
+    ) -> Result<Response, reqwest::Error> {
+        let task = ReportingTask {
+            revision: ReportingTaskRevision {
+                client_id: Some(monitoring_info.uid.to_string()),
+                version: 0,
+            },
+            id: None,
+            disconnected_node_acknowledged: Some(false),
+            component: Some(ReportingTaskComponent {
+                typ: PROMETHEUS_REPORTING_TASK_TYPE.to_string(),
+                name: build_task_name(),
+                bundle: ReportingTaskComponentBundle {
+                    group: PROMETHEUS_REPORTING_TASK_BUNDLE_GROUP.to_string(),
+                    artifact: PROMETHEUS_REPORTING_TASK_BUNDLE_ARTIFACT.to_string(),
+                    version: version.to_string(),
+                },
+                properties: ReportingTaskComponentProperties {
+                    metrics_endpoint_port: monitoring_info.metric_port.to_string(),
+                    instance_id: "${hostname(true)}".to_string(),
+                    metrics_strategy: "All Components".to_string(),
+                    send_jvm: "true".to_string(),
+                    ssl_context: None,
+                    client_auth: "No Authentication".to_string(),
+                },
+            }),
+            state: None,
+            status: None,
+        };
+
+        self.post(&monitoring_info.create_reporting_task_url(), &task)
+            .await
+    }
+
+    // pub async fn delete_reporting_task(&self) -> Result<ReconcileFunctionAction, NifiError> {
+    //     Ok(ReconcileFunctionAction::Continue)
+    // }
+
+    /// Update a reporting_task on "Running" or "Stopped".
+    pub async fn update_reporting_task_status(
+        &self,
+        monitoring_info: &PodMonitoringInfo,
+        task_id: &str,
+        state: ReportingTaskState,
+    ) -> Result<Response, reqwest::Error> {
+        let new_task = ReportingTask {
+            revision: ReportingTaskRevision {
+                version: 0,
+                client_id: Some(monitoring_info.uid.clone()),
+            },
+            disconnected_node_acknowledged: Some(true),
+            state: Some(state),
+            id: None,
+            component: None,
+            status: None,
+        };
+
+        self.put(
+            &monitoring_info.update_reporting_task_status_url(task_id),
+            &new_task,
+        )
+        .await
+    }
+
+    /// Check if the configured [`ReportingTask`] port (in NiFi) equals the container port (in the
+    /// pod). The metric port is the same for all pods / NiFi nodes.
+    ///
+    /// # Arguments
+    /// * `metrics_port` - The provided metrics container port.
+    /// * `task` - The [`ReportingTask`] to check
+    ///
+    pub async fn match_metric_and_reporting_task_port(
+        &self,
+        metrics_port: u16,
+        task: &ReportingTask,
+    ) -> Result<(), NifiMonitoringError> {
+        if let Some(ReportingTaskComponent {
+            name, properties, ..
+        }) = &task.component
+        {
+            if properties.metrics_endpoint_port != metrics_port.to_string() {
+                return Err(NifiMonitoringError::BadReportingTaskPort {
+                    task_name: name.clone(),
+                    task_id: task.id.clone().unwrap_or_else(|| NO_TASK_ID.to_string()),
+                    task_port: properties.metrics_endpoint_port.clone(),
+                    container_name: CONTAINER_NAME.to_string(),
+                    metrics_port: metrics_port.to_string(),
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    /// HTTP POST request with a body that implements `Serialize`. Headers are automatically
+    /// added and the format is JSON.
+    ///
+    /// # Arguments
+    /// * `url` - The url to perform the POST request.
+    /// * `body` - Struct implementing `Serialize`.
+    async fn post<T>(&self, url: &str, body: &T) -> Result<Response, reqwest::Error>
+    where
+        T: Serialize + ?Sized,
+    {
+        self.client
+            .post(url)
+            .headers(self.headers.clone())
+            .json(body)
+            .send()
+            .await
+    }
+
+    /// HTTP PUT request with a body that implements `Serialize`. Headers are automatically
+    /// added and the format is JSON.
+    ///
+    /// # Arguments
+    /// * `url` - The url to perform the PUT request.
+    /// * `body` - Struct implementing `Serialize`.
+    async fn put<T>(&self, url: &str, body: &T) -> Result<Response, reqwest::Error>
+    where
+        T: Serialize + ?Sized,
+    {
+        self.client
+            .put(url)
+            .headers(self.headers.clone())
+            .json(body)
+            .send()
+            .await
     }
 }
 
-fn build_task_name(uid: &str) -> String {
-    format!("{}-{}", PROMETHEUS_REPORTING_TASK_NAME, uid)
+/// Create the name of the reporting task. For now it is a fixed value. Maybe adapted later
+/// with uid etc.
+fn build_task_name() -> String {
+    PROMETHEUS_REPORTING_TASK_NAME.to_string()
+}
+
+/// Extract [`PodMonitoringInfo`] containing required information for monitoring. Contains
+/// node_name and 'container' http_port which are required to build a host address in the format
+/// <node_name>:<http_port>. Additionally the actual metric_port and the uid of the pod are extracted.  
+///
+/// # Arguments
+/// * `pod` - The pod to extract the [`PodMonitoringInfo`] from  
+///
+fn pod_monitoring_info(pod: &Pod) -> Result<PodMonitoringInfo, NifiMonitoringError> {
+    let pod_name = pod.metadata.name.as_ref().unwrap();
+
+    let spec = match &pod.spec {
+        None => {
+            return Err(NifiMonitoringError::PodSpecMissing {
+                pod_name: pod_name.clone(),
+            })
+        }
+        Some(pod_spec) => pod_spec,
+    };
+
+    let node_name = match &spec.node_name {
+        None => {
+            return Err(NifiMonitoringError::PodNodeNameMissing {
+                pod_name: pod_name.clone(),
+            })
+        }
+        Some(name) => name,
+    };
+
+    let http_port =
+        find_pod_container_port(spec.containers.as_slice(), CONTAINER_NAME, HTTP_PORT_NAME)?;
+
+    let metric_port = find_pod_container_port(
+        spec.containers.as_slice(),
+        CONTAINER_NAME,
+        METRICS_PORT_NAME,
+    )?;
+
+    let uid = match &pod.metadata.uid {
+        None => {
+            return Err(NifiMonitoringError::PodUidMissing {
+                pod_name: pod_name.clone(),
+            })
+        }
+        Some(port) => port,
+    };
+
+    Ok(PodMonitoringInfo {
+        node_name: node_name.clone(),
+        http_port,
+        metric_port,
+        uid: uid.clone(),
+    })
+}
+
+/// Extract a container_port_number from a named container_port from a list of containers.
+///
+/// # Arguments
+/// * `containers` - List of containers from a Pod
+/// * `container_name` - The name of the container that should hold the `port_name` port.
+/// * `port_name` - The name of the container_port_number we are interested in.
+///
+fn find_pod_container_port(
+    containers: &[Container],
+    container_name: &str,
+    port_name: &str,
+) -> Result<u16, NifiMonitoringError> {
+    for container in containers {
+        if container.name != container_name {
+            continue;
+        }
+
+        for ports in &container.ports {
+            if ports.name.as_deref() == Some(port_name) {
+                return u16::try_from(ports.container_port).map_err(|err| {
+                    NifiMonitoringError::ParseIntError {
+                        reason: err.to_string(),
+                    }
+                });
+            }
+        }
+    }
+
+    Err(NifiMonitoringError::PodContainerPortMissing {
+        container_name: container_name.to_string(),
+        container_port_name: port_name.to_string(),
+    })
 }

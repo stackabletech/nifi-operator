@@ -20,6 +20,11 @@ spec:
           properties:
             spec:
               properties:
+                metricsPort:
+                  format: uint16
+                  minimum: 0.0
+                  nullable: true
+                  type: integer
                 nodes:
                   properties:
                     cliOverrides:
@@ -36,11 +41,6 @@ spec:
                           nullable: true
                           type: integer
                         loadBalancePort:
-                          format: uint16
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
-                        metricsPort:
                           format: uint16
                           minimum: 0.0
                           nullable: true
@@ -80,11 +80,6 @@ spec:
                                 nullable: true
                                 type: integer
                               loadBalancePort:
-                                format: uint16
-                                minimum: 0.0
-                                nullable: true
-                                type: integer
-                              metricsPort:
                                 format: uint16
                                 minimum: 0.0
                                 nullable: true

@@ -7,7 +7,7 @@ use crate::config::{
     validated_product_config,
 };
 use crate::error::NifiError;
-use crate::monitoring::MonitoringStatus;
+use crate::monitoring::{MonitoringStatus, ReportingTaskState, NO_TASK_ID};
 use async_trait::async_trait;
 use futures::Future;
 use k8s_openapi::api::core::v1::{ConfigMap, EnvVar, Pod};
@@ -456,22 +456,115 @@ impl NifiState {
         Ok((pod, config_maps))
     }
 
+    /// In order to enable monitoring for NiFi, we have to make several REST calls.
+    /// 1) If metrics port is not set, check if a left over "StackablePrometheusReportingTask" exists
+    ///     a) If existing and running, stop the task
+    ///     b) If stopped delete the task
+    /// 2) Find the the "StackablePrometheusReportingTask"
+    /// 3) If the "StackablePrometheusReportingTask" is already available
+    ///     a) Check that the metrics_port and the task port are equal
+    ///         * If not, delete the task
+    ///     b) Check the status (RUNNING, STOPPED)
+    ///     c) If STOPPED, set the status to RUNNING
+    /// 4) If "StackablePrometheusReportingTask" does not exist create it
     async fn enable_monitoring(&self) -> NifiReconcileResult {
-        return match self
+        let metrics_port = match self.context.resource.spec.metrics_port {
+            Some(port) => port,
+            None => {
+                // TODO: Check if tasks available for stop / deletion
+                return Ok(ReconcileFunctionAction::Continue);
+            }
+        };
+
+        let monitoring_info = self.monitoring.info(self.existing_pods.as_slice())?;
+
+        // 2) Find the the "StackablePrometheusReportingTask"
+        match self
             .monitoring
-            .start_reporting_tasks(
-                &self.existing_pods,
+            .find_reporting_task(
+                &monitoring_info,
                 &self.context.resource.spec.version.to_string(),
             )
-            .await
+            .await?
         {
-            Err(error::NifiError::ReqwestError { source: request }) => {
-                warn!("Could not connect to NiFi rest api. Probably the server is not ready yet ... waiting: {}", request);
-                Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(5)))
+            Some(task) => {
+                // 3) check status, ports and start if required
+                if let Some(status) = &task.status {
+                    if status.run_status == ReportingTaskState::Stopped {
+                        let task_id = task.id.clone().unwrap_or_else(|| NO_TASK_ID.to_string());
+                        // TODO: in case of error we should stop and update or remove and recreate
+                        //    the monitoring task (otherwise out of sync with the custom resource)
+                        self.monitoring
+                            .match_metric_and_reporting_task_port(metrics_port, &task)
+                            .await?;
+
+                        debug!(
+                            "Task [{}] has status [{}]. Starting it...",
+                            task_id,
+                            ReportingTaskState::Stopped.to_string()
+                        );
+
+                        // 5) Set the status to RUNNING
+                        for info in &monitoring_info {
+                            match &self
+                                .monitoring
+                                .update_reporting_task_status(
+                                    info,
+                                    &task_id,
+                                    ReportingTaskState::Running,
+                                )
+                                .await
+                            {
+                                Err(err) => {
+                                    // we try another pod to create it on
+                                    warn!(
+                                        "Could not start reporting task [{} - {}] on [{}]: {}",
+                                        task.name(),
+                                        task_id,
+                                        info.http_host(),
+                                        err.to_string()
+                                    );
+                                    continue;
+                                }
+                                Ok(response) => {
+                                    debug!("Started ReportTask: {:?}", response);
+                                    return Ok(ReconcileFunctionAction::Continue);
+                                }
+                            }
+                        }
+                    }
+                }
             }
-            Err(err) => Err(err),
-            Ok(action) => Ok(action),
-        };
+            None => {
+                // 4) If "StackablePrometheusReportingTask" does not exist create it
+                for info in &monitoring_info {
+                    match self
+                        .monitoring
+                        .create_reporting_task(
+                            info,
+                            &self.context.resource.spec.version.to_string(),
+                        )
+                        .await
+                    {
+                        Err(err) => {
+                            // we try another pod to create it on
+                            warn!(
+                                "Could not create reporting task on [{}]: {}",
+                                info.http_host(),
+                                err.to_string()
+                            );
+                            continue;
+                        }
+                        Ok(response) => {
+                            debug!("Created ReportTask: {:?}", response);
+                            // requeue if created successfully for starting
+                            return Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(10)));
+                        }
+                    }
+                }
+            }
+        }
+        Ok(ReconcileFunctionAction::Continue)
     }
 }
 

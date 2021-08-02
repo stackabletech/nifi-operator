@@ -1,3 +1,4 @@
+use crate::monitoring;
 use std::num::ParseIntError;
 
 #[derive(Debug, thiserror::Error)]
@@ -18,6 +19,12 @@ pub enum NifiError {
     ParseError {
         #[from]
         source: ParseIntError,
+    },
+
+    #[error("NiFi monitoring reported error: {source}")]
+    NifiMonitoringError {
+        #[from]
+        source: monitoring::NifiMonitoringError,
     },
 
     #[error("Reqwest reported error: {source}")]

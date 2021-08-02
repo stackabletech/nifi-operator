@@ -26,9 +26,10 @@ pub const NIFI_CLUSTER_METRICS_PORT: &str = "metricsPort";
 #[kube(status = "NifiStatus")]
 #[serde(rename_all = "camelCase")]
 pub struct NifiSpec {
+    pub metrics_port: Option<u16>,
+    pub nodes: Role<NifiConfig>,
     pub version: NifiVersion,
     pub zookeeper_reference: stackable_zookeeper_crd::util::ZookeeperReference,
-    pub nodes: Role<NifiConfig>,
 }
 
 #[allow(non_camel_case_types)]
@@ -59,7 +60,6 @@ pub struct NifiConfig {
     pub http_port: Option<u16>,
     pub protocol_port: Option<u16>,
     pub load_balance_port: Option<u16>,
-    pub metrics_port: Option<u16>,
 }
 
 impl Configuration for NifiConfig {
@@ -67,11 +67,11 @@ impl Configuration for NifiConfig {
 
     fn compute_env(
         &self,
-        _resource: &Self::Configurable,
+        resource: &Self::Configurable,
         _role_name: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         let mut result = BTreeMap::new();
-        if let Some(metrics_port) = &self.metrics_port {
+        if let Some(metrics_port) = &resource.spec.metrics_port {
             result.insert(
                 NIFI_CLUSTER_METRICS_PORT.to_string(),
                 Some(metrics_port.to_string()),
