@@ -108,7 +108,6 @@ pub enum ReportingTaskValidation {
 pub struct MonitoringStatus {
     pub client: reqwest::Client,
     pub headers: HeaderMap,
-    pub reporting_task_id: Option<String>,
 }
 
 impl MonitoringStatus {
@@ -140,11 +139,10 @@ impl MonitoringStatus {
         MonitoringStatus {
             client,
             headers: header_map,
-            reporting_task_id: None,
         }
     }
 
-    pub async fn reporting_task_ids(
+    pub async fn start_reporting_tasks(
         &self,
         pods: &[Pod],
         version: &str,
@@ -172,7 +170,7 @@ impl MonitoringStatus {
                     if properties.metrics_endpoint_port != metric_port {
                         warn!("ReportingTask [{}] metrics port [{}] does not match container '{}' port [{}] ",
                                     task_id, properties.metrics_endpoint_port, METRICS_PORT_NAME, metric_port);
-                        // TODO: what to do here?
+                        // TODO: what to do here? Delete and recreate? Update?
                         continue;
                     }
                 }
@@ -205,6 +203,7 @@ impl MonitoringStatus {
 
                 self.create_reporting_task(&node_name, &http_port, &uid, &metric_port, version)
                     .await?;
+
                 // we need a requeue after creation to start the task
                 return Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(5)));
             }

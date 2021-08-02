@@ -459,7 +459,7 @@ impl NifiState {
     async fn enable_monitoring(&self) -> NifiReconcileResult {
         return match self
             .monitoring
-            .reporting_task_ids(
+            .start_reporting_tasks(
                 &self.existing_pods,
                 &self.context.resource.spec.version.to_string(),
             )

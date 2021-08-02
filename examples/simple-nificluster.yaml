@@ -13,21 +13,11 @@ spec:
       default:
         selector:
           matchLabels:
-            kubernetes.io/hostname: mdesktop
-        replicas: 1
+            kubernetes.io/arch: stackable-linux
+        replicas: 3    
         config:
           httpPort: 10000
           protocolPort: 10443
           loadBalancePort: 6342
-          metricsPort: 30000
-#      default2:
-#        selector:
-#          matchLabels:
-#            kubernetes.io/hostname: bawa-virtualbox
-#        replicas: 1
-#        config:
-#          httpPort: 10001
-#          protocolPort: 10444
-#          loadBalancePort: 6343
-#          metricsPort: 30001
+          metricsPort: 9404
 
