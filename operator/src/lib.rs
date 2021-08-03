@@ -8,7 +8,7 @@ use crate::config::{
 };
 use crate::error::NifiError;
 use crate::monitoring::{
-    MonitoringStatus, ReportingTask, ReportingTaskState, ReportingTaskStatus, NO_TASK_ID,
+    NifiRestClient, ReportingTask, ReportingTaskState, ReportingTaskStatus, NO_TASK_ID,
 };
 use async_trait::async_trait;
 use futures::Future;
@@ -67,7 +67,7 @@ struct NifiState {
     context: ReconciliationContext<NifiCluster>,
     eligible_nodes: EligibleNodesForRoleAndGroup,
     existing_pods: Vec<Pod>,
-    monitoring: Arc<MonitoringStatus>,
+    monitoring: Arc<NifiRestClient>,
     validated_role_config: ValidatedRoleConfigByPropertyKind,
     zookeeper_info: Option<ZookeeperConnectionInformation>,
 }
@@ -458,31 +458,39 @@ impl NifiState {
         Ok((pod, config_maps))
     }
 
-    /// In order to enable monitoring for NiFi, we have to make several REST calls.
-    /// 1) Get the pod monitoring info from all pods
-    /// 2) Get the metrics_port
-    /// 3) Find the the "StackablePrometheusReportingTask"
-    ///
-    ///
-    /// 3) If metrics port is not set, check if a left over "StackablePrometheusReportingTask" exists
-    ///     a) If existing and running, stop the task
-    ///     b) If stopped delete the task
-    /// 4) If the "StackablePrometheusReportingTask" is already available
-    ///     a) Check that the metrics_port and the task port are equal
-    ///         * If not, delete the task
-    ///     b) Check the status (RUNNING, STOPPED)
-    ///     c) If STOPPED, set the status to RUNNING
-    /// 5) If "StackablePrometheusReportingTask" does not exist create it
-    async fn enable_monitoring(&self) -> NifiReconcileResult {
-        // 1) Get the pod monitoring info from all pods
+    /// In order to enable / disable monitoring for NiFi, we have to make several REST calls.
+    /// There will be only one ReportingTask for the whole cluster. The task will be synced
+    /// for all nodes.
+    /// We always iterate over all the <node_name>:<http_port> pod combinations in order to
+    /// make sure that network problems etc. will not affect this. Usually the first pod
+    /// should be sufficient.
+    /// +-------------------------------------------------------------------------------+
+    /// |         "StackablePrometheusReportingTask" available?                         |
+    /// |            <no> |                          | <yes>                            |
+    /// |                 v                          v                                  |
+    /// |          metrics_port set                metrics_port set                     |
+    /// |       <no> |          | <yes>         <yes> |         | <no>                  |
+    /// |            v          v                     |         v                       |
+    /// | nothing to do       create                  |       status == running         |
+    /// |                                             |     <yes> |         | <no>      |
+    /// |                                             |           v         v           |
+    /// |                                             |    stop task      delete task   |
+    /// |                                             v                                 |
+    /// |                                  task_port == metrics_port                    |
+    /// |                                 <yes> |              | <no>                   |
+    /// |                                       v              v                        |
+    /// |                           status == stopped       status == running           |
+    /// |                          <yes> |              <yes> |         | <no>          |
+    /// |                                v                    v         v               |
+    /// |                             start task        stop task    delete task        |
+    /// +-------------------------------------------------------------------------------+
+    async fn process_monitoring(&self) -> NifiReconcileResult {
         let monitoring_info = self
             .monitoring
             .monitoring_info(self.existing_pods.as_slice())?;
 
-        // 2) Get the metrics_port
         let metrics_port = self.context.resource.spec.metrics_port;
 
-        // 3) Find the the "StackablePrometheusReportingTask"
         let reporting_task = self
             .monitoring
             .find_reporting_task(
@@ -491,7 +499,6 @@ impl NifiState {
             )
             .await?;
 
-        // 4) If a task is available
         if let Some(ReportingTask {
             revision,
             component,
@@ -674,7 +681,7 @@ impl ReconciliationState for NifiState {
                 .await?
                 .then(self.create_missing_pods())
                 .await?
-                .then(self.enable_monitoring())
+                .then(self.process_monitoring())
                 .await
         })
     }
@@ -682,11 +689,11 @@ impl ReconciliationState for NifiState {
 
 struct NifiStrategy {
     config: Arc<ProductConfigManager>,
-    monitoring: Arc<MonitoringStatus>,
+    monitoring: Arc<NifiRestClient>,
 }
 
 impl NifiStrategy {
-    pub fn new(config: ProductConfigManager, monitoring: MonitoringStatus) -> NifiStrategy {
+    pub fn new(config: ProductConfigManager, monitoring: NifiRestClient) -> NifiStrategy {
         NifiStrategy {
             config: Arc::new(config),
             monitoring: Arc::new(monitoring),
@@ -751,7 +758,7 @@ pub async fn create_controller(client: Client) {
     let product_config =
         ProductConfigManager::from_yaml_file("deploy/config-spec/properties.yaml").unwrap();
 
-    let monitoring = MonitoringStatus::new(reqwest::Client::new());
+    let monitoring = NifiRestClient::new(reqwest::Client::new());
 
     let strategy = NifiStrategy::new(product_config, monitoring);
 

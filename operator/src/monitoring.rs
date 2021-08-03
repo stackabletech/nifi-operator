@@ -190,12 +190,12 @@ impl PodMonitoringInfo {
     }
 }
 
-pub struct MonitoringStatus {
+pub struct NifiRestClient {
     pub client: reqwest::Client,
     pub headers: HeaderMap,
 }
 
-impl MonitoringStatus {
+impl NifiRestClient {
     pub fn new(client: reqwest::Client) -> Self {
         let headers: Vec<(&'static str, &str)> = vec![
             ("Accept-Encoding", "gzip, deflate, br"),
@@ -212,7 +212,7 @@ impl MonitoringStatus {
                 }
                 Err(err) => {
                     debug!(
-                        "Invalid header item [{} -> {}] for Monitoring requests: {}",
+                        "Invalid header item [{} -> {}] for monitoring requests: {}",
                         key,
                         value,
                         err.to_string()
@@ -221,7 +221,7 @@ impl MonitoringStatus {
             }
         }
 
-        MonitoringStatus {
+        NifiRestClient {
             client,
             headers: header_map,
         }
