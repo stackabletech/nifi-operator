@@ -517,21 +517,29 @@ impl NifiState {
                     // metrics_port equals the NiFi ReportingTask metrics port.
                     // We are done if they match, otherwise we need to stop the task
                     (Some(port), ReportingTaskState::Running) => {
-                        if let Err(err) = self
+                        if !self
                             .monitoring
-                            .match_metric_and_reporting_task_port(port, &component, &task_id)
-                            .await
+                            .match_metric_and_reporting_task_port(port, &component)
                         {
-                            warn!("Stopping ReportingTask [{}]: {}", task_id, err.to_string());
+                            warn!("Stopping ReportingTask [{}] - Different ports from metrics_port and reporting_task_port", task_id);
                             // ports do not match, we need to stop the task
-                            self.monitoring
+                            if let Err(err) = self
+                                .monitoring
                                 .update_reporting_task_status(
                                     info,
                                     &task_id,
                                     &revision,
                                     ReportingTaskState::Stopped,
                                 )
-                                .await?;
+                                .await
+                            {
+                                warn!(
+                                    "Error while stopping ReportingTask, will try again: {}",
+                                    err.to_string()
+                                );
+                                continue;
+                            }
+
                             // requeue after stopping the task -> prepare for deletion
                             return Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(5)));
                         }
@@ -540,39 +548,51 @@ impl NifiState {
                     // metrics_port equals the NiFi ReportingTask metrics port.
                     // If they match we need to start the task, if not we delete the task
                     (Some(port), ReportingTaskState::Stopped) => {
-                        return match self
+                        if !self
                             .monitoring
-                            .match_metric_and_reporting_task_port(port, &component, &task_id)
-                            .await
+                            .match_metric_and_reporting_task_port(port, &component)
                         {
-                            Ok(_) => {
-                                info!(
-                                    "ReportingTask [{}] is [{}]. Trying to start it...",
-                                    task_id,
-                                    ReportingTaskState::Stopped.to_string()
+                            info!(
+                                "ReportingTask [{}] is [{}]. Trying to start it...",
+                                task_id,
+                                ReportingTaskState::Stopped.to_string()
+                            );
+                            if let Err(err) = self
+                                .monitoring
+                                .update_reporting_task_status(
+                                    info,
+                                    &task_id,
+                                    &revision,
+                                    ReportingTaskState::Running,
+                                )
+                                .await
+                            {
+                                warn!(
+                                    "Error while starting ReportingTask, will try again: {}",
+                                    err.to_string()
                                 );
-                                self.monitoring
-                                    .update_reporting_task_status(
-                                        info,
-                                        &task_id,
-                                        &revision,
-                                        ReportingTaskState::Running,
-                                    )
-                                    .await?;
-
-                                // We can continue after we started a ReportingTask with the correct metrics port
-                                Ok(ReconcileFunctionAction::Continue)
+                                continue;
                             }
-                            Err(err) => {
-                                warn!("Deleting ReportingTask [{}]: {}", task_id, err.to_string());
-                                self.monitoring
-                                    .delete_reporting_task(info, &task_id, &revision)
-                                    .await?;
 
-                                // requeue after deleting the task -> prepare for recreating
-                                Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(5)))
+                            // We can continue after we started a ReportingTask with the correct metrics port
+                            return Ok(ReconcileFunctionAction::Continue);
+                        } else {
+                            warn!("Deleting ReportingTask [{}] - Different ports from metrics_port and reporting_task_port", task_id);
+                            if let Err(err) = self
+                                .monitoring
+                                .delete_reporting_task(info, &task_id, &revision)
+                                .await
+                            {
+                                warn!(
+                                    "Error while deleting ReportingTask, will try again: {}",
+                                    err.to_string()
+                                );
+                                continue;
                             }
-                        };
+
+                            // requeue after deleting the task -> prepare for recreating
+                            return Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(5)));
+                        }
                     }
                     // If no metrics port is set but a "Running" task is found, we need to stop it
                     (None, ReportingTaskState::Running) => {
@@ -581,14 +601,22 @@ impl NifiState {
                         task_id,
                         ReportingTaskState::Running.to_string());
 
-                        self.monitoring
+                        if let Err(err) = self
+                            .monitoring
                             .update_reporting_task_status(
                                 info,
                                 &task_id,
                                 &revision,
                                 ReportingTaskState::Stopped,
                             )
-                            .await?;
+                            .await
+                        {
+                            warn!(
+                                "Error while stopping ReportingTask, will try again: {}",
+                                err.to_string()
+                            );
+                            continue;
+                        }
 
                         // requeue after stopping the task -> prepare for deletion
                         return Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(5)));
@@ -600,9 +628,17 @@ impl NifiState {
                         task_id,
                         ReportingTaskState::Stopped.to_string()
                     );
-                        self.monitoring
+                        if let Err(err) = self
+                            .monitoring
                             .delete_reporting_task(info, &task_id, &revision)
-                            .await?;
+                            .await
+                        {
+                            warn!(
+                                "Error while deleting ReportingTask, will try again: {}",
+                                err.to_string()
+                            );
+                            continue;
+                        }
 
                         // continue after deleting the task
                         return Ok(ReconcileFunctionAction::Continue);

@@ -39,15 +39,6 @@ pub enum NifiMonitoringError {
 
     #[error("Error during parsing integer: {reason}")]
     ParseIntError { reason: String },
-
-    #[error("ReportingTask [{task_name} - {task_id}] metrics port [{task_port}] does not match container '{container_name}' port [{metrics_port}]")]
-    BadReportingTaskPort {
-        task_name: String,
-        task_id: String,
-        task_port: String,
-        container_name: String,
-        metrics_port: String,
-    },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -252,19 +243,15 @@ impl NifiRestClient {
                 ..
             }) = &task.component
             {
-                if typ != PROMETHEUS_REPORTING_TASK_TYPE && name != &build_task_name() {
-                    continue;
-                }
-
-                if group != PROMETHEUS_REPORTING_TASK_BUNDLE_GROUP
-                    && artifact != PROMETHEUS_REPORTING_TASK_BUNDLE_ARTIFACT
-                    && version != nifi_version
+                if typ == PROMETHEUS_REPORTING_TASK_TYPE
+                    && name == &build_task_name()
+                    && group == PROMETHEUS_REPORTING_TASK_BUNDLE_GROUP
+                    && artifact == PROMETHEUS_REPORTING_TASK_BUNDLE_ARTIFACT
+                    && version == nifi_version
                 {
-                    continue;
+                    // task type and name, bundle group, artifact and version match
+                    return Ok(Some(task));
                 }
-
-                // task type and name, bundle group, artifact and version match
-                return Ok(Some(task));
             }
         }
 
@@ -427,31 +414,17 @@ impl NifiRestClient {
     ///
     /// # Arguments
     /// * `metrics_port` - The provided metrics container port.
-    /// * `task` - The [`ReportingTask`] to check
+    /// * `task_component` - The [`ReportingTaskComponent`] to check
     /// * `task_id` - The PrometheusReportingTask id.
     ///
-    pub async fn match_metric_and_reporting_task_port(
+    pub fn match_metric_and_reporting_task_port(
         &self,
         metrics_port: u16,
         task_component: &Option<ReportingTaskComponent>,
-        task_id: &str,
-    ) -> Result<(), NifiMonitoringError> {
-        if let Some(ReportingTaskComponent {
-            name, properties, ..
-        }) = &task_component
-        {
-            if properties.metrics_endpoint_port != metrics_port.to_string() {
-                return Err(NifiMonitoringError::BadReportingTaskPort {
-                    task_name: name.clone(),
-                    task_id: task_id.to_string(),
-                    task_port: properties.metrics_endpoint_port.clone(),
-                    container_name: CONTAINER_NAME.to_string(),
-                    metrics_port: metrics_port.to_string(),
-                });
-            }
-        }
-
-        Ok(())
+    ) -> bool {
+        task_component.as_ref().map_or(false, |task| {
+            task.properties.metrics_endpoint_port == metrics_port.to_string()
+        })
     }
 
     /// HTTP POST request with a body that implements `Serialize`. Headers are automatically
