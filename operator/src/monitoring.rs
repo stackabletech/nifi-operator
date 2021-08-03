@@ -20,9 +20,6 @@ pub enum NifiMonitoringError {
     #[error("Missing node_name for pod [{pod_name}].")]
     PodNodeNameMissing { pod_name: String },
 
-    #[error("Missing uid for pod [{pod_name}].")]
-    PodUidMissing { pod_name: String },
-
     #[error("Missing spec for pod [{pod_name}].")]
     PodSpecMissing { pod_name: String },
 
@@ -73,15 +70,6 @@ pub struct ReportingTask {
     pub state: Option<ReportingTaskState>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<ReportingTaskStatus>,
-}
-
-impl ReportingTask {
-    pub fn name(&self) -> String {
-        if let Some(ReportingTaskComponent { name, .. }) = &self.component {
-            return name.clone();
-        }
-        "<no-name-set>".to_string()
-    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -151,11 +139,13 @@ pub enum ReportingTaskValidation {
     Valid,
 }
 
+/// Collects required information about pods. The node_name and http_port form the host address.
+/// The metric port (from the container_ports) is required to set the PrometheusReportingTask to
+/// the correct scraping port.
 pub struct PodMonitoringInfo {
     pub node_name: String,
     pub http_port: u16,
     pub metric_port: u16,
-    pub uid: String,
 }
 
 impl PodMonitoringInfo {
@@ -164,10 +154,12 @@ impl PodMonitoringInfo {
         format!("{}:{}", self.node_name, self.http_port)
     }
 
+    /// Url to the NiFi flow reporting tasks.
     pub fn list_reporting_tasks_url(&self) -> String {
         format!("http://{}/nifi-api/flow/reporting-tasks", self.http_host())
     }
 
+    /// Url to the NiFi controller reporting tasks.
     pub fn create_reporting_task_url(&self) -> String {
         format!(
             "http://{}/nifi-api/controller/reporting-tasks",
@@ -175,6 +167,20 @@ impl PodMonitoringInfo {
         )
     }
 
+    /// Url to the reporting-tasks api.
+    pub fn delete_reporting_task_url(
+        &self,
+        task_id: &str,
+        revision: &ReportingTaskRevision,
+    ) -> String {
+        format!(
+            "http://{}/nifi-api/reporting-tasks/{}?version={}&clientId={}&disconnectedNodeAcknowledged=false",
+            self.http_host(),
+            task_id, revision.version, revision.client_id.as_deref().unwrap_or("1")
+        )
+    }
+
+    /// Url to change the status of an existing task.
     pub fn update_reporting_task_status_url(&self, task_id: &str) -> String {
         format!(
             "http://{}/nifi-api/reporting-tasks/{}/run-status",
@@ -221,6 +227,12 @@ impl MonitoringStatus {
         }
     }
 
+    /// Find the "StackablePrometheusReportingTask" in the NiFi cluster.
+    ///
+    /// # Arguments
+    /// * `monitoring_info` - Pod monitoring info including container ports, uid etc.
+    /// * `nifi_version` - The NiFi version currently used by the operator.
+    ///
     pub async fn find_reporting_task(
         &self,
         monitoring_info: &[PodMonitoringInfo],
@@ -261,6 +273,10 @@ impl MonitoringStatus {
 
     /// List all available ReportingTasks from a NiFi node REST endpoint.
     /// Will try pod after pod until the first can be queried via REST.
+    ///
+    /// # Arguments
+    /// * `monitoring_info` - Pod monitoring info including container ports, uid etc.
+    ///
     pub async fn list_reporting_tasks(
         &self,
         monitoring_info: &[PodMonitoringInfo],
@@ -298,7 +314,16 @@ impl MonitoringStatus {
         Ok(Vec::new())
     }
 
-    pub fn info(&self, pods: &[Pod]) -> Result<Vec<PodMonitoringInfo>, NifiMonitoringError> {
+    /// Collect a list of monitoring info for pods. Contains node_name and http_port (to make
+    /// REST api calls), the metrics_port and the pod uid.
+    ///
+    /// # Arguments
+    /// * `pods` - List of all available NiFi pods
+    ///
+    pub fn monitoring_info(
+        &self,
+        pods: &[Pod],
+    ) -> Result<Vec<PodMonitoringInfo>, NifiMonitoringError> {
         let mut result = vec![];
         for pod in pods {
             result.push(pod_monitoring_info(pod)?);
@@ -306,14 +331,20 @@ impl MonitoringStatus {
         Ok(result)
     }
 
+    /// Build and create a PrometheusReportingTask in NiFi.
+    ///
+    /// # Arguments
+    /// * `monitoring_info` - Pod monitoring info including node_name and container ports.
+    /// * `nifi_version` - The NiFi version currently used by the operator.
+    ///
     pub async fn create_reporting_task(
         &self,
         monitoring_info: &PodMonitoringInfo,
-        version: &str,
+        nifi_version: &str,
     ) -> Result<Response, reqwest::Error> {
         let task = ReportingTask {
             revision: ReportingTaskRevision {
-                client_id: Some(monitoring_info.uid.to_string()),
+                client_id: None,
                 version: 0,
             },
             id: None,
@@ -324,7 +355,7 @@ impl MonitoringStatus {
                 bundle: ReportingTaskComponentBundle {
                     group: PROMETHEUS_REPORTING_TASK_BUNDLE_GROUP.to_string(),
                     artifact: PROMETHEUS_REPORTING_TASK_BUNDLE_ARTIFACT.to_string(),
-                    version: version.to_string(),
+                    version: nifi_version.to_string(),
                 },
                 properties: ReportingTaskComponentProperties {
                     metrics_endpoint_port: monitoring_info.metric_port.to_string(),
@@ -343,23 +374,41 @@ impl MonitoringStatus {
             .await
     }
 
-    // pub async fn delete_reporting_task(&self) -> Result<ReconcileFunctionAction, NifiError> {
-    //     Ok(ReconcileFunctionAction::Continue)
-    // }
+    /// Delete a reporting_task with a certain `task_id`.
+    ///
+    /// # Arguments
+    /// * `monitoring_info` - Pod monitoring info including container ports, uid etc.
+    /// * `task_id` - The PrometheusReportingTask id.
+    /// * `task_revision` - The PrometheusReportingTask revision.
+    ///
+    pub async fn delete_reporting_task(
+        &self,
+        monitoring_info: &PodMonitoringInfo,
+        task_id: &str,
+        task_revision: &ReportingTaskRevision,
+    ) -> Result<Response, reqwest::Error> {
+        self.delete(&monitoring_info.delete_reporting_task_url(task_id, task_revision))
+            .await
+    }
 
-    /// Update a reporting_task on "Running" or "Stopped".
+    /// Update a reporting_task to "Stopped" or "Running".
+    ///
+    /// # Arguments
+    /// * `monitoring_info` - Pod monitoring info including container ports, uid etc.
+    /// * `task_id` - The PrometheusReportingTask id.
+    /// * `task_revision` - The PrometheusReportingTask revision.
+    /// * `state` - The ReportingTaskState to update (STOPPED, RUNNING).
+    ///
     pub async fn update_reporting_task_status(
         &self,
         monitoring_info: &PodMonitoringInfo,
         task_id: &str,
+        task_revision: &ReportingTaskRevision,
         state: ReportingTaskState,
     ) -> Result<Response, reqwest::Error> {
         let new_task = ReportingTask {
-            revision: ReportingTaskRevision {
-                version: 0,
-                client_id: Some(monitoring_info.uid.clone()),
-            },
-            disconnected_node_acknowledged: Some(true),
+            revision: task_revision.clone(),
+            disconnected_node_acknowledged: Some(false),
             state: Some(state),
             id: None,
             component: None,
@@ -379,20 +428,22 @@ impl MonitoringStatus {
     /// # Arguments
     /// * `metrics_port` - The provided metrics container port.
     /// * `task` - The [`ReportingTask`] to check
+    /// * `task_id` - The PrometheusReportingTask id.
     ///
     pub async fn match_metric_and_reporting_task_port(
         &self,
         metrics_port: u16,
-        task: &ReportingTask,
+        task_component: &Option<ReportingTaskComponent>,
+        task_id: &str,
     ) -> Result<(), NifiMonitoringError> {
         if let Some(ReportingTaskComponent {
             name, properties, ..
-        }) = &task.component
+        }) = &task_component
         {
             if properties.metrics_endpoint_port != metrics_port.to_string() {
                 return Err(NifiMonitoringError::BadReportingTaskPort {
                     task_name: name.clone(),
-                    task_id: task.id.clone().unwrap_or_else(|| NO_TASK_ID.to_string()),
+                    task_id: task_id.to_string(),
                     task_port: properties.metrics_endpoint_port.clone(),
                     container_name: CONTAINER_NAME.to_string(),
                     metrics_port: metrics_port.to_string(),
@@ -409,6 +460,7 @@ impl MonitoringStatus {
     /// # Arguments
     /// * `url` - The url to perform the POST request.
     /// * `body` - Struct implementing `Serialize`.
+    ///
     async fn post<T>(&self, url: &str, body: &T) -> Result<Response, reqwest::Error>
     where
         T: Serialize + ?Sized,
@@ -427,6 +479,7 @@ impl MonitoringStatus {
     /// # Arguments
     /// * `url` - The url to perform the PUT request.
     /// * `body` - Struct implementing `Serialize`.
+    ///
     async fn put<T>(&self, url: &str, body: &T) -> Result<Response, reqwest::Error>
     where
         T: Serialize + ?Sized,
@@ -435,6 +488,19 @@ impl MonitoringStatus {
             .put(url)
             .headers(self.headers.clone())
             .json(body)
+            .send()
+            .await
+    }
+
+    /// HTTP DELETE request. Headers are automatically added and the format is JSON.
+    ///
+    /// # Arguments
+    /// * `url` - The url to perform the DELETE request.
+    ///
+    async fn delete(&self, url: &str) -> Result<Response, reqwest::Error> {
+        self.client
+            .delete(url)
+            .headers(self.headers.clone())
             .send()
             .await
     }
@@ -483,20 +549,10 @@ fn pod_monitoring_info(pod: &Pod) -> Result<PodMonitoringInfo, NifiMonitoringErr
         METRICS_PORT_NAME,
     )?;
 
-    let uid = match &pod.metadata.uid {
-        None => {
-            return Err(NifiMonitoringError::PodUidMissing {
-                pod_name: pod_name.clone(),
-            })
-        }
-        Some(port) => port,
-    };
-
     Ok(PodMonitoringInfo {
         node_name: node_name.clone(),
         http_port,
         metric_port,
-        uid: uid.clone(),
     })
 }
 

@@ -15,7 +15,7 @@ spec:
         selector:
           matchLabels:
             kubernetes.io/arch: stackable-linux
-        replicas: 3
+        replicas: 1
         config:
           httpPort: 10000
           protocolPort: 10443
