@@ -4,6 +4,7 @@ use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::Response;
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
+use std::future::Future;
 use tracing::{debug, error, warn};
 
 const PROMETHEUS_REPORTING_TASK_NAME: &str = "StackablePrometheusReportingTask";
@@ -39,6 +40,11 @@ pub enum NifiMonitoringError {
 
     #[error("Error during parsing integer: {reason}")]
     ParseIntError { reason: String },
+
+    #[error(
+        "Error while trying to connect to the NiFi cluster REST endpoints. Please check the cluster availability or write a ticket."
+    )]
+    NiFiRestApiUnreachable,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -561,4 +567,35 @@ fn find_pod_container_port(
         container_name: container_name.to_string(),
         container_port_name: port_name.to_string(),
     })
+}
+
+/// This is a wrapper for all NiFi REST API calls like delete_reporting_task, create_reporting_task,
+/// or update_reporting_task_status.
+/// We iterate over the monitoring info of all pods in case of network problems or a certain
+/// node is not reachable. We use the first monitoring info (host address) that is working.
+pub async fn try_with_monitoring_info<'a, F, Fut>(
+    monitoring_info: &'a [PodMonitoringInfo],
+    method: F,
+) -> Result<(), NifiMonitoringError>
+where
+    F: Fn(&'a PodMonitoringInfo) -> Fut,
+    Fut: Future<Output = Result<Response, reqwest::Error>>,
+{
+    for info in monitoring_info {
+        match method(info).await {
+            Err(err) => {
+                warn!(
+                    "Could not connect to NiFi REST API at [{}]: {}",
+                    info.http_host(),
+                    err.to_string()
+                );
+            }
+            // stop if no error occurred
+            Ok(_) => {
+                break;
+            }
+        }
+    }
+
+    Err(NifiMonitoringError::NiFiRestApiUnreachable)
 }

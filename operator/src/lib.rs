@@ -464,6 +464,7 @@ impl NifiState {
     /// We always iterate over all the <node_name>:<http_port> pod combinations in order to
     /// make sure that network problems etc. will not affect this. Usually the first pod
     /// should be sufficient.
+    /// ```ignore
     /// +-------------------------------------------------------------------------------+
     /// |         "StackablePrometheusReportingTask" available?                         |
     /// |            <no> |                          | <yes>                            |
@@ -484,6 +485,7 @@ impl NifiState {
     /// |                                v                    v         v               |
     /// |                             start task        stop task    delete task        |
     /// +-------------------------------------------------------------------------------+
+    /// ```
     async fn process_monitoring(&self) -> NifiReconcileResult {
         let monitoring_info = self
             .monitoring
@@ -511,167 +513,108 @@ impl NifiState {
 
             // We iterate over the monitoring info of all pods in case of network problems or a certain
             // node is not reachable. We use the first monitoring info (host address) that is working.
-            for info in &monitoring_info {
-                match (metrics_port, &run_status) {
-                    // If a metrics_port is set and the task is running, we need to check if the
-                    // metrics_port equals the NiFi ReportingTask metrics port.
-                    // We are done if they match, otherwise we need to stop the task
-                    (Some(port), ReportingTaskState::Running) => {
-                        if !self
-                            .monitoring
-                            .match_metric_and_reporting_task_port(port, &component)
-                        {
-                            warn!("Stopping ReportingTask [{}] - Different ports from metrics_port and reporting_task_port", task_id);
-                            // ports do not match, we need to stop the task
-                            if let Err(err) = self
-                                .monitoring
-                                .update_reporting_task_status(
-                                    info,
-                                    &task_id,
-                                    &revision,
-                                    ReportingTaskState::Stopped,
-                                )
-                                .await
-                            {
-                                warn!(
-                                    "Error while stopping ReportingTask, will try again: {}",
-                                    err.to_string()
-                                );
-                                continue;
-                            }
-
-                            // requeue after stopping the task -> prepare for deletion
-                            return Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(5)));
-                        }
-                    }
-                    // If a metrics_port is set and the task is stopped, we need to check if the
-                    // metrics_port equals the NiFi ReportingTask metrics port.
-                    // If they match we need to start the task, if not we delete the task
-                    (Some(port), ReportingTaskState::Stopped) => {
-                        if !self
-                            .monitoring
-                            .match_metric_and_reporting_task_port(port, &component)
-                        {
-                            info!(
-                                "ReportingTask [{}] is [{}]. Trying to start it...",
-                                task_id,
-                                ReportingTaskState::Stopped.to_string()
-                            );
-                            if let Err(err) = self
-                                .monitoring
-                                .update_reporting_task_status(
-                                    info,
-                                    &task_id,
-                                    &revision,
-                                    ReportingTaskState::Running,
-                                )
-                                .await
-                            {
-                                warn!(
-                                    "Error while starting ReportingTask, will try again: {}",
-                                    err.to_string()
-                                );
-                                continue;
-                            }
-
-                            // We can continue after we started a ReportingTask with the correct metrics port
-                            return Ok(ReconcileFunctionAction::Continue);
-                        } else {
-                            warn!("Deleting ReportingTask [{}] - Different ports from metrics_port and reporting_task_port", task_id);
-                            if let Err(err) = self
-                                .monitoring
-                                .delete_reporting_task(info, &task_id, &revision)
-                                .await
-                            {
-                                warn!(
-                                    "Error while deleting ReportingTask, will try again: {}",
-                                    err.to_string()
-                                );
-                                continue;
-                            }
-
-                            // requeue after deleting the task -> prepare for recreating
-                            return Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(5)));
-                        }
-                    }
-                    // If no metrics port is set but a "Running" task is found, we need to stop it
-                    (None, ReportingTaskState::Running) => {
-                        info!(
-                        "ReportingTask [{}] status is [{}] and no monitoring is enabled. Trying to stop it...",
-                        task_id,
-                        ReportingTaskState::Running.to_string());
-
-                        if let Err(err) = self
-                            .monitoring
-                            .update_reporting_task_status(
+            match (metrics_port, &run_status) {
+                // If a metrics_port is set and the task is running, we need to check if the
+                // metrics_port equals the NiFi ReportingTask metrics port.
+                // We are done if they match, otherwise we need to stop the task
+                (Some(port), ReportingTaskState::Running) => {
+                    if !self
+                        .monitoring
+                        .match_metric_and_reporting_task_port(port, &component)
+                    {
+                        monitoring::try_with_monitoring_info(&monitoring_info, |info| {
+                            self.monitoring.update_reporting_task_status(
                                 info,
                                 &task_id,
                                 &revision,
                                 ReportingTaskState::Stopped,
                             )
-                            .await
-                        {
-                            warn!(
-                                "Error while stopping ReportingTask, will try again: {}",
-                                err.to_string()
-                            );
-                            continue;
-                        }
+                        })
+                        .await?;
+
+                        info!("Stopped ReportingTask [{}]", task_id);
 
                         // requeue after stopping the task -> prepare for deletion
                         return Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(5)));
                     }
-                    // If no metrics port is set but a "Stopped" task is found, we need to delete it
-                    (None, ReportingTaskState::Stopped) => {
-                        info!(
-                        "ReportingTask [{}] status is [{}] and no monitoring is enabled. Trying to delete it...",
-                        task_id,
-                        ReportingTaskState::Stopped.to_string()
-                    );
-                        if let Err(err) = self
-                            .monitoring
-                            .delete_reporting_task(info, &task_id, &revision)
-                            .await
-                        {
-                            warn!(
-                                "Error while deleting ReportingTask, will try again: {}",
-                                err.to_string()
-                            );
-                            continue;
-                        }
+                }
+                // If a metrics_port is set and the task is stopped, we need to check if the
+                // metrics_port equals the NiFi ReportingTask metrics port.
+                // If they match we need to start the task, if not we delete the task
+                (Some(port), ReportingTaskState::Stopped) => {
+                    if self
+                        .monitoring
+                        .match_metric_and_reporting_task_port(port, &component)
+                    {
+                        monitoring::try_with_monitoring_info(&monitoring_info, |info| {
+                            self.monitoring.update_reporting_task_status(
+                                info,
+                                &task_id,
+                                &revision,
+                                ReportingTaskState::Running,
+                            )
+                        })
+                        .await?;
 
-                        // continue after deleting the task
+                        info!("Started ReportingTask [{}]", task_id);
+
+                        // We can continue after we started a ReportingTask with the correct metrics port
                         return Ok(ReconcileFunctionAction::Continue);
-                    }
+                    } else {
+                        monitoring::try_with_monitoring_info(&monitoring_info, |info| {
+                            self.monitoring
+                                .delete_reporting_task(info, &task_id, &revision)
+                        })
+                        .await?;
+
+                        info!("Deleted ReportingTask [{}] - Different ports from metrics_port and reporting_task_port", task_id);
+
+                        // requeue after deleting the task -> prepare for recreating
+                        return Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(5)));
+                    };
+                }
+                // If no metrics port is set but a "Running" task is found, we need to stop it
+                (None, ReportingTaskState::Running) => {
+                    monitoring::try_with_monitoring_info(&monitoring_info, |info| {
+                        self.monitoring.update_reporting_task_status(
+                            info,
+                            &task_id,
+                            &revision,
+                            ReportingTaskState::Stopped,
+                        )
+                    })
+                    .await?;
+
+                    info!("Stopped ReportingTask [{}]", task_id);
+
+                    // requeue after stopping the task -> prepare for deletion
+                    return Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(5)));
+                }
+                // If no metrics port is set but a "Stopped" task is found, we need to delete it
+                (None, ReportingTaskState::Stopped) => {
+                    monitoring::try_with_monitoring_info(&monitoring_info, |info| {
+                        self.monitoring
+                            .delete_reporting_task(info, &task_id, &revision)
+                    })
+                    .await?;
+
+                    info!("Deleted ReportingTask [{}]", task_id);
+
+                    return Ok(ReconcileFunctionAction::Continue);
                 }
             }
         }
         // no reporting task available -> create it if metrics port available
         else if let Some(_port) = metrics_port {
-            // We iterate over the monitoring info of all pods in case of network problems or a certain
-            // node is not reachable. We use the first monitoring info (host address) that is working.
-            for info in &monitoring_info {
-                match self
-                    .monitoring
-                    .create_reporting_task(info, &self.context.resource.spec.version.to_string())
-                    .await
-                {
-                    Err(err) => {
-                        // we try another pod to create it on
-                        warn!(
-                            "Could not create ReportingTask on [{}]: {}",
-                            info.http_host(),
-                            err.to_string()
-                        );
-                        continue;
-                    }
-                    Ok(response) => {
-                        info!("Created ReportingTask: {:?}", response);
-                        // requeue if created successfully for starting
-                        return Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(10)));
-                    }
-                }
-            }
+            let version = self.context.resource.spec.version.to_string();
+            monitoring::try_with_monitoring_info(&monitoring_info, |info| {
+                self.monitoring.create_reporting_task(info, &version)
+            })
+            .await?;
+
+            info!("Created ReportingTask");
+
+            return Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(10)));
         }
 
         Ok(ReconcileFunctionAction::Continue)
