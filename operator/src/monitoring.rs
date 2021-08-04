@@ -592,10 +592,14 @@ where
             }
             // stop if no error occurred
             Ok(_) => {
-                break;
+                return Ok(());
             }
         }
     }
 
-    Err(NifiMonitoringError::NiFiRestApiUnreachable)
+    if monitoring_info.len() > 0 {
+        Err(NifiMonitoringError::NiFiRestApiUnreachable)
+    } else {
+        Ok(())
+    }
 }
