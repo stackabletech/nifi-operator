@@ -1,4 +1,4 @@
-use crate::{CONTAINER_NAME, HTTP_PORT_NAME, METRICS_PORT_NAME};
+use crate::{CONTAINER_NAME, HTTP_PORT_NAME};
 use k8s_openapi::api::core::v1::{Container, Pod};
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::Response;
@@ -136,32 +136,27 @@ pub enum ReportingTaskValidation {
     Valid,
 }
 
-/// Collects required information about pods. The node_name and http_port form the host address.
-/// The metric port (from the container_ports) is required to set the PrometheusReportingTask to
-/// the correct scraping port.
-pub struct PodMonitoringInfo {
+/// Collects required information about pods. The node_name and http_port form the host address
+/// for the NiFi REST API.
+pub struct NifiRestEndpoint {
     pub node_name: String,
     pub http_port: u16,
-    pub metric_port: u16,
 }
 
-impl PodMonitoringInfo {
-    /// Return the Host address containing of the node_name and the http_port.
+impl NifiRestEndpoint {
+    /// Return the host address containing of the node_name and the http_port.
     pub fn http_host(&self) -> String {
-        format!("{}:{}", self.node_name, self.http_port)
+        format!("http://{}:{}", self.node_name, self.http_port)
     }
 
     /// Url to the NiFi flow reporting tasks.
     pub fn list_reporting_tasks_url(&self) -> String {
-        format!("http://{}/nifi-api/flow/reporting-tasks", self.http_host())
+        format!("{}/nifi-api/flow/reporting-tasks", self.http_host())
     }
 
     /// Url to the NiFi controller reporting tasks.
     pub fn create_reporting_task_url(&self) -> String {
-        format!(
-            "http://{}/nifi-api/controller/reporting-tasks",
-            self.http_host()
-        )
+        format!("{}/nifi-api/controller/reporting-tasks", self.http_host())
     }
 
     /// Url to the reporting-tasks api.
@@ -171,7 +166,7 @@ impl PodMonitoringInfo {
         revision: &ReportingTaskRevision,
     ) -> String {
         format!(
-            "http://{}/nifi-api/reporting-tasks/{}?version={}&clientId={}&disconnectedNodeAcknowledged=false",
+            "{}/nifi-api/reporting-tasks/{}?version={}&clientId={}&disconnectedNodeAcknowledged=false",
             self.http_host(),
             task_id, revision.version, revision.client_id.as_deref().unwrap_or("1")
         )
@@ -180,7 +175,7 @@ impl PodMonitoringInfo {
     /// Url to change the status of an existing task.
     pub fn update_reporting_task_status_url(&self, task_id: &str) -> String {
         format!(
-            "http://{}/nifi-api/reporting-tasks/{}/run-status",
+            "{}/nifi-api/reporting-tasks/{}/run-status",
             self.http_host(),
             task_id
         )
@@ -227,15 +222,15 @@ impl NifiRestClient {
     /// Find the "StackablePrometheusReportingTask" in the NiFi cluster.
     ///
     /// # Arguments
-    /// * `monitoring_info` - Pod monitoring info including container ports, uid etc.
+    /// * `nifi_rest_endpoints` - Pod REST endpoints info including (node_name, http_port).
     /// * `nifi_version` - The NiFi version currently used by the operator.
     ///
     pub async fn find_reporting_task(
         &self,
-        monitoring_info: &[PodMonitoringInfo],
+        nifi_rest_endpoints: &[NifiRestEndpoint],
         nifi_version: &str,
     ) -> Result<Option<ReportingTask>, NifiMonitoringError> {
-        let tasks = self.list_reporting_tasks(monitoring_info).await?;
+        let tasks = self.list_reporting_tasks(nifi_rest_endpoints).await?;
         for task in tasks {
             if let Some(ReportingTaskComponent {
                 typ,
@@ -268,17 +263,17 @@ impl NifiRestClient {
     /// Will try pod after pod until the first can be queried via REST.
     ///
     /// # Arguments
-    /// * `monitoring_info` - Pod monitoring info including container ports, uid etc.
+    /// * `nifi_rest_endpoints` - Pod REST endpoints info including (node_name, http_port).
     ///
     pub async fn list_reporting_tasks(
         &self,
-        monitoring_info: &[PodMonitoringInfo],
+        nifi_rest_endpoints: &[NifiRestEndpoint],
     ) -> Result<Vec<ReportingTask>, NifiMonitoringError> {
         // We try all pods here in case there are network or other problems
         // and the first pod we encounter is not reachable.
         // We return however after the first pod that accepts requests.
         // ReportingTasks are shared via all pods/nifi nodes so one responding pod is sufficient.
-        for info in monitoring_info {
+        for info in nifi_rest_endpoints {
             let url = info.list_reporting_tasks_url();
 
             match self
@@ -313,13 +308,13 @@ impl NifiRestClient {
     /// # Arguments
     /// * `pods` - List of all available NiFi pods
     ///
-    pub fn monitoring_info(
+    pub fn list_nifi_rest_endpoints(
         &self,
         pods: &[Pod],
-    ) -> Result<Vec<PodMonitoringInfo>, NifiMonitoringError> {
+    ) -> Result<Vec<NifiRestEndpoint>, NifiMonitoringError> {
         let mut result = vec![];
         for pod in pods {
-            result.push(pod_monitoring_info(pod)?);
+            result.push(nifi_rest_endpoint(pod)?);
         }
         Ok(result)
     }
@@ -327,12 +322,13 @@ impl NifiRestClient {
     /// Build and create a PrometheusReportingTask in NiFi.
     ///
     /// # Arguments
-    /// * `monitoring_info` - Pod monitoring info including node_name and container ports.
+    /// * `nifi_rest_endpoint` - Pod REST endpoint info including (node_name, http_port).
     /// * `nifi_version` - The NiFi version currently used by the operator.
     ///
     pub async fn create_reporting_task(
         &self,
-        monitoring_info: &PodMonitoringInfo,
+        nifi_rest_endpoint: &NifiRestEndpoint,
+        metrics_port: u16,
         nifi_version: &str,
     ) -> Result<Response, reqwest::Error> {
         let task = ReportingTask {
@@ -351,7 +347,7 @@ impl NifiRestClient {
                     version: nifi_version.to_string(),
                 },
                 properties: ReportingTaskComponentProperties {
-                    metrics_endpoint_port: monitoring_info.metric_port.to_string(),
+                    metrics_endpoint_port: metrics_port.to_string(),
                     instance_id: "${hostname(true)}".to_string(),
                     metrics_strategy: "All Components".to_string(),
                     send_jvm: "true".to_string(),
@@ -363,38 +359,38 @@ impl NifiRestClient {
             status: None,
         };
 
-        self.post(&monitoring_info.create_reporting_task_url(), &task)
+        self.post(&nifi_rest_endpoint.create_reporting_task_url(), &task)
             .await
     }
 
     /// Delete a reporting_task with a certain `task_id`.
     ///
     /// # Arguments
-    /// * `monitoring_info` - Pod monitoring info including container ports, uid etc.
+    /// * `nifi_rest_endpoint` - Pod REST endpoint info including (node_name, http_port).
     /// * `task_id` - The PrometheusReportingTask id.
     /// * `task_revision` - The PrometheusReportingTask revision.
     ///
     pub async fn delete_reporting_task(
         &self,
-        monitoring_info: &PodMonitoringInfo,
+        nifi_rest_endpoint: &NifiRestEndpoint,
         task_id: &str,
         task_revision: &ReportingTaskRevision,
     ) -> Result<Response, reqwest::Error> {
-        self.delete(&monitoring_info.delete_reporting_task_url(task_id, task_revision))
+        self.delete(&nifi_rest_endpoint.delete_reporting_task_url(task_id, task_revision))
             .await
     }
 
     /// Update a reporting_task to "Stopped" or "Running".
     ///
     /// # Arguments
-    /// * `monitoring_info` - Pod monitoring info including container ports, uid etc.
+    /// * `nifi_rest_endpoint` - Pod REST endpoint info including (node_name, http_port).
     /// * `task_id` - The PrometheusReportingTask id.
     /// * `task_revision` - The PrometheusReportingTask revision.
     /// * `state` - The ReportingTaskState to update (STOPPED, RUNNING).
     ///
     pub async fn update_reporting_task_status(
         &self,
-        monitoring_info: &PodMonitoringInfo,
+        nifi_rest_endpoint: &NifiRestEndpoint,
         task_id: &str,
         task_revision: &ReportingTaskRevision,
         state: ReportingTaskState,
@@ -409,7 +405,7 @@ impl NifiRestClient {
         };
 
         self.put(
-            &monitoring_info.update_reporting_task_status_url(task_id),
+            &nifi_rest_endpoint.update_reporting_task_status_url(task_id),
             &new_task,
         )
         .await
@@ -498,7 +494,7 @@ fn build_task_name() -> String {
 /// # Arguments
 /// * `pod` - The pod to extract the [`PodMonitoringInfo`] from  
 ///
-fn pod_monitoring_info(pod: &Pod) -> Result<PodMonitoringInfo, NifiMonitoringError> {
+fn nifi_rest_endpoint(pod: &Pod) -> Result<NifiRestEndpoint, NifiMonitoringError> {
     let pod_name = pod.metadata.name.as_ref().unwrap();
 
     let spec = match &pod.spec {
@@ -522,16 +518,9 @@ fn pod_monitoring_info(pod: &Pod) -> Result<PodMonitoringInfo, NifiMonitoringErr
     let http_port =
         find_pod_container_port(spec.containers.as_slice(), CONTAINER_NAME, HTTP_PORT_NAME)?;
 
-    let metric_port = find_pod_container_port(
-        spec.containers.as_slice(),
-        CONTAINER_NAME,
-        METRICS_PORT_NAME,
-    )?;
-
-    Ok(PodMonitoringInfo {
+    Ok(NifiRestEndpoint {
         node_name: node_name.clone(),
         http_port,
-        metric_port,
     })
 }
 
@@ -573,19 +562,19 @@ fn find_pod_container_port(
 /// or update_reporting_task_status.
 /// We iterate over the monitoring info of all pods in case of network problems or a certain
 /// node is not reachable. We use the first monitoring info (host address) that is working.
-pub async fn try_with_monitoring_info<'a, F, Fut>(
-    monitoring_info: &'a [PodMonitoringInfo],
+pub async fn try_with_nifi_rest_endpoints<'a, F, Fut>(
+    nifi_rest_endpoints: &'a [NifiRestEndpoint],
     method: F,
 ) -> Result<(), NifiMonitoringError>
 where
-    F: Fn(&'a PodMonitoringInfo) -> Fut,
+    F: Fn(&'a NifiRestEndpoint) -> Fut,
     Fut: Future<Output = Result<Response, reqwest::Error>>,
 {
-    for info in monitoring_info {
+    for info in nifi_rest_endpoints {
         match method(info).await {
             Err(err) => {
                 warn!(
-                    "Could not connect to NiFi REST API at [{}]: {}",
+                    "Could not connect to NiFi REST endpoint [{}]: {}",
                     info.http_host(),
                     err.to_string()
                 );
@@ -597,7 +586,7 @@ where
         }
     }
 
-    if monitoring_info.len() > 0 {
+    if nifi_rest_endpoints.is_empty() {
         Err(NifiMonitoringError::NiFiRestApiUnreachable)
     } else {
         Ok(())
