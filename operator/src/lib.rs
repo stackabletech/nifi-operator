@@ -511,8 +511,6 @@ impl NifiState {
         {
             let task_id = id.clone().unwrap_or_else(|| NO_TASK_ID.to_string());
 
-            // We iterate over the monitoring info of all pods in case of network problems or a certain
-            // node is not reachable. We use the first monitoring info (host address) that is working.
             match (metrics_port, &run_status) {
                 // If a metrics_port is set and the task is running, we need to check if the
                 // metrics_port equals the NiFi ReportingTask metrics port.
@@ -522,14 +520,17 @@ impl NifiState {
                         .monitoring
                         .match_metric_and_reporting_task_port(port, &component)
                     {
-                        monitoring::try_with_nifi_rest_endpoints(&nifi_rest_endpoints, |info| {
-                            self.monitoring.update_reporting_task_status(
-                                info,
-                                &task_id,
-                                &revision,
-                                ReportingTaskState::Stopped,
-                            )
-                        })
+                        monitoring::try_with_nifi_rest_endpoints(
+                            &nifi_rest_endpoints,
+                            |endpoint| {
+                                self.monitoring.update_reporting_task_status(
+                                    endpoint,
+                                    &task_id,
+                                    &revision,
+                                    ReportingTaskState::Stopped,
+                                )
+                            },
+                        )
                         .await?;
 
                         info!("Stopped ReportingTask [{}]", task_id);
@@ -546,14 +547,17 @@ impl NifiState {
                         .monitoring
                         .match_metric_and_reporting_task_port(port, &component)
                     {
-                        monitoring::try_with_nifi_rest_endpoints(&nifi_rest_endpoints, |info| {
-                            self.monitoring.update_reporting_task_status(
-                                info,
-                                &task_id,
-                                &revision,
-                                ReportingTaskState::Running,
-                            )
-                        })
+                        monitoring::try_with_nifi_rest_endpoints(
+                            &nifi_rest_endpoints,
+                            |endpoint| {
+                                self.monitoring.update_reporting_task_status(
+                                    endpoint,
+                                    &task_id,
+                                    &revision,
+                                    ReportingTaskState::Running,
+                                )
+                            },
+                        )
                         .await?;
 
                         info!("Started ReportingTask [{}]", task_id);
@@ -561,10 +565,13 @@ impl NifiState {
                         // We can continue after we started a ReportingTask with the correct metrics port
                         Ok(ReconcileFunctionAction::Continue)
                     } else {
-                        monitoring::try_with_nifi_rest_endpoints(&nifi_rest_endpoints, |info| {
-                            self.monitoring
-                                .delete_reporting_task(info, &task_id, &revision)
-                        })
+                        monitoring::try_with_nifi_rest_endpoints(
+                            &nifi_rest_endpoints,
+                            |endpoint| {
+                                self.monitoring
+                                    .delete_reporting_task(endpoint, &task_id, &revision)
+                            },
+                        )
                         .await?;
 
                         info!("Deleted ReportingTask [{}] - Different ports from metrics_port and reporting_task_port", task_id);
@@ -575,9 +582,9 @@ impl NifiState {
                 }
                 // If no metrics port is set but a "Running" task is found, we need to stop it
                 (None, ReportingTaskState::Running) => {
-                    monitoring::try_with_nifi_rest_endpoints(&nifi_rest_endpoints, |info| {
+                    monitoring::try_with_nifi_rest_endpoints(&nifi_rest_endpoints, |endpoint| {
                         self.monitoring.update_reporting_task_status(
-                            info,
+                            endpoint,
                             &task_id,
                             &revision,
                             ReportingTaskState::Stopped,
@@ -592,9 +599,9 @@ impl NifiState {
                 }
                 // If no metrics port is set but a "Stopped" task is found, we need to delete it
                 (None, ReportingTaskState::Stopped) => {
-                    monitoring::try_with_nifi_rest_endpoints(&nifi_rest_endpoints, |info| {
+                    monitoring::try_with_nifi_rest_endpoints(&nifi_rest_endpoints, |endpoint| {
                         self.monitoring
-                            .delete_reporting_task(info, &task_id, &revision)
+                            .delete_reporting_task(endpoint, &task_id, &revision)
                     })
                     .await?;
 
@@ -607,8 +614,9 @@ impl NifiState {
         // no reporting task available -> create it if metrics port available
         else if let Some(port) = metrics_port {
             let version = self.context.resource.spec.version.to_string();
-            monitoring::try_with_nifi_rest_endpoints(&nifi_rest_endpoints, |info| {
-                self.monitoring.create_reporting_task(info, port, &version)
+            monitoring::try_with_nifi_rest_endpoints(&nifi_rest_endpoints, |endpoint| {
+                self.monitoring
+                    .create_reporting_task(endpoint, port, &version)
             })
             .await?;
 
