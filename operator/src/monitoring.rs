@@ -222,7 +222,7 @@ impl NifiRestClient {
     /// Find the "StackablePrometheusReportingTask" in the NiFi cluster.
     ///
     /// # Arguments
-    /// * `nifi_rest_endpoints` - Pod REST endpoints info including (node_name, http_port).
+    /// * `nifi_rest_endpoints` - Pod REST endpoints including (node_name, http_port).
     /// * `nifi_version` - The NiFi version currently used by the operator.
     ///
     pub async fn find_reporting_task(
@@ -263,7 +263,7 @@ impl NifiRestClient {
     /// Will try pod after pod until the first can be queried via REST.
     ///
     /// # Arguments
-    /// * `nifi_rest_endpoints` - Pod REST endpoints info including (node_name, http_port).
+    /// * `nifi_rest_endpoints` - Pod REST endpoints including (node_name, http_port).
     ///
     pub async fn list_reporting_tasks(
         &self,
@@ -273,8 +273,8 @@ impl NifiRestClient {
         // and the first pod we encounter is not reachable.
         // We return however after the first pod that accepts requests.
         // ReportingTasks are shared via all pods/nifi nodes so one responding pod is sufficient.
-        for info in nifi_rest_endpoints {
-            let url = info.list_reporting_tasks_url();
+        for endpoint in nifi_rest_endpoints {
+            let url = endpoint.list_reporting_tasks_url();
 
             match self
                 .client
@@ -302,7 +302,7 @@ impl NifiRestClient {
         Ok(Vec::new())
     }
 
-    /// Collect a list of monitoring info for pods. Contains node_name and http_port (to make
+    /// Collect a list of rest endpoints for pods. Contains node_name and http_port (to make
     /// REST api calls), the metrics_port and the pod uid.
     ///
     /// # Arguments
@@ -322,7 +322,7 @@ impl NifiRestClient {
     /// Build and create a PrometheusReportingTask in NiFi.
     ///
     /// # Arguments
-    /// * `nifi_rest_endpoint` - Pod REST endpoint info including (node_name, http_port).
+    /// * `nifi_rest_endpoint` - Pod REST endpoint including (node_name, http_port).
     /// * `nifi_version` - The NiFi version currently used by the operator.
     ///
     pub async fn create_reporting_task(
@@ -366,7 +366,7 @@ impl NifiRestClient {
     /// Delete a reporting_task with a certain `task_id`.
     ///
     /// # Arguments
-    /// * `nifi_rest_endpoint` - Pod REST endpoint info including (node_name, http_port).
+    /// * `nifi_rest_endpoint` - Pod REST endpoint including (node_name, http_port).
     /// * `task_id` - The PrometheusReportingTask id.
     /// * `task_revision` - The PrometheusReportingTask revision.
     ///
@@ -383,7 +383,7 @@ impl NifiRestClient {
     /// Update a reporting_task to "Stopped" or "Running".
     ///
     /// # Arguments
-    /// * `nifi_rest_endpoint` - Pod REST endpoint info including (node_name, http_port).
+    /// * `nifi_rest_endpoint` - Pod REST endpoint including (node_name, http_port).
     /// * `task_id` - The PrometheusReportingTask id.
     /// * `task_revision` - The PrometheusReportingTask revision.
     /// * `state` - The ReportingTaskState to update (STOPPED, RUNNING).
@@ -489,7 +489,7 @@ fn build_task_name() -> String {
 
 /// Extract [`PodMonitoringInfo`] containing required information for monitoring. Contains
 /// node_name and 'container' http_port which are required to build a host address in the format
-/// <node_name>:<http_port>. Additionally the actual metric_port and the uid of the pod are extracted.  
+/// <node_name>:<http_port>.   
 ///
 /// # Arguments
 /// * `pod` - The pod to extract the [`PodMonitoringInfo`] from  
@@ -570,12 +570,12 @@ where
     F: Fn(&'a NifiRestEndpoint) -> Fut,
     Fut: Future<Output = Result<Response, reqwest::Error>>,
 {
-    for info in nifi_rest_endpoints {
-        match method(info).await {
+    for endpoint in nifi_rest_endpoints {
+        match method(endpoint).await {
             Err(err) => {
                 warn!(
                     "Could not connect to NiFi REST endpoint [{}]: {}",
-                    info.http_host(),
+                    endpoint.http_host(),
                     err.to_string()
                 );
             }
