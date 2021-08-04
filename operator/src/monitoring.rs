@@ -560,8 +560,8 @@ fn find_pod_container_port(
 
 /// This is a wrapper for all NiFi REST API calls like delete_reporting_task, create_reporting_task,
 /// or update_reporting_task_status.
-/// We iterate over the monitoring info of all pods in case of network problems or a certain
-/// node is not reachable. We use the first monitoring info (host address) that is working.
+/// We iterate over all "rest" endpoints of the pods in case of network problems or a certain
+/// node is not reachable. We use the first endpoint (host address) that is working.
 pub async fn try_with_nifi_rest_endpoints<'a, F, Fut>(
     nifi_rest_endpoints: &'a [NifiRestEndpoint],
     method: F,
