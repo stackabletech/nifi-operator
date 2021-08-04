@@ -1,14 +1,18 @@
 mod config;
 mod error;
+mod monitoring;
 
 use crate::config::{
     build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
     validated_product_config,
 };
-use crate::error::Error;
+use crate::error::NifiError;
+use crate::monitoring::{
+    NifiRestClient, ReportingTask, ReportingTaskState, ReportingTaskStatus, NO_TASK_ID,
+};
 use async_trait::async_trait;
 use futures::Future;
-use k8s_openapi::api::core::v1::{ConfigMap, EnvVar, Node, Pod};
+use k8s_openapi::api::core::v1::{ConfigMap, EnvVar, Pod};
 use kube::api::ListParams;
 use kube::error::ErrorResponse;
 use kube::Api;
@@ -17,10 +21,10 @@ use product_config::types::PropertyNameKind;
 use product_config::ProductConfigManager;
 use stackable_nifi_crd::{
     NifiCluster, NifiRole, NifiSpec, APP_NAME, MANAGED_BY, NIFI_CLUSTER_LOAD_BALANCE_PORT,
-    NIFI_CLUSTER_NODE_PROTOCOL_PORT, NIFI_WEB_HTTP_PORT,
+    NIFI_CLUSTER_METRICS_PORT, NIFI_CLUSTER_NODE_PROTOCOL_PORT, NIFI_WEB_HTTP_PORT,
 };
 use stackable_operator::builder::{
-    ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
+    ConfigMapBuilder, ContainerBuilder, ContainerPortBuilder, ObjectMetaBuilder, PodBuilder,
 };
 use stackable_operator::client::Client;
 use stackable_operator::controller::{Controller, ControllerStrategy, ReconciliationState};
@@ -36,7 +40,7 @@ use stackable_operator::reconcile::{
     ContinuationStrategy, ReconcileFunctionAction, ReconcileResult, ReconciliationContext,
 };
 use stackable_operator::role_utils::{
-    get_role_and_group_labels, list_eligible_nodes_for_role_and_group,
+    get_role_and_group_labels, list_eligible_nodes_for_role_and_group, EligibleNodesForRoleAndGroup,
 };
 use stackable_operator::{k8s_utils, pod_utils, role_utils};
 use stackable_zookeeper_crd::util::ZookeeperConnectionInformation;
@@ -48,15 +52,24 @@ use strum::IntoEnumIterator;
 use tracing::{debug, info, trace, warn};
 
 const FINALIZER_NAME: &str = "nifi.stackable.tech/cleanup";
+const SHOULD_BE_SCRAPED: &str = "monitoring.stackable.tech/should_be_scraped";
 
-type NifiReconcileResult = ReconcileResult<error::Error>;
+const HTTP_PORT_NAME: &str = "http";
+const PROTOCOL_PORT_NAME: &str = "protocol";
+const LOAD_BALANCE_PORT_NAME: &str = "loadbalance";
+const METRICS_PORT_NAME: &str = "metrics";
+
+const CONTAINER_NAME: &str = "nifi";
+
+type NifiReconcileResult = ReconcileResult<error::NifiError>;
 
 struct NifiState {
     context: ReconciliationContext<NifiCluster>,
+    eligible_nodes: EligibleNodesForRoleAndGroup,
     existing_pods: Vec<Pod>,
-    eligible_nodes: HashMap<String, HashMap<String, Vec<Node>>>,
-    zookeeper_info: Option<ZookeeperConnectionInformation>,
+    monitoring: Arc<NifiRestClient>,
     validated_role_config: ValidatedRoleConfigByPropertyKind,
+    zookeeper_info: Option<ZookeeperConnectionInformation>,
 }
 
 impl NifiState {
@@ -129,9 +142,9 @@ impl NifiState {
     /// - Do nothing if the config map exists and the content is identical
     /// - Forward any kube errors that may appear
     // TODO: move to operator-rs
-    async fn create_config_map(&self, config_map: ConfigMap) -> Result<(), Error> {
+    async fn create_config_map(&self, config_map: ConfigMap) -> Result<(), NifiError> {
         let cm_name = match config_map.metadata.name.as_deref() {
-            None => return Err(Error::InvalidConfigMap),
+            None => return Err(NifiError::InvalidConfigMap),
             Some(name) => name,
         };
 
@@ -163,7 +176,7 @@ impl NifiState {
                 debug!("Error getting ConfigMap [{}]: [{:?}]", cm_name, reason);
                 self.context.client.create(&config_map).await?;
             }
-            Err(e) => return Err(Error::OperatorError { source: e }),
+            Err(e) => return Err(NifiError::OperatorError { source: e }),
         }
 
         Ok(())
@@ -178,7 +191,7 @@ impl NifiState {
         for role in NifiRole::iter() {
             let role_str = &role.to_string();
             if let Some(nodes_for_role) = self.eligible_nodes.get(role_str) {
-                for (role_group, nodes) in nodes_for_role {
+                for (role_group, (nodes, replicas)) in nodes_for_role {
                     debug!(
                         "Identify missing pods for [{}] role and group [{}]",
                         role_str, role_group
@@ -208,6 +221,7 @@ impl NifiState {
                         nodes,
                         &self.existing_pods,
                         &get_role_and_group_labels(role_str, role_group),
+                        *replicas,
                     );
 
                     for node in nodes_that_need_pods {
@@ -231,7 +245,7 @@ impl NifiState {
                             .create_pod_and_config_maps(
                                 &role,
                                 role_group,
-                                &node_name,
+                                node_name,
                                 config_for_role_and_group(
                                     role_str,
                                     role_group,
@@ -258,10 +272,14 @@ impl NifiState {
         role_group: &str,
         node_name: &str,
         validated_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
-    ) -> Result<(Pod, Vec<ConfigMap>), Error> {
+    ) -> Result<(Pod, Vec<ConfigMap>), NifiError> {
         let mut config_maps = vec![];
         let mut env_vars = vec![];
         let mut cm_data = BTreeMap::new();
+        let mut http_port: Option<&String> = None;
+        let mut protocol_port: Option<&String> = None;
+        let mut load_balance: Option<&String> = None;
+        let mut metrics_port: Option<String> = None;
 
         for (property_name_kind, config) in validated_config {
             // we need to convert to <String, String> to <String, Option<String>> to deal with
@@ -280,6 +298,10 @@ impl NifiState {
                         cm_data.insert(file_name.to_string(), build_bootstrap_conf());
                     }
                     config::NIFI_PROPERTIES => {
+                        http_port = config.get(NIFI_WEB_HTTP_PORT);
+                        protocol_port = config.get(NIFI_CLUSTER_NODE_PROTOCOL_PORT);
+                        load_balance = config.get(NIFI_CLUSTER_LOAD_BALANCE_PORT);
+
                         cm_data.insert(
                             file_name.to_string(),
                             // TODO: Improve the product config and properties handling here
@@ -287,9 +309,9 @@ impl NifiState {
                             //    settings which we should process in a better manner.
                             build_nifi_properties(
                                 &self.context.resource.spec,
-                                config.get(NIFI_WEB_HTTP_PORT),
-                                config.get(NIFI_CLUSTER_NODE_PROTOCOL_PORT),
-                                config.get(NIFI_CLUSTER_LOAD_BALANCE_PORT),
+                                http_port,
+                                protocol_port,
+                                load_balance,
                                 zk_connect_string,
                                 node_name,
                             ),
@@ -313,6 +335,13 @@ impl NifiState {
                     for (property_name, property_value) in transformed_config {
                         if property_name.is_empty() {
                             warn!("Received empty property_name for ENV... skipping");
+                            continue;
+                        }
+
+                        // if a metrics port is provided (for now by user, it is not required in
+                        // product config to be able to not configure any monitoring / metrics)
+                        if property_name == NIFI_CLUSTER_METRICS_PORT {
+                            metrics_port = property_value.clone();
                             continue;
                         }
 
@@ -347,8 +376,8 @@ impl NifiState {
             role_group,
         );
 
-        let mut container_builder = ContainerBuilder::new("nifi");
-        container_builder.image(format!("nifi:{}", version));
+        let mut container_builder = ContainerBuilder::new(CONTAINER_NAME);
+        container_builder.image(format!("{}:{}", CONTAINER_NAME, version));
         container_builder.command(build_nifi_start_command(&self.context.resource.spec));
         // TODO: For now we set the mount path to the NiFi package config folder.
         //   This needs to be investigated and changed into an separate config folder.
@@ -357,8 +386,42 @@ impl NifiState {
             cm_name.clone(),
             format!("{}/nifi-{}/conf", "{{packageroot}}", version),
         );
-
         container_builder.add_env_vars(env_vars);
+
+        if let Some(port) = http_port {
+            container_builder.add_container_port(
+                ContainerPortBuilder::new(port.parse()?)
+                    .name(HTTP_PORT_NAME)
+                    .build(),
+            );
+        }
+
+        if let Some(port) = protocol_port {
+            container_builder.add_container_port(
+                ContainerPortBuilder::new(port.parse()?)
+                    .name(PROTOCOL_PORT_NAME)
+                    .build(),
+            );
+        }
+
+        if let Some(port) = load_balance {
+            container_builder.add_container_port(
+                ContainerPortBuilder::new(port.parse()?)
+                    .name(LOAD_BALANCE_PORT_NAME)
+                    .build(),
+            );
+        }
+
+        let mut annotations = BTreeMap::new();
+        if let Some(port) = metrics_port {
+            // only add metrics container port and annotation if available
+            annotations.insert(SHOULD_BE_SCRAPED.to_string(), "true".to_string());
+            container_builder.add_container_port(
+                ContainerPortBuilder::new(port.parse()?)
+                    .name(METRICS_PORT_NAME)
+                    .build(),
+            );
+        }
 
         let pod = PodBuilder::new()
             .metadata(
@@ -366,6 +429,7 @@ impl NifiState {
                     .name(pod_name)
                     .namespace(&self.context.client.default_namespace)
                     .with_labels(labels)
+                    .with_annotations(annotations)
                     .ownerreference_from_resource(&self.context.resource, Some(true), Some(true))?
                     .build()?,
             )
@@ -393,10 +457,180 @@ impl NifiState {
 
         Ok((pod, config_maps))
     }
+
+    /// In order to enable / disable monitoring for NiFi, we have to make several REST calls.
+    /// There will be only one ReportingTask for the whole cluster. The task will be synced
+    /// for all nodes.
+    /// We always iterate over all the <node_name>:<http_port> pod combinations in order to
+    /// make sure that network problems etc. will not affect this. Usually the first pod
+    /// should be sufficient.
+    /// ```ignore
+    /// +-------------------------------------------------------------------------------+
+    /// |         "StackablePrometheusReportingTask" available?                         |
+    /// |            <no> |                          | <yes>                            |
+    /// |                 v                          v                                  |
+    /// |          metrics_port set                metrics_port set                     |
+    /// |       <no> |          | <yes>         <yes> |         | <no>                  |
+    /// |            v          v                     |         v                       |
+    /// | nothing to do       create                  |       status == running         |
+    /// |                                             |     <yes> |         | <no>      |
+    /// |                                             |           v         v           |
+    /// |                                             |    stop task      delete task   |
+    /// |                                             v                                 |
+    /// |                                  task_port == metrics_port                    |
+    /// |                                 <yes> |              | <no>                   |
+    /// |                                       v              v                        |
+    /// |                           status == stopped       status == running           |
+    /// |                          <yes> |              <yes> |         | <no>          |
+    /// |                                v                    v         v               |
+    /// |                             start task        stop task    delete task        |
+    /// +-------------------------------------------------------------------------------+
+    /// ```
+    async fn process_monitoring(&self) -> NifiReconcileResult {
+        let nifi_rest_endpoints = self
+            .monitoring
+            .list_nifi_rest_endpoints(self.existing_pods.as_slice())?;
+
+        let metrics_port = self.context.resource.spec.metrics_port;
+
+        let reporting_task = self
+            .monitoring
+            .find_reporting_task(
+                &nifi_rest_endpoints,
+                &self.context.resource.spec.version.to_string(),
+            )
+            .await?;
+
+        if let Some(ReportingTask {
+            revision,
+            component,
+            status: Some(ReportingTaskStatus { run_status, .. }),
+            id,
+            ..
+        }) = reporting_task
+        {
+            let task_id = id.clone().unwrap_or_else(|| NO_TASK_ID.to_string());
+
+            match (metrics_port, &run_status) {
+                // If a metrics_port is set and the task is running, we need to check if the
+                // metrics_port equals the NiFi ReportingTask metrics port.
+                // We are done if they match, otherwise we need to stop the task
+                (Some(port), ReportingTaskState::Running) => {
+                    if !self
+                        .monitoring
+                        .match_metric_and_reporting_task_port(port, &component)
+                    {
+                        monitoring::try_with_nifi_rest_endpoints(
+                            &nifi_rest_endpoints,
+                            |endpoint| {
+                                self.monitoring.update_reporting_task_status(
+                                    endpoint,
+                                    &task_id,
+                                    &revision,
+                                    ReportingTaskState::Stopped,
+                                )
+                            },
+                        )
+                        .await?;
+
+                        info!("Stopped ReportingTask [{}]", task_id);
+
+                        // requeue after stopping the task -> prepare for deletion
+                        return Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(5)));
+                    }
+                }
+                // If a metrics_port is set and the task is stopped, we need to check if the
+                // metrics_port equals the NiFi ReportingTask metrics port.
+                // If they match we need to start the task, if not we delete the task
+                (Some(port), ReportingTaskState::Stopped) => {
+                    return if self
+                        .monitoring
+                        .match_metric_and_reporting_task_port(port, &component)
+                    {
+                        monitoring::try_with_nifi_rest_endpoints(
+                            &nifi_rest_endpoints,
+                            |endpoint| {
+                                self.monitoring.update_reporting_task_status(
+                                    endpoint,
+                                    &task_id,
+                                    &revision,
+                                    ReportingTaskState::Running,
+                                )
+                            },
+                        )
+                        .await?;
+
+                        info!("Started ReportingTask [{}]", task_id);
+
+                        // We can continue after we started a ReportingTask with the correct metrics port
+                        Ok(ReconcileFunctionAction::Continue)
+                    } else {
+                        monitoring::try_with_nifi_rest_endpoints(
+                            &nifi_rest_endpoints,
+                            |endpoint| {
+                                self.monitoring
+                                    .delete_reporting_task(endpoint, &task_id, &revision)
+                            },
+                        )
+                        .await?;
+
+                        info!("Deleted ReportingTask [{}] - Different ports from metrics_port and reporting_task_port", task_id);
+
+                        // requeue after deleting the task -> prepare for recreating
+                        Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(5)))
+                    };
+                }
+                // If no metrics port is set but a "Running" task is found, we need to stop it
+                (None, ReportingTaskState::Running) => {
+                    monitoring::try_with_nifi_rest_endpoints(&nifi_rest_endpoints, |endpoint| {
+                        self.monitoring.update_reporting_task_status(
+                            endpoint,
+                            &task_id,
+                            &revision,
+                            ReportingTaskState::Stopped,
+                        )
+                    })
+                    .await?;
+
+                    info!("Stopped ReportingTask [{}]", task_id);
+
+                    // requeue after stopping the task -> prepare for deletion
+                    return Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(5)));
+                }
+                // If no metrics port is set but a "Stopped" task is found, we need to delete it
+                (None, ReportingTaskState::Stopped) => {
+                    monitoring::try_with_nifi_rest_endpoints(&nifi_rest_endpoints, |endpoint| {
+                        self.monitoring
+                            .delete_reporting_task(endpoint, &task_id, &revision)
+                    })
+                    .await?;
+
+                    info!("Deleted ReportingTask [{}]", task_id);
+
+                    return Ok(ReconcileFunctionAction::Continue);
+                }
+            }
+        }
+        // no reporting task available -> create it if metrics port available
+        else if let Some(port) = metrics_port {
+            let version = self.context.resource.spec.version.to_string();
+            monitoring::try_with_nifi_rest_endpoints(&nifi_rest_endpoints, |endpoint| {
+                self.monitoring
+                    .create_reporting_task(endpoint, port, &version)
+            })
+            .await?;
+
+            info!("Created ReportingTask");
+
+            return Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(10)));
+        }
+
+        Ok(ReconcileFunctionAction::Continue)
+    }
 }
 
 impl ReconciliationState for NifiState {
-    type Error = error::Error;
+    type Error = error::NifiError;
 
     fn reconcile(
         &mut self,
@@ -423,7 +657,7 @@ impl ReconciliationState for NifiState {
                 .await?
                 .then(
                     self.context
-                        .wait_for_running_and_ready_pods(&self.existing_pods.as_slice()),
+                        .wait_for_running_and_ready_pods(self.existing_pods.as_slice()),
                 )
                 .await?
                 .then(self.context.delete_excess_pods(
@@ -433,6 +667,8 @@ impl ReconciliationState for NifiState {
                 ))
                 .await?
                 .then(self.create_missing_pods())
+                .await?
+                .then(self.process_monitoring())
                 .await
         })
     }
@@ -440,12 +676,14 @@ impl ReconciliationState for NifiState {
 
 struct NifiStrategy {
     config: Arc<ProductConfigManager>,
+    monitoring: Arc<NifiRestClient>,
 }
 
 impl NifiStrategy {
-    pub fn new(config: ProductConfigManager) -> NifiStrategy {
+    pub fn new(config: ProductConfigManager, monitoring: NifiRestClient) -> NifiStrategy {
         NifiStrategy {
             config: Arc::new(config),
+            monitoring: Arc::new(monitoring),
         }
     }
 }
@@ -454,7 +692,7 @@ impl NifiStrategy {
 impl ControllerStrategy for NifiStrategy {
     type Item = NifiCluster;
     type State = NifiState;
-    type Error = error::Error;
+    type Error = error::NifiError;
 
     async fn init_reconcile_state(
         &self,
@@ -484,6 +722,7 @@ impl ControllerStrategy for NifiStrategy {
         Ok(NifiState {
             validated_role_config: validated_product_config(&context.resource, &self.config)?,
             context,
+            monitoring: self.monitoring.clone(),
             existing_pods,
             eligible_nodes,
             zookeeper_info: None,
@@ -505,7 +744,10 @@ pub async fn create_controller(client: Client) {
 
     let product_config =
         ProductConfigManager::from_yaml_file("deploy/config-spec/properties.yaml").unwrap();
-    let strategy = NifiStrategy::new(product_config);
+
+    let monitoring = NifiRestClient::new(reqwest::Client::new());
+
+    let strategy = NifiStrategy::new(product_config, monitoring);
 
     controller
         .run(client, strategy, Duration::from_secs(10))

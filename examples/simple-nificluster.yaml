@@ -1,8 +1,9 @@
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
 metadata:
-  name: simple-nificluster
+  name: simple
 spec:
+  metricsPort: 8428
   version: "1.13.2"
   zookeeperReference:
     name: simple

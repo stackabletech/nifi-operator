@@ -14,6 +14,8 @@ if [ -z $1 ]; then
   exit 1
 fi
 
+export WORKSPACE_NAME=$(basename $(pwd))
+
 export PACKAGE_NAME=$1
 BINARY_FILE=target/release/$PACKAGE_NAME
 
@@ -22,7 +24,7 @@ BINARY_FILE=target/release/$PACKAGE_NAME
 # The name is passed into jq as a jq variable, as no substitution would take place within the single
 # quotes of the jq expression.
 export PACKAGE_DESCRIPTION=$(~/.cargo/bin/cargo metadata --format-version 1| jq --arg NAME "$PACKAGE_NAME" '.packages[] | select(.name == $NAME) | .description')
-if [ -z $PACKAGE_DESCRIPTION ]; then
+if [ -z "$PACKAGE_DESCRIPTION" ]; then
   echo "Unable to parse package description from output of `cargo metadata`, cannot build RPM without this field!"
   exit 2
 fi
@@ -49,21 +51,23 @@ export PACKAGE_VERSION=$(echo ${VERSION_STRING} | awk -F '-' '{print $1}')
 # The final release will look like 0.suffix or 0 if no suffix is specified.
 export PACKAGE_RELEASE="0$(echo ${VERSION_STRING} | awk -F '-' '{ if ($2 != "") print "."$2;}')"
 
+echo Defined workspace name: [${WORKSPACE_NAME}]
+echo Defined package name: [${PACKAGE_NAME}]
 echo Defined package version: [${PACKAGE_VERSION}]
 echo Defined package release: [${PACKAGE_RELEASE}]
 echo Defined package description: [${PACKAGE_DESCRIPTION}]
 
 
-echo Creating directory scaffolding for RPM
-cp -r server/packaging/rpm target/
-# Create empty directory for the binary to be placed into
-mkdir -p target/rpm/SOURCES/${PACKAGE_NAME}-VERSION/opt/stackable/${PACKAGE_NAME}
+RPM_SCAFFOLDING_DIR=target/rpm/SOURCES/${PACKAGE_NAME}-${PACKAGE_VERSION}
 
-# The packaging source directory does not contain the version yet, as this will need to be replaced for every
-# execution. Instead the directory name contains the marker "VERSION" which we now replace with the actual version.
-rename VERSION ${PACKAGE_VERSION} target/rpm/SOURCES/${PACKAGE_NAME}-VERSION
+echo Creating directory scaffolding for RPM : ${RPM_SCAFFOLDING_DIR}
+mkdir -p ${RPM_SCAFFOLDING_DIR}
 
-cp target/release/${PACKAGE_NAME} target/rpm/SOURCES/${PACKAGE_NAME}-${PACKAGE_VERSION}/opt/stackable/${PACKAGE_NAME}/
+cp -r server/packaging/rpm/SOURCES/${PACKAGE_NAME}-VERSION/* ${RPM_SCAFFOLDING_DIR}/
+cp -r server/packaging/rpm/SPECS target/rpm/
+
+# Copy assets to the specified locations
+~/.cargo/bin/cargo metadata --format-version 1| $(dirname $0)/copy_assets.py ${PACKAGE_NAME} ${RPM_SCAFFOLDING_DIR}
 
 pushd target/rpm/SOURCES
 tar czvf ${PACKAGE_NAME}-${PACKAGE_VERSION}.tar.gz ${PACKAGE_NAME}-${PACKAGE_VERSION}

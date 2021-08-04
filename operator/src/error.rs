@@ -1,5 +1,8 @@
+use crate::monitoring;
+use std::num::ParseIntError;
+
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub enum NifiError {
     #[error("Kubernetes reported error: {source}")]
     KubeError {
         #[from]
@@ -10,6 +13,24 @@ pub enum Error {
     OperatorError {
         #[from]
         source: stackable_operator::error::Error,
+    },
+
+    #[error("Error from parsing: {source}")]
+    ParseError {
+        #[from]
+        source: ParseIntError,
+    },
+
+    #[error("NiFi monitoring reported error: {source}")]
+    NifiMonitoringError {
+        #[from]
+        source: monitoring::NifiMonitoringError,
+    },
+
+    #[error("Reqwest reported error: {source}")]
+    ReqwestError {
+        #[from]
+        source: reqwest::Error,
     },
 
     #[error("Error from serde_json: {source}")]

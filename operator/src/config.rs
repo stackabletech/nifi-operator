@@ -726,9 +726,8 @@ pub fn build_state_management_xml(spec: &NifiSpec, zk_ref: &str) -> String {
         zk_ref,
         &spec
             .zookeeper_reference
-            .chroot
-            .clone()
-            .unwrap_or_else(|| "".to_string())
+            .chroot.as_deref()
+            .unwrap_or("")
     )
 }
 
@@ -767,7 +766,7 @@ pub fn validated_product_config(
     validate_all_roles_and_groups_config(
         &resource.spec.version.to_string(),
         &role_config,
-        &product_config,
+        product_config,
         false,
         false,
     )
