@@ -1,4 +1,4 @@
-use crate::{CONTAINER_NAME, HTTP_PORT_NAME};
+use crate::{APP_NAME, HTTP_PORT_NAME};
 use k8s_openapi::api::core::v1::{Container, Pod};
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::Response;
@@ -515,8 +515,7 @@ fn nifi_rest_endpoint(pod: &Pod) -> Result<NifiRestEndpoint, NifiMonitoringError
         Some(name) => name,
     };
 
-    let http_port =
-        find_pod_container_port(spec.containers.as_slice(), CONTAINER_NAME, HTTP_PORT_NAME)?;
+    let http_port = find_pod_container_port(spec.containers.as_slice(), APP_NAME, HTTP_PORT_NAME)?;
 
     Ok(NifiRestEndpoint {
         node_name: node_name.clone(),
