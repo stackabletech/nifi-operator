@@ -418,7 +418,7 @@ impl NifiState {
                 //   Related to: https://issues.apache.org/jira/browse/NIFI-5573
                 container_builder.add_configmapvolume(
                     name,
-                    format!("{}/nifi-{}/conf", "{{packageroot}}", version),
+                    format!("{{{{packageroot}}}}/nifi-{}/conf", version),
                 );
             } else {
                 return Err(error::NifiError::MissingConfigMapNameError {
