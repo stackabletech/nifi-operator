@@ -193,7 +193,7 @@ impl NifiState {
                             role_group
                         );
 
-                        // now we have a node that needs pods -> get validated config
+                        // now we have a node that needs a pod -> get validated config
                         let validated_config = config_for_role_and_group(
                             role_str,
                             role_group,
@@ -278,7 +278,6 @@ impl NifiState {
                     }
                     config::NIFI_PROPERTIES => {
                         let http_port = config.get(NIFI_WEB_HTTP_PORT);
-
                         let protocol_port = config.get(NIFI_CLUSTER_NODE_PROTOCOL_PORT);
                         let load_balance = config.get(NIFI_CLUSTER_LOAD_BALANCE_PORT);
 
@@ -307,8 +306,8 @@ impl NifiState {
                         );
                     }
                     _ => {
-                        warn ! ("Unknown filename [{}] was provided in product config. Possible values are {:?}",
-                    file_name, vec ! [config::NIFI_BOOTSTRAP_CONF, config::NIFI_PROPERTIES, config::NIFI_STATE_MANAGEMENT_XML]);
+                        warn!("Unknown filename [{}] was provided in product config. Possible values are {:?}",
+                              file_name, vec![config::NIFI_BOOTSTRAP_CONF, config::NIFI_PROPERTIES, config::NIFI_STATE_MANAGEMENT_XML]);
                     }
                 }
             }
