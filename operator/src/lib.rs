@@ -6,7 +6,6 @@ use crate::config::{
     build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
     validated_product_config,
 };
-use crate::error::NifiError;
 use crate::monitoring::{
     NifiRestClient, ReportingTask, ReportingTaskState, ReportingTaskStatus, NO_TASK_ID,
 };
@@ -14,7 +13,6 @@ use async_trait::async_trait;
 use futures::Future;
 use k8s_openapi::api::core::v1::{ConfigMap, EnvVar, Pod};
 use kube::api::ListParams;
-use kube::error::ErrorResponse;
 use kube::Api;
 use kube::ResourceExt;
 use product_config::types::PropertyNameKind;
@@ -24,7 +22,7 @@ use stackable_nifi_crd::{
     NIFI_CLUSTER_METRICS_PORT, NIFI_CLUSTER_NODE_PROTOCOL_PORT, NIFI_WEB_HTTP_PORT,
 };
 use stackable_operator::builder::{
-    ConfigMapBuilder, ContainerBuilder, ContainerPortBuilder, ObjectMetaBuilder, PodBuilder,
+    ContainerBuilder, ContainerPortBuilder, ObjectMetaBuilder, PodBuilder,
 };
 use stackable_operator::client::Client;
 use stackable_operator::controller::{Controller, ControllerStrategy, ReconciliationState};
@@ -42,7 +40,7 @@ use stackable_operator::reconcile::{
 use stackable_operator::role_utils::{
     get_role_and_group_labels, list_eligible_nodes_for_role_and_group, EligibleNodesForRoleAndGroup,
 };
-use stackable_operator::{k8s_utils, pod_utils, role_utils};
+use stackable_operator::{configmap, k8s_utils, name_utils, role_utils};
 use stackable_zookeeper_crd::util::ZookeeperConnectionInformation;
 use std::collections::{BTreeMap, HashMap};
 use std::pin::Pin;
@@ -59,7 +57,7 @@ const PROTOCOL_PORT_NAME: &str = "protocol";
 const LOAD_BALANCE_PORT_NAME: &str = "loadbalance";
 const METRICS_PORT_NAME: &str = "metrics";
 
-const CONTAINER_NAME: &str = "nifi";
+const CONFIG_MAP_TYPE_CONFIG: &str = "config";
 
 type NifiReconcileResult = ReconcileResult<error::NifiError>;
 
@@ -136,52 +134,6 @@ impl NifiState {
         Ok(ReconcileFunctionAction::Done)
     }
 
-    /// Create or update a config map.
-    /// - Create if no config map of that name exists
-    /// - Update if config map exists but the content differs
-    /// - Do nothing if the config map exists and the content is identical
-    /// - Forward any kube errors that may appear
-    // TODO: move to operator-rs
-    async fn create_config_map(&self, config_map: ConfigMap) -> Result<(), NifiError> {
-        let cm_name = match config_map.metadata.name.as_deref() {
-            None => return Err(NifiError::InvalidConfigMap),
-            Some(name) => name,
-        };
-
-        match self
-            .context
-            .client
-            .get::<ConfigMap>(cm_name, Some(&self.context.namespace()))
-            .await
-        {
-            Ok(ConfigMap {
-                data: existing_config_map_data,
-                ..
-            }) if existing_config_map_data == config_map.data => {
-                debug!(
-                    "ConfigMap [{}] already exists with identical data, skipping creation!",
-                    cm_name
-                );
-            }
-            Ok(_) => {
-                debug!(
-                    "ConfigMap [{}] already exists, but differs, updating it!",
-                    cm_name
-                );
-                self.context.client.update(&config_map).await?;
-            }
-            Err(stackable_operator::error::Error::KubeError {
-                source: kube::error::Error::Api(ErrorResponse { reason, .. }),
-            }) if reason == "NotFound" => {
-                debug!("Error getting ConfigMap [{}]: [{:?}]", cm_name, reason);
-                self.context.client.create(&config_map).await?;
-            }
-            Err(e) => return Err(NifiError::OperatorError { source: e }),
-        }
-
-        Ok(())
-    }
-
     async fn create_missing_pods(&mut self) -> NifiReconcileResult {
         // The iteration happens in two stages here, to accommodate the way our operators think
         // about nodes and roles.
@@ -241,24 +193,27 @@ impl NifiState {
                             role_group
                         );
 
-                        let (pod, config_maps) = self
-                            .create_pod_and_config_maps(
-                                &role,
-                                role_group,
-                                node_name,
-                                config_for_role_and_group(
-                                    role_str,
-                                    role_group,
-                                    &self.validated_role_config,
-                                )?,
-                            )
+                        // now we have a node that needs a pod -> get validated config
+                        let validated_config = config_for_role_and_group(
+                            role_str,
+                            role_group,
+                            &self.validated_role_config,
+                        )?;
+
+                        let config_maps = self
+                            .create_config_maps(role_str, role_group, node_name, validated_config)
                             .await?;
 
-                        for config_map in config_maps {
-                            self.create_config_map(config_map).await?;
-                        }
+                        self.create_pod(
+                            role_str,
+                            role_group,
+                            node_name,
+                            &config_maps,
+                            validated_config,
+                        )
+                        .await?;
 
-                        self.context.client.create(&pod).await?;
+                        return Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(10)));
                     }
                 }
             }
@@ -266,41 +221,65 @@ impl NifiState {
         Ok(ReconcileFunctionAction::Continue)
     }
 
-    async fn create_pod_and_config_maps(
+    /// Creates the config maps required for a NiFi instance (or role, role_group combination):
+    /// * 'bootstrap.conf'
+    /// * 'nifi.properties'
+    /// * 'state-management.xml'
+    ///
+    /// These three configuration files are collected in one config map for now.
+    ///
+    /// Labels are automatically adapted from the `recommended_labels` with a type (bootstrap,
+    /// properties, state-management). Names are generated via `name_utils::build_resource_name`.
+    ///
+    /// Returns a map with a 'type' identifier (e.g. bootstrap) as key and the corresponding
+    /// ConfigMap as value. This is required to set the volume mounts in the pod later on.
+    ///
+    /// # Arguments
+    ///
+    /// - `role` - The NiFi role.
+    /// - `group` - The role group.
+    /// - `node_name` - The node name for this instance.
+    /// - `validated_config` - The validated product config.
+    ///
+    async fn create_config_maps(
         &self,
-        role: &NifiRole,
-        role_group: &str,
+        role: &str,
+        group: &str,
         node_name: &str,
         validated_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
-    ) -> Result<(Pod, Vec<ConfigMap>), NifiError> {
-        let mut config_maps = vec![];
-        let mut env_vars = vec![];
+    ) -> Result<HashMap<&'static str, ConfigMap>, error::NifiError> {
+        let mut config_maps = HashMap::new();
         let mut cm_data = BTreeMap::new();
-        let mut http_port: Option<&String> = None;
-        let mut protocol_port: Option<&String> = None;
-        let mut load_balance: Option<&String> = None;
-        let mut metrics_port: Option<String> = None;
+
+        let mut cm_labels = get_recommended_labels(
+            &self.context.resource,
+            APP_NAME,
+            &self.context.resource.spec.version.to_string(),
+            role,
+            group,
+        );
 
         for (property_name_kind, config) in validated_config {
-            // we need to convert to <String, String> to <String, Option<String>> to deal with
-            // CLI flags etc. We can not currently represent that via operator-rs / product-config.
-            // This is a preparation for that.
-            let transformed_config: BTreeMap<String, Option<String>> = config
-                .iter()
-                .map(|(k, v)| (k.to_string(), Some(v.to_string())))
-                .collect();
+            let zk_connect_string = match self.zookeeper_info.as_ref() {
+                Some(info) => &info.connection_string,
+                None => return Err(error::NifiError::ZookeeperConnectionInformationError),
+            };
 
-            let zk_connect_string = &self.zookeeper_info.as_ref().unwrap().connection_string;
+            // enhance with config map type label
+            cm_labels.insert(
+                configmap::CONFIGMAP_TYPE_LABEL.to_string(),
+                CONFIG_MAP_TYPE_CONFIG.to_string(),
+            );
 
-            match property_name_kind {
-                PropertyNameKind::File(file_name) => match file_name.as_str() {
+            if let PropertyNameKind::File(file_name) = property_name_kind {
+                match file_name.as_str() {
                     config::NIFI_BOOTSTRAP_CONF => {
                         cm_data.insert(file_name.to_string(), build_bootstrap_conf());
                     }
                     config::NIFI_PROPERTIES => {
-                        http_port = config.get(NIFI_WEB_HTTP_PORT);
-                        protocol_port = config.get(NIFI_CLUSTER_NODE_PROTOCOL_PORT);
-                        load_balance = config.get(NIFI_CLUSTER_LOAD_BALANCE_PORT);
+                        let http_port = config.get(NIFI_WEB_HTTP_PORT);
+                        let protocol_port = config.get(NIFI_CLUSTER_NODE_PROTOCOL_PORT);
+                        let load_balance = config.get(NIFI_CLUSTER_LOAD_BALANCE_PORT);
 
                         cm_data.insert(
                             file_name.to_string(),
@@ -327,66 +306,131 @@ impl NifiState {
                         );
                     }
                     _ => {
-                        warn!("Unknown filename [{}] was provided in product config. Possible values are {:?}", 
+                        warn!("Unknown filename [{}] was provided in product config. Possible values are {:?}",
                               file_name, vec![config::NIFI_BOOTSTRAP_CONF, config::NIFI_PROPERTIES, config::NIFI_STATE_MANAGEMENT_XML]);
                     }
-                },
-                PropertyNameKind::Env => {
-                    for (property_name, property_value) in transformed_config {
-                        if property_name.is_empty() {
-                            warn!("Received empty property_name for ENV... skipping");
-                            continue;
-                        }
-
-                        // if a metrics port is provided (for now by user, it is not required in
-                        // product config to be able to not configure any monitoring / metrics)
-                        if property_name == NIFI_CLUSTER_METRICS_PORT {
-                            metrics_port = property_value.clone();
-                            continue;
-                        }
-
-                        env_vars.push(EnvVar {
-                            name: property_name,
-                            value: property_value,
-                            value_from: None,
-                        });
-                    }
                 }
-                _ => {}
             }
         }
 
-        let pod_name = pod_utils::get_pod_name(
+        let cm_properties_name = name_utils::build_resource_name(
             APP_NAME,
             &self.context.name(),
-            role_group,
-            &role.to_string(),
-            node_name,
+            role,
+            Some(group),
+            Some(node_name),
+            Some(CONFIG_MAP_TYPE_CONFIG),
+        )?;
+
+        let cm_config = configmap::build_config_map(
+            &self.context.resource,
+            &cm_properties_name,
+            &self.context.namespace(),
+            cm_labels,
+            cm_data,
+        )?;
+
+        config_maps.insert(
+            CONFIG_MAP_TYPE_CONFIG,
+            configmap::create_config_map(&self.context.client, cm_config).await?,
         );
 
-        let cm_name = format!("{}-config", pod_name);
+        Ok(config_maps)
+    }
+
+    /// Creates the pod required for the NiFi instance.
+    ///
+    /// # Arguments
+    ///
+    /// - `role` - The NiFi role.
+    /// - `group` - The role group.
+    /// - `node_name` - The node name for this pod.
+    /// - `config_maps` - The config maps and respective types required for this pod.
+    /// - `validated_config` - The validated product config.
+    ///
+    async fn create_pod(
+        &self,
+        role: &str,
+        group: &str,
+        node_name: &str,
+        config_maps: &HashMap<&'static str, ConfigMap>,
+        validated_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    ) -> Result<Pod, error::NifiError> {
+        let mut env_vars = vec![];
+        let mut http_port: Option<&String> = None;
+        let mut protocol_port: Option<&String> = None;
+        let mut load_balance: Option<&String> = None;
+        let mut metrics_port: Option<String> = None;
 
         let version = &self.context.resource.spec.version.to_string();
 
-        let labels = get_recommended_labels(
-            &self.context.resource,
-            APP_NAME,
-            version,
-            &role.to_string(),
-            role_group,
-        );
+        // extract container ports from config
+        if let Some(config) =
+            validated_config.get(&PropertyNameKind::File(config::NIFI_PROPERTIES.to_string()))
+        {
+            http_port = config.get(NIFI_WEB_HTTP_PORT);
+            protocol_port = config.get(NIFI_CLUSTER_NODE_PROTOCOL_PORT);
+            load_balance = config.get(NIFI_CLUSTER_LOAD_BALANCE_PORT);
+        }
 
-        let mut container_builder = ContainerBuilder::new(CONTAINER_NAME);
-        container_builder.image(format!("{}:{}", CONTAINER_NAME, version));
+        // extract metric port and env variables from env
+        if let Some(config) = validated_config.get(&PropertyNameKind::Env) {
+            for (property_name, property_value) in config {
+                if property_name.is_empty() {
+                    warn!("Received empty property_name for ENV... skipping");
+                    continue;
+                }
+
+                if property_name == NIFI_CLUSTER_METRICS_PORT {
+                    metrics_port = Some(property_value.clone());
+                    continue;
+                }
+
+                env_vars.push(EnvVar {
+                    name: property_name.clone(),
+                    value: Some(property_value.clone()),
+                    value_from: None,
+                });
+            }
+        }
+
+        let pod_name = name_utils::build_resource_name(
+            APP_NAME,
+            &self.context.name(),
+            role,
+            Some(group),
+            Some(node_name),
+            None,
+        )?;
+
+        let labels = get_recommended_labels(&self.context.resource, APP_NAME, version, role, group);
+
+        let mut container_builder = ContainerBuilder::new(APP_NAME);
+        container_builder.image(format!("{}:{}", APP_NAME, version));
         container_builder.command(build_nifi_start_command(&self.context.resource.spec));
-        // TODO: For now we set the mount path to the NiFi package config folder.
-        //   This needs to be investigated and changed into an separate config folder.
-        //   Related to: https://issues.apache.org/jira/browse/NIFI-5573
-        container_builder.add_configmapvolume(
-            cm_name.clone(),
-            format!("{}/nifi-{}/conf", "{{packageroot}}", version),
-        );
         container_builder.add_env_vars(env_vars);
+
+        // One mount for the config directory
+        if let Some(config_map_data) = config_maps.get(CONFIG_MAP_TYPE_CONFIG) {
+            if let Some(name) = config_map_data.metadata.name.as_ref() {
+                // TODO: For now we set the mount path to the NiFi package config folder.
+                //   This needs to be investigated and changed into an separate config folder.
+                //   Related to: https://issues.apache.org/jira/browse/NIFI-5573
+                container_builder.add_configmapvolume(
+                    name,
+                    format!("{{{{packageroot}}}}/nifi-{}/conf", version),
+                );
+            } else {
+                return Err(error::NifiError::MissingConfigMapNameError {
+                    cm_type: CONFIG_MAP_TYPE_CONFIG,
+                });
+            }
+        } else {
+            return Err(error::NifiError::MissingConfigMapError {
+                cm_type: CONFIG_MAP_TYPE_CONFIG,
+                pod_name,
+            });
+        }
 
         if let Some(port) = http_port {
             container_builder.add_container_port(
@@ -426,7 +470,7 @@ impl NifiState {
         let pod = PodBuilder::new()
             .metadata(
                 ObjectMetaBuilder::new()
-                    .name(pod_name)
+                    .generate_name(pod_name)
                     .namespace(&self.context.client.default_namespace)
                     .with_labels(labels)
                     .with_annotations(annotations)
@@ -438,24 +482,7 @@ impl NifiState {
             .node_name(node_name)
             .build()?;
 
-        config_maps.push(
-            ConfigMapBuilder::new()
-                .metadata(
-                    ObjectMetaBuilder::new()
-                        .name(cm_name)
-                        .ownerreference_from_resource(
-                            &self.context.resource,
-                            Some(true),
-                            Some(true),
-                        )?
-                        .namespace(&self.context.client.default_namespace)
-                        .build()?,
-                )
-                .data(cm_data)
-                .build()?,
-        );
-
-        Ok((pod, config_maps))
+        Ok(self.context.client.create(&pod).await?)
     }
 
     /// In order to enable / disable monitoring for NiFi, we have to make several REST calls.
