@@ -5,22 +5,3 @@ This is a Kubernetes Operator to manage Apache NiFi clusters.
 It is written by https://www.stackable.de[Stackable] in Rust, and it is supposed to be used with the https://github.com/stackabletech/agent[Stackable Agent] instead of the Kubernetes kubelet.
 
 The docs can be found in the `docs` subdirectory, and they are published together with docs for all other Stackable products at https://docs.stackable.tech.
-
-== Building
-
-This operator is written in Rust.
-It is developed against the latest Rust release (1.53-stable at the time of writing this).
-
-NOTE: This requires Rust nightly due to the use of the `backtrace` feature.
-
-    cargo build
-
-== Starting
-
-In order to start the NiFi operator use:
-
-    cargo run --bin stackable-nifi-operator-server
-
-To run NiFi in cluster mode, a working ZooKeeper (Version >= 3.5) must be deployed.
-
-As of now, the Stackable Operator for Apache NiFi only supports one NiFi instance per physical node.

@@ -1,20 +1,28 @@
 [package]
-name = "stackable-nifi-operator-server"
-version = "0.1.0-nightly"
 authors = ["Malte Sander <malte.sander.it@gmail.com>"]
+build = "build.rs"
 edition = "2018"
 description = "Stackable Operator for Apache NiFi"
 license = "OSL-3.0"
+name = "stackable-nifi-operator-server"
+repository = "https://github.com/stackabletech/nifi-operator"
+version = "0.1.0-nightly"
 
 [dependencies]
-stackable_config = { git = "https://github.com/stackabletech/common.git", branch = "main" }
+stackable-config = { git = "https://github.com/stackabletech/common.git", branch = "main" }
 stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", branch = "main" }
 stackable-nifi-crd = { path = "../crd" }
 stackable-nifi-operator = { path = "../operator" }
 
+clap = "2.33"
 serde_yaml = "0.8"
 tokio = { version = "1.10", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"
+
+[build-dependencies]
+built = { version =  "0.5", features = ["chrono", "git2"] }
+stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", branch = "main" }
+stackable-nifi-crd = { path = "../crd" }
 
 [package.metadata.deb]
 maintainer-scripts = "packaging/debian/"
