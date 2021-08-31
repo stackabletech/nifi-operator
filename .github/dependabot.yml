@@ -23,7 +23,3 @@ updates:
       # and it needs to be updated together with kube-runtime, kube-derive etc.
       - dependency-name: "kube*"
       - dependency-name: "k8s-openapi"
-      # At the moment we don't want to be notified for stackable updates
-      # Every commit to the stackable-operator triggers this and adds a lot
-      # of noise
-      - dependency-name: "stackable-*"

@@ -760,7 +760,7 @@ impl ControllerStrategy for NifiStrategy {
 /// This creates an instance of a [`Controller`] which waits for incoming events and reconciles them.
 ///
 /// This is an async method and the returned future needs to be consumed to make progress.
-pub async fn create_controller(client: Client) {
+pub async fn create_controller(client: Client, product_config_path: &str) {
     let nifi_api: Api<NifiCluster> = client.get_all_api();
     let pods_api: Api<Pod> = client.get_all_api();
     let configmaps_api: Api<ConfigMap> = client.get_all_api();
@@ -769,8 +769,7 @@ pub async fn create_controller(client: Client) {
         .owns(pods_api, ListParams::default())
         .owns(configmaps_api, ListParams::default());
 
-    let product_config =
-        ProductConfigManager::from_yaml_file("deploy/config-spec/properties.yaml").unwrap();
+    let product_config = ProductConfigManager::from_yaml_file(product_config_path).unwrap();
 
     let monitoring = NifiRestClient::new(reqwest::Client::new());
 
