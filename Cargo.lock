@@ -30,12 +30,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "anyhow"
-version = "1.0.43"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28ae2b3dec75a406790005a200b1bd89785afc02517a00ca99ecfe093ee9e6cf"
-
-[[package]]
 name = "async-trait"
 version = "0.1.51"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -85,17 +79,6 @@ name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
-
-[[package]]
-name = "bstr"
-version = "0.2.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90682c8d613ad3373e66de8c6411e0ae2ab2571e879d2efbf73558cc66f21279"
-dependencies = [
- "lazy_static",
- "memchr",
- "regex-automata",
-]
 
 [[package]]
 name = "built"
@@ -1627,17 +1610,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
-name = "stackable-config"
-version = "0.2.0-nightly"
-source = "git+https://github.com/stackabletech/common.git?branch=main#7e23c0be981022eb493989a237fbbc49e6063b0b"
-dependencies = [
- "anyhow",
- "bstr",
- "clap",
- "log",
-]
-
-[[package]]
 name = "stackable-nifi-crd"
 version = "0.1.0-nightly"
 dependencies = [
@@ -1683,7 +1655,6 @@ dependencies = [
  "built",
  "clap",
  "serde_yaml",
- "stackable-config",
  "stackable-nifi-crd",
  "stackable-nifi-operator",
  "stackable-operator",

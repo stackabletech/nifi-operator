@@ -9,7 +9,6 @@ repository = "https://github.com/stackabletech/nifi-operator"
 version = "0.1.0-nightly"
 
 [dependencies]
-stackable-config = { git = "https://github.com/stackabletech/common.git", branch = "main" }
 stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", branch = "main" }
 stackable-nifi-crd = { path = "../crd" }
 stackable-nifi-operator = { path = "../operator" }
