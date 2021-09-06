@@ -1181,8 +1181,23 @@ dependencies = [
 
 [[package]]
 name = "product-config"
-version = "0.1.0-nightly"
-source = "git+https://github.com/stackabletech/product-config.git?branch=main#6cda9b40cde05b48374c775a0e41c38d2ab238bb"
+version = "0.1.0"
+source = "git+https://github.com/stackabletech/product-config.git?tag=0.1.0#2c8f66264cceca02d0a7ecb413435041cd7d0ca6"
+dependencies = [
+ "java-properties",
+ "regex",
+ "schemars",
+ "semver",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "thiserror",
+]
+
+[[package]]
+name = "product-config"
+version = "0.2.0-nightly"
+source = "git+https://github.com/stackabletech/product-config.git?branch=main#85caadeffb2112db4605db1c4ad016a50b6bde73"
 dependencies = [
  "java-properties",
  "regex",
@@ -1615,12 +1630,12 @@ version = "0.1.0-nightly"
 dependencies = [
  "k8s-openapi",
  "kube",
- "product-config",
+ "product-config 0.2.0-nightly",
  "schemars",
  "serde",
  "serde_json",
  "serde_yaml",
- "stackable-operator",
+ "stackable-operator 0.2.0-nightly",
  "stackable-zookeeper-crd",
  "strum",
  "strum_macros",
@@ -1634,12 +1649,12 @@ dependencies = [
  "futures",
  "k8s-openapi",
  "kube",
- "product-config",
+ "product-config 0.2.0-nightly",
  "reqwest",
  "serde",
  "serde_json",
  "stackable-nifi-crd",
- "stackable-operator",
+ "stackable-operator 0.2.0-nightly",
  "stackable-zookeeper-crd",
  "strum",
  "strum_macros",
@@ -1657,15 +1672,15 @@ dependencies = [
  "serde_yaml",
  "stackable-nifi-crd",
  "stackable-nifi-operator",
- "stackable-operator",
+ "stackable-operator 0.2.0-nightly",
  "tokio",
  "tracing",
 ]
 
 [[package]]
 name = "stackable-operator"
-version = "0.1.0-nightly"
-source = "git+https://github.com/stackabletech/operator-rs.git?branch=main#38283c5df040bf82bf2ddc834e9509be6c52ea65"
+version = "0.1.0"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.1.0#f5d0a3bc783571a9ec6a0947e8dafe99ef675e3d"
 dependencies = [
  "async-trait",
  "backoff",
@@ -1679,7 +1694,41 @@ dependencies = [
  "kube",
  "kube-runtime",
  "lazy_static",
- "product-config",
+ "product-config 0.1.0",
+ "rand",
+ "regex",
+ "schemars",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "strum",
+ "strum_macros",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-futures",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
+name = "stackable-operator"
+version = "0.2.0-nightly"
+source = "git+https://github.com/stackabletech/operator-rs.git?branch=main#0b5de6fe88b507dbaf62e7b6d931c545daefcac5"
+dependencies = [
+ "async-trait",
+ "backoff",
+ "chrono",
+ "clap",
+ "const_format",
+ "either",
+ "futures",
+ "json-patch",
+ "k8s-openapi",
+ "kube",
+ "kube-runtime",
+ "lazy_static",
+ "product-config 0.1.0",
  "rand",
  "regex",
  "schemars",
@@ -1699,16 +1748,16 @@ dependencies = [
 [[package]]
 name = "stackable-zookeeper-crd"
 version = "0.1.0-nightly"
-source = "git+https://github.com/stackabletech/zookeeper-operator.git?branch=main#2b66283b147e3b5e1ed16ed6d23713db05ded2a4"
+source = "git+https://github.com/stackabletech/zookeeper-operator.git?branch=main#3ce659808dc8ce1c64eefcf8ba60699e363df461"
 dependencies = [
  "k8s-openapi",
  "kube",
- "product-config",
+ "product-config 0.1.0",
  "schemars",
  "semver",
  "serde",
  "serde_json",
- "stackable-operator",
+ "stackable-operator 0.1.0",
  "strum",
  "strum_macros",
  "thiserror",
