@@ -23,5 +23,5 @@ serde_json = "1.0"
 strum = "0.21"
 strum_macros = "0.21"
 thiserror = "1.0"
-tokio = { version = "1.10", features = ["macros"] }
+tokio = { version = "1.11", features = ["macros"] }
 tracing = "0.1"
