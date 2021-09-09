@@ -25,7 +25,7 @@ stackable-nifi-crd = { path = "../crd" }
 
 [package.metadata.deb]
 maintainer-scripts = "packaging/debian/"
-systemd-units = { enable = false }
+systemd-units = { enable = false , unit-name = "stackable-nifi-operator"}
 assets = [
     ["../../target/release/stackable-nifi-operator", "opt/stackable/nifi-operator/", "755"],
     ["../../deploy/crd/nificluster.crd.yaml", "etc/stackable/nifi-operator/crd/", "644"],
