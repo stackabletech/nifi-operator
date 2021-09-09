@@ -29,7 +29,7 @@ def copy_assets(root, assets):
     Example json:
           "assets": [
             [
-              "../target/release/stackable-zookeeper-operator-server",
+              "../target/release/stackable-zookeeper-operator",
               "opt/stackable/zookeeper-operator/",
               "755"
             ],
@@ -46,10 +46,10 @@ def copy_assets(root, assets):
           ]
     """
     for asset_def in assets:
-        source = asset_def[0][3:] ### remove the leading ../
+        source = asset_def[0][6:] ### remove the leading ../
         dest = asset_def[1]
         dest_mod = int(asset_def[2], 8)
-        
+
         ### build the destination file name
         absolute_dest = os.path.join(root, dest, os.path.basename(source))
         ### create destination directory if doesn't exist already
@@ -72,7 +72,6 @@ def main(args):
     cargo_deb_metadata = json.load(sys.stdin)
     cargo_deb_assets = assets(package_name, cargo_deb_metadata)
     copy_assets(destination, cargo_deb_assets)
-
 
 if __name__ == '__main__':
     main(sys.argv)

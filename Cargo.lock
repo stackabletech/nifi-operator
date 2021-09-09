@@ -1649,7 +1649,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "stackable-nifi-operator-server"
+name = "stackable-nifi-operator-binary"
 version = "0.2.0-nightly"
 dependencies = [
  "built",
