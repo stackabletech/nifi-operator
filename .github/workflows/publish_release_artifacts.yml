@@ -59,7 +59,7 @@ jobs:
       - name: Build
         run: ~/.cargo/bin/cargo +nightly build --verbose --release
       - name: Build RPM package
-        run: packaging/buildrpm.sh stackable-${{ PRODUCT_NAME }}-operator-binary stackable-${{ PRODUCT_NAME }}-operator
+        run: packaging/buildrpm.sh stackable-${{ env.PRODUCT_NAME }}-operator-binary stackable-${{ env.PRODUCT_NAME }}-operator
       - name: Publish RPM package
         env:
           NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
