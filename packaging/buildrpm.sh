@@ -21,7 +21,7 @@ export WORKSPACE_NAME=$(basename $(pwd))
 
 export PACKAGE_NAME=$1
 
-# If a second parameter as specified this is used as the binary name, otherwise the first parameter
+# If a second parameter is specified this is used as the binary name, otherwise the first parameter
 # is assumed to also specify the binary name
 if [ -z $2 ]; then
   export BINARY_FILE_NAME=$PACKAGE_NAME
@@ -70,16 +70,12 @@ echo Defined package version: [${PACKAGE_VERSION}]
 echo Defined package release: [${PACKAGE_RELEASE}]
 echo Defined package description: [${PACKAGE_DESCRIPTION}]
 
-
 RPM_SCAFFOLDING_DIR=target/rpm/SOURCES/${BINARY_FILE_NAME}-${PACKAGE_VERSION}
 
 echo Creating directory scaffolding for RPM : ${RPM_SCAFFOLDING_DIR}
 mkdir -p ${RPM_SCAFFOLDING_DIR}
 
-echo Copy 1
 cp -r packaging/rpm/SOURCES/${BINARY_FILE_NAME}-VERSION/* ${RPM_SCAFFOLDING_DIR}/
-
-echo Copy 2
 cp -r packaging/rpm/SPECS target/rpm/
 
 # Copy assets to the specified locations
@@ -87,7 +83,7 @@ echo Running copy_assets.py in $(pwd)
 
 ~/.cargo/bin/cargo metadata --format-version 1| $(dirname $0)/copy_assets.py ${PACKAGE_NAME} ${RPM_SCAFFOLDING_DIR}
 
-echo Tarring
+echo Creating tar archive
 pushd target/rpm/SOURCES
 tar czvf ${BINARY_FILE_NAME}-${PACKAGE_VERSION}.tar.gz ${BINARY_FILE_NAME}-${PACKAGE_VERSION}
 popd
