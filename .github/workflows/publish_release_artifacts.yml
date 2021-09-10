@@ -1,15 +1,18 @@
-name: Publish-Artifacts
+name: Publish-Release-Artifacts
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
+    tags:
+      - "*"
 
 env:
+  PRODUCT_NAME: nifi
   CARGO_TERM_COLOR: always
-  REPO_APT_DEV_URL: https://repo.stackable.tech/repository/deb-dev
-  REPO_RPM_DEV_URL: https://repo.stackable.tech/repository/rpm-dev
+  CARGO_INCREMENTAL: '0'
+  CARGO_PROFILE_DEV_DEBUG: '0'
+  RUSTFLAGS: "-D warnings -W rust-2021-compatibility"
+  REPO_APT_RELEASE_URL: https://repo.stackable.tech/repository/deb-release
+  REPO_RPM_RELEASE_URL: https://repo.stackable.tech/repository/rpm-release
 
 jobs:
   debian10:
@@ -21,27 +24,22 @@ jobs:
         # We use "mr" instead of "pr" to denote pull request builds, as this prefix comes before "nightly" when lexically
         # sorting packages by version. This means that when installing the package without specifying a version the
         # nighly version is considered more current than mr versions and installed by default
-        run: sed -i -e 's/^version = "\([0-9]\+\.[0-9]\+\.[0-9]\+\).*/version = "\1-mr${{ github.event.number }}"/' server/Cargo.toml
+        run: sed -i -e 's/^version = "\([0-9]\+\.[0-9]\+\.[0-9]\+\).*/version = "\1-mr${{ github.event.number }}"/' rust/operator-binary/Cargo.toml
       - name: Build
         run: ~/.cargo/bin/cargo +nightly build --verbose --release
       - name: Build apt package
-        run: ~/.cargo/bin/cargo deb --manifest-path server/Cargo.toml --no-build
-      - name: Check workflow permissions
-        id: check_permissions
-        uses: scherermichael-oss/action-has-permission@1.0.6
-        with:
-          required-permission: write
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ~/.cargo/bin/cargo deb --manifest-path rust/operator-binary/Cargo.toml --no-build
       - name: Publish apt package
-        if: steps.check_permissions.outputs.has-permission
+        env:
+          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+        if: env.NEXUS_PASSWORD != null
         run: >-
           /usr/bin/curl
           --fail
           -u 'github:${{ secrets.NEXUS_PASSWORD }}'
           -H "Content-Type: multipart/form-data"
           --data-binary "@./$(find target/debian/ -name *.deb)"
-          "${{ env.REPO_APT_DEV_URL }}/"
+          "${{ env.REPO_APT_RELEASE_URL }}/"
       - name: Clean
         run: ~/.cargo/bin/cargo clean
 
@@ -57,25 +55,20 @@ jobs:
         # We use "mr" instead of "pr" to denote pull request builds, as this prefix comes before "nightly" when lexically
         # sorting packages by version. This means that when installing the package without specifying a version the
         # nighly version is considered more current than mr versions and installed by default
-        run: sed -i -e 's/^version = "\([0-9]\+\.[0-9]\+\.[0-9]\+\).*/version = "\1-mr${{ github.event.number }}"/' server/Cargo.toml
+        run: sed -i -e 's/^version = "\([0-9]\+\.[0-9]\+\.[0-9]\+\).*/version = "\1-mr${{ github.event.number }}"/' rust/operator-binary/Cargo.toml
       - name: Build
         run: ~/.cargo/bin/cargo +nightly build --verbose --release
       - name: Build RPM package
-        run: server/packaging/buildrpm.sh stackable-nifi-operator-server
-      - name: Check workflow permissions
-        id: check_permissions
-        uses: scherermichael-oss/action-has-permission@1.0.6
-        with:
-          required-permission: write
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: packaging/buildrpm.sh stackable-${{ env.PRODUCT_NAME }}-operator-binary stackable-${{ env.PRODUCT_NAME }}-operator
       - name: Publish RPM package
-        if: steps.check_permissions.outputs.has-permission
+        env:
+          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+        if: env.NEXUS_PASSWORD != null
         run: >-
           /usr/bin/curl
           --fail
           -u 'github:${{ secrets.NEXUS_PASSWORD }}'
           --upload-file "./$(find  target/rpm/RPMS/x86_64/ -name *.rpm)"
-          "${{ env.REPO_RPM_DEV_URL }}/el${{ matrix.node }}/"
+          "${{ env.REPO_RPM_RELEASE_URL }}/el${{ matrix.node }}/"
       - name: Clean
         run: ~/.cargo/bin/cargo clean

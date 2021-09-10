@@ -4,7 +4,7 @@ Before=
 After=network.target
 [Service]
 User=root
-ExecStart=/opt/stackable/nifi-operator/stackable-nifi-operator-server
+ExecStart=/opt/stackable/nifi-operator/stackable-nifi-operator
 Restart=on-abort
 StandardOutput=journal
 StandardError=journal

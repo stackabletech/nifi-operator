@@ -1,5 +1,5 @@
 [workspace]
 
 members = [
-    "crd", "operator", "server"
+    "rust/crd", "rust/operator", "rust/operator-binary"
 ]
