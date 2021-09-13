@@ -1,5 +1,5 @@
 [Unit]
-Description=Stackable Operator for Apache NiFi
+Description=Stackable NiFi Operator
 Before=
 After=network.target
 [Service]
