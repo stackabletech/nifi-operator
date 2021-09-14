@@ -2,7 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
-## 0.2.0 - unreleased
+## [Unreleased]
+
+## [0.2.0] - 2021-09-14
+
 
 ### Changed
 - **Breaking:** Repository structure was changed and the -server crate renamed to -binary. As part of this change the -server suffix was removed from both the package name for os packages and the name of the executable ([#72]).
