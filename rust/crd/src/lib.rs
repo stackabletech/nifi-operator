@@ -63,7 +63,11 @@ pub enum NifiVersion {
     #[serde(rename = "1.13.2")]
     #[strum(serialize = "1.13.2")]
     v1_13_2,
-    #[serde(rename = "1.14.0")]
+
+    // TODO: NiFi 1.14 does not work with this operator yet <https://github.com/stackabletech/nifi-operator/issues/82>
+    //    Therefore we skip using it in the CRD for now. Should be uncommented as soon as #82 is fixed.
+    //#[serde(rename = "1.14.0")]
+    #[serde(skip)]
     #[strum(serialize = "1.14.0")]
     v1_14_0,
 }
