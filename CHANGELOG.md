@@ -7,10 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Added versioning code from operator-rs for up and downgrades ([#81]).
 - Added `ProductVersion` to status ([#81]).
-
-### Removed
-- Code for version handling ([#81]).
-- Removed `current_version` and `target_version` from cluster status ([#81]).
+- Added `Condition` to status ([#81]).
 
 [#81]: https://github.com/stackabletech/nifi-operator/pull/81
 

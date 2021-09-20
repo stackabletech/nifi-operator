@@ -158,15 +158,16 @@ impl NifiState {
         for role in NifiRole::iter() {
             let role_str = &role.to_string();
             if let Some(nodes_for_role) = self.eligible_nodes.get(role_str) {
-                for (role_group, (nodes, replicas)) in nodes_for_role {
+                for (role_group, eligible_nodes) in nodes_for_role {
                     debug!(
                         "Identify missing pods for [{}] role and group [{}]",
                         role_str, role_group
                     );
                     trace!(
                         "candidate_nodes[{}]: [{:?}]",
-                        nodes.len(),
-                        nodes
+                        eligible_nodes.nodes.len(),
+                        eligible_nodes
+                            .nodes
                             .iter()
                             .map(|node| node.metadata.name.as_ref().unwrap())
                             .collect::<Vec<_>>()
@@ -185,10 +186,10 @@ impl NifiState {
                         get_role_and_group_labels(role_str, role_group)
                     );
                     let nodes_that_need_pods = k8s_utils::find_nodes_that_need_pods(
-                        nodes,
+                        &eligible_nodes.nodes,
                         &self.existing_pods,
                         &get_role_and_group_labels(role_str, role_group),
-                        *replicas,
+                        eligible_nodes.replicas,
                     );
 
                     for node in nodes_that_need_pods {

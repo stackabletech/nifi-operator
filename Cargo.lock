@@ -1665,8 +1665,8 @@ dependencies = [
 
 [[package]]
 name = "stackable-operator"
-version = "0.2.0-nightly"
-source = "git+https://github.com/stackabletech/operator-rs.git?branch=main#a2a6bacb945058008a4de60d5539c1f5446119e7"
+version = "0.2.1"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.2.1#744788b550884aaebe26567b40841b0efc4a7452"
 dependencies = [
  "async-trait",
  "backoff",
@@ -1699,8 +1699,8 @@ dependencies = [
 
 [[package]]
 name = "stackable-zookeeper-crd"
-version = "0.3.0-nightly"
-source = "git+https://github.com/stackabletech/zookeeper-operator.git?branch=move_versioning_to_operator_rs#740fd745cfd82c544daf786164ed154c26792262"
+version = "0.3.0"
+source = "git+https://github.com/stackabletech/zookeeper-operator.git?tag=0.3.0#68b563167b29e1e34fc432a5f91d9d76bedd20a7"
 dependencies = [
  "k8s-openapi",
  "kube",
