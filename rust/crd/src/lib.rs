@@ -107,7 +107,6 @@ impl Versioning for NifiVersion {
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, Serialize)]
 pub struct NifiStatus {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[schemars(schema_with = "stackable_operator::conditions::schema")]
     pub conditions: Vec<Condition>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<ProductVersion<NifiVersion>>,

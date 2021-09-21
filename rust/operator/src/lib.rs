@@ -9,11 +9,13 @@ use crate::config::{
 use crate::monitoring::{
     NifiRestClient, ReportingTask, ReportingTaskState, ReportingTaskStatus, NO_TASK_ID,
 };
+
 use async_trait::async_trait;
 use futures::Future;
 use k8s_openapi::api::core::v1::{ConfigMap, EnvVar, Pod};
 use kube::api::ListParams;
 use kube::Api;
+use kube::CustomResourceExt;
 use kube::ResourceExt;
 use product_config::types::PropertyNameKind;
 use product_config::ProductConfigManager;
@@ -49,7 +51,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 use strum::IntoEnumIterator;
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 
 const FINALIZER_NAME: &str = "nifi.stackable.tech/cleanup";
 const SHOULD_BE_SCRAPED: &str = "monitoring.stackable.tech/should_be_scraped";
@@ -787,7 +789,18 @@ impl ControllerStrategy for NifiStrategy {
 /// This creates an instance of a [`Controller`] which waits for incoming events and reconciles them.
 ///
 /// This is an async method and the returned future needs to be consumed to make progress.
-pub async fn create_controller(client: Client, product_config_path: &str) {
+pub async fn create_controller(client: Client, product_config_path: &str) -> OperatorResult<()> {
+    if let Err(error) = stackable_operator::crd::wait_until_crds_present(
+        &client,
+        vec![NifiCluster::crd_name()],
+        None,
+    )
+    .await
+    {
+        error!("Required CRDs missing, aborting: {:?}", error);
+        return Err(error);
+    };
+
     let nifi_api: Api<NifiCluster> = client.get_all_api();
     let pods_api: Api<Pod> = client.get_all_api();
     let configmaps_api: Api<ConfigMap> = client.get_all_api();
@@ -805,6 +818,8 @@ pub async fn create_controller(client: Client, product_config_path: &str) {
     controller
         .run(client, strategy, Duration::from_secs(10))
         .await;
+
+    Ok(())
 }
 
 /// Retrieve the config belonging to a role group selector.
