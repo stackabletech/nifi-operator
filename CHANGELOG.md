@@ -9,6 +9,14 @@ All notable changes to this project will be documented in this file.
 - Added `ProductVersion` to status ([#81]).
 - Added `Condition` to status ([#81]).
 
+### Changed
+
+- `kube-rs`: `0.58` → `0.60` ([#83]).
+- `k8s-openapi` `0.12` → `0.13` and features: `v1_21` → `v1_22` ([#83]).
+- `operator-rs` `0.2.1` → `0.2.2` ([#83]).
+- `zookeeper-operator-crd`: `0.3.0` → `0.4.0` ([#83]). 
+
+[#83]: https://github.com/stackabletech/nifi-operator/pull/83
 [#81]: https://github.com/stackabletech/nifi-operator/pull/81
 
 ## [0.2.0] - 2021-09-14
