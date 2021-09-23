@@ -540,13 +540,15 @@ fn find_pod_container_port(
             continue;
         }
 
-        for ports in &container.ports {
-            if ports.name.as_deref() == Some(port_name) {
-                return u16::try_from(ports.container_port).map_err(|err| {
-                    NifiMonitoringError::ParseIntError {
-                        reason: err.to_string(),
-                    }
-                });
+        if let Some(ports) = &container.ports {
+            for port in ports {
+                if port.name.as_deref() == Some(port_name) {
+                    return u16::try_from(port.container_port).map_err(|err| {
+                        NifiMonitoringError::ParseIntError {
+                            reason: err.to_string(),
+                        }
+                    });
+                }
             }
         }
     }
