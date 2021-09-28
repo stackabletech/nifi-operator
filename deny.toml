@@ -33,30 +33,31 @@ allow = [
     "Zlib"
 ]
 
-deny = [
-    "AGPL-3.0"
-]
-
 exceptions = [
+    { name = "stackable-opa-crd", allow = ["OSL-3.0"] },
     { name = "stackable-zookeeper-crd", allow = ["OSL-3.0"] },
     { name = "stackable-nifi-crd", allow = ["OSL-3.0"] },
-    { name = "stackable-nifi-operator-binary", allow = ["OSL-3.0"] },
     { name = "stackable-nifi-operator", allow = ["OSL-3.0"] },
+    { name = "stackable-nifi-operator-binary", allow = ["OSL-3.0"] },
 ]
 
-[[licenses.clarify]]
+[licenses.clarify]
 name = "ring"
 expression = "LicenseRef-ring"
 license-files = [
     { path = "LICENSE", hash = 0xbd0eed23 },
 ]
 
-[[licenses.clarify]]
+[licenses.clarify]
 name = "webpki"
 expression = "LicenseRef-webpki"
 license-files = [
     { path = "LICENSE", hash = 0x001c7e6c },
 ]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
 
 [sources.allow-org]
 github = ["stackabletech"]
