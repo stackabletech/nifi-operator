@@ -29,6 +29,9 @@ use stackable_operator::builder::{
 use stackable_operator::client::Client;
 use stackable_operator::controller::{Controller, ControllerStrategy, ReconciliationState};
 use stackable_operator::error::OperatorResult;
+use stackable_operator::identity::{
+    LabeledPodIdentityFactory, NodeIdentity, PodIdentity, PodToNodeMapping,
+};
 use stackable_operator::labels::{
     build_common_labels_for_all_managed_resources, get_recommended_labels, APP_COMPONENT_LABEL,
     APP_INSTANCE_LABEL, APP_MANAGED_BY_LABEL, APP_NAME_LABEL, APP_VERSION_LABEL,
@@ -42,9 +45,12 @@ use stackable_operator::reconcile::{
 use stackable_operator::role_utils::{
     get_role_and_group_labels, list_eligible_nodes_for_role_and_group, EligibleNodesForRoleAndGroup,
 };
+use stackable_operator::scheduler::{
+    K8SUnboundedHistory, RoleGroupEligibleNodes, ScheduleStrategy, Scheduler, StickyScheduler,
+};
 use stackable_operator::status::init_status;
 use stackable_operator::versioning::{finalize_versioning, init_versioning};
-use stackable_operator::{configmap, k8s_utils, name_utils, role_utils};
+use stackable_operator::{configmap, name_utils, role_utils};
 use stackable_zookeeper_crd::util::ZookeeperConnectionInformation;
 use std::collections::{BTreeMap, HashMap};
 use std::pin::Pin;
@@ -60,8 +66,8 @@ const HTTP_PORT_NAME: &str = "http";
 const PROTOCOL_PORT_NAME: &str = "protocol";
 const LOAD_BALANCE_PORT_NAME: &str = "loadbalance";
 const METRICS_PORT_NAME: &str = "metrics";
-
 const CONFIG_MAP_TYPE_CONFIG: &str = "config";
+const ID_LABEL: &str = "monitoring.stackable.tech/id";
 
 type NifiReconcileResult = ReconcileResult<error::NifiError>;
 
@@ -187,49 +193,68 @@ impl NifiState {
                         "labels: [{:?}]",
                         get_role_and_group_labels(role_str, role_group)
                     );
-                    let nodes_that_need_pods = k8s_utils::find_nodes_that_need_pods(
-                        &eligible_nodes.nodes,
-                        &self.existing_pods,
-                        &get_role_and_group_labels(role_str, role_group),
-                        eligible_nodes.replicas,
+
+                    let mut history = match self
+                        .context
+                        .resource
+                        .status
+                        .as_ref()
+                        .and_then(|status| status.history.as_ref())
+                    {
+                        Some(simple_history) => {
+                            // we clone here because we cannot access mut self because we need it later
+                            // to create config maps and pods. The `status` history will be out of sync
+                            // with the cloned `simple_history` until the next reconcile.
+                            // The `status` history should not be used after this method to avoid side
+                            // effects.
+                            K8SUnboundedHistory::new(&self.context.client, simple_history.clone())
+                        }
+                        None => K8SUnboundedHistory::new(
+                            &self.context.client,
+                            PodToNodeMapping::default(),
+                        ),
+                    };
+
+                    let mut sticky_scheduler =
+                        StickyScheduler::new(&mut history, ScheduleStrategy::GroupAntiAffinity);
+
+                    let pod_id_factory = LabeledPodIdentityFactory::new(
+                        APP_NAME,
+                        &self.context.name(),
+                        &self.eligible_nodes,
+                        ID_LABEL,
+                        1,
                     );
 
-                    for node in nodes_that_need_pods {
-                        let node_name = if let Some(node_name) = &node.metadata.name {
-                            node_name
-                        } else {
-                            warn!("No name found in metadata, this should not happen! Skipping node: [{:?}]", node);
-                            continue;
-                        };
-                        debug!(
-                            "Creating pod on node [{}] for [{}] role and group [{}]",
-                            node.metadata
-                                .name
-                                .as_deref()
-                                .unwrap_or("<no node name found>"),
-                            role,
-                            role_group
-                        );
+                    let state = sticky_scheduler.schedule(
+                        &pod_id_factory,
+                        &RoleGroupEligibleNodes::from(&self.eligible_nodes),
+                        &self.existing_pods,
+                    )?;
 
+                    let mapping = state.remaining_mapping().filter(
+                        APP_NAME,
+                        &self.context.name(),
+                        role_str,
+                        role_group,
+                    );
+
+                    if let Some((pod_id, node_id)) = mapping.iter().next() {
                         // now we have a node that needs a pod -> get validated config
                         let validated_config = config_for_role_and_group(
-                            role_str,
-                            role_group,
+                            pod_id.role(),
+                            pod_id.group(),
                             &self.validated_role_config,
                         )?;
 
                         let config_maps = self
-                            .create_config_maps(role_str, role_group, node_name, validated_config)
+                            .create_config_maps(pod_id, node_id, validated_config)
                             .await?;
 
-                        self.create_pod(
-                            role_str,
-                            role_group,
-                            node_name,
-                            &config_maps,
-                            validated_config,
-                        )
-                        .await?;
+                        self.create_pod(pod_id, node_id, &config_maps, validated_config)
+                            .await?;
+
+                        history.save(&self.context.resource).await?;
 
                         return Ok(ReconcileFunctionAction::Requeue(Duration::from_secs(10)));
                     }
@@ -260,16 +285,14 @@ impl NifiState {
     ///
     /// # Arguments
     ///
-    /// - `role` - The NiFi role.
-    /// - `group` - The role group.
-    /// - `node_name` - The node name for this instance.
+    /// - `pod_id` - The pod id for which to create config maps.
+    /// - `node_id` - The node id where the pod will be placed.
     /// - `validated_config` - The validated product config.
     ///
     async fn create_config_maps(
         &self,
-        role: &str,
-        group: &str,
-        node_name: &str,
+        pod_id: &PodIdentity,
+        node_id: &NodeIdentity,
         validated_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     ) -> Result<HashMap<&'static str, ConfigMap>, error::NifiError> {
         let mut config_maps = HashMap::new();
@@ -277,10 +300,10 @@ impl NifiState {
 
         let mut cm_labels = get_recommended_labels(
             &self.context.resource,
-            APP_NAME,
+            pod_id.app(),
             &self.context.resource.spec.version.to_string(),
-            role,
-            group,
+            pod_id.role(),
+            pod_id.group(),
         );
 
         for (property_name_kind, config) in validated_config {
@@ -316,7 +339,7 @@ impl NifiState {
                                 protocol_port,
                                 load_balance,
                                 zk_connect_string,
-                                node_name,
+                                node_id.name.as_str(),
                             ),
                         );
                     }
@@ -338,11 +361,11 @@ impl NifiState {
         }
 
         let cm_properties_name = name_utils::build_resource_name(
-            APP_NAME,
-            &self.context.name(),
-            role,
-            Some(group),
-            Some(node_name),
+            pod_id.app(),
+            pod_id.instance(),
+            pod_id.role(),
+            Some(pod_id.group()),
+            Some(node_id.name.as_ref()),
             Some(CONFIG_MAP_TYPE_CONFIG),
         )?;
 
@@ -366,17 +389,15 @@ impl NifiState {
     ///
     /// # Arguments
     ///
-    /// - `role` - The NiFi role.
-    /// - `group` - The role group.
-    /// - `node_name` - The node name for this pod.
+    /// - `pod_id` - The id of the pod to create.
+    /// - `node_id` - The id of the node where the pod will be placed.
     /// - `config_maps` - The config maps and respective types required for this pod.
     /// - `validated_config` - The validated product config.
     ///
     async fn create_pod(
         &self,
-        role: &str,
-        group: &str,
-        node_name: &str,
+        pod_id: &PodIdentity,
+        node_id: &NodeIdentity,
         config_maps: &HashMap<&'static str, ConfigMap>,
         validated_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     ) -> Result<Pod, error::NifiError> {
@@ -419,15 +440,22 @@ impl NifiState {
         }
 
         let pod_name = name_utils::build_resource_name(
-            APP_NAME,
-            &self.context.name(),
-            role,
-            Some(group),
-            Some(node_name),
+            pod_id.app(),
+            pod_id.instance(),
+            pod_id.role(),
+            Some(pod_id.group()),
+            Some(node_id.name.as_str()),
             None,
         )?;
 
-        let labels = get_recommended_labels(&self.context.resource, APP_NAME, version, role, group);
+        let mut labels = get_recommended_labels(
+            &self.context.resource,
+            pod_id.app(),
+            version,
+            pod_id.role(),
+            pod_id.group(),
+        );
+        labels.insert(String::from(ID_LABEL), String::from(pod_id.id()));
 
         let mut container_builder = ContainerBuilder::new(APP_NAME);
         container_builder.image(format!("{}:{}", APP_NAME, version));
@@ -503,7 +531,7 @@ impl NifiState {
             )
             .add_stackable_agent_tolerations()
             .add_container(container_builder.build())
-            .node_name(node_name)
+            .node_name(node_id.name.as_str())
             .build()?;
 
         Ok(self.context.client.create(&pod).await?)

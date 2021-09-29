@@ -3,6 +3,7 @@ use kube::CustomResource;
 use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
+use stackable_operator::identity::PodToNodeMapping;
 use stackable_operator::product_config_utils::{ConfigError, Configuration};
 use stackable_operator::role_utils::Role;
 use stackable_operator::status::{Conditions, Status, Versioned};
@@ -110,6 +111,8 @@ pub struct NifiStatus {
     pub conditions: Vec<Condition>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<ProductVersion<NifiVersion>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub history: Option<PodToNodeMapping>,
 }
 
 impl Versioned<NifiVersion> for NifiStatus {
