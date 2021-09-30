@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 - Added versioning code from operator-rs for up and downgrades ([#81]).
 - Added `ProductVersion` to status ([#81]).
 - Added `Condition` to status ([#81]).
+- Use sticky scheduler ([#87])
 
 ### Changed
 
@@ -18,6 +19,7 @@ All notable changes to this project will be documented in this file.
 
 [#83]: https://github.com/stackabletech/nifi-operator/pull/83
 [#81]: https://github.com/stackabletech/nifi-operator/pull/81
+[#87]: https://github.com/stackabletech/nifi-operator/pull/87
 
 ## [0.2.0] - 2021-09-14
 
