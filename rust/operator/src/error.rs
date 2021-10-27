@@ -1,5 +1,7 @@
 use crate::monitoring;
+use stackable_operator::kube;
 use std::num::ParseIntError;
+
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, thiserror::Error)]
 pub enum NifiError {
