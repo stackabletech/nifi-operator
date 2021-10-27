@@ -12,11 +12,16 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- `stackable-zookeeper-crd`: `0.3.0` → `0.4.1` ([#92]).
+- `operator-rs`: `0.3.0` ([#92]).
 - `kube-rs`: `0.58` → `0.60` ([#83]).
 - `k8s-openapi` `0.12` → `0.13` and features: `v1_21` → `v1_22` ([#83]).
 - `operator-rs` `0.2.1` → `0.2.2` ([#83]).
-- `stackable-zookeeper-crd`: `0.3.0` → `0.4.0` ([#83]). 
+ 
+### Fixed
+- Fixed a bug where `wait_until_crds_present` only reacted to the main CRD, not the commands ([#92]).
 
+[#92]: https://github.com/stackabletech/nifi-operator/pull/92
 [#83]: https://github.com/stackabletech/nifi-operator/pull/83
 [#81]: https://github.com/stackabletech/nifi-operator/pull/81
 [#87]: https://github.com/stackabletech/nifi-operator/pull/87

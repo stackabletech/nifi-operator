@@ -28,7 +28,6 @@ use stackable_operator::identity::{
 use stackable_operator::k8s_openapi::api::core::v1::{ConfigMap, EnvVar, Pod};
 use stackable_operator::kube::api::ListParams;
 use stackable_operator::kube::Api;
-use stackable_operator::kube::CustomResourceExt;
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::labels::{
     build_common_labels_for_all_managed_resources, get_recommended_labels, APP_COMPONENT_LABEL,
@@ -57,7 +56,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 use strum::IntoEnumIterator;
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, info, trace, warn};
 
 const FINALIZER_NAME: &str = "nifi.stackable.tech/cleanup";
 const SHOULD_BE_SCRAPED: &str = "monitoring.stackable.tech/should_be_scraped";
@@ -818,17 +817,6 @@ impl ControllerStrategy for NifiStrategy {
 ///
 /// This is an async method and the returned future needs to be consumed to make progress.
 pub async fn create_controller(client: Client, product_config_path: &str) -> OperatorResult<()> {
-    if let Err(error) = stackable_operator::crd::wait_until_crds_present(
-        &client,
-        vec![NifiCluster::crd_name()],
-        None,
-    )
-    .await
-    {
-        error!("Required CRDs missing, aborting: {:?}", error);
-        return Err(error);
-    };
-
     let nifi_api: Api<NifiCluster> = client.get_all_api();
     let pods_api: Api<Pod> = client.get_all_api();
     let configmaps_api: Api<ConfigMap> = client.get_all_api();

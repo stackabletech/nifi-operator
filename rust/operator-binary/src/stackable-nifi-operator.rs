@@ -1,6 +1,8 @@
 use clap::{crate_version, App, AppSettings, SubCommand};
 use stackable_nifi_crd::NifiCluster;
+use stackable_operator::kube::CustomResourceExt;
 use stackable_operator::{cli, client, error};
+use tracing::error;
 
 mod built_info {
     // The file has been placed there by the build script.
@@ -46,6 +48,17 @@ async fn main() -> Result<(), error::Error> {
     );
 
     let client = client::create_client(Some("nifi.stackable.tech".to_string())).await?;
+
+    if let Err(error) = stackable_operator::crd::wait_until_crds_present(
+        &client,
+        vec![NifiCluster::crd_name()],
+        None,
+    )
+    .await
+    {
+        error!("Required CRDs missing, aborting: {:?}", error);
+        return Err(error);
+    };
 
     stackable_nifi_operator::create_controller(client, &product_config_path).await
 }
