@@ -12,8 +12,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Switched to operator-rs tag 0.3.0 ([#92]).
-- Switched to zookeeper-crd tag 0.4.1 ([#92]).
+- `operator-rs`: `0.3.0` ([#92]).
+- `stackable-zookeeper-crd`: `0.4.1` ([#92]).
 - `kube-rs`: `0.58` → `0.60` ([#83]).
 - `k8s-openapi` `0.12` → `0.13` and features: `v1_21` → `v1_22` ([#83]).
 - `operator-rs` `0.2.1` → `0.2.2` ([#83]).
