@@ -1,8 +1,8 @@
 use crate::{APP_NAME, HTTP_PORT_NAME};
-use k8s_openapi::api::core::v1::{Container, Pod};
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::Response;
 use serde::{Deserialize, Serialize};
+use stackable_operator::k8s_openapi::api::core::v1::{Container, Pod};
 use std::convert::TryFrom;
 use std::future::Future;
 use tracing::{debug, error, warn};

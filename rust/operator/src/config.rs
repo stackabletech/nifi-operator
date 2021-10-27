@@ -1,10 +1,10 @@
-use product_config::types::PropertyNameKind;
-use product_config::ProductConfigManager;
 use stackable_nifi_crd::{
     NifiCluster, NifiRole, NifiSpec, NIFI_CLUSTER_LOAD_BALANCE_PORT,
     NIFI_CLUSTER_NODE_PROTOCOL_PORT, NIFI_WEB_HTTP_PORT,
 };
 use stackable_operator::error::OperatorResult;
+use stackable_operator::product_config::types::PropertyNameKind;
+use stackable_operator::product_config::ProductConfigManager;
 use stackable_operator::product_config_utils::{
     transform_all_roles_to_config, validate_all_roles_and_groups_config,
     ValidatedRoleConfigByPropertyKind,

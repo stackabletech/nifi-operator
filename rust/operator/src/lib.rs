@@ -12,13 +12,6 @@ use crate::monitoring::{
 
 use async_trait::async_trait;
 use futures::Future;
-use k8s_openapi::api::core::v1::{ConfigMap, EnvVar, Pod};
-use kube::api::ListParams;
-use kube::Api;
-use kube::CustomResourceExt;
-use kube::ResourceExt;
-use product_config::types::PropertyNameKind;
-use product_config::ProductConfigManager;
 use stackable_nifi_crd::{
     NifiCluster, NifiRole, NifiSpec, APP_NAME, MANAGED_BY, NIFI_CLUSTER_LOAD_BALANCE_PORT,
     NIFI_CLUSTER_METRICS_PORT, NIFI_CLUSTER_NODE_PROTOCOL_PORT, NIFI_WEB_HTTP_PORT,
@@ -32,10 +25,17 @@ use stackable_operator::error::OperatorResult;
 use stackable_operator::identity::{
     LabeledPodIdentityFactory, NodeIdentity, PodIdentity, PodToNodeMapping,
 };
+use stackable_operator::k8s_openapi::api::core::v1::{ConfigMap, EnvVar, Pod};
+use stackable_operator::kube::api::ListParams;
+use stackable_operator::kube::Api;
+use stackable_operator::kube::CustomResourceExt;
+use stackable_operator::kube::ResourceExt;
 use stackable_operator::labels::{
     build_common_labels_for_all_managed_resources, get_recommended_labels, APP_COMPONENT_LABEL,
     APP_INSTANCE_LABEL, APP_MANAGED_BY_LABEL, APP_NAME_LABEL, APP_VERSION_LABEL,
 };
+use stackable_operator::product_config::types::PropertyNameKind;
+use stackable_operator::product_config::ProductConfigManager;
 use stackable_operator::product_config_utils::{
     config_for_role_and_group, ValidatedRoleConfigByPropertyKind,
 };
