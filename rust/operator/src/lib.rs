@@ -456,7 +456,7 @@ impl NifiState {
 
         let mut container_builder = ContainerBuilder::new(APP_NAME);
         container_builder.image(format!("{}:{}", APP_NAME, version));
-        container_builder.command(vec!["bin/nifi.sh run".to_string()]);
+        container_builder.command(vec!["bin/nifi.sh".to_string(), "run".to_string()]);
         container_builder.add_env_vars(env_vars);
 
         let mut pod_builder = PodBuilder::new();
