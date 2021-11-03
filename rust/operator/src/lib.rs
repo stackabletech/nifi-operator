@@ -456,7 +456,10 @@ impl NifiState {
 
         let mut container_builder = ContainerBuilder::new(APP_NAME);
         container_builder.image(format!("{}:{}", APP_NAME, version));
-        container_builder.command(vec!["bin/nifi.sh".to_string(), "run".to_string()]);
+        container_builder.command(vec![
+            //"bin/nifi.sh".to_string(),
+            //"run".to_string(),
+        ]);
         container_builder.add_env_vars(env_vars);
 
         let mut pod_builder = PodBuilder::new();
@@ -467,7 +470,10 @@ impl NifiState {
                 // TODO: For now we set the mount path to the NiFi package config folder.
                 //   This needs to be investigated and changed into an separate config folder.
                 //   Related to: https://issues.apache.org/jira/browse/NIFI-5573
-                container_builder.add_volume_mount("config", "./conf");
+                container_builder.add_volume_mount(
+                    "config",
+                    format!("/stackable/nifi-{}/conf", version.to_string()),
+                );
                 pod_builder.add_volume(VolumeBuilder::new("config").with_config_map(name).build());
             } else {
                 return Err(error::NifiError::MissingConfigMapNameError {
