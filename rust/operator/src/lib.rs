@@ -66,6 +66,8 @@ const METRICS_PORT_NAME: &str = "metrics";
 const CONFIG_MAP_TYPE_CONFIG: &str = "config";
 const ID_LABEL: &str = "monitoring.stackable.tech/id";
 
+const STACKABLE_TMP_CONFIG: &str = "/stackable/tmp-conf";
+
 type NifiReconcileResult = ReconcileResult<error::NifiError>;
 
 struct NifiState {
@@ -456,10 +458,13 @@ impl NifiState {
 
         let mut container_builder = ContainerBuilder::new(APP_NAME);
         container_builder.image(format!("{}:{}", APP_NAME, version));
-        container_builder.command(vec![
-            //"bin/nifi.sh".to_string(),
-            //"run".to_string(),
-        ]);
+        container_builder.command(vec!["/bin/bash".to_string(), "-c".to_string()]);
+        // we use the copy_assets.sh script here to copy everything from the "STACKABLE_TMP_CONFIG"
+        // folder to the "conf" folder in the nifi package.
+        container_builder.args(vec![format!(
+            "/stackable/nifi-{}/copy_assets.sh {} {}; {} {}",
+            version, STACKABLE_TMP_CONFIG, version, "bin/nifi.sh", "run"
+        )]);
         container_builder.add_env_vars(env_vars);
 
         let mut pod_builder = PodBuilder::new();
@@ -467,13 +472,7 @@ impl NifiState {
         // One mount for the config directory
         if let Some(config_map_data) = config_maps.get(CONFIG_MAP_TYPE_CONFIG) {
             if let Some(name) = config_map_data.metadata.name.as_ref() {
-                // TODO: For now we set the mount path to the NiFi package config folder.
-                //   This needs to be investigated and changed into an separate config folder.
-                //   Related to: https://issues.apache.org/jira/browse/NIFI-5573
-                container_builder.add_volume_mount(
-                    "config",
-                    format!("/stackable/nifi-{}/conf", version.to_string()),
-                );
+                container_builder.add_volume_mount("config", STACKABLE_TMP_CONFIG);
                 pod_builder.add_volume(VolumeBuilder::new("config").with_config_map(name).build());
             } else {
                 return Err(error::NifiError::MissingConfigMapNameError {
