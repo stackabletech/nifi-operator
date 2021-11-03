@@ -16,9 +16,7 @@ use stackable_nifi_crd::{
     NifiCluster, NifiRole, NifiSpec, APP_NAME, MANAGED_BY, NIFI_CLUSTER_LOAD_BALANCE_PORT,
     NIFI_CLUSTER_METRICS_PORT, NIFI_CLUSTER_NODE_PROTOCOL_PORT, NIFI_WEB_HTTP_PORT,
 };
-use stackable_operator::builder::{
-    ContainerBuilder, ContainerPortBuilder, ObjectMetaBuilder, PodBuilder,
-};
+use stackable_operator::builder::{ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder};
 use stackable_operator::client::Client;
 use stackable_operator::controller::{Controller, ControllerStrategy, ReconciliationState};
 use stackable_operator::error::OperatorResult;
@@ -458,8 +456,10 @@ impl NifiState {
 
         let mut container_builder = ContainerBuilder::new(APP_NAME);
         container_builder.image(format!("{}:{}", APP_NAME, version));
-        container_builder.command(build_nifi_start_command(&self.context.resource.spec));
+        container_builder.command(build_nifi_start_command());
         container_builder.add_env_vars(env_vars);
+
+        let mut pod_builder = PodBuilder::new();
 
         // One mount for the config directory
         if let Some(config_map_data) = config_maps.get(CONFIG_MAP_TYPE_CONFIG) {
@@ -467,10 +467,8 @@ impl NifiState {
                 // TODO: For now we set the mount path to the NiFi package config folder.
                 //   This needs to be investigated and changed into an separate config folder.
                 //   Related to: https://issues.apache.org/jira/browse/NIFI-5573
-                container_builder.add_configmapvolume(
-                    name,
-                    format!("{{{{packageroot}}}}/nifi-{}/conf", version),
-                );
+                container_builder.add_volume_mount("config", "./conf");
+                pod_builder.add_volume(VolumeBuilder::new("config").with_config_map(name).build());
             } else {
                 return Err(error::NifiError::MissingConfigMapNameError {
                     cm_type: CONFIG_MAP_TYPE_CONFIG,
@@ -484,41 +482,28 @@ impl NifiState {
         }
 
         if let Some(port) = http_port {
-            container_builder.add_container_port(
-                ContainerPortBuilder::new(port.parse()?)
-                    .name(HTTP_PORT_NAME)
-                    .build(),
-            );
+            container_builder.add_container_port(HTTP_PORT_NAME, port.parse()?);
         }
 
         if let Some(port) = protocol_port {
-            container_builder.add_container_port(
-                ContainerPortBuilder::new(port.parse()?)
-                    .name(PROTOCOL_PORT_NAME)
-                    .build(),
-            );
+            container_builder.add_container_port(PROTOCOL_PORT_NAME, port.parse()?);
         }
 
         if let Some(port) = load_balance {
-            container_builder.add_container_port(
-                ContainerPortBuilder::new(port.parse()?)
-                    .name(LOAD_BALANCE_PORT_NAME)
-                    .build(),
-            );
+            container_builder.add_container_port(LOAD_BALANCE_PORT_NAME, port.parse()?);
         }
 
         let mut annotations = BTreeMap::new();
         if let Some(port) = metrics_port {
             // only add metrics container port and annotation if available
             annotations.insert(SHOULD_BE_SCRAPED.to_string(), "true".to_string());
-            container_builder.add_container_port(
-                ContainerPortBuilder::new(port.parse()?)
-                    .name(METRICS_PORT_NAME)
-                    .build(),
-            );
+            container_builder.add_container_port(METRICS_PORT_NAME, port.parse()?);
         }
 
-        let pod = PodBuilder::new()
+        // TODO: remove if not testing locally
+        container_builder.image_pull_policy("IfNotPresent");
+
+        let pod = pod_builder
             .metadata(
                 ObjectMetaBuilder::new()
                     .generate_name(pod_name)
@@ -531,6 +516,8 @@ impl NifiState {
             .add_stackable_agent_tolerations()
             .add_container(container_builder.build())
             .node_name(node_id.name.as_str())
+            // TODO: first iteration we are using host network
+            .host_network(true)
             .build()?;
 
         Ok(self.context.client.create(&pod).await?)
@@ -839,10 +826,6 @@ pub async fn create_controller(client: Client, product_config_path: &str) -> Ope
 }
 
 /// Retrieve the config belonging to a role group selector.
-///
-/// # Arguments
-/// * `spec` - The custom resource spec definition to extract the version
-///
-fn build_nifi_start_command(spec: &NifiSpec) -> Vec<String> {
-    vec![format!("nifi-{}/bin/nifi.sh run", spec.version.to_string())]
+fn build_nifi_start_command() -> Vec<String> {
+    vec!["./bin/nifi.sh run".to_string()]
 }
