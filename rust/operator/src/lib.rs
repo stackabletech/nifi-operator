@@ -457,13 +457,16 @@ impl NifiState {
         labels.insert(String::from(ID_LABEL), String::from(pod_id.id()));
 
         let mut container_builder = ContainerBuilder::new(APP_NAME);
-        container_builder.image(format!("{}:{}", APP_NAME, version));
+        container_builder.image(format!(
+            "docker.stackable.tech/stackable/nifi:{}-0.1",
+            version
+        ));
         container_builder.command(vec!["/bin/bash".to_string(), "-c".to_string()]);
         // we use the copy_assets.sh script here to copy everything from the "STACKABLE_TMP_CONFIG"
         // folder to the "conf" folder in the nifi package.
         container_builder.args(vec![format!(
-            "/stackable/nifi-{}/copy_assets.sh {} {}; {} {}",
-            version, STACKABLE_TMP_CONFIG, version, "bin/nifi.sh", "run"
+            "/stackable/bin/copy_assets {} {}; {} {}",
+            STACKABLE_TMP_CONFIG, version, "bin/nifi.sh", "run"
         )]);
         container_builder.add_env_vars(env_vars);
 
@@ -505,9 +508,6 @@ impl NifiState {
             container_builder.add_container_port(METRICS_PORT_NAME, port.parse()?);
         }
 
-        // TODO: remove if not testing locally
-        container_builder.image_pull_policy("IfNotPresent");
-
         let pod = pod_builder
             .metadata(
                 ObjectMetaBuilder::new()
@@ -518,7 +518,6 @@ impl NifiState {
                     .ownerreference_from_resource(&self.context.resource, Some(true), Some(true))?
                     .build()?,
             )
-            .add_stackable_agent_tolerations()
             .add_container(container_builder.build())
             .node_name(node_id.name.as_str())
             // TODO: first iteration we are using host network

@@ -24,7 +24,7 @@ To create a single node Apache NiFi (v1.13.2) cluster with Prometheus metrics ex
           default:
             selector:
               matchLabels:
-                kubernetes.io/arch: stackable-linux
+                kubernetes.io/os: linux
             replicas: 1
             config:
               httpPort: 10000
