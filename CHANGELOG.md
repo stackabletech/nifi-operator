@@ -4,8 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [0.3.0] - 2021-10-27
+### Changed
 
+- `operator-rs` `0.3.0` → `0.4.0` ([#101]).
+- Adapted pod image and container command to docker image ([#101]).
+- Adapted documentation to represent new workflow with docker images ([#101]).
+
+[#101]: https://github.com/stackabletech/nifi-operator/pull/101
+
+## [0.3.0] - 2021-10-27
 
 ### Added
 - Added versioning code from operator-rs for up and downgrades ([#81]).
