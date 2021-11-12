@@ -56,6 +56,10 @@ use std::time::Duration;
 use strum::IntoEnumIterator;
 use tracing::{debug, info, trace, warn};
 
+/// The docker image we default to. This needs to be adapted if the operator does not work
+/// with images 0.0.1, 0.1.0 etc. anymore and requires e.g. a new major version like 1(.0.0).
+const DEFAULT_IMAGE_VERSION: &str = "0";
+
 const FINALIZER_NAME: &str = "nifi.stackable.tech/cleanup";
 const SHOULD_BE_SCRAPED: &str = "monitoring.stackable.tech/should_be_scraped";
 
@@ -458,15 +462,15 @@ impl NifiState {
 
         let mut container_builder = ContainerBuilder::new(APP_NAME);
         container_builder.image(format!(
-            "docker.stackable.tech/stackable/nifi:{}-0.1",
-            version
+            "docker.stackable.tech/stackable/nifi:{}-stackable{}",
+            version, DEFAULT_IMAGE_VERSION
         ));
         container_builder.command(vec!["/bin/bash".to_string(), "-c".to_string()]);
         // we use the copy_assets.sh script here to copy everything from the "STACKABLE_TMP_CONFIG"
         // folder to the "conf" folder in the nifi package.
         container_builder.args(vec![format!(
-            "/stackable/bin/copy_assets {} {}; {} {}",
-            STACKABLE_TMP_CONFIG, version, "bin/nifi.sh", "run"
+            "/stackable/bin/copy_assets {}; {} {}",
+            STACKABLE_TMP_CONFIG, "bin/nifi.sh", "run"
         )]);
         container_builder.add_env_vars(env_vars);
 

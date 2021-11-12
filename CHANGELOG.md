@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - `operator-rs` `0.3.0` → `0.4.0` ([#101]).
+- `stackable-zookeeper-crd`: `0.4.1` → `0.5.0` ([#101]).
 - Adapted pod image and container command to docker image ([#101]).
 - Adapted documentation to represent new workflow with docker images ([#101]).
 
