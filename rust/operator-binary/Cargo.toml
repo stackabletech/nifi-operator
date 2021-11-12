@@ -15,7 +15,7 @@ stackable-nifi-operator = { path = "../operator" }
 
 clap = "2.33"
 serde_yaml = "0.8"
-tokio = { version = "1.10", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.13", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"
 
 [build-dependencies]
