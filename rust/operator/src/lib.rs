@@ -16,9 +16,7 @@ use stackable_nifi_crd::{
     NifiCluster, NifiRole, NifiSpec, APP_NAME, MANAGED_BY, NIFI_CLUSTER_LOAD_BALANCE_PORT,
     NIFI_CLUSTER_METRICS_PORT, NIFI_CLUSTER_NODE_PROTOCOL_PORT, NIFI_WEB_HTTP_PORT,
 };
-use stackable_operator::builder::{
-    ContainerBuilder, ContainerPortBuilder, ObjectMetaBuilder, PodBuilder,
-};
+use stackable_operator::builder::{ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder};
 use stackable_operator::client::Client;
 use stackable_operator::controller::{Controller, ControllerStrategy, ReconciliationState};
 use stackable_operator::error::OperatorResult;
@@ -58,6 +56,10 @@ use std::time::Duration;
 use strum::IntoEnumIterator;
 use tracing::{debug, info, trace, warn};
 
+/// The docker image we default to. This needs to be adapted if the operator does not work
+/// with images 0.0.1, 0.1.0 etc. anymore and requires e.g. a new major version like 1(.0.0).
+const DEFAULT_IMAGE_VERSION: &str = "0";
+
 const FINALIZER_NAME: &str = "nifi.stackable.tech/cleanup";
 const SHOULD_BE_SCRAPED: &str = "monitoring.stackable.tech/should_be_scraped";
 
@@ -67,6 +69,8 @@ const LOAD_BALANCE_PORT_NAME: &str = "loadbalance";
 const METRICS_PORT_NAME: &str = "metrics";
 const CONFIG_MAP_TYPE_CONFIG: &str = "config";
 const ID_LABEL: &str = "monitoring.stackable.tech/id";
+
+const STACKABLE_TMP_CONFIG: &str = "/stackable/tmp-conf";
 
 type NifiReconcileResult = ReconcileResult<error::NifiError>;
 
@@ -457,20 +461,26 @@ impl NifiState {
         labels.insert(String::from(ID_LABEL), String::from(pod_id.id()));
 
         let mut container_builder = ContainerBuilder::new(APP_NAME);
-        container_builder.image(format!("{}:{}", APP_NAME, version));
-        container_builder.command(build_nifi_start_command(&self.context.resource.spec));
+        container_builder.image(format!(
+            "docker.stackable.tech/stackable/nifi:{}-stackable{}",
+            version, DEFAULT_IMAGE_VERSION
+        ));
+        container_builder.command(vec!["/bin/bash".to_string(), "-c".to_string()]);
+        // we use the copy_assets.sh script here to copy everything from the "STACKABLE_TMP_CONFIG"
+        // folder to the "conf" folder in the nifi package.
+        container_builder.args(vec![format!(
+            "/stackable/bin/copy_assets {}; {} {}",
+            STACKABLE_TMP_CONFIG, "bin/nifi.sh", "run"
+        )]);
         container_builder.add_env_vars(env_vars);
+
+        let mut pod_builder = PodBuilder::new();
 
         // One mount for the config directory
         if let Some(config_map_data) = config_maps.get(CONFIG_MAP_TYPE_CONFIG) {
             if let Some(name) = config_map_data.metadata.name.as_ref() {
-                // TODO: For now we set the mount path to the NiFi package config folder.
-                //   This needs to be investigated and changed into an separate config folder.
-                //   Related to: https://issues.apache.org/jira/browse/NIFI-5573
-                container_builder.add_configmapvolume(
-                    name,
-                    format!("{{{{packageroot}}}}/nifi-{}/conf", version),
-                );
+                container_builder.add_volume_mount("config", STACKABLE_TMP_CONFIG);
+                pod_builder.add_volume(VolumeBuilder::new("config").with_config_map(name).build());
             } else {
                 return Err(error::NifiError::MissingConfigMapNameError {
                     cm_type: CONFIG_MAP_TYPE_CONFIG,
@@ -484,41 +494,25 @@ impl NifiState {
         }
 
         if let Some(port) = http_port {
-            container_builder.add_container_port(
-                ContainerPortBuilder::new(port.parse()?)
-                    .name(HTTP_PORT_NAME)
-                    .build(),
-            );
+            container_builder.add_container_port(HTTP_PORT_NAME, port.parse()?);
         }
 
         if let Some(port) = protocol_port {
-            container_builder.add_container_port(
-                ContainerPortBuilder::new(port.parse()?)
-                    .name(PROTOCOL_PORT_NAME)
-                    .build(),
-            );
+            container_builder.add_container_port(PROTOCOL_PORT_NAME, port.parse()?);
         }
 
         if let Some(port) = load_balance {
-            container_builder.add_container_port(
-                ContainerPortBuilder::new(port.parse()?)
-                    .name(LOAD_BALANCE_PORT_NAME)
-                    .build(),
-            );
+            container_builder.add_container_port(LOAD_BALANCE_PORT_NAME, port.parse()?);
         }
 
         let mut annotations = BTreeMap::new();
         if let Some(port) = metrics_port {
             // only add metrics container port and annotation if available
             annotations.insert(SHOULD_BE_SCRAPED.to_string(), "true".to_string());
-            container_builder.add_container_port(
-                ContainerPortBuilder::new(port.parse()?)
-                    .name(METRICS_PORT_NAME)
-                    .build(),
-            );
+            container_builder.add_container_port(METRICS_PORT_NAME, port.parse()?);
         }
 
-        let pod = PodBuilder::new()
+        let pod = pod_builder
             .metadata(
                 ObjectMetaBuilder::new()
                     .generate_name(pod_name)
@@ -528,9 +522,10 @@ impl NifiState {
                     .ownerreference_from_resource(&self.context.resource, Some(true), Some(true))?
                     .build()?,
             )
-            .add_stackable_agent_tolerations()
             .add_container(container_builder.build())
             .node_name(node_id.name.as_str())
+            // TODO: first iteration we are using host network
+            .host_network(true)
             .build()?;
 
         Ok(self.context.client.create(&pod).await?)
@@ -836,13 +831,4 @@ pub async fn create_controller(client: Client, product_config_path: &str) -> Ope
         .await;
 
     Ok(())
-}
-
-/// Retrieve the config belonging to a role group selector.
-///
-/// # Arguments
-/// * `spec` - The custom resource spec definition to extract the version
-///
-fn build_nifi_start_command(spec: &NifiSpec) -> Vec<String> {
-    vec![format!("nifi-{}/bin/nifi.sh run", spec.version.to_string())]
 }

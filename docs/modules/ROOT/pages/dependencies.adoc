@@ -1,9 +1,5 @@
 = Dependencies
 
-== Stackable Agent
-
-For now this operator works only with a special branch of the Stackable Agent: https://github.com/stackabletech/agent/tree/volume_mount_package_root_hack_for_nifi[volume_mount_package_root_hack_for_nifi]
-
 In contrast to the other Stackable operators, the config properties overwrite the property files (bootstrap.conf, nifi.properties...) in the deployed Apache NiFi package structure. There is no extra config directory.
 
 == ZooKeeper

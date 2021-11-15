@@ -1,0 +1,17 @@
+#
+# To connect to the Nifi UI point your browser to: http://<node-ip>:31000/nifi
+# where node-ip is the IP-address of the one running a Nifi pod.
+#
+apiVersion: v1
+kind: Service
+metadata:
+  name: nifi-service
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: nifi
+  ports:
+    - protocol: TCP
+      port: 10000
+      targetPort: 10000
+      nodePort: 31000
