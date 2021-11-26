@@ -33,19 +33,19 @@ spec:
 
 | httpPort
 | nifi.web.http.port
-|
+| 8080
 |
 | file:nifi.properties
 
 | protocolPort
 | nifi.cluster.node.protocol.port
-|
+| 9088
 |
 | file:nifi.properties
 
 | loadBalancePort
 | nifi.cluster.load.balance.port
-|
+| 6342
 |
 | file:nifi.properties
 
