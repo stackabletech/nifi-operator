@@ -11,12 +11,14 @@ rules:
     verbs:
       - get
       - list
+      - watch
   - apiGroups:
       - ""
     resources:
       - nodes
     verbs:
       - list
+      - watch
   - apiGroups:
       - ""
     resources:
@@ -26,6 +28,7 @@ rules:
       - create
       - delete
       - list
+      - watch
       - update
   - apiGroups:
       - batch
