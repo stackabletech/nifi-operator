@@ -434,11 +434,11 @@ pub fn build_nifi_properties(
     properties.insert("nifi.web.should.send.server.version", "true".to_string());
 
     // security properties
-    properties.insert("nifi.sensitive.props.key", "".to_string());
+    properties.insert("nifi.sensitive.props.key", "oMYWEWxj2LM5XoUOOxKLj67GRXSRhLqV".to_string());
     properties.insert("nifi.sensitive.props.key.protected", "".to_string());
     properties.insert(
         "nifi.sensitive.props.algorithm",
-        "PBEWITHMD5AND256BITAES-CBC-OPENSSL".to_string(),
+        "NIFI_PBKDF2_AES_GCM_256".to_string(),
     );
     properties.insert("nifi.sensitive.props.provider", "BC".to_string());
     properties.insert("nifi.sensitive.props.additional.keys", "".to_string());

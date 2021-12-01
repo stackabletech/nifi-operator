@@ -71,10 +71,9 @@ pub enum NifiVersion {
 
     // TODO: NiFi 1.14 does not work with this operator yet <https://github.com/stackabletech/nifi-operator/issues/82>
     //    Therefore we skip using it in the CRD for now. Should be uncommented as soon as #82 is fixed.
-    //#[serde(rename = "1.14.0")]
-    #[serde(skip)]
-    #[strum(serialize = "1.14.0")]
-    v1_14_0,
+    #[serde(rename = "1.15.0")]
+    #[strum(serialize = "1.15.0")]
+    v1_15_0,
 }
 
 impl Versioning for NifiVersion {
@@ -214,11 +213,11 @@ mod tests {
     #[test]
     fn test_zookeeper_version_versioning() {
         assert_eq!(
-            NifiVersion::v1_13_2.versioning_state(&NifiVersion::v1_14_0),
+            NifiVersion::v1_13_2.versioning_state(&NifiVersion::v1_15_0),
             VersioningState::ValidUpgrade
         );
         assert_eq!(
-            NifiVersion::v1_14_0.versioning_state(&NifiVersion::v1_13_2),
+            NifiVersion::v1_15_0.versioning_state(&NifiVersion::v1_13_2),
             VersioningState::ValidDowngrade
         );
         assert_eq!(
@@ -230,7 +229,7 @@ mod tests {
     #[test]
     fn test_version_conversion() {
         NifiVersion::from_str("1.13.2").unwrap();
-        NifiVersion::from_str("1.14.0").unwrap();
+        NifiVersion::from_str("1.15.0").unwrap();
         NifiVersion::from_str("1.2.3").unwrap_err();
     }
 }
