@@ -158,7 +158,7 @@ impl Configuration for NifiConfig {
         }
         result.insert(
             NIFI_SENSITIVE_PROPS_KEY.to_string(),
-            Some(self.sensitive_property_key_secret.to_string())
+            Some(self.sensitive_property_key_secret.to_string()),
         );
         Ok(result)
     }

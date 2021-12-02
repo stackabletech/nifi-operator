@@ -14,7 +14,8 @@ use async_trait::async_trait;
 use futures::Future;
 use stackable_nifi_crd::{
     NifiCluster, NifiRole, NifiSpec, APP_NAME, MANAGED_BY, NIFI_CLUSTER_LOAD_BALANCE_PORT,
-    NIFI_CLUSTER_METRICS_PORT, NIFI_CLUSTER_NODE_PROTOCOL_PORT, NIFI_WEB_HTTP_PORT, NIFI_SENSITIVE_PROPS_KEY
+    NIFI_CLUSTER_METRICS_PORT, NIFI_CLUSTER_NODE_PROTOCOL_PORT, NIFI_SENSITIVE_PROPS_KEY,
+    NIFI_WEB_HTTP_PORT,
 };
 use stackable_operator::builder::{ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder};
 use stackable_operator::client::Client;
@@ -23,7 +24,9 @@ use stackable_operator::error::OperatorResult;
 use stackable_operator::identity::{
     LabeledPodIdentityFactory, NodeIdentity, PodIdentity, PodToNodeMapping,
 };
-use stackable_operator::k8s_openapi::api::core::v1::{ConfigMap, EnvVar, EnvVarSource, Pod, SecretKeySelector};
+use stackable_operator::k8s_openapi::api::core::v1::{
+    ConfigMap, EnvVar, EnvVarSource, Pod, SecretKeySelector,
+};
 use stackable_operator::kube::api::ListParams;
 use stackable_operator::kube::Api;
 use stackable_operator::kube::ResourceExt;
@@ -447,9 +450,11 @@ impl NifiState {
             .and_then(|m| m.get(NIFI_SENSITIVE_PROPS_KEY));
 
         let env = secret.map(|s| {
-            vec![
-                env_var_from_secret(NIFI_SENSITIVE_PROPS_KEY, s, "nifiSensitivePropsKey"),
-            ]
+            vec![env_var_from_secret(
+                NIFI_SENSITIVE_PROPS_KEY,
+                s,
+                "nifiSensitivePropsKey",
+            )]
         });
 
         let pod_name = name_utils::build_resource_name(

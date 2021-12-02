@@ -434,7 +434,10 @@ pub fn build_nifi_properties(
     properties.insert("nifi.web.should.send.server.version", "true".to_string());
 
     // security properties
-    properties.insert("nifi.sensitive.props.key", "oMYWEWxj2LM5XoUOOxKLj67GRXSRhLqV".to_string());
+    properties.insert(
+        "nifi.sensitive.props.key",
+        "oMYWEWxj2LM5XoUOOxKLj67GRXSRhLqV".to_string(),
+    );
     properties.insert("nifi.sensitive.props.key.protected", "".to_string());
     properties.insert(
         "nifi.sensitive.props.algorithm",
