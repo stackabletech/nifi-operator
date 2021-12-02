@@ -147,7 +147,6 @@ spec:
                   type: object
                 version:
                   enum:
-                    - 1.13.2
                     - 1.15.0
                   type: string
                 zookeeperReference:
@@ -225,13 +224,11 @@ spec:
                   properties:
                     current:
                       enum:
-                        - 1.13.2
                         - 1.15.0
                       nullable: true
                       type: string
                     target:
                       enum:
-                        - 1.13.2
                         - 1.15.0
                       nullable: true
                       type: string
