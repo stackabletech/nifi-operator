@@ -14,7 +14,7 @@ use async_trait::async_trait;
 use futures::Future;
 use stackable_nifi_crd::{
     NifiCluster, NifiRole, NifiSpec, APP_NAME, MANAGED_BY, NIFI_CLUSTER_LOAD_BALANCE_PORT,
-    NIFI_CLUSTER_METRICS_PORT, NIFI_CLUSTER_NODE_PROTOCOL_PORT, NIFI_WEB_HTTP_PORT, NIFI_SENSITIVE_PROPERTY_KEY
+    NIFI_CLUSTER_METRICS_PORT, NIFI_CLUSTER_NODE_PROTOCOL_PORT, NIFI_WEB_HTTP_PORT, NIFI_SENSITIVE_PROPS_KEY
 };
 use stackable_operator::builder::{ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder};
 use stackable_operator::client::Client;
@@ -444,11 +444,11 @@ impl NifiState {
 
         let secret = validated_config
             .get(&PropertyNameKind::Env)
-            .and_then(|m| m.get(NIFI_SENSITIVE_PROPERTY_KEY));
+            .and_then(|m| m.get(NIFI_SENSITIVE_PROPS_KEY));
 
         let env = secret.map(|s| {
             vec![
-                env_var_from_secret(NIFI_SENSITIVE_PROPERTY_KEY, s, "sensitivePropertyKey"),
+                env_var_from_secret(NIFI_SENSITIVE_PROPS_KEY, s, "nifiSensitivePropsKey"),
             ]
         });
 
@@ -479,7 +479,7 @@ impl NifiState {
         // we use the copy_assets.sh script here to copy everything from the "STACKABLE_TMP_CONFIG"
         // folder to the "conf" folder in the nifi package.
         container_builder.args(vec![format!(
-            "/stackable/bin/copy_assets {}; {} {}",
+            "/stackable/bin/copy_assets {}; /stackable/bin/update_config; {} {}",
             STACKABLE_TMP_CONFIG, "bin/nifi.sh", "run"
         )]);
         container_builder.add_env_vars(env_vars);
