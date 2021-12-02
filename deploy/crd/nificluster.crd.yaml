@@ -52,6 +52,10 @@ spec:
                           minimum: 0.0
                           nullable: true
                           type: integer
+                        sensitivePropertyKeySecret:
+                          type: string
+                      required:
+                        - sensitivePropertyKeySecret
                       type: object
                     configOverrides:
                       additionalProperties:
@@ -91,6 +95,10 @@ spec:
                                 minimum: 0.0
                                 nullable: true
                                 type: integer
+                              sensitivePropertyKeySecret:
+                                type: string
+                            required:
+                              - sensitivePropertyKeySecret
                             type: object
                           configOverrides:
                             additionalProperties:

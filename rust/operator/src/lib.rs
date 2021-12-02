@@ -14,7 +14,7 @@ use async_trait::async_trait;
 use futures::Future;
 use stackable_nifi_crd::{
     NifiCluster, NifiRole, NifiSpec, APP_NAME, MANAGED_BY, NIFI_CLUSTER_LOAD_BALANCE_PORT,
-    NIFI_CLUSTER_METRICS_PORT, NIFI_CLUSTER_NODE_PROTOCOL_PORT, NIFI_WEB_HTTP_PORT,
+    NIFI_CLUSTER_METRICS_PORT, NIFI_CLUSTER_NODE_PROTOCOL_PORT, NIFI_WEB_HTTP_PORT, NIFI_SENSITIVE_PROPERTY_KEY
 };
 use stackable_operator::builder::{ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder};
 use stackable_operator::client::Client;
@@ -23,7 +23,7 @@ use stackable_operator::error::OperatorResult;
 use stackable_operator::identity::{
     LabeledPodIdentityFactory, NodeIdentity, PodIdentity, PodToNodeMapping,
 };
-use stackable_operator::k8s_openapi::api::core::v1::{ConfigMap, EnvVar, Pod};
+use stackable_operator::k8s_openapi::api::core::v1::{ConfigMap, EnvVar, EnvVarSource, Pod, SecretKeySelector};
 use stackable_operator::kube::api::ListParams;
 use stackable_operator::kube::Api;
 use stackable_operator::kube::ResourceExt;
@@ -442,6 +442,16 @@ impl NifiState {
             }
         }
 
+        let secret = validated_config
+            .get(&PropertyNameKind::Env)
+            .and_then(|m| m.get(NIFI_SENSITIVE_PROPERTY_KEY));
+
+        let env = secret.map(|s| {
+            vec![
+                env_var_from_secret(NIFI_SENSITIVE_PROPERTY_KEY, s, "sensitivePropertyKey"),
+            ]
+        });
+
         let pod_name = name_utils::build_resource_name(
             pod_id.app(),
             pod_id.instance(),
@@ -512,6 +522,9 @@ impl NifiState {
             container_builder.add_container_port(METRICS_PORT_NAME, port.parse()?);
         }
 
+        let mut container = container_builder.build();
+        container.env = env;
+
         let pod = pod_builder
             .metadata(
                 ObjectMetaBuilder::new()
@@ -522,7 +535,7 @@ impl NifiState {
                     .ownerreference_from_resource(&self.context.resource, Some(true), Some(true))?
                     .build()?,
             )
-            .add_container(container_builder.build())
+            .add_container(container)
             .node_name(node_id.name.as_str())
             // TODO: first iteration we are using host network
             .host_network(true)
@@ -699,6 +712,21 @@ impl NifiState {
         }
 
         Ok(ReconcileFunctionAction::Continue)
+    }
+}
+
+fn env_var_from_secret(var_name: &str, secret: &str, secret_key: &str) -> EnvVar {
+    EnvVar {
+        name: String::from(var_name),
+        value_from: Some(EnvVarSource {
+            secret_key_ref: Some(SecretKeySelector {
+                name: Some(String::from(secret)),
+                key: String::from(secret_key),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
     }
 }
 

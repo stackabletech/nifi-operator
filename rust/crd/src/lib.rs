@@ -21,6 +21,8 @@ pub const NIFI_CLUSTER_NODE_PROTOCOL_PORT: &str = "nifi.cluster.node.protocol.po
 pub const NIFI_CLUSTER_LOAD_BALANCE_PORT: &str = "nifi.cluster.load.balance.port";
 pub const NIFI_CLUSTER_METRICS_PORT: &str = "metricsPort";
 
+pub const NIFI_SENSITIVE_PROPERTY_KEY: &str = "NIFI_SENSITIVE_PROPERTY_KEY";
+
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
 #[kube(
     group = "nifi.stackable.tech",
@@ -136,6 +138,7 @@ pub struct NifiConfig {
     pub http_port: Option<u16>,
     pub protocol_port: Option<u16>,
     pub load_balance_port: Option<u16>,
+    pub sensitive_property_key_secret: String,
 }
 
 impl Configuration for NifiConfig {
@@ -153,6 +156,10 @@ impl Configuration for NifiConfig {
                 Some(metrics_port.to_string()),
             );
         }
+        result.insert(
+            NIFI_SENSITIVE_PROPERTY_KEY.to_string(),
+            Some(self.sensitive_property_key_secret.to_string())
+        );
         Ok(result)
     }
 
