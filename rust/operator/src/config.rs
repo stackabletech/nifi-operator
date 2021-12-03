@@ -60,7 +60,7 @@ pub fn build_bootstrap_conf() -> String {
     // The G1GC is known to cause some problems in Java 8 and earlier, but the issues were addressed in Java 9. If using Java 8 or earlier,
     // it is recommended that G1GC not be used, especially in conjunction with the Write Ahead Provenance Repository. However, if using a newer
     // version of Java, it can result in better performance without significant \"stop-the-world\" delays.
-    //bootstrap.insert("java.arg.13", "-XX:+UseG1GC".to_string())
+    //bootstrap.insert("java.arg.13", "-XX:+UseG1GC".to_string());
 
     // Set headless mode by default
     bootstrap.insert("java.arg.14", "-Djava.awt.headless=true".to_string());
