@@ -20,5 +20,5 @@ spec:
           protocolPort: 10443
           loadBalancePort: 6342
           sensitivePropertyKeySecret: nifi-sensitive-property-key
-          replicas: 2
+        replicas: 2
 

@@ -25,6 +25,8 @@ pub fn build_bootstrap_conf() -> String {
     bootstrap.insert("java", "java".to_string());
     // Username to use when running NiFi. This value will be ignored on Windows.
     bootstrap.insert("run.as", "".to_string());
+    // Preserve shell environment while runnning as "run.as" user
+    bootstrap.insert("preserve.environment", "false".to_string());
     // Configure where NiFi's lib and conf directories live
     bootstrap.insert("lib.dir", "./lib".to_string());
     bootstrap.insert("conf.dir", "./conf".to_string());
@@ -39,6 +41,9 @@ pub fn build_bootstrap_conf() -> String {
     // TODO: adapt to config
     bootstrap.insert("java.arg.2", "-Xms1024m".to_string());
     bootstrap.insert("java.arg.3", "-Xmx1024m".to_string());
+
+    // Enable Remote Debugging
+    // bootstrap.insert("java.arg.debug", "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=8000".to_string());
 
     bootstrap.insert("java.arg.4", "-Djava.net.preferIPv4Stack=true".to_string());
 
@@ -55,7 +60,7 @@ pub fn build_bootstrap_conf() -> String {
     // The G1GC is known to cause some problems in Java 8 and earlier, but the issues were addressed in Java 9. If using Java 8 or earlier,
     // it is recommended that G1GC not be used, especially in conjunction with the Write Ahead Provenance Repository. However, if using a newer
     // version of Java, it can result in better performance without significant \"stop-the-world\" delays.
-    //bootstrap.insert("java.arg.13", "-XX:+UseG1GC".to_string());
+    //bootstrap.insert("java.arg.13", "-XX:+UseG1GC".to_string())
 
     // Set headless mode by default
     bootstrap.insert("java.arg.14", "-Djava.awt.headless=true".to_string());
@@ -213,6 +218,13 @@ pub fn build_nifi_properties(
         ";LOCK_TIMEOUT=25000;WRITE_DELAY=0;AUTO_SERVER=FALSE".to_string(),
     );
 
+    // Repository Encryption properties override individual repository implementation properties
+    properties.insert("nifi.repository.encryption.protocol.version","".to_string());
+    properties.insert("nifi.repository.encryption.key.id","".to_string());
+    properties.insert("nifi.repository.encryption.key.provider","".to_string());
+    properties.insert("nifi.repository.encryption.key.provider.keystore.location","".to_string());
+    properties.insert("nifi.repository.encryption.key.provider.keystore.password","".to_string());
+
     // FlowFile Repository
     properties.insert(
         "nifi.flowfile.repository.implementation",
@@ -231,16 +243,6 @@ pub fn build_nifi_properties(
         "20 secs".to_string(),
     );
     properties.insert("nifi.flowfile.repository.always.sync", "false".to_string());
-    properties.insert(
-        "nifi.flowfile.repository.encryption.key.provider.implementation",
-        "".to_string(),
-    );
-    properties.insert(
-        "nifi.flowfile.repository.encryption.key.provider.location",
-        "".to_string(),
-    );
-    properties.insert("nifi.flowfile.repository.encryption.key.id", "".to_string());
-    properties.insert("nifi.flowfile.repository.encryption.key", "".to_string());
     properties.insert(
         "nifi.flowfile.repository.retain.orphaned.flowfiles",
         "true".to_string(),
@@ -279,35 +281,12 @@ pub fn build_nifi_properties(
         "nifi.content.viewer.url",
         "../nifi-content-viewer/".to_string(),
     );
-    properties.insert(
-        "nifi.content.repository.encryption.key.provider.implementation",
-        "".to_string(),
-    );
-    properties.insert(
-        "nifi.content.repository.encryption.key.provider.location",
-        "".to_string(),
-    );
-    properties.insert("nifi.content.repository.encryption.key.id", "".to_string());
-    properties.insert("nifi.content.repository.encryption.key", "".to_string());
 
     // Provenance Repository Properties
     properties.insert(
         "nifi.provenance.repository.implementation",
         "org.apache.nifi.provenance.WriteAheadProvenanceRepository".to_string(),
     );
-    properties.insert(
-        "nifi.provenance.repository.encryption.key.provider.implementation",
-        "".to_string(),
-    );
-    properties.insert(
-        "nifi.provenance.repository.encryption.key.provider.location",
-        "".to_string(),
-    );
-    properties.insert(
-        "nifi.provenance.repository.encryption.key.id",
-        "".to_string(),
-    );
-    properties.insert("nifi.provenance.repository.encryption.key", "".to_string());
 
     // Persistent Provenance Repository Properties
     properties.insert(
@@ -388,6 +367,20 @@ pub fn build_nifi_properties(
         "1 min".to_string(),
     );
 
+    // QuestDB Status History Repository Properties
+    properties.insert(
+        "nifi.status.repository.questdb.persist.node.days",
+        "14".to_string(),
+    );
+    properties.insert(
+        "nifi.status.repository.questdb.persist.component.days",
+        "3".to_string(),
+    );
+    properties.insert(
+        "nifi.status.repository.questdb.persist.location",
+        "./status_repository".to_string(),
+    );
+
     // Site to Site properties
     properties.insert("nifi.remote.input.host", node_name.to_string());
     properties.insert("nifi.remote.input.secure", "false".to_string());
@@ -431,18 +424,26 @@ pub fn build_nifi_properties(
     properties.insert("nifi.web.proxy.host", "".to_string());
     properties.insert("nifi.web.max.content.size", "".to_string());
     properties.insert("nifi.web.max.requests.per.second", "30000".to_string());
+    properties.insert("nifi.web.max.access.token.requests.per.second", "25".to_string());
+    properties.insert("nifi.web.request.timeout", "60 secs".to_string());
+    properties.insert("nifi.web.request.ip.whitelist", "".to_string());
     properties.insert("nifi.web.should.send.server.version", "true".to_string());
 
+    // Include or Exclude TLS Cipher Suites for HTTPS
+    properties.insert("nifi.web.https.ciphersuites.include", "".to_string());
+    properties.insert("nifi.web.https.ciphersuites.exclude", "".to_string());
+
     // security properties
-    properties.insert("nifi.sensitive.props.key", "".to_string());
+    properties.insert("nifi.sensitive.props.key", "".to_string());  // this property is later set from a secret
     properties.insert("nifi.sensitive.props.key.protected", "".to_string());
     properties.insert(
         "nifi.sensitive.props.algorithm",
         "NIFI_PBKDF2_AES_GCM_256".to_string(),
     );
-    properties.insert("nifi.sensitive.props.provider", "BC".to_string());
     properties.insert("nifi.sensitive.props.additional.keys", "".to_string());
 
+    properties.insert("nifi.security.autoreload.enabled", "false".to_string());
+    properties.insert("nifi.security.autoreload.interval", "10 secs".to_string());
     properties.insert("nifi.security.keystore", "".to_string());
     properties.insert("nifi.security.keystoreType", "".to_string());
     properties.insert("nifi.security.keystorePasswd", "".to_string());
@@ -459,6 +460,7 @@ pub fn build_nifi_properties(
         "false".to_string(),
     );
     properties.insert("nifi.security.user.login.identity.provider", "".to_string());
+    properties.insert("nifi.security.user.jws.key.rotation.period", "PT1H".to_string());
     properties.insert("nifi.security.ocsp.responder.url", "".to_string());
     properties.insert("nifi.security.ocsp.responder.certificate", "".to_string());
 
@@ -646,6 +648,7 @@ pub fn build_nifi_properties(
     properties.insert("nifi.zookeeper.security.truststore", "".to_string());
     properties.insert("nifi.zookeeper.security.truststoreType", "".to_string());
     properties.insert("nifi.zookeeper.security.truststorePasswd", "".to_string());
+    properties.insert("nifi.zookeeper.jute.maxbuffer", "".to_string());
 
     // Zookeeper properties for the authentication scheme used when creating acls on znodes used for cluster management
     // Values supported for nifi.zookeeper.auth.type are "default", which will apply world/anyone rights on znodes
@@ -698,6 +701,27 @@ pub fn build_nifi_properties(
         "nifi.analytics.connection.model.score.threshold",
         ".90".to_string(),
     );
+
+    // runtime monitoring properties
+    properties.insert("nifi.monitor.long.running.task.schedule", "".to_string());
+    properties.insert("nifi.monitor.long.running.task.threshold", "".to_string());
+
+    // Create automatic diagnostics when stopping/restarting NiFi.
+
+    // Enable automatic diagnostic at shutdown.
+    properties.insert("nifi.diagnostics.on.shutdown.enabled", "false".to_string());
+
+    // Include verbose diagnostic information.
+    properties.insert("nifi.diagnostics.on.shutdown.verbose", "false".to_string());
+
+    // The location of the diagnostics folder.
+    properties.insert("nifi.diagnostics.on.shutdown.directory", "./diagnostics".to_string());
+
+    // The maximum number of files permitted in the directory. If the limit is exceeded, the oldest files are deleted.
+    properties.insert("nifi.diagnostics.on.shutdown.max.filecount", "10".to_string());
+
+    // The diagnostics folder's maximum permitted size in bytes. If the limit is exceeded, the oldest files are deleted.
+    properties.insert("nifi.diagnostics.on.shutdown.max.directory.size", "10 MB".to_string());
 
     format_properties(properties)
 }
