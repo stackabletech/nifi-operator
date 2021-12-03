@@ -14,7 +14,8 @@ use async_trait::async_trait;
 use futures::Future;
 use stackable_nifi_crd::{
     NifiCluster, NifiRole, NifiSpec, APP_NAME, MANAGED_BY, NIFI_CLUSTER_LOAD_BALANCE_PORT,
-    NIFI_CLUSTER_METRICS_PORT, NIFI_CLUSTER_NODE_PROTOCOL_PORT, NIFI_WEB_HTTP_PORT,
+    NIFI_CLUSTER_METRICS_PORT, NIFI_CLUSTER_NODE_PROTOCOL_PORT, NIFI_SENSITIVE_PROPS_KEY,
+    NIFI_WEB_HTTP_PORT,
 };
 use stackable_operator::builder::{ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder};
 use stackable_operator::client::Client;
@@ -23,7 +24,9 @@ use stackable_operator::error::OperatorResult;
 use stackable_operator::identity::{
     LabeledPodIdentityFactory, NodeIdentity, PodIdentity, PodToNodeMapping,
 };
-use stackable_operator::k8s_openapi::api::core::v1::{ConfigMap, EnvVar, Pod};
+use stackable_operator::k8s_openapi::api::core::v1::{
+    ConfigMap, EnvVar, EnvVarSource, Pod, SecretKeySelector,
+};
 use stackable_operator::kube::api::ListParams;
 use stackable_operator::kube::Api;
 use stackable_operator::kube::ResourceExt;
@@ -442,6 +445,18 @@ impl NifiState {
             }
         }
 
+        let secret = validated_config
+            .get(&PropertyNameKind::Env)
+            .and_then(|m| m.get(NIFI_SENSITIVE_PROPS_KEY));
+
+        if let Some(s) = secret {
+            env_vars.push(env_var_from_secret(
+                NIFI_SENSITIVE_PROPS_KEY,
+                s,
+                "nifiSensitivePropsKey",
+            ));
+        }
+
         let pod_name = name_utils::build_resource_name(
             pod_id.app(),
             pod_id.instance(),
@@ -469,7 +484,7 @@ impl NifiState {
         // we use the copy_assets.sh script here to copy everything from the "STACKABLE_TMP_CONFIG"
         // folder to the "conf" folder in the nifi package.
         container_builder.args(vec![format!(
-            "/stackable/bin/copy_assets {}; {} {}",
+            "/stackable/bin/copy_assets {}; /stackable/bin/update_config; {} {}",
             STACKABLE_TMP_CONFIG, "bin/nifi.sh", "run"
         )]);
         container_builder.add_env_vars(env_vars);
@@ -699,6 +714,21 @@ impl NifiState {
         }
 
         Ok(ReconcileFunctionAction::Continue)
+    }
+}
+
+fn env_var_from_secret(var_name: &str, secret: &str, secret_key: &str) -> EnvVar {
+    EnvVar {
+        name: String::from(var_name),
+        value_from: Some(EnvVarSource {
+            secret_key_ref: Some(SecretKeySelector {
+                name: Some(String::from(secret)),
+                key: String::from(secret_key),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
     }
 }
 

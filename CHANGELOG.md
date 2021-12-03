@@ -4,14 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Support for 1.15.0 ([#125])
+- Sensitive property key is setable via a secret ([#125])
+
 ### Changed
 
+- Removed support for 1.13.2 ([#125])
+- Added/removed some default config settings that changed from 1.13 to 1.15 ([#125])
 - `operator-rs` `0.3.0` → `0.4.0` ([#101]).
 - `stackable-zookeeper-crd`: `0.4.1` → `0.5.0` ([#101]).
 - Adapted pod image and container command to docker image ([#101]).
 - Adapted documentation to represent new workflow with docker images ([#101]).
 
 [#101]: https://github.com/stackabletech/nifi-operator/pull/101
+[#125]: https://github.com/stackabletech/nifi-operator/pull/125
 
 ## [0.3.0] - 2021-10-27
 
