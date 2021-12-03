@@ -449,13 +449,13 @@ impl NifiState {
             .get(&PropertyNameKind::Env)
             .and_then(|m| m.get(NIFI_SENSITIVE_PROPS_KEY));
 
-        let env = secret.map(|s| {
-            vec![env_var_from_secret(
+        if let Some(s) = secret {
+            env_vars.push(env_var_from_secret(
                 NIFI_SENSITIVE_PROPS_KEY,
                 s,
                 "nifiSensitivePropsKey",
-            )]
-        });
+            ));
+        }
 
         let pod_name = name_utils::build_resource_name(
             pod_id.app(),
@@ -527,9 +527,6 @@ impl NifiState {
             container_builder.add_container_port(METRICS_PORT_NAME, port.parse()?);
         }
 
-        let mut container = container_builder.build();
-        container.env = env;
-
         let pod = pod_builder
             .metadata(
                 ObjectMetaBuilder::new()
@@ -540,7 +537,7 @@ impl NifiState {
                     .ownerreference_from_resource(&self.context.resource, Some(true), Some(true))?
                     .build()?,
             )
-            .add_container(container)
+            .add_container(container_builder.build())
             .node_name(node_id.name.as_str())
             // TODO: first iteration we are using host network
             .host_network(true)

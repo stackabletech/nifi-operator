@@ -42,9 +42,6 @@ pub fn build_bootstrap_conf() -> String {
     bootstrap.insert("java.arg.2", "-Xms1024m".to_string());
     bootstrap.insert("java.arg.3", "-Xmx1024m".to_string());
 
-    // Enable Remote Debugging
-    // bootstrap.insert("java.arg.debug", "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=8000".to_string());
-
     bootstrap.insert("java.arg.4", "-Djava.net.preferIPv4Stack=true".to_string());
 
     // allowRestrictedHeaders is required for Cluster/Node communications to work properly
