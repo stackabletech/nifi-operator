@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 - Adapted documentation to represent new workflow with docker images ([#101]).
 
 [#101]: https://github.com/stackabletech/nifi-operator/pull/101
+[#125]: https://github.com/stackabletech/nifi-operator/pull/125
 
 ## [0.3.0] - 2021-10-27
 
