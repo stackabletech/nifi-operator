@@ -4,7 +4,7 @@ After installation, the CRD for this operator must be created:
 
     kubectl apply -f /etc/stackable/nifi-operator/crd/nificluster.crd.yaml
 
-To create a single node Apache NiFi (v1.13.2) cluster with Prometheus metrics exposed on port 8428 and the WebUi on port 10000. As of now only one instance per node is supported:
+To create a single node Apache NiFi (v1.15.0) cluster with Prometheus metrics exposed on port 8428 and the WebUi on port 10000. As of now only one instance per node is supported:
 
 
     cat <<EOF | kubectl apply -f -
@@ -14,7 +14,7 @@ To create a single node Apache NiFi (v1.13.2) cluster with Prometheus metrics ex
       name: simple-nificluster
     spec:
       metricsPort: 8428
-      version: "1.13.2"
+      version: "1.15.0"
       zookeeperReference:
         name: simple
         namespace: default
@@ -30,5 +30,15 @@ To create a single node Apache NiFi (v1.13.2) cluster with Prometheus metrics ex
               httpPort: 10000
               protocolPort: 10443
               loadBalancePort: 6342
+              sensitivePropertyKeySecret: nifi-sensitive-property-key
     EOF
 
+
+    cat <<EOF | kubectl apply -f -
+    apiVersion: v1alpha1
+    kind: Secret
+    metadata:
+      name: nifi-sensitive-property-key
+    stringData:
+      nifiSensitivePropsKey: mYsUp3rS3cr3tk3y
+    EOF

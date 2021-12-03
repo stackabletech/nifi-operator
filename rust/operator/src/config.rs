@@ -219,11 +219,20 @@ pub fn build_nifi_properties(
     );
 
     // Repository Encryption properties override individual repository implementation properties
-    properties.insert("nifi.repository.encryption.protocol.version","".to_string());
-    properties.insert("nifi.repository.encryption.key.id","".to_string());
-    properties.insert("nifi.repository.encryption.key.provider","".to_string());
-    properties.insert("nifi.repository.encryption.key.provider.keystore.location","".to_string());
-    properties.insert("nifi.repository.encryption.key.provider.keystore.password","".to_string());
+    properties.insert(
+        "nifi.repository.encryption.protocol.version",
+        "".to_string(),
+    );
+    properties.insert("nifi.repository.encryption.key.id", "".to_string());
+    properties.insert("nifi.repository.encryption.key.provider", "".to_string());
+    properties.insert(
+        "nifi.repository.encryption.key.provider.keystore.location",
+        "".to_string(),
+    );
+    properties.insert(
+        "nifi.repository.encryption.key.provider.keystore.password",
+        "".to_string(),
+    );
 
     // FlowFile Repository
     properties.insert(
@@ -424,7 +433,10 @@ pub fn build_nifi_properties(
     properties.insert("nifi.web.proxy.host", "".to_string());
     properties.insert("nifi.web.max.content.size", "".to_string());
     properties.insert("nifi.web.max.requests.per.second", "30000".to_string());
-    properties.insert("nifi.web.max.access.token.requests.per.second", "25".to_string());
+    properties.insert(
+        "nifi.web.max.access.token.requests.per.second",
+        "25".to_string(),
+    );
     properties.insert("nifi.web.request.timeout", "60 secs".to_string());
     properties.insert("nifi.web.request.ip.whitelist", "".to_string());
     properties.insert("nifi.web.should.send.server.version", "true".to_string());
@@ -434,7 +446,7 @@ pub fn build_nifi_properties(
     properties.insert("nifi.web.https.ciphersuites.exclude", "".to_string());
 
     // security properties
-    properties.insert("nifi.sensitive.props.key", "".to_string());  // this property is later set from a secret
+    properties.insert("nifi.sensitive.props.key", "".to_string()); // this property is later set from a secret
     properties.insert("nifi.sensitive.props.key.protected", "".to_string());
     properties.insert(
         "nifi.sensitive.props.algorithm",
@@ -460,7 +472,10 @@ pub fn build_nifi_properties(
         "false".to_string(),
     );
     properties.insert("nifi.security.user.login.identity.provider", "".to_string());
-    properties.insert("nifi.security.user.jws.key.rotation.period", "PT1H".to_string());
+    properties.insert(
+        "nifi.security.user.jws.key.rotation.period",
+        "PT1H".to_string(),
+    );
     properties.insert("nifi.security.ocsp.responder.url", "".to_string());
     properties.insert("nifi.security.ocsp.responder.certificate", "".to_string());
 
@@ -715,13 +730,22 @@ pub fn build_nifi_properties(
     properties.insert("nifi.diagnostics.on.shutdown.verbose", "false".to_string());
 
     // The location of the diagnostics folder.
-    properties.insert("nifi.diagnostics.on.shutdown.directory", "./diagnostics".to_string());
+    properties.insert(
+        "nifi.diagnostics.on.shutdown.directory",
+        "./diagnostics".to_string(),
+    );
 
     // The maximum number of files permitted in the directory. If the limit is exceeded, the oldest files are deleted.
-    properties.insert("nifi.diagnostics.on.shutdown.max.filecount", "10".to_string());
+    properties.insert(
+        "nifi.diagnostics.on.shutdown.max.filecount",
+        "10".to_string(),
+    );
 
     // The diagnostics folder's maximum permitted size in bytes. If the limit is exceeded, the oldest files are deleted.
-    properties.insert("nifi.diagnostics.on.shutdown.max.directory.size", "10 MB".to_string());
+    properties.insert(
+        "nifi.diagnostics.on.shutdown.max.directory.size",
+        "10 MB".to_string(),
+    );
 
     format_properties(properties)
 }
