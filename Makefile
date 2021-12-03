@@ -10,7 +10,7 @@ TAG    := $(shell git rev-parse --short HEAD)
 VERSION := $(shell cargo metadata --format-version 1 | jq '.packages[] | select(.name=="stackable-nifi-operator") | .version')
 
 docker:
-	docker build --force-rm -t "docker.stackable.tech/stackable/nifi-operator:${VERSION}" -t "docker.stackable.tech/stackable/nifi-operator:latest" -f docker/Dockerfile .
+	docker build --force-rm -t "docker.stackable.tech/stackable/nifi-operator:${VERSION}" -f docker/Dockerfile .
 	echo "${NEXUS_PASSWORD}" | docker login --username github --password-stdin docker.stackable.tech
 	docker push --all-tags docker.stackable.tech/stackable/nifi-operator
 
@@ -38,3 +38,11 @@ deploy/helm/nifi-operator/crds/crds.yaml:
 
 chart-lint: compile-chart
 	docker run -it -v $(shell pwd):/build/helm-charts -w /build/helm-charts quay.io/helmpack/chart-testing:v3.4.0  ct lint --config deploy/helm/chart_testing.yaml
+
+## Manifest related targets
+clean-manifests:
+	mkdir -p deploy/manifests
+	rm -rf $$(find deploy/manifests -maxdepth 1 -mindepth 1 -not -name Kustomization)
+
+generate-manifests: clean-manifests compile-chart
+	./scripts/generate-manifests.sh

@@ -1,0 +1,58 @@
+== Kubernetes custom resource options
+The cluster can be configured via a YAML file. This custom resource specifies the amount of replicas for each role group or role specific configuration like port definitions etc.
+
+[source,yaml]
+----
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: simple
+spec:
+  metricsPort: 8428
+  version: "1.13.2"
+  zookeeperReference:
+    name: simple
+    namespace: default
+    chroot: /nifi
+  nodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        config:
+          httpPort: 10000
+          protocolPort: 10443
+          loadBalancePort: 6342
+----
+
+
+[cols="1,1,1,1,1"]
+|===
+| config-spec Property | Actual Property | Default Value | Recommended Value | Location
+
+| httpPort
+| nifi.web.http.port
+| 8080
+|
+| file:nifi.properties
+
+| protocolPort
+| nifi.cluster.node.protocol.port
+| 9088
+|
+| file:nifi.properties
+
+| loadBalancePort
+| nifi.cluster.load.balance.port
+| 6342
+|
+| file:nifi.properties
+
+| metricsPort
+| metricsPort
+|
+|
+| JMX Exporter/CLI
+
+|===

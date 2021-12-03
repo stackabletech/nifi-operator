@@ -1,7 +1,8 @@
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ .Release.Name }}-clusterrole
+  name: nifi-operator-clusterrole
 rules:
   # For Apache ZooKeeper dependents
   - apiGroups:
@@ -46,7 +47,7 @@ rules:
     verbs:
       - get
   - apiGroups:
-      - command.{{ include "operator.name" . }}.stackable.tech
+      - command.nifi.stackable.tech
     resources:
       - inits
       - restarts
@@ -58,23 +59,23 @@ rules:
       - patch
       - watch
   - apiGroups:
-      - command.{{ include "operator.name" . }}.stackable.tech
+      - command.nifi.stackable.tech
     resources:
       - inits/status
     verbs:
       - patch
   - apiGroups:
-      - {{ include "operator.name" . }}.stackable.tech
+      - nifi.stackable.tech
     resources:
-      - {{ include "operator.name" . }}clusters
+      - nificlusters
     verbs:
       - get
       - list
       - patch
       - watch
   - apiGroups:
-      - {{ include "operator.name" . }}.stackable.tech
+      - nifi.stackable.tech
     resources:
-      - {{ include "operator.name" . }}clusters/status
+      - nificlusters/status
     verbs:
       - patch
