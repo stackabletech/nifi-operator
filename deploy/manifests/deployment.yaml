@@ -10,7 +10,7 @@ metadata:
   labels:
     app.kubernetes.io/name: nifi-operator
     app.kubernetes.io/instance: nifi-operator
-    app.kubernetes.io/version: "0.4.0-nightly"
+    app.kubernetes.io/version: "0.5.0-nightly"
 spec:
   replicas: 1
   strategy:
@@ -30,7 +30,7 @@ spec:
       containers:
         - name: nifi-operator
           securityContext: {}
-          image: "docker.stackable.tech/stackable/nifi-operator:0.4.0-nightly"
+          image: "docker.stackable.tech/stackable/nifi-operator:0.5.0-nightly"
           imagePullPolicy: IfNotPresent
           resources: {}
           volumeMounts:
