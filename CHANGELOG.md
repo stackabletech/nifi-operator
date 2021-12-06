@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.4.0] - 2021-12-06
+
+
 ### Added
 - Support for 1.15.0 ([#125])
 - Sensitive property key is setable via a secret ([#125])
