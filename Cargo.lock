@@ -1432,6 +1432,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustversion"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2cc38e8fa666e2de3c4aba7edeb5ffc5246c1c2ed0e3d17e560aeeba736b23f"
+
+[[package]]
 name = "ryu"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1671,7 +1677,7 @@ dependencies = [
  "stackable-operator",
  "stackable-zookeeper-crd",
  "strum",
- "strum_macros",
+ "strum_macros 0.23.1",
 ]
 
 [[package]]
@@ -1687,7 +1693,7 @@ dependencies = [
  "stackable-operator",
  "stackable-zookeeper-crd",
  "strum",
- "strum_macros",
+ "strum_macros 0.23.1",
  "thiserror",
  "tokio",
  "tracing",
@@ -1731,7 +1737,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "strum",
- "strum_macros",
+ "strum_macros 0.22.0",
  "thiserror",
  "tokio",
  "tracing",
@@ -1742,8 +1748,8 @@ dependencies = [
 
 [[package]]
 name = "stackable-zookeeper-crd"
-version = "0.5.0"
-source = "git+https://github.com/stackabletech/zookeeper-operator.git?tag=0.5.0#45ebcca59ee128af363d0266b83cd3c05a6659a9"
+version = "0.6.0"
+source = "git+https://github.com/stackabletech/zookeeper-operator.git?tag=0.6.0#6cc07e3738067d45594e696651d471572628ee88"
 dependencies = [
  "duplicate",
  "semver",
@@ -1751,7 +1757,7 @@ dependencies = [
  "serde_json",
  "stackable-operator",
  "strum",
- "strum_macros",
+ "strum_macros 0.22.0",
  "thiserror",
  "tracing",
 ]
@@ -1783,6 +1789,19 @@ dependencies = [
  "heck",
  "proc-macro2",
  "quote",
+ "syn",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5bb0dc7ee9c15cea6199cde9a127fa16a4c5819af85395457ad72d68edc85a38"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "rustversion",
  "syn",
 ]
 
@@ -1877,9 +1896,9 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
 name = "tokio"
-version = "1.13.0"
+version = "1.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "588b2d10a336da58d877567cd8fb8a14b463e2104910f8132cd054b4b96e29ee"
+checksum = "70e992e41e0d2fb9f755b37446f20900f64446ef54874f40a60c78f021ac6144"
 dependencies = [
  "autocfg",
  "bytes",
@@ -1906,9 +1925,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-macros"
-version = "1.5.1"
+version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "114383b041aa6212c579467afa0075fbbdd0718de036100bc0ba7961d8cb9095"
+checksum = "c9efc1aba077437943f7515666aa2b882dfabfbfdf89c819ea75a8d6e9eaba5e"
 dependencies = [
  "proc-macro2",
  "quote",
