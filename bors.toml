@@ -1,0 +1,5 @@
+status = [ 'Run tests', 'Run rustfmt', 'Run rustdoc', 'Run clippy', 'Run cargo deny' ]
+use_squash_merge = true
+required_approvals = 1
+delete_merged_branches = true
+up_to_date_approvals = true
