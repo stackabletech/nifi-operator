@@ -4,7 +4,7 @@ metadata:
   name: simple
 spec:
   metricsPort: 8428
-  version: "1.13.2"
+  version: "1.15.0"
   zookeeperReference:
     name: simple
     namespace: default
@@ -19,4 +19,6 @@ spec:
           httpPort: 10000
           protocolPort: 10443
           loadBalancePort: 6342
+          sensitivePropertyKeySecret: nifi-sensitive-property-key
+        replicas: 2
 

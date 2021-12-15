@@ -21,6 +21,8 @@ pub const NIFI_CLUSTER_NODE_PROTOCOL_PORT: &str = "nifi.cluster.node.protocol.po
 pub const NIFI_CLUSTER_LOAD_BALANCE_PORT: &str = "nifi.cluster.load.balance.port";
 pub const NIFI_CLUSTER_METRICS_PORT: &str = "metricsPort";
 
+pub const NIFI_SENSITIVE_PROPS_KEY: &str = "NIFI_SENSITIVE_PROPS_KEY";
+
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
 #[kube(
     group = "nifi.stackable.tech",
@@ -65,16 +67,9 @@ impl Status<NifiStatus> for NifiCluster {
     strum_macros::EnumString,
 )]
 pub enum NifiVersion {
-    #[serde(rename = "1.13.2")]
-    #[strum(serialize = "1.13.2")]
-    v1_13_2,
-
-    // TODO: NiFi 1.14 does not work with this operator yet <https://github.com/stackabletech/nifi-operator/issues/82>
-    //    Therefore we skip using it in the CRD for now. Should be uncommented as soon as #82 is fixed.
-    //#[serde(rename = "1.14.0")]
-    #[serde(skip)]
-    #[strum(serialize = "1.14.0")]
-    v1_14_0,
+    #[serde(rename = "1.15.0")]
+    #[strum(serialize = "1.15.0")]
+    v1_15_0,
 }
 
 impl Versioning for NifiVersion {
@@ -143,6 +138,7 @@ pub struct NifiConfig {
     pub http_port: Option<u16>,
     pub protocol_port: Option<u16>,
     pub load_balance_port: Option<u16>,
+    pub sensitive_property_key_secret: String,
 }
 
 impl Configuration for NifiConfig {
@@ -160,6 +156,10 @@ impl Configuration for NifiConfig {
                 Some(metrics_port.to_string()),
             );
         }
+        result.insert(
+            NIFI_SENSITIVE_PROPS_KEY.to_string(),
+            Some(self.sensitive_property_key_secret.to_string()),
+        );
         Ok(result)
     }
 
@@ -214,23 +214,14 @@ mod tests {
     #[test]
     fn test_zookeeper_version_versioning() {
         assert_eq!(
-            NifiVersion::v1_13_2.versioning_state(&NifiVersion::v1_14_0),
-            VersioningState::ValidUpgrade
-        );
-        assert_eq!(
-            NifiVersion::v1_14_0.versioning_state(&NifiVersion::v1_13_2),
-            VersioningState::ValidDowngrade
-        );
-        assert_eq!(
-            NifiVersion::v1_13_2.versioning_state(&NifiVersion::v1_13_2),
+            NifiVersion::v1_15_0.versioning_state(&NifiVersion::v1_15_0),
             VersioningState::NoOp
         );
     }
 
     #[test]
     fn test_version_conversion() {
-        NifiVersion::from_str("1.13.2").unwrap();
-        NifiVersion::from_str("1.14.0").unwrap();
+        NifiVersion::from_str("1.15.0").unwrap();
         NifiVersion::from_str("1.2.3").unwrap_err();
     }
 }
