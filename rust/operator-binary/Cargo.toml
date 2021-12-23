@@ -1,38 +1,39 @@
 [package]
-authors = ["Malte Sander <malte.sander.it@gmail.com>"]
+authors = ["Stackable GmbH <info@stackable.de>"]
 build = "build.rs"
-edition = "2018"
+edition = "2021"
 description = "Stackable Operator for Apache NiFi"
 license = "OSL-3.0"
-name = "stackable-nifi-operator-binary"
+name = "stackable-nifi-operator"
 repository = "https://github.com/stackabletech/nifi-operator"
 version = "0.5.0-nightly"
 
 [dependencies]
-stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.4.0" }
-stackable-nifi-crd = { path = "../crd" }
-stackable-nifi-operator = { path = "../operator" }
-
+anyhow = "1.0"
 clap = "2.33"
+failure = "0.1"
+fnv = "1.0"
+futures = { version = "0.3", features = ["compat"] }
+pin-project = "1.0"
+reqwest = "0.11"
+semver = "1.0"
+serde = "1.0"
+serde_json = "1.0"
 serde_yaml = "0.8"
-tokio = { version = "1.14", features = ["macros", "rt-multi-thread"] }
+snafu = "0.6"
+stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.7.0" }
+stackable-nifi-crd = { path = "../crd" }
+structopt = "0.3"
+strum = "0.23"
+strum_macros = "0.23"
+tokio = { version = "1.12", features = ["full"] }
 tracing = "0.1"
 
 [build-dependencies]
 built = { version =  "0.5", features = ["chrono", "git2"] }
-stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.4.0" }
+stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.7.0" }
 stackable-nifi-crd = { path = "../crd" }
-
-[package.metadata.deb]
-name = "stackable-nifi-operator"
-maintainer-scripts = "../../packaging/debian/"
-systemd-units = { enable = false , unit-name = "stackable-nifi-operator"}
-assets = [
-    ["../../target/release/stackable-nifi-operator", "opt/stackable/nifi-operator/", "755"],
-    ["../../deploy/crd/nificluster.crd.yaml", "etc/stackable/nifi-operator/crd/", "644"],
-    ["../../deploy/config-spec/properties.yaml", "etc/stackable/nifi-operator/config-spec/", "644"],
-]
 
 [[bin]]
 name = "stackable-nifi-operator"
-path = "src/stackable-nifi-operator.rs"
+path = "src/main.rs"
