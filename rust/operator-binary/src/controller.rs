@@ -145,8 +145,6 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
             namespace: zk_namespace.to_string(),
         })?;
 
-    println!("Got zk connect string: {}", zk_connect_string);
-
     let validated_config = validate_all_roles_and_groups_config(
         nifi_version,
         &transform_all_roles_to_config(
@@ -378,11 +376,12 @@ fn build_node_rolegroup_statefulset(
         .image(image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
         .args(vec![
+            // TODO: do not hardcode rolegroup etc for sed.
             format!(
                 "/stackable/bin/copy_assets /conf;
                  /stackable/bin/update_config;
-                 sed -i \"s/nifi.web.https.host=/nifi.web.https.host=$POD_NAME.simple-node-default.default.svc.cluster.local/g\" /stackable/nifi/conf/nifi.properties;
-                 sed -i \"s/nifi.cluster.node.address=/nifi.cluster.node.address=$POD_NAME.simple-node-default.default.svc.cluster.local/g\" /stackable/nifi/conf/nifi.properties;
+                 sed -i \"s/nifi.web.https.host=/nifi.web.https.host=$POD_NAME.simple-nifi-node-default.default.svc.cluster.local/g\" /stackable/nifi/conf/nifi.properties;
+                 sed -i \"s/nifi.cluster.node.address=/nifi.cluster.node.address=$POD_NAME.simple-nifi-node-default.default.svc.cluster.local/g\" /stackable/nifi/conf/nifi.properties;
                  bin/nifi.sh run"
             )
         ])
