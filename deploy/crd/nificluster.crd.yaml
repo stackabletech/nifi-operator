@@ -34,9 +34,8 @@ spec:
                       default: {}
                       properties:
                         sensitivePropertyKeySecret:
+                          nullable: true
                           type: string
-                      required:
-                        - sensitivePropertyKeySecret
                       type: object
                     configOverrides:
                       additionalProperties:
@@ -62,9 +61,8 @@ spec:
                             default: {}
                             properties:
                               sensitivePropertyKeySecret:
+                                nullable: true
                                 type: string
-                            required:
-                              - sensitivePropertyKeySecret
                             type: object
                           configOverrides:
                             additionalProperties:

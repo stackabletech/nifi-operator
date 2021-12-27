@@ -1,12 +1,11 @@
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
 metadata:
-  name: simple
+  name: simple-nifi
 spec:
-  metricsPort: 8428
   version: "1.15.0"
   zookeeperReference:
-    name: simple
+    name: simple-zk
     namespace: default
     chroot: /nifi
   nodes:
@@ -16,9 +15,6 @@ spec:
           matchLabels:
             kubernetes.io/os: linux
         config:
-          httpPort: 10000
-          protocolPort: 10443
-          loadBalancePort: 6342
           sensitivePropertyKeySecret: nifi-sensitive-property-key
         replicas: 2
 

@@ -1,4 +1,4 @@
-use stackable_nifi_crd::{NifiSpec, BALANCE_PORT, HTTP_PORT, PROTOCOL_PORT};
+use stackable_nifi_crd::{NifiSpec, HTTPS_PORT, PROTOCOL_PORT};
 use std::collections::BTreeMap;
 
 pub const NIFI_BOOTSTRAP_CONF: &str = "bootstrap.conf";
@@ -370,17 +370,18 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
     // Site to Site properties
     // TODO: do we need to set that?
     //properties.insert("nifi.remote.input.host", node_name.to_string());
-    properties.insert("nifi.remote.input.secure", "false".to_string());
-    properties.insert("nifi.remote.input.socket.port", "9999".to_string());
-    properties.insert("nifi.remote.input.http.enabled", "true".to_string());
-    properties.insert(
-        "nifi.remote.input.http.transaction.ttl",
-        "30 sec".to_string(),
-    );
-    properties.insert(
-        "nifi.remote.contents.cache.expiration",
-        "30 secs".to_string(),
-    );
+    //properties.insert("nifi.remote.input.host", "".to_string());
+    //properties.insert("nifi.remote.input.secure", "false".to_string());
+    //properties.insert("nifi.remote.input.socket.port", "9999".to_string());
+    properties.insert("nifi.remote.input.http.enabled", "false".to_string());
+    //properties.insert(
+    //    "nifi.remote.input.http.transaction.ttl",
+    //    "30 sec".to_string(),
+    //);
+    //properties.insert(
+    //    "nifi.remote.contents.cache.expiration",
+    //    "30 secs".to_string(),
+    //);
 
     //#################
     // web properties #
@@ -391,14 +392,14 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
     // TODO: do we need to set that?
     //properties.insert("nifi.web.http.host", node_name.to_string());
 
-    properties.insert("nifi.web.http.port", HTTP_PORT.to_string());
+    //properties.insert("nifi.web.http.port", "".to_string());
 
-    properties.insert("nifi.web.http.network.interface.default", "".to_string());
+    //properties.insert("nifi.web.http.network.interface.default", "".to_string());
 
     //#############################################
 
     properties.insert("nifi.web.https.host", "".to_string());
-    properties.insert("nifi.web.https.port", "".to_string());
+    properties.insert("nifi.web.https.port", HTTPS_PORT.to_string());
     properties.insert("nifi.web.https.network.interface.default", "".to_string());
     properties.insert(
         "nifi.web.jetty.working.directory",
@@ -571,12 +572,13 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
         "nifi.cluster.protocol.heartbeat.missable.max",
         "8".to_string(),
     );
-    properties.insert("nifi.cluster.protocol.is.secure", "false".to_string());
+    properties.insert("nifi.cluster.protocol.is.secure", "true".to_string());
 
     // cluster node properties (only configure for cluster nodes)
     properties.insert("nifi.cluster.is.node", "true".to_string());
     // TODO: do we need to set that?
     //properties.insert("nifi.cluster.node.address", node_name.to_string());
+    properties.insert("nifi.cluster.node.address", "".to_string());
     properties.insert("nifi.cluster.node.protocol.port", PROTOCOL_PORT.to_string());
     properties.insert("nifi.cluster.node.protocol.threads", "10".to_string());
     properties.insert("nifi.cluster.node.protocol.max.threads", "50".to_string());
@@ -594,10 +596,10 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
         "1 mins".to_string(),
     );
     // TODO: set 1 for testing (default empty)
-    properties.insert("nifi.cluster.flow.election.max.candidates", "1".to_string());
+    properties.insert("nifi.cluster.flow.election.max.candidates", "2".to_string());
 
     // cluster load balancing properties
-    properties.insert("nifi.cluster.load.balance.host", BALANCE_PORT.to_string());
+    properties.insert("nifi.cluster.load.balance.host", "".to_string());
 
     properties.insert(
         "nifi.cluster.load.balance.connections.per.node",
@@ -623,8 +625,9 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
         "nifi.zookeeper.root.node",
         spec.zookeeper_reference
             .chroot
-            .clone()
-            .unwrap_or_else(|| "".to_string()),
+            .as_deref()
+            .unwrap_or("nifi")
+            .to_string(),
     );
     properties.insert("nifi.zookeeper.client.secure", "false".to_string());
     properties.insert("nifi.zookeeper.security.keystore", "".to_string());

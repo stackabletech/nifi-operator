@@ -11,8 +11,8 @@ use std::collections::BTreeMap;
 
 pub const APP_NAME: &str = "nifi";
 
-pub const HTTP_PORT_NAME: &str = "http";
-pub const HTTP_PORT: u16 = 8080;
+pub const HTTPS_PORT_NAME: &str = "https";
+pub const HTTPS_PORT: u16 = 8443;
 pub const PROTOCOL_PORT_NAME: &str = "protocol";
 pub const PROTOCOL_PORT: u16 = 9088;
 pub const BALANCE_PORT_NAME: &str = "balance";
@@ -68,7 +68,7 @@ pub struct NifiStatus {}
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiConfig {
-    pub sensitive_property_key_secret: String,
+    pub sensitive_property_key_secret: Option<String>,
 }
 
 impl NifiConfig {
@@ -86,7 +86,7 @@ impl Configuration for NifiConfig {
         let mut result = BTreeMap::new();
         result.insert(
             Self::NIFI_SENSITIVE_PROPS_KEY.to_string(),
-            Some(self.sensitive_property_key_secret.to_string()),
+            self.sensitive_property_key_secret.clone(),
         );
         Ok(result)
     }

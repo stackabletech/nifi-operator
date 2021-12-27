@@ -6,10 +6,11 @@ use crate::config::{
 };
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_nifi_crd::{
-    NifiCluster, NifiRole, HTTP_PORT, HTTP_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME,
+    NifiCluster, NifiRole, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME,
     PROTOCOL_PORT, PROTOCOL_PORT_NAME,
 };
 use stackable_nifi_crd::{APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME};
+use stackable_operator::k8s_openapi::api::core::v1::{EnvVar, EnvVarSource, ObjectFieldSelector};
 use stackable_operator::role_utils::RoleGroupRef;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder},
@@ -144,6 +145,8 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
             namespace: zk_namespace.to_string(),
         })?;
 
+    println!("Got zk connect string: {}", zk_connect_string);
+
     let validated_config = validate_all_roles_and_groups_config(
         nifi_version,
         &transform_all_roles_to_config(
@@ -230,8 +233,8 @@ pub fn build_node_role_service(nifi: &NifiCluster) -> Result<Service> {
             .build(),
         spec: Some(ServiceSpec {
             ports: Some(vec![ServicePort {
-                name: Some(HTTP_PORT_NAME.to_string()),
-                port: HTTP_PORT.into(),
+                name: Some(HTTPS_PORT_NAME.to_string()),
+                port: HTTPS_PORT.into(),
                 protocol: Some("TCP".to_string()),
                 ..ServicePort::default()
             }]),
@@ -305,8 +308,8 @@ fn build_node_rolegroup_service(
             cluster_ip: Some("None".to_string()),
             ports: Some(vec![
                 ServicePort {
-                    name: Some(HTTP_PORT_NAME.to_string()),
-                    port: HTTP_PORT.into(),
+                    name: Some(HTTPS_PORT_NAME.to_string()),
+                    port: HTTPS_PORT.into(),
                     protocol: Some("TCP".to_string()),
                     ..ServicePort::default()
                 },
@@ -374,12 +377,28 @@ fn build_node_rolegroup_statefulset(
     let container_nifi = container_builder
         .image(image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
-        .args(vec![format!(
-            "/stackable/bin/copy_assets {}; /stackable/bin/update_config; {} {}",
-            "/stackable/tmp-conf", "bin/nifi.sh", "run"
-        )])
+        .args(vec![
+            format!(
+                "/stackable/bin/copy_assets /conf;
+                 /stackable/bin/update_config;
+                 sed -i \"s/nifi.web.https.host=/nifi.web.https.host=$POD_NAME.simple-node-default.default.svc.cluster.local/g\" /stackable/nifi/conf/nifi.properties;
+                 sed -i \"s/nifi.cluster.node.address=/nifi.cluster.node.address=$POD_NAME.simple-node-default.default.svc.cluster.local/g\" /stackable/nifi/conf/nifi.properties;
+                 bin/nifi.sh run"
+            )
+        ])
+        .add_env_vars(vec![EnvVar {
+            name: "POD_NAME".to_string(),
+            value_from: Some(EnvVarSource {
+                field_ref: Some(ObjectFieldSelector {
+                    api_version: Some("v1".to_string()),
+                    field_path: "metadata.name".to_string(),
+                }),
+                ..EnvVarSource::default()
+            }),
+            ..EnvVar::default()
+        }])
         .add_volume_mount("conf", "conf")
-        .add_container_port(HTTP_PORT_NAME, HTTP_PORT.into())
+        .add_container_port(HTTPS_PORT_NAME, HTTPS_PORT.into())
         .add_container_port(PROTOCOL_PORT_NAME, PROTOCOL_PORT.into())
         .add_container_port(BALANCE_PORT_NAME, BALANCE_PORT.into())
         .add_container_port(METRICS_PORT_NAME, METRICS_PORT.into())
