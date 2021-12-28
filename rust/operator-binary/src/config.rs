@@ -370,18 +370,18 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
     // Site to Site properties
     // TODO: do we need to set that?
     //properties.insert("nifi.remote.input.host", node_name.to_string());
-    //properties.insert("nifi.remote.input.host", "".to_string());
-    //properties.insert("nifi.remote.input.secure", "false".to_string());
-    //properties.insert("nifi.remote.input.socket.port", "9999".to_string());
-    properties.insert("nifi.remote.input.http.enabled", "false".to_string());
-    //properties.insert(
-    //    "nifi.remote.input.http.transaction.ttl",
-    //    "30 sec".to_string(),
-    //);
-    //properties.insert(
-    //    "nifi.remote.contents.cache.expiration",
-    //    "30 secs".to_string(),
-    //);
+    // properties.insert("nifi.remote.input.host", "".to_string());
+    // properties.insert("nifi.remote.input.secure", "true".to_string());
+    // properties.insert("nifi.remote.input.socket.port", "9999".to_string());
+    // properties.insert("nifi.remote.input.http.enabled", "false".to_string());
+    // properties.insert(
+    //     "nifi.remote.input.http.transaction.ttl",
+    //     "30 sec".to_string(),
+    // );
+    // properties.insert(
+    //     "nifi.remote.contents.cache.expiration",
+    //     "30 secs".to_string(),
+    // );
 
     //#################
     // web properties #
@@ -574,8 +574,7 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
 
     // cluster node properties (only configure for cluster nodes)
     properties.insert("nifi.cluster.is.node", "true".to_string());
-    // TODO: do we need to set that?
-    //properties.insert("nifi.cluster.node.address", node_name.to_string());
+    // this will be overwritten to the correct FQDN in the container start command
     properties.insert("nifi.cluster.node.address", "".to_string());
     properties.insert("nifi.cluster.node.protocol.port", PROTOCOL_PORT.to_string());
     properties.insert("nifi.cluster.node.protocol.threads", "10".to_string());
@@ -593,8 +592,7 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
         "nifi.cluster.flow.election.max.wait.time",
         "1 mins".to_string(),
     );
-    // TODO: set 1 for testing (default empty)
-    properties.insert("nifi.cluster.flow.election.max.candidates", "2".to_string());
+    properties.insert("nifi.cluster.flow.election.max.candidates", "".to_string());
 
     // cluster load balancing properties
     properties.insert("nifi.cluster.load.balance.host", "".to_string());

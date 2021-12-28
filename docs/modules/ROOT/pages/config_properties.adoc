@@ -8,10 +8,9 @@ kind: NifiCluster
 metadata:
   name: simple
 spec:
-  metricsPort: 8428
-  version: "1.13.2"
+  version: "1.15.0"
   zookeeperReference:
-    name: simple
+    name: simple-zk
     namespace: default
     chroot: /nifi
   nodes:
@@ -21,38 +20,5 @@ spec:
           matchLabels:
             kubernetes.io/os: linux
         config:
-          httpPort: 10000
-          protocolPort: 10443
-          loadBalancePort: 6342
+          sensitivePropertyKeySecret: nifi-sensitive-property-key
 ----
-
-
-[cols="1,1,1,1,1"]
-|===
-| config-spec Property | Actual Property | Default Value | Recommended Value | Location
-
-| httpPort
-| nifi.web.http.port
-| 8080
-|
-| file:nifi.properties
-
-| protocolPort
-| nifi.cluster.node.protocol.port
-| 9088
-|
-| file:nifi.properties
-
-| loadBalancePort
-| nifi.cluster.load.balance.port
-| 6342
-|
-| file:nifi.properties
-
-| metricsPort
-| metricsPort
-|
-|
-| JMX Exporter/CLI
-
-|===

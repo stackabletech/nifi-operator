@@ -1,22 +1,22 @@
 = Usage
 
-After installation, the CRD for this operator must be created:
+If you are not installing the operator using Helm then after installation the CRD for this operator must be created:
 
     kubectl apply -f /etc/stackable/nifi-operator/crd/nificluster.crd.yaml
 
-To create a single node Apache NiFi (v1.15.0) cluster with Prometheus metrics exposed on port 8428 and the WebUi on port 10000. As of now only one instance per node is supported:
+To create a three-node Apache NiFi (v1.15.0) cluster:
 
 
-    cat <<EOF | kubectl apply -f -
+    $ cat simple-nificluster.yaml
+    ---
     apiVersion: nifi.stackable.tech/v1alpha1
     kind: NifiCluster
     metadata:
-      name: simple-nificluster
+      name: simple
     spec:
-      metricsPort: 8428
       version: "1.15.0"
       zookeeperReference:
-        name: simple
+        name: simple-zk
         namespace: default
         chroot: /nifi
       nodes:
@@ -25,20 +25,6 @@ To create a single node Apache NiFi (v1.15.0) cluster with Prometheus metrics ex
             selector:
               matchLabels:
                 kubernetes.io/os: linux
-            replicas: 1
+            replicas: 3
             config:
-              httpPort: 10000
-              protocolPort: 10443
-              loadBalancePort: 6342
               sensitivePropertyKeySecret: nifi-sensitive-property-key
-    EOF
-
-
-    cat <<EOF | kubectl apply -f -
-    apiVersion: v1alpha1
-    kind: Secret
-    metadata:
-      name: nifi-sensitive-property-key
-    stringData:
-      nifiSensitivePropsKey: mYsUp3rS3cr3tk3y
-    EOF
