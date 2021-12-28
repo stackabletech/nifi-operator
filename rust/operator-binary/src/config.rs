@@ -391,9 +391,7 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
     // We recommend configuring HTTPS instead. The administrators guide provides instructions on how to do this.
     // TODO: do we need to set that?
     //properties.insert("nifi.web.http.host", node_name.to_string());
-
     //properties.insert("nifi.web.http.port", "".to_string());
-
     //properties.insert("nifi.web.http.network.interface.default", "".to_string());
 
     //#############################################

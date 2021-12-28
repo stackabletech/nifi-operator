@@ -213,7 +213,7 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
     })
 }
 
-/// The server-role service is the primary endpoint that should be used by clients that do not
+/// The node-role service is the primary endpoint that should be used by clients that do not
 /// perform internal load balancing including targets outside of the cluster.
 pub fn build_node_role_service(nifi: &NifiCluster) -> Result<Service> {
     let role_name = NifiRole::Node.to_string();
@@ -372,17 +372,22 @@ fn build_node_rolegroup_statefulset(
         nifi_version
     );
 
+    let node_address = format!(
+        "$POD_NAME.{}-node-{}.default.svc.cluster.local",
+        rolegroup_ref.cluster.name, rolegroup_ref.role_group
+    );
+
     let container_nifi = container_builder
         .image(image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
         .args(vec![
-            // TODO: do not hardcode rolegroup etc for sed.
             format!(
                 "/stackable/bin/copy_assets /conf;
                  /stackable/bin/update_config;
-                 sed -i \"s/nifi.web.https.host=/nifi.web.https.host=$POD_NAME.simple-nifi-node-default.default.svc.cluster.local/g\" /stackable/nifi/conf/nifi.properties;
-                 sed -i \"s/nifi.cluster.node.address=/nifi.cluster.node.address=$POD_NAME.simple-nifi-node-default.default.svc.cluster.local/g\" /stackable/nifi/conf/nifi.properties;
-                 bin/nifi.sh run"
+                 sed -i \"s/nifi.web.https.host=/nifi.web.https.host={}/g\" /stackable/nifi/conf/nifi.properties;
+                 sed -i \"s/nifi.cluster.node.address=/nifi.cluster.node.address={}/g\" /stackable/nifi/conf/nifi.properties;
+                 bin/nifi.sh run", 
+                node_address, node_address
             )
         ])
         .add_env_vars(vec![EnvVar {
