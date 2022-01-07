@@ -9,6 +9,9 @@ metadata:
   name: simple
 spec:
   version: "1.15.0"
+  tlsStoreReference:
+    name: nifi-key-config
+    storeType: JKS
   zookeeperReference:
     name: simple-zk
     namespace: default
@@ -19,6 +22,7 @@ spec:
         selector:
           matchLabels:
             kubernetes.io/os: linux
+        replicas: 3
         config:
           sensitivePropertyKeySecret: nifi-sensitive-property-key
 ----

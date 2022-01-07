@@ -1,14 +1,32 @@
-use stackable_nifi_crd::{NifiSpec, HTTPS_PORT, PROTOCOL_PORT};
-use std::collections::BTreeMap;
+use snafu::{ResultExt, Snafu};
+use stackable_nifi_crd::{NifiCluster, NifiConfig, NifiRole, NifiSpec, HTTPS_PORT, PROTOCOL_PORT};
+use stackable_operator::product_config::types::PropertyNameKind;
+use stackable_operator::product_config::ProductConfigManager;
+use stackable_operator::product_config_utils::{
+    transform_all_roles_to_config, validate_all_roles_and_groups_config,
+    ValidatedRoleConfigByPropertyKind,
+};
+use stackable_operator::role_utils::Role;
+use std::collections::{BTreeMap, HashMap};
 
 pub const NIFI_BOOTSTRAP_CONF: &str = "bootstrap.conf";
 pub const NIFI_PROPERTIES: &str = "nifi.properties";
 pub const NIFI_STATE_MANAGEMENT_XML: &str = "state-management.xml";
 
+#[derive(Snafu, Debug)]
+#[allow(clippy::enum_variant_names)]
+pub enum Error {
+    #[snafu(display("Invalid product config"))]
+    InvalidProductConfig {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("Failed to transform product configs"))]
+    ProductConfigTransform {
+        source: stackable_operator::product_config_utils::ConfigError,
+    },
+}
+
 /// Create the NiFi bootstrap.conf
-// TODO:
-//    1) create from product-conf and return the hashmap for better testing
-//    2) adapt all directories to separated config and data directories
 pub fn build_bootstrap_conf() -> String {
     let mut bootstrap = BTreeMap::new();
     // Java command to use when running NiFi
@@ -28,7 +46,6 @@ pub fn build_bootstrap_conf() -> String {
         "-Dorg.apache.jasper.compiler.disablejsr199=true".to_string(),
     );
     // JVM memory settings
-    // TODO: adapt to config
     bootstrap.insert("java.arg.2", "-Xms1024m".to_string());
     bootstrap.insert("java.arg.3", "-Xmx1024m".to_string());
 
@@ -71,29 +88,6 @@ pub fn build_bootstrap_conf() -> String {
         "java.arg.17",
         "-Dzookeeper.admin.enableServer=false".to_string(),
     );
-
-    // The following options configure a Java Agent to handle native library loading.
-    // It is needed when a custom jar (eg. JDBC driver) has been configured on a component in the flow and this custom jar depends on a native library
-    // and tries to load it by its absolute path (java.lang.System.load(String filename) method call).
-    // Use this Java Agent only if you get "Native Library ... already loaded in another classloader" errors otherwise!
-    //bootstrap.insert(
-    //    "java.arg.18",
-    //    "-javaagent:./lib/aspectj/aspectjweaver-1.9.6.jar".to_string(),
-    //);
-    //bootstrap.insert("java.arg.19", "-Daj.weaving.loadersToSkip=sun.misc.Launcher$AppClassLoader,jdk.internal.loader.ClassLoaders$AppClassLoader,org.eclipse.jetty.webapp.WebAppClassLoader,org.apache.jasper.servlet.JasperLoader,org.jvnet.hk2.internal.DelegatingClassLoader,org.apache.nifi.nar.NarClassLoader".to_string());
-
-    // XML File that contains the definitions of the notification services
-    //bootstrap.insert(
-    //    "notification.services.file",
-    //    "./conf/bootstrap-notification-services.xml".to_string(),
-    //);
-
-    // In the case that we are unable to send a notification for an event, how many times should we retry?
-    //bootstrap.insert("notification.max.attempts", "5".to_string());
-    // Comma-separated list of identifiers that are present in the notification.services.file; which services should be used to notify when NiFi is started?
-    //bootstrap.insert("nifi.start.notification.services", "email-notification".to_string());
-    // Comma-separated list of identifiers that are present in the notification.services.file; which services should be used to notify when NiFi is stopped?
-    //bootstrap.insert("nifi.stop.notification.services", "email-notification".to_string());
 
     format_properties(bootstrap)
 }
@@ -179,11 +173,6 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
         "nifi.state.management.embedded.zookeeper.start",
         "false".to_string(),
     );
-    // Properties file that provides the ZooKeeper properties to use if <nifi.state.management.embedded.zookeeper.start> is set to true
-    //properties.insert(
-    //    "nifi.state.management.embedded.zookeeper.properties",
-    //    "./conf/zookeeper.properties".to_string(),
-    //);
 
     // H2 Settings
     properties.insert(
@@ -367,33 +356,6 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
         "./status_repository".to_string(),
     );
 
-    // Site to Site properties
-    // TODO: do we need to set that?
-    // properties.insert("nifi.remote.input.host", node_name.to_string());
-    // properties.insert("nifi.remote.input.host", "".to_string());
-    // properties.insert("nifi.remote.input.secure", "true".to_string());
-    // properties.insert("nifi.remote.input.socket.port", "9999".to_string());
-    // properties.insert("nifi.remote.input.http.enabled", "false".to_string());
-    // properties.insert(
-    //     "nifi.remote.input.http.transaction.ttl",
-    //     "30 sec".to_string(),
-    // );
-    // properties.insert(
-    //     "nifi.remote.contents.cache.expiration",
-    //     "30 secs".to_string(),
-    // );
-
-    //#################
-    // web properties #
-    //#################
-    // For security, NiFi will present the UI on 127.0.0.1 and only be accessible through this loopback interface.
-    // Be aware that changing these properties may affect how your instance can be accessed without any restriction.
-    // We recommend configuring HTTPS instead. The administrators guide provides instructions on how to do this.
-    // TODO: do we need to set that?
-    //properties.insert("nifi.web.http.host", node_name.to_string());
-    //properties.insert("nifi.web.http.port", "8080".to_string());
-    //properties.insert("nifi.web.http.network.interface.default", "".to_string());
-
     //#############################################
 
     properties.insert("nifi.web.https.host", "0.0.0.0".to_string());
@@ -422,7 +384,8 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
     properties.insert("nifi.web.https.ciphersuites.exclude", "".to_string());
 
     // security properties
-    properties.insert("nifi.sensitive.props.key", "".to_string()); // this property is later set from a secret
+    // this property is later set from a secret
+    properties.insert("nifi.sensitive.props.key", "".to_string());
     properties.insert("nifi.sensitive.props.key.protected", "".to_string());
     properties.insert(
         "nifi.sensitive.props.algorithm",
@@ -432,18 +395,13 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
 
     properties.insert("nifi.security.autoreload.enabled", "false".to_string());
     properties.insert("nifi.security.autoreload.interval", "10 secs".to_string());
-    // TODO: hackathon start
-    // properties.insert("nifi.security.keystore", "".to_string());
-    // properties.insert("nifi.security.keystoreType", "".to_string());
-    // properties.insert("nifi.security.keystorePasswd", "".to_string());
+    // ke
     properties.insert(
         "nifi.security.keystore",
         "/stackable/keystore/keystore.jks".to_string(),
     );
     properties.insert("nifi.security.keystoreType", "JKS".to_string());
     properties.insert("nifi.security.keystorePasswd", "secret".to_string());
-    //properties.insert("nifi.security.keyPasswd", "".to_string());
-
     properties.insert(
         "nifi.security.truststore",
         "/stackable/keystore/truststore.jks".to_string(),
@@ -456,7 +414,6 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
         "single-user-provider".to_string(),
     );
 
-    // TODO: hackathon end
     properties.insert(
         "nifi.security.user.authorizer",
         "managed-authorizer".to_string(),
@@ -561,24 +518,6 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
         "30 secs".to_string(),
     );
 
-    // Identity Mapping Properties
-    // These properties allow normalizing user identities such that identities coming from different identity providers
-    // (certificates, LDAP, Kerberos) can be treated the same internally in NiFi. The following example demonstrates normalizing
-    // DNs from certificates and principals from Kerberos into a common identity string:
-    // properties.insert("nifi.security.identity.mapping.pattern.dn", "^CN=(.*?), OU=(.*?), O=(.*?), L=(.*?), ST=(.*?), C=(.*?)$".to_string());
-    // properties.insert("nifi.security.identity.mapping.value.dn", "$1@$2".to_string());
-    // properties.insert("nifi.security.identity.mapping.transform.dn", "NONE".to_string());
-    // properties.insert("nifi.security.identity.mapping.pattern.kerb", "^(.*?)/instance@(.*?)$".to_string());
-    // properties.insert("nifi.security.identity.mapping.value.kerb", "$1@$2".to_string());
-    // properties.insert("nifi.security.identity.mapping.transform.kerb", "UPPER".to_string());
-
-    // Group Mapping Properties
-    // These properties allow normalizing group names coming from external sources like LDAP. The following example
-    // lowercases any group name.
-    // properties.insert("nifi.security.group.mapping.pattern.anygroup", "^(.*)$".to_string());
-    // properties.insert("nifi.security.group.mapping.value.anygroup", "$1".to_string());
-    // properties.insert("nifi.security.group.mapping.transform.anygroup", "LOWER".to_string());
-
     // cluster common properties (all nodes must have same values)
     properties.insert(
         "nifi.cluster.protocol.heartbeat.interval",
@@ -592,8 +531,10 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
 
     // cluster node properties (only configure for cluster nodes)
     properties.insert("nifi.cluster.is.node", "true".to_string());
+
     // this will be overwritten to the correct FQDN in the container start command
     properties.insert("nifi.cluster.node.address", "".to_string());
+
     properties.insert("nifi.cluster.node.protocol.port", PROTOCOL_PORT.to_string());
     properties.insert("nifi.cluster.node.protocol.threads", "10".to_string());
     properties.insert("nifi.cluster.node.protocol.max.threads", "50".to_string());
@@ -775,39 +716,39 @@ pub fn build_state_management_xml(spec: &NifiSpec, zk_connect_string: &str) -> S
 /// The roles and their configs are then validated and complemented by the product config.
 ///
 /// # Arguments
-/// * `resource`        - The SparkCluster containing the role definitions.
+/// * `resource`        - The NifiCluster containing the role definitions.
+/// * `version`         - The NifiCluster version.
 /// * `product_config`  - The product config to validate and complement the user config.
 ///
-// pub fn validated_product_config(
-//     resource: &NifiCluster,
-//     product_config: &ProductConfigManager,
-// ) -> OperatorResult<ValidatedRoleConfigByPropertyKind> {
-//     let mut roles = HashMap::new();
-//     roles.insert(
-//         NifiRole::Node.to_string(),
-//         (
-//             vec![
-//                 PropertyNameKind::File(NIFI_BOOTSTRAP_CONF.to_string()),
-//                 PropertyNameKind::File(NIFI_PROPERTIES.to_string()),
-//                 PropertyNameKind::File(NIFI_STATE_MANAGEMENT_XML.to_string()),
-//                 PropertyNameKind::Env,
-//             ],
-//             resource.spec.nodes.clone().into(),
-//         ),
-//     );
-//
-//     let role_config = transform_all_roles_to_config(resource, roles);
-//
-//     validate_all_roles_and_groups_config(
-//         &resource.spec.version.to_string(),
-//         &role_config,
-//         product_config,
-//         false,
-//         false,
-//     )
-// }
+pub fn validated_product_config(
+    resource: &NifiCluster,
+    version: &str,
+    role: &Role<NifiConfig>,
+    product_config: &ProductConfigManager,
+) -> Result<ValidatedRoleConfigByPropertyKind, Error> {
+    let mut roles = HashMap::new();
+    roles.insert(
+        NifiRole::Node.to_string(),
+        (
+            vec![
+                PropertyNameKind::File(NIFI_BOOTSTRAP_CONF.to_string()),
+                PropertyNameKind::File(NIFI_PROPERTIES.to_string()),
+                PropertyNameKind::File(NIFI_STATE_MANAGEMENT_XML.to_string()),
+                PropertyNameKind::Env,
+            ],
+            role.clone(),
+        ),
+    );
 
-// TODO: Use crate like https://crates.io/crates/java-properties to have save handling of escapes etc.
+    let role_config =
+        transform_all_roles_to_config(resource, roles).context(ProductConfigTransform)?;
+
+    validate_all_roles_and_groups_config(version, &role_config, product_config, false, false)
+        .context(InvalidProductConfig)
+}
+
+// TODO: Use crate like https://crates.io/crates/java-properties (currently does not work for Nifi
+//    because of escapes), to have save handling of escapes etc.
 fn format_properties(properties: BTreeMap<&str, String>) -> String {
     let mut result = String::new();
 

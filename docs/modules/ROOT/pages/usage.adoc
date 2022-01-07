@@ -3,6 +3,9 @@
 If you are not installing the operator using Helm then after installation the CRD for this operator must be created:
 
     kubectl apply -f /etc/stackable/nifi-operator/crd/nificluster.crd.yaml
+    kubectl create configmap nifi-key-config --from-file=keystore.jks --from-file=truststore.jks --append-hash=false
+
+You can find an example keystore and truststore in the `nifi-operator/tls` folder. The store type options include `JKS` and `PKCS12`.
 
 To create a three-node Apache NiFi (v1.15.0) cluster:
 
@@ -15,6 +18,9 @@ To create a three-node Apache NiFi (v1.15.0) cluster:
       name: simple
     spec:
       version: "1.15.0"
+      tlsStoreReference:
+        name: nifi-key-config
+        storeType: JKS
       zookeeperReference:
         name: simple-zk
         namespace: default
@@ -28,3 +34,4 @@ To create a three-node Apache NiFi (v1.15.0) cluster:
             replicas: 3
             config:
               sensitivePropertyKeySecret: nifi-sensitive-property-key
+

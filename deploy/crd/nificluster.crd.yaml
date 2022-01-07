@@ -23,6 +23,7 @@ spec:
             spec:
               properties:
                 nodes:
+                  description: Available NiFi roles
                   nullable: true
                   properties:
                     cliOverrides:
@@ -121,10 +122,29 @@ spec:
                   description: "Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)"
                   nullable: true
                   type: boolean
+                tlsStoreReference:
+                  description: The configmap name and namespace with keystore and truststore content
+                  properties:
+                    name:
+                      description: The name of the configmap
+                      type: string
+                    namespace:
+                      description: Optional namespace.
+                      nullable: true
+                      type: string
+                    storeType:
+                      description: "Optional store type. Defaults to \"JKS\""
+                      nullable: true
+                      type: string
+                  required:
+                    - name
+                  type: object
                 version:
+                  description: The required NiFi image version
                   nullable: true
                   type: string
                 zookeeperReference:
+                  description: The reference to the ZooKeeper cluster
                   properties:
                     chroot:
                       nullable: true
@@ -138,6 +158,7 @@ spec:
                     - namespace
                   type: object
               required:
+                - tlsStoreReference
                 - zookeeperReference
               type: object
             status:

@@ -1,8 +1,9 @@
 //! Ensures that `Pod`s are configured and running for each [`NifiCluster`]
 
+use crate::config;
 use crate::config::{
-    build_bootstrap_conf, build_nifi_properties, build_state_management_xml, NIFI_BOOTSTRAP_CONF,
-    NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML,
+    build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
+    validated_product_config, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML,
 };
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_nifi_crd::{
@@ -30,7 +31,6 @@ use stackable_operator::{
     },
     labels::{role_group_selector_labels, role_selector_labels},
     product_config::{types::PropertyNameKind, ProductConfigManager},
-    product_config_utils::{transform_all_roles_to_config, validate_all_roles_and_groups_config},
 };
 use std::{
     borrow::Cow,
@@ -55,10 +55,6 @@ pub enum Error {
     NoNodeRole,
     #[snafu(display("failed to calculate global service name"))]
     GlobalServiceNameNotFound,
-    #[snafu(display("failed to calculate service name for role {}", rolegroup))]
-    RoleGroupServiceNameNotFound {
-        rolegroup: RoleGroupRef<NifiCluster>,
-    },
     #[snafu(display("failed to apply global Service"))]
     ApplyRoleService {
         source: stackable_operator::error::Error,
@@ -83,22 +79,9 @@ pub enum Error {
         source: stackable_operator::error::Error,
         rolegroup: RoleGroupRef<NifiCluster>,
     },
-    #[snafu(display("invalid product config"))]
-    InvalidProductConfig {
-        source: stackable_operator::error::Error,
-    },
     #[snafu(display("object is missing metadata to build owner reference"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::error::Error,
-    },
-    #[snafu(display("failed to update status"))]
-    ApplyStatus {
-        source: stackable_operator::error::Error,
-    },
-    #[snafu(display("failed to parse db type {}", db_type))]
-    InvalidDbType {
-        source: strum::ParseError,
-        db_type: String,
     },
     #[snafu(display(
         "Failed to get ZooKeeper connection string from config map {} in namespace {}",
@@ -116,10 +99,13 @@ pub enum Error {
         namespace
     ))]
     MissingZookeeperConnString { cm_name: String, namespace: String },
-    #[snafu(display("Failed to transform configs"))]
-    ProductConfigTransform {
-        source: stackable_operator::product_config_utils::ConfigError,
-    },
+    #[snafu(display("Failed to load Product Config"))]
+    ProductConfigLoadFailed { source: config::Error },
+    #[snafu(display(
+        "Failed to locate configmap [{}]. Please check if it is supplied correctly!",
+        cm_name
+    ))]
+    KeyConfigMapNotFound { cm_name: String },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -129,6 +115,7 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
     let client = &ctx.get_ref().client;
     let nifi_version = nifi_version(&nifi)?;
 
+    // Zookeeper reference
     let zk_name = nifi.spec.zookeeper_reference.name.clone();
     let zk_namespace = nifi.spec.zookeeper_reference.namespace.clone();
     let zk_connect_string = client
@@ -145,32 +132,19 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
             namespace: zk_namespace.to_string(),
         })?;
 
-    let validated_config = validate_all_roles_and_groups_config(
-        nifi_version,
-        &transform_all_roles_to_config(
-            &nifi,
-            [(
-                NifiRole::Node.to_string(),
-                (
-                    vec![
-                        PropertyNameKind::File(NIFI_BOOTSTRAP_CONF.to_string()),
-                        PropertyNameKind::File(NIFI_PROPERTIES.to_string()),
-                        PropertyNameKind::File(NIFI_STATE_MANAGEMENT_XML.to_string()),
-                        PropertyNameKind::Env,
-                    ],
-                    nifi.spec.nodes.clone().context(NoNodeRole)?,
-                ),
-            )]
-            .into(),
-        )
-        .with_context(|| ProductConfigTransform)?,
-        &ctx.get_ref().product_config,
-        false,
-        false,
-    )
-    .context(InvalidProductConfig)?;
+    // key store config map name
+    // TODO: check if existing? Otherwise container will not start up.
+    let key_config_cm_name = nifi.spec.tls_store_reference.name.clone();
 
-    let nifi_config = validated_config
+    let validated_config = validated_product_config(
+        &nifi,
+        nifi_version,
+        nifi.spec.nodes.as_ref().context(NoNodeRole)?,
+        &ctx.get_ref().product_config,
+    )
+    .context(ProductConfigLoadFailed)?;
+
+    let nifi_node_config = validated_config
         .get(&NifiRole::Node.to_string())
         .map(Cow::Borrowed)
         .unwrap_or_default();
@@ -181,12 +155,17 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
         .await
         .context(ApplyRoleService)?;
 
-    for (rolegroup_name, rolegroup_config) in nifi_config.iter() {
+    for (rolegroup_name, rolegroup_config) in nifi_node_config.iter() {
         let rolegroup = nifi.node_rolegroup_ref(rolegroup_name);
 
         let rg_service = build_node_rolegroup_service(&nifi, &rolegroup)?;
         let rg_configmap = build_node_rolegroup_config_map(&nifi, &rolegroup, &zk_connect_string)?;
-        let rg_statefulset = build_node_rolegroup_statefulset(&nifi, &rolegroup, rolegroup_config)?;
+        let rg_statefulset = build_node_rolegroup_statefulset(
+            &nifi,
+            &rolegroup,
+            rolegroup_config,
+            &key_config_cm_name,
+        )?;
 
         client
             .apply_patch(FIELD_MANAGER_SCOPE, &rg_service, &rg_service)
@@ -339,6 +318,7 @@ fn build_node_rolegroup_statefulset(
     nifi: &NifiCluster,
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    key_config_cm_name: &str,
 ) -> Result<StatefulSet> {
     let mut container_builder = ContainerBuilder::new(APP_NAME);
 
@@ -451,6 +431,8 @@ fn build_node_rolegroup_statefulset(
                     )
                 })
                 .add_container(container_nifi)
+                // One volume for the NiFi configuration. A script will later on edit (e.g. nodename)
+                // and copy the whole content to the <NIFI_HOME>/conf folder.
                 .add_volume(Volume {
                     name: "conf".to_string(),
                     config_map: Some(ConfigMapVolumeSource {
@@ -459,16 +441,15 @@ fn build_node_rolegroup_statefulset(
                     }),
                     ..Volume::default()
                 })
-                // TODO: hackathon start
+                // One volume for the keystore and truststore data configmap
                 .add_volume(Volume {
                     name: "keystore".to_string(),
                     config_map: Some(ConfigMapVolumeSource {
-                        name: Some("key-config".to_string()),
+                        name: Some(key_config_cm_name.to_string()),
                         ..ConfigMapVolumeSource::default()
                     }),
                     ..Volume::default()
                 })
-                // TODO: hackathon end
                 .build_template(),
             volume_claim_templates: Some(vec![PersistentVolumeClaim {
                 metadata: ObjectMeta {

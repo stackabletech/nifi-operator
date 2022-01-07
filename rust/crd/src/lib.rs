@@ -41,15 +41,46 @@ pub struct NifiSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stopped: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// The required NiFi image version
     pub version: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Available NiFi roles
     pub nodes: Option<Role<NifiConfig>>,
-    pub zookeeper_reference: ZookeeperReference,
+    /// The configmap name and namespace with keystore and truststore content
+    pub tls_store_reference: TlsStoreReference,
+    /// The reference to the ZooKeeper cluster
+    pub zookeeper_reference: ClusterReference,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ZookeeperReference {
+pub struct TlsStoreReference {
+    /// The name of the configmap
+    pub name: String,
+    /// Optional namespace.
+    pub namespace: Option<String>,
+    /// Optional store type. Defaults to "JKS"
+    pub store_type: Option<String>,
+}
+
+#[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StoreType {
+    #[strum(serialize = "JKS")]
+    JKS,
+    #[strum(serialize = "PKCS12")]
+    PKCS12,
+}
+
+impl Default for StoreType {
+    fn default() -> Self {
+        Self::JKS
+    }
+}
+
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClusterReference {
     pub name: String,
     pub namespace: String,
     pub chroot: Option<String>,
