@@ -3,7 +3,8 @@
 use crate::config;
 use crate::config::{
     build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
-    validated_product_config, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML,
+    validated_product_config, NifiRepository, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES,
+    NIFI_STATE_MANAGEMENT_XML,
 };
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_nifi_crd::{
@@ -11,7 +12,9 @@ use stackable_nifi_crd::{
     PROTOCOL_PORT, PROTOCOL_PORT_NAME,
 };
 use stackable_nifi_crd::{APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME};
-use stackable_operator::k8s_openapi::api::core::v1::{EnvVar, EnvVarSource, ObjectFieldSelector};
+use stackable_operator::k8s_openapi::api::core::v1::{
+    EnvVar, EnvVarSource, ObjectFieldSelector, SecurityContext,
+};
 use stackable_operator::role_utils::RoleGroupRef;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder},
@@ -134,7 +137,7 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
 
     // key store config map name
     // TODO: check if existing? Otherwise container will not start up.
-    let key_config_cm_name = nifi.spec.tls_store_reference.name.clone();
+    let tls_store_cm_name = nifi.spec.tls_store_reference.name.clone();
 
     let validated_config = validated_product_config(
         &nifi,
@@ -164,7 +167,7 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
             &nifi,
             &rolegroup,
             rolegroup_config,
-            &key_config_cm_name,
+            &tls_store_cm_name,
         )?;
 
         client
@@ -318,7 +321,7 @@ fn build_node_rolegroup_statefulset(
     nifi: &NifiCluster,
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
     metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
-    key_config_cm_name: &str,
+    tls_store_cm_name: &str,
 ) -> Result<StatefulSet> {
     let mut container_builder = ContainerBuilder::new(APP_NAME);
 
@@ -357,18 +360,48 @@ fn build_node_rolegroup_statefulset(
         rolegroup_ref.cluster.name, rolegroup_ref.role_group
     );
 
+    let mut container_prepare = ContainerBuilder::new("prepare")
+        .image(&image)
+        .command(vec!["/bin/bash".to_string(), "-c".to_string()])
+        .args(vec![[
+            "chown -R stackable:stackable /stackable/data",
+            "chmod -R a=,u=rwX /stackable/data",
+        ]
+        .join(" && ")])
+        .add_volume_mount(
+            &NifiRepository::Flowfile.repository(),
+            &NifiRepository::Flowfile.mount_path(),
+        )
+        .add_volume_mount(
+            &NifiRepository::Database.repository(),
+            &NifiRepository::Database.mount_path(),
+        )
+        .add_volume_mount(
+            &NifiRepository::Content.repository(),
+            &NifiRepository::Content.mount_path(),
+        )
+        .add_volume_mount(
+            &NifiRepository::Provenance.repository(),
+            &NifiRepository::Provenance.mount_path(),
+        )
+        .build();
+
+    container_prepare
+        .security_context
+        .get_or_insert_with(SecurityContext::default)
+        .run_as_user = Some(0);
+
     let container_nifi = container_builder
         .image(image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
-        // sed -i \"s/nifi.web.https.host=/nifi.web.https.host={}/g\" /stackable/nifi/conf/nifi.properties;
         .args(vec![
-            format!(
-                "/stackable/bin/copy_assets /conf;
-                 /stackable/bin/update_config;
-                 sed -i \"s/nifi.cluster.node.address=/nifi.cluster.node.address={}/g\" /stackable/nifi/conf/nifi.properties;
-                 bin/nifi.sh run", 
-                node_address, //node_address
-            )
+            [
+                "/stackable/bin/copy_assets /conf",
+                "/stackable/bin/update_config",
+                &format!("sed -i \"s/nifi.cluster.node.address=/nifi.cluster.node.address={}/g\" /stackable/nifi/conf/nifi.properties", node_address),
+                "bin/nifi.sh run",
+            ]
+            .join(" && "),
         ])
         .add_env_vars(vec![EnvVar {
             name: "POD_NAME".to_string(),
@@ -430,6 +463,7 @@ fn build_node_rolegroup_statefulset(
                         &rolegroup_ref.role_group,
                     )
                 })
+                .add_init_container(container_prepare)
                 .add_container(container_nifi)
                 // One volume for the NiFi configuration. A script will later on edit (e.g. nodename)
                 // and copy the whole content to the <NIFI_HOME>/conf folder.
@@ -445,35 +479,56 @@ fn build_node_rolegroup_statefulset(
                 .add_volume(Volume {
                     name: "keystore".to_string(),
                     config_map: Some(ConfigMapVolumeSource {
-                        name: Some(key_config_cm_name.to_string()),
+                        name: Some(tls_store_cm_name.to_string()),
                         ..ConfigMapVolumeSource::default()
                     }),
                     ..Volume::default()
                 })
                 .build_template(),
-            volume_claim_templates: Some(vec![PersistentVolumeClaim {
-                metadata: ObjectMeta {
-                    name: Some("data".to_string()),
-                    ..ObjectMeta::default()
-                },
-                spec: Some(PersistentVolumeClaimSpec {
-                    access_modes: Some(vec!["ReadWriteOnce".to_string()]),
-                    resources: Some(ResourceRequirements {
-                        requests: Some({
-                            let mut map = BTreeMap::new();
-                            map.insert("storage".to_string(), Quantity("1Gi".to_string()));
-                            map
-                        }),
-                        ..ResourceRequirements::default()
-                    }),
-                    ..PersistentVolumeClaimSpec::default()
-                }),
-                ..PersistentVolumeClaim::default()
-            }]),
+            volume_claim_templates: Some(vec![
+                build_persistent_volume_claim_rwo_storage(
+                    &NifiRepository::Flowfile.repository(),
+                    "2Gi",
+                ),
+                build_persistent_volume_claim_rwo_storage(
+                    &NifiRepository::Database.repository(),
+                    "2Gi",
+                ),
+                build_persistent_volume_claim_rwo_storage(
+                    &NifiRepository::Content.repository(),
+                    "2Gi",
+                ),
+                build_persistent_volume_claim_rwo_storage(
+                    &NifiRepository::Provenance.repository(),
+                    "2Gi",
+                ),
+            ]),
             ..StatefulSetSpec::default()
         }),
         status: None,
     })
+}
+
+fn build_persistent_volume_claim_rwo_storage(name: &str, storage: &str) -> PersistentVolumeClaim {
+    PersistentVolumeClaim {
+        metadata: ObjectMeta {
+            name: Some(name.to_string()),
+            ..ObjectMeta::default()
+        },
+        spec: Some(PersistentVolumeClaimSpec {
+            access_modes: Some(vec!["ReadWriteOnce".to_string()]),
+            resources: Some(ResourceRequirements {
+                requests: Some({
+                    let mut map = BTreeMap::new();
+                    map.insert("storage".to_string(), Quantity(storage.to_string()));
+                    map
+                }),
+                ..ResourceRequirements::default()
+            }),
+            ..PersistentVolumeClaimSpec::default()
+        }),
+        ..PersistentVolumeClaim::default()
+    }
 }
 
 pub fn nifi_version(nifi: &NifiCluster) -> Result<&str> {

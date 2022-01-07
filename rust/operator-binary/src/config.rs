@@ -8,10 +8,34 @@ use stackable_operator::product_config_utils::{
 };
 use stackable_operator::role_utils::Role;
 use std::collections::{BTreeMap, HashMap};
+use strum_macros::Display;
+use strum_macros::EnumIter;
 
 pub const NIFI_BOOTSTRAP_CONF: &str = "bootstrap.conf";
 pub const NIFI_PROPERTIES: &str = "nifi.properties";
 pub const NIFI_STATE_MANAGEMENT_XML: &str = "state-management.xml";
+
+#[derive(Debug, Display, EnumIter)]
+pub enum NifiRepository {
+    #[strum(serialize = "flowfile")]
+    Flowfile,
+    #[strum(serialize = "database")]
+    Database,
+    #[strum(serialize = "content")]
+    Content,
+    #[strum(serialize = "provenance")]
+    Provenance,
+}
+
+impl NifiRepository {
+    pub fn repository(&self) -> String {
+        format!("{}-repository", self.to_string())
+    }
+
+    pub fn mount_path(&self) -> String {
+        format!("/stackable/data/{}", self.to_string())
+    }
+}
 
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
@@ -177,7 +201,7 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
     // H2 Settings
     properties.insert(
         "nifi.database.directory",
-        "./database_repository".to_string(),
+        NifiRepository::Database.mount_path(),
     );
     properties.insert(
         "nifi.h2.url.append",
@@ -211,7 +235,7 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
     );
     properties.insert(
         "nifi.flowfile.repository.directory",
-        "./flowfile_repository".to_string(),
+        NifiRepository::Flowfile.mount_path(),
     );
     properties.insert(
         "nifi.flowfile.repository.checkpoint.interval",
@@ -237,7 +261,7 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
     properties.insert("nifi.content.claim.max.appendable.size", "1 MB".to_string());
     properties.insert(
         "nifi.content.repository.directory.default",
-        "./content_repository".to_string(),
+        NifiRepository::Content.mount_path(),
     );
     properties.insert(
         "nifi.content.repository.archive.max.retention.period",
@@ -266,7 +290,7 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
     // Persistent Provenance Repository Properties
     properties.insert(
         "nifi.provenance.repository.directory.default",
-        "./provenance_repository".to_string(),
+        NifiRepository::Provenance.mount_path(),
     );
     properties.insert(
         "nifi.provenance.repository.max.storage.time",
