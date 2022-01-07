@@ -380,14 +380,14 @@ fn build_node_rolegroup_statefulset(
     let container_nifi = container_builder
         .image(image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
+        // sed -i \"s/nifi.web.https.host=/nifi.web.https.host={}/g\" /stackable/nifi/conf/nifi.properties;
         .args(vec![
             format!(
                 "/stackable/bin/copy_assets /conf;
                  /stackable/bin/update_config;
-                 sed -i \"s/nifi.web.https.host=/nifi.web.https.host={}/g\" /stackable/nifi/conf/nifi.properties;
                  sed -i \"s/nifi.cluster.node.address=/nifi.cluster.node.address={}/g\" /stackable/nifi/conf/nifi.properties;
                  bin/nifi.sh run", 
-                node_address, node_address
+                node_address, //node_address
             )
         ])
         .add_env_vars(vec![EnvVar {
@@ -402,6 +402,7 @@ fn build_node_rolegroup_statefulset(
             ..EnvVar::default()
         }])
         .add_volume_mount("conf", "conf")
+        .add_volume_mount("keystore", "/stackable/keystore")
         .add_container_port(HTTPS_PORT_NAME, HTTPS_PORT.into())
         .add_container_port(PROTOCOL_PORT_NAME, PROTOCOL_PORT.into())
         .add_container_port(BALANCE_PORT_NAME, BALANCE_PORT.into())
@@ -458,6 +459,16 @@ fn build_node_rolegroup_statefulset(
                     }),
                     ..Volume::default()
                 })
+                // TODO: hackathon start
+                .add_volume(Volume {
+                    name: "keystore".to_string(),
+                    config_map: Some(ConfigMapVolumeSource {
+                        name: Some("key-config".to_string()),
+                        ..ConfigMapVolumeSource::default()
+                    }),
+                    ..Volume::default()
+                })
+                // TODO: hackathon end
                 .build_template(),
             volume_claim_templates: Some(vec![PersistentVolumeClaim {
                 metadata: ObjectMeta {

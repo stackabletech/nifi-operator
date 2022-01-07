@@ -369,7 +369,7 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
 
     // Site to Site properties
     // TODO: do we need to set that?
-    //properties.insert("nifi.remote.input.host", node_name.to_string());
+    // properties.insert("nifi.remote.input.host", node_name.to_string());
     // properties.insert("nifi.remote.input.host", "".to_string());
     // properties.insert("nifi.remote.input.secure", "true".to_string());
     // properties.insert("nifi.remote.input.socket.port", "9999".to_string());
@@ -391,12 +391,12 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
     // We recommend configuring HTTPS instead. The administrators guide provides instructions on how to do this.
     // TODO: do we need to set that?
     //properties.insert("nifi.web.http.host", node_name.to_string());
-    //properties.insert("nifi.web.http.port", "".to_string());
+    //properties.insert("nifi.web.http.port", "8080".to_string());
     //properties.insert("nifi.web.http.network.interface.default", "".to_string());
 
     //#############################################
 
-    properties.insert("nifi.web.https.host", "".to_string());
+    properties.insert("nifi.web.https.host", "0.0.0.0".to_string());
     properties.insert("nifi.web.https.port", HTTPS_PORT.to_string());
     properties.insert("nifi.web.https.network.interface.default", "".to_string());
     properties.insert(
@@ -432,13 +432,31 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
 
     properties.insert("nifi.security.autoreload.enabled", "false".to_string());
     properties.insert("nifi.security.autoreload.interval", "10 secs".to_string());
-    properties.insert("nifi.security.keystore", "".to_string());
-    properties.insert("nifi.security.keystoreType", "".to_string());
-    properties.insert("nifi.security.keystorePasswd", "".to_string());
-    properties.insert("nifi.security.keyPasswd", "".to_string());
-    properties.insert("nifi.security.truststore", "".to_string());
-    properties.insert("nifi.security.truststoreType", "".to_string());
-    properties.insert("nifi.security.truststorePasswd", "".to_string());
+    // TODO: hackathon start
+    // properties.insert("nifi.security.keystore", "".to_string());
+    // properties.insert("nifi.security.keystoreType", "".to_string());
+    // properties.insert("nifi.security.keystorePasswd", "".to_string());
+    properties.insert(
+        "nifi.security.keystore",
+        "/stackable/keystore/keystore.jks".to_string(),
+    );
+    properties.insert("nifi.security.keystoreType", "JKS".to_string());
+    properties.insert("nifi.security.keystorePasswd", "secret".to_string());
+    //properties.insert("nifi.security.keyPasswd", "".to_string());
+
+    properties.insert(
+        "nifi.security.truststore",
+        "/stackable/keystore/truststore.jks".to_string(),
+    );
+    properties.insert("nifi.security.truststoreType", "JKS".to_string());
+    properties.insert("nifi.security.truststorePasswd", "secret".to_string());
+
+    properties.insert(
+        "nifi.security.user.login.identity.provider",
+        "single-user-provider".to_string(),
+    );
+
+    // TODO: hackathon end
     properties.insert(
         "nifi.security.user.authorizer",
         "managed-authorizer".to_string(),
@@ -447,7 +465,7 @@ pub fn build_nifi_properties(spec: &NifiSpec, zk_connect_string: &str) -> String
         "nifi.security.allow.anonymous.authentication",
         "false".to_string(),
     );
-    properties.insert("nifi.security.user.login.identity.provider", "".to_string());
+    //properties.insert("nifi.security.user.login.identity.provider", "".to_string());
     properties.insert(
         "nifi.security.user.jws.key.rotation.period",
         "PT1H".to_string(),
