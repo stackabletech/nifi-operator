@@ -40,7 +40,6 @@ use std::{
     collections::{BTreeMap, HashMap},
     time::Duration,
 };
-use tracing::warn;
 
 const FIELD_MANAGER_SCOPE: &str = "nificluster";
 
@@ -104,6 +103,8 @@ pub enum Error {
     MissingZookeeperConnString { cm_name: String, namespace: String },
     #[snafu(display("Failed to load Product Config"))]
     ProductConfigLoadFailed { source: config::Error },
+    #[snafu(display("Failed to find information about file [{}] in product config", kind))]
+    ProductConfigKindNotSpecified { kind: String },
     #[snafu(display(
         "Failed to locate configmap [{}]. Please check if it is supplied correctly!",
         cm_name
@@ -162,7 +163,12 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
         let rolegroup = nifi.node_rolegroup_ref(rolegroup_name);
 
         let rg_service = build_node_rolegroup_service(&nifi, &rolegroup)?;
-        let rg_configmap = build_node_rolegroup_config_map(&nifi, &rolegroup, &zk_connect_string)?;
+        let rg_configmap = build_node_rolegroup_config_map(
+            &nifi,
+            &rolegroup,
+            &zk_connect_string,
+            &rolegroup_config,
+        )?;
         let rg_statefulset = build_node_rolegroup_statefulset(
             &nifi,
             &rolegroup,
@@ -231,6 +237,7 @@ fn build_node_rolegroup_config_map(
     nifi: &NifiCluster,
     rolegroup: &RoleGroupRef<NifiCluster>,
     zk_connect_string: &str,
+    config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
 ) -> Result<ConfigMap> {
     ConfigMapBuilder::new()
         .metadata(
@@ -248,10 +255,29 @@ fn build_node_rolegroup_config_map(
                 )
                 .build(),
         )
-        .add_data(NIFI_BOOTSTRAP_CONF, build_bootstrap_conf())
+        .add_data(
+            NIFI_BOOTSTRAP_CONF,
+            build_bootstrap_conf(
+                config
+                    .get(&PropertyNameKind::File(NIFI_BOOTSTRAP_CONF.to_string()))
+                    .with_context(|| ProductConfigKindNotSpecified {
+                        kind: NIFI_BOOTSTRAP_CONF.to_string(),
+                    })?
+                    .clone(),
+            ),
+        )
         .add_data(
             NIFI_PROPERTIES,
-            build_nifi_properties(&nifi.spec, zk_connect_string),
+            build_nifi_properties(
+                &nifi.spec,
+                zk_connect_string,
+                config
+                    .get(&PropertyNameKind::File(NIFI_PROPERTIES.to_string()))
+                    .with_context(|| ProductConfigKindNotSpecified {
+                        kind: NIFI_PROPERTIES.to_string(),
+                    })?
+                    .clone(),
+            ),
         )
         .add_data(
             NIFI_STATE_MANAGEMENT_XML,
@@ -320,26 +346,37 @@ fn build_node_rolegroup_service(
 fn build_node_rolegroup_statefulset(
     nifi: &NifiCluster,
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
-    metastore_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     tls_store_cm_name: &str,
 ) -> Result<StatefulSet> {
     let mut container_builder = ContainerBuilder::new(APP_NAME);
 
-    for (property_name_kind, config) in metastore_config {
-        match property_name_kind {
-            PropertyNameKind::Env => {
-                for (property_name, property_value) in config {
-                    if property_name.is_empty() {
-                        warn!("Received empty property_name for ENV... skipping");
-                        continue;
-                    }
-                    container_builder.add_env_var(property_name, property_value);
-                }
-            }
-            PropertyNameKind::Cli => {}
-            _ => {}
-        }
-    }
+    // get env vars and env overrides
+    let mut env_vars: Vec<EnvVar> = config
+        .get(&PropertyNameKind::Env)
+        .with_context(|| ProductConfigKindNotSpecified {
+            kind: "ENV".to_string(),
+        })?
+        .iter()
+        .map(|(k, v)| EnvVar {
+            name: k.clone(),
+            value: Some(v.clone()),
+            ..EnvVar::default()
+        })
+        .collect();
+
+    // we need the POD_NAME env var to overwrite `nifi.cluster.node.address` later
+    env_vars.push(EnvVar {
+        name: "POD_NAME".to_string(),
+        value_from: Some(EnvVarSource {
+            field_ref: Some(ObjectFieldSelector {
+                api_version: Some("v1".to_string()),
+                field_path: "metadata.name".to_string(),
+            }),
+            ..EnvVarSource::default()
+        }),
+        ..EnvVar::default()
+    });
 
     let rolegroup = nifi
         .spec
@@ -403,17 +440,7 @@ fn build_node_rolegroup_statefulset(
             ]
             .join(" && "),
         ])
-        .add_env_vars(vec![EnvVar {
-            name: "POD_NAME".to_string(),
-            value_from: Some(EnvVarSource {
-                field_ref: Some(ObjectFieldSelector {
-                    api_version: Some("v1".to_string()),
-                    field_path: "metadata.name".to_string(),
-                }),
-                ..EnvVarSource::default()
-            }),
-            ..EnvVar::default()
-        }])
+        .add_env_vars(env_vars)
         .add_volume_mount("conf", "conf")
         .add_volume_mount("keystore", "/stackable/keystore")
         .add_container_port(HTTPS_PORT_NAME, HTTPS_PORT.into())
