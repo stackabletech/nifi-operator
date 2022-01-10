@@ -467,7 +467,7 @@ pub fn build_nifi_properties(
     );
     properties.insert(
         "nifi.security.user.authorizer".to_string(),
-        "managed-authorizer".to_string(),
+        "single-user-authorizer".to_string(),
     );
     properties.insert(
         "nifi.security.allow.anonymous.authentication".to_string(),
@@ -540,6 +540,20 @@ pub fn build_state_management_xml(spec: &NifiSpec, zk_connect_string: &str) -> S
             .zookeeper_reference
             .chroot.as_deref()
             .unwrap_or("")
+    )
+}
+
+pub fn build_authorizer_xml() -> String {
+    format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>
+        <loginIdentityProviders>
+        <provider>
+            <identifier>single-user-provider</identifier>
+            <class>org.apache.nifi.authentication.single.user.SingleUserLoginIdentityProvider</class>
+            <property name=\"Username\">admin2</property>
+            <property name=\"Password\">$2b$12$yRBOLlq0UsXeAI.AwebLu.pClqL2ccW5m2yERMB4pL.fkIm7JnZKy</property>
+        </provider>
+        </loginIdentityProviders>"
     )
 }
 

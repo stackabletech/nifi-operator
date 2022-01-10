@@ -2,7 +2,7 @@
 
 use crate::config;
 use crate::config::{
-    build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
+    build_authorizer_xml, build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
     validated_product_config, NifiRepository, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES,
     NIFI_STATE_MANAGEMENT_XML,
 };
@@ -323,6 +323,7 @@ fn build_node_rolegroup_config_map(
             NIFI_STATE_MANAGEMENT_XML,
             build_state_management_xml(&nifi.spec, zk_connect_string),
         )
+        .add_data("login-identity-providers.xml", build_authorizer_xml())
         .build()
         .with_context(|| BuildRoleGroupConfig {
             rolegroup: rolegroup.clone(),
