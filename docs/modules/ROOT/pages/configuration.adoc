@@ -1,8 +1,5 @@
 = Configuration
 
-== Command Line Parameters
-This operator accepts the following command line parameters:
-
 include::commandline_args.adoc[]
 
 include::config_properties.adoc[]

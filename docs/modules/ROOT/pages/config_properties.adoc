@@ -9,7 +9,7 @@ metadata:
   name: simple
 spec:
   metricsPort: 8428
-  version: "1.13.2"
+  version: "1.15.0"
   zookeeperReference:
     name: simple
     namespace: default
@@ -24,35 +24,14 @@ spec:
           httpPort: 10000
           protocolPort: 10443
           loadBalancePort: 6342
+          sensitivePropertyKeySecret: nifi-sensitive-property-
+        configOverrides:
+          nifi.properties:
+            aws.region: eu-west-1
+        replicas: 2
 ----
 
+== Configuration Overrides
+Apache NiFi runtime configuration is stored in a file named nifi.properties. The configOverrides block allows you to add custom parameters to this file. A Full list of the available configuration options can be found in the official Apache NiFi documentation at https://nifi.apache.org/docs/nifi-docs/components/nifi-docs/html/administration-guide.html#system_properties.
 
-[cols="1,1,1,1,1"]
-|===
-| config-spec Property | Actual Property | Default Value | Recommended Value | Location
-
-| httpPort
-| nifi.web.http.port
-| 8080
-|
-| file:nifi.properties
-
-| protocolPort
-| nifi.cluster.node.protocol.port
-| 9088
-|
-| file:nifi.properties
-
-| loadBalancePort
-| nifi.cluster.load.balance.port
-| 6342
-|
-| file:nifi.properties
-
-| metricsPort
-| metricsPort
-|
-|
-| JMX Exporter/CLI
-
-|===
+Overrides consist of a key, which must match the property name in the configuration file and a value. This allows arbitrary configuration properties to be added to Spark. In the example above a property aws.region is being explicitly set to 'eu-west-1', overriding the default value.
