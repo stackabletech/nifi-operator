@@ -12,9 +12,11 @@ use stackable_nifi_crd::{
     PROTOCOL_PORT, PROTOCOL_PORT_NAME,
 };
 use stackable_nifi_crd::{APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME};
+use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
-    EnvVar, EnvVarSource, ObjectFieldSelector, SecurityContext,
+    EnvVar, EnvVarSource, Node, ObjectFieldSelector, SecurityContext,
 };
+use stackable_operator::kube::ResourceExt;
 use stackable_operator::role_utils::RoleGroupRef;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder},
@@ -110,6 +112,27 @@ pub enum Error {
         cm_name
     ))]
     KeyConfigMapNotFound { cm_name: String },
+    #[snafu(display("Failed to find NiFi Service [{}]", name))]
+    NifiServiceNotFound {
+        source: stackable_operator::error::Error,
+        name: String,
+    },
+    #[snafu(display(
+        "Failed to find any nodes in namespace [{}] with selector [{:?}]",
+        namespace,
+        selector
+    ))]
+    MissingNodes {
+        source: stackable_operator::error::Error,
+        namespace: String,
+        selector: LabelSelector,
+    },
+    #[snafu(display("Failed to find service [{}/{}]", name, namespace))]
+    MissingService {
+        source: stackable_operator::error::Error,
+        name: String,
+        namespace: String,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -159,15 +182,29 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
         .await
         .context(ApplyRoleService)?;
 
+    let updated_role_service = client
+        .get(&nifi.name(), nifi.namespace().as_deref())
+        .await
+        .with_context(|| MissingService {
+            name: nifi.name(),
+            namespace: nifi.namespace().unwrap_or_default(),
+        })?;
+
     for (rolegroup_name, rolegroup_config) in nifi_node_config.iter() {
         let rolegroup = nifi.node_rolegroup_ref(rolegroup_name);
 
         let rg_service = build_node_rolegroup_service(&nifi, &rolegroup)?;
+
+        // node addresses
+        let proxy_hosts = node_addresses(client, &nifi, &updated_role_service).await?;
+        println!("proxy: {}", proxy_hosts);
+
         let rg_configmap = build_node_rolegroup_config_map(
             &nifi,
             &rolegroup,
             &zk_connect_string,
-            &rolegroup_config,
+            rolegroup_config,
+            &proxy_hosts,
         )?;
         let rg_statefulset = build_node_rolegroup_statefulset(
             &nifi,
@@ -226,6 +263,7 @@ pub fn build_node_role_service(nifi: &NifiCluster) -> Result<Service> {
             }]),
             selector: Some(role_selector_labels(nifi, APP_NAME, &role_name)),
             type_: Some("NodePort".to_string()),
+            external_traffic_policy: Some("Local".to_string()),
             ..ServiceSpec::default()
         }),
         status: None,
@@ -238,6 +276,7 @@ fn build_node_rolegroup_config_map(
     rolegroup: &RoleGroupRef<NifiCluster>,
     zk_connect_string: &str,
     config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    proxy_hosts: &str,
 ) -> Result<ConfigMap> {
     ConfigMapBuilder::new()
         .metadata(
@@ -271,6 +310,7 @@ fn build_node_rolegroup_config_map(
             build_nifi_properties(
                 &nifi.spec,
                 zk_connect_string,
+                proxy_hosts,
                 config
                     .get(&PropertyNameKind::File(NIFI_PROPERTIES.to_string()))
                     .with_context(|| ProductConfigKindNotSpecified {
@@ -556,6 +596,59 @@ fn build_persistent_volume_claim_rwo_storage(name: &str, storage: &str) -> Persi
         }),
         ..PersistentVolumeClaim::default()
     }
+}
+
+async fn external_node_port(nifi_service: &Service) -> Result<i32> {
+    Ok(nifi_service
+        .spec
+        .as_ref()
+        .unwrap()
+        .ports
+        .as_ref()
+        .unwrap()
+        .iter()
+        .filter(|p| p.name == Some(HTTPS_PORT_NAME.to_string()))
+        .map(|p| p.node_port.unwrap())
+        .collect::<Vec<_>>()
+        .pop()
+        .unwrap())
+}
+
+async fn node_addresses(
+    client: &Client,
+    nifi: &NifiCluster,
+    nifi_service: &Service,
+) -> Result<String> {
+    let selector = LabelSelector {
+        match_labels: {
+            let mut labels = BTreeMap::new();
+            labels.insert("kubernetes.io/os".to_string(), "linux".to_string());
+            Some(labels)
+        },
+        ..LabelSelector::default()
+    };
+
+    let external_port = external_node_port(nifi_service).await?;
+
+    let cluster_nodes = client
+        .list_with_label_selector::<Node>(None, &selector)
+        .await
+        .with_context(|| MissingNodes {
+            namespace: nifi.metadata.namespace.as_deref().unwrap().to_string(),
+            selector,
+        })?;
+
+    Ok(cluster_nodes
+        .into_iter()
+        .map(|node| node.status.unwrap().addresses.unwrap())
+        .flatten()
+        .filter(|address| address.type_ == "InternalIP".to_string())
+        .map(|address| address.address)
+        .collect::<Vec<_>>()
+        .iter()
+        .map(|node_ip| format!("{}:{}", node_ip, external_port))
+        .collect::<Vec<_>>()
+        .join(","))
 }
 
 pub fn nifi_version(nifi: &NifiCluster) -> Result<&str> {

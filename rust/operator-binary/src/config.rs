@@ -128,6 +128,7 @@ pub fn build_bootstrap_conf(overrides: BTreeMap<String, String>) -> String {
 pub fn build_nifi_properties(
     spec: &NifiSpec,
     zk_connect_string: &str,
+    proxy_hosts: &str,
     overrides: BTreeMap<String, String>,
 ) -> String {
     let mut properties = BTreeMap::new();
@@ -426,7 +427,7 @@ pub fn build_nifi_properties(
     properties.insert("nifi.web.jetty.threads".to_string(), "200".to_string());
     properties.insert("nifi.web.max.header.size".to_string(), "16 KB".to_string());
     properties.insert("nifi.web.proxy.context.path".to_string(), "".to_string());
-    properties.insert("nifi.web.proxy.host".to_string(), "".to_string());
+    properties.insert("nifi.web.proxy.host".to_string(), proxy_hosts.to_string());
     // security properties
     // this property is later set from a secret
     properties.insert("nifi.sensitive.props.key".to_string(), "".to_string());
