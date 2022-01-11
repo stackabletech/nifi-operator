@@ -2,11 +2,13 @@
 
 use crate::config;
 use crate::config::{
-    build_authorizer_xml, build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
+    build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
     validated_product_config, NifiRepository, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES,
     NIFI_STATE_MANAGEMENT_XML,
 };
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_nifi_crd::authentication;
+use stackable_nifi_crd::authentication::NifiAuthenticationMethodConfig;
 use stackable_nifi_crd::{
     NifiCluster, NifiRole, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME,
     PROTOCOL_PORT, PROTOCOL_PORT_NAME,
@@ -14,7 +16,8 @@ use stackable_nifi_crd::{
 use stackable_nifi_crd::{APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME};
 use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
-    EnvVar, EnvVarSource, Node, ObjectFieldSelector, SecurityContext,
+    CSIVolumeSource, EnvVar, EnvVarSource, Node, ObjectFieldSelector, SecretVolumeSource,
+    SecurityContext,
 };
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::role_utils::RoleGroupRef;
@@ -133,6 +136,15 @@ pub enum Error {
         name: String,
         namespace: String,
     },
+    #[snafu(display("Failed to materialize authentication config element from k8s"))]
+    MaterializeError {
+        source: stackable_nifi_crd::authentication::Error,
+    },
+    #[snafu(display(
+        "Failed to obtain name of secret that contains the sensitive-information-key: [{}]",
+        message
+    ))]
+    SensitiveKeySecretError { message: String },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -159,9 +171,14 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
             namespace: zk_namespace.to_string(),
         })?;
 
-    // key store config map name
-    // TODO: check if existing? Otherwise container will not start up.
-    let tls_store_cm_name = nifi.spec.tls_store_reference.name.clone();
+    // read authentication
+    let auth_reference = authentication::build_auth_reference(&nifi.spec.authentication_config)
+        .await
+        .with_context(|| MaterializeError {})?;
+
+    let auth_config = authentication::materialize_auth_config(client, &auth_reference)
+        .await
+        .with_context(|| MaterializeError {})?;
 
     let validated_config = validated_product_config(
         &nifi,
@@ -197,7 +214,6 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
 
         // node addresses
         let proxy_hosts = node_addresses(client, &nifi, &updated_role_service).await?;
-        println!("proxy: {}", proxy_hosts);
 
         let rg_configmap = build_node_rolegroup_config_map(
             &nifi,
@@ -205,13 +221,10 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
             &zk_connect_string,
             rolegroup_config,
             &proxy_hosts,
+            &auth_config,
         )?;
-        let rg_statefulset = build_node_rolegroup_statefulset(
-            &nifi,
-            &rolegroup,
-            rolegroup_config,
-            &tls_store_cm_name,
-        )?;
+
+        let rg_statefulset = build_node_rolegroup_statefulset(&nifi, &rolegroup, rolegroup_config)?;
 
         client
             .apply_patch(FIELD_MANAGER_SCOPE, &rg_service, &rg_service)
@@ -233,6 +246,7 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
             })?;
     }
 
+    println!("All done!");
     Ok(ReconcilerAction {
         requeue_after: None,
     })
@@ -277,6 +291,7 @@ fn build_node_rolegroup_config_map(
     zk_connect_string: &str,
     config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     proxy_hosts: &str,
+    authorizer_config: &NifiAuthenticationMethodConfig,
 ) -> Result<ConfigMap> {
     ConfigMapBuilder::new()
         .metadata(
@@ -323,7 +338,10 @@ fn build_node_rolegroup_config_map(
             NIFI_STATE_MANAGEMENT_XML,
             build_state_management_xml(&nifi.spec, zk_connect_string),
         )
-        .add_data("login-identity-providers.xml", build_authorizer_xml())
+        .add_data(
+            "login-identity-providers.xml",
+            stackable_nifi_crd::authentication::get_authorizer_xml(authorizer_config),
+        )
         .build()
         .with_context(|| BuildRoleGroupConfig {
             rolegroup: rolegroup.clone(),
@@ -388,7 +406,6 @@ fn build_node_rolegroup_statefulset(
     nifi: &NifiCluster,
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
     config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
-    tls_store_cm_name: &str,
 ) -> Result<StatefulSet> {
     let mut container_builder = ContainerBuilder::new(APP_NAME);
 
@@ -405,6 +422,22 @@ fn build_node_rolegroup_statefulset(
             ..EnvVar::default()
         })
         .collect();
+
+    let sensitive_property_key: Vec<Option<String>> = env_vars
+        .iter()
+        .filter(|var| &var.name == "NIFI_SENSITIVE_PROPS_KEY")
+        .map(|var| var.value.to_owned())
+        .collect();
+
+    let key = sensitive_property_key
+        .first()
+        .with_context(|| SensitiveKeySecretError {
+            message: "Key was not present in environment variable".to_string(),
+        })?
+        .clone()
+        .with_context(|| SensitiveKeySecretError {
+            message: "No value set for key in environment".to_string(),
+        })?;
 
     // we need the POD_NAME env var to overwrite `nifi.cluster.node.address` later
     env_vars.push(EnvVar {
@@ -442,8 +475,25 @@ fn build_node_rolegroup_statefulset(
         .image(&image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
         .args(vec![[
+            "microdnf install openssl",
+            "echo Storing password",
+            "echo secret > /stackable/keystore/password",
+            "echo Creating truststore",
+            "keytool -importcert -file /stackable/keystore/ca.crt -keystore /stackable/keystore/truststore.p12 -storetype pkcs12 -noprompt -alias ca_cert -storepass secret",
+            "echo Creating certificate chain",
+            "cat /stackable/keystore/ca.crt /stackable/keystore/tls.crt > /stackable/keystore/chain.crt",
+            "echo Creating keystore",
+            "openssl pkcs12 -export -in /stackable/keystore/chain.crt -inkey /stackable/keystore/tls.key -out /stackable/keystore/keystore.p12 --passout file:/stackable/keystore/password",
+            "echo Cleaning up password",
+            "rm -f /stackable/keystore/password",
+            "echo chowning data directory",
             "chown -R stackable:stackable /stackable/data",
+            "echo chmodding data directory",
             "chmod -R a=,u=rwX /stackable/data",
+            "echo chowning keystore directory",
+            "chown -R stackable:stackable /stackable/keystore",
+            "echo chmodding keystore directory",
+            "chmod -R a=,u=rwX /stackable/keystore",
         ]
         .join(" && ")])
         .add_volume_mount(
@@ -462,6 +512,7 @@ fn build_node_rolegroup_statefulset(
             &NifiRepository::Provenance.repository(),
             &NifiRepository::Provenance.mount_path(),
         )
+        .add_volume_mount("keystore", "/stackable/keystore")
         .build();
 
     container_prepare
@@ -475,8 +526,12 @@ fn build_node_rolegroup_statefulset(
         .args(vec![
             [
                 "/stackable/bin/copy_assets /conf",
-                "/stackable/bin/update_config",
+                "echo Replacing nifi.cluster.node.address in nifi.properties",
                 &format!("sed -i \"s/nifi.cluster.node.address=/nifi.cluster.node.address={}/g\" /stackable/nifi/conf/nifi.properties", node_address),
+                "echo Replacing nifi.web.https.host in nifi.properties",
+                &format!("sed -i \"s/nifi.web.https.host=0.0.0.0/nifi.web.https.host={}/g\" /stackable/nifi/conf/nifi.properties", node_address),
+                "echo Replacing nifi.sensitive.props.key in nifi.properties",
+                "sed -i \"s|nifi.sensitive.props.key=|nifi.sensitive.props.key=$(cat /stackable/sensitiveproperty/nifiSensitivePropsKey)|g\" /stackable/nifi/conf/nifi.properties",
                 "bin/nifi.sh run",
             ]
             .join(" && "),
@@ -484,6 +539,23 @@ fn build_node_rolegroup_statefulset(
         .add_env_vars(env_vars)
         .add_volume_mount("conf", "conf")
         .add_volume_mount("keystore", "/stackable/keystore")
+        .add_volume_mount(
+            &NifiRepository::Flowfile.repository(),
+            &NifiRepository::Flowfile.mount_path(),
+        )
+        .add_volume_mount(
+            &NifiRepository::Database.repository(),
+            &NifiRepository::Database.mount_path(),
+        )
+        .add_volume_mount(
+            &NifiRepository::Content.repository(),
+            &NifiRepository::Content.mount_path(),
+        )
+        .add_volume_mount(
+            &NifiRepository::Provenance.repository(),
+            &NifiRepository::Provenance.mount_path(),
+        )
+        .add_volume_mount("sensitiveproperty", "/stackable/sensitiveproperty")
         .add_container_port(HTTPS_PORT_NAME, HTTPS_PORT.into())
         .add_container_port(PROTOCOL_PORT_NAME, PROTOCOL_PORT.into())
         .add_container_port(BALANCE_PORT_NAME, BALANCE_PORT.into())
@@ -546,9 +618,18 @@ fn build_node_rolegroup_statefulset(
                 // One volume for the keystore and truststore data configmap
                 .add_volume(Volume {
                     name: "keystore".to_string(),
-                    config_map: Some(ConfigMapVolumeSource {
-                        name: Some(tls_store_cm_name.to_string()),
-                        ..ConfigMapVolumeSource::default()
+                    csi: Some(CSIVolumeSource {
+                        driver: "secrets.stackable.tech".to_string(),
+                        volume_attributes: Some(get_stackable_secret_volume_attributes()),
+                        ..CSIVolumeSource::default()
+                    }),
+                    ..Volume::default()
+                })
+                .add_volume(Volume {
+                    name: "sensitiveproperty".to_string(),
+                    secret: Some(SecretVolumeSource {
+                        secret_name: Some(key),
+                        ..SecretVolumeSource::default()
                     }),
                     ..Volume::default()
                 })
@@ -575,6 +656,19 @@ fn build_node_rolegroup_statefulset(
         }),
         status: None,
     })
+}
+
+fn get_stackable_secret_volume_attributes() -> BTreeMap<String, String> {
+    let mut result = BTreeMap::new();
+    result.insert(
+        "secrets.stackable.tech/type".to_string(),
+        "secret".to_string(),
+    );
+    result.insert(
+        "secrets.stackable.tech/scope".to_string(),
+        "node,pod".to_string(),
+    );
+    result
 }
 
 fn build_persistent_volume_claim_rwo_storage(name: &str, storage: &str) -> PersistentVolumeClaim {
@@ -658,6 +752,6 @@ pub fn nifi_version(nifi: &NifiCluster) -> Result<&str> {
 
 pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> ReconcilerAction {
     ReconcilerAction {
-        requeue_after: Some(Duration::from_secs(5)),
+        requeue_after: Some(Duration::from_secs(20)),
     }
 }

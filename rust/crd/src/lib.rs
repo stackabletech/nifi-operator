@@ -1,3 +1,6 @@
+pub mod authentication;
+
+use crate::authentication::AuthenticationConfig;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, Snafu};
 use stackable_operator::role_utils::RoleGroupRef;
@@ -20,7 +23,7 @@ pub const BALANCE_PORT: u16 = 6243;
 pub const METRICS_PORT_NAME: &str = "metrics";
 pub const METRICS_PORT: u16 = 8081;
 
-#[derive(Clone, CustomResource, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[kube(
     group = "nifi.stackable.tech",
     version = "v1alpha1",
@@ -46,10 +49,10 @@ pub struct NifiSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     /// Available NiFi roles
     pub nodes: Option<Role<NifiConfig>>,
-    /// The configmap name and namespace with keystore and truststore content
-    pub tls_store_reference: TlsStoreReference,
     /// The reference to the ZooKeeper cluster
     pub zookeeper_reference: ClusterReference,
+    /// A reference to a Secret containing username/password for the initial admin user
+    pub authentication_config: AuthenticationConfig,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]

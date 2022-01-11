@@ -442,20 +442,23 @@ pub fn build_nifi_properties(
     // key and trust store
     properties.insert(
         "nifi.security.keystore".to_string(),
-        "/stackable/keystore/keystore.jks".to_string(),
+        "/stackable/keystore/keystore.p12".to_string(),
     );
-    properties.insert("nifi.security.keystoreType".to_string(), "JKS".to_string());
+    properties.insert(
+        "nifi.security.keystoreType".to_string(),
+        "PKCS12".to_string(),
+    );
     properties.insert(
         "nifi.security.keystorePasswd".to_string(),
         "secret".to_string(),
     );
     properties.insert(
         "nifi.security.truststore".to_string(),
-        "/stackable/keystore/truststore.jks".to_string(),
+        "/stackable/keystore/truststore.p12".to_string(),
     );
     properties.insert(
         "nifi.security.truststoreType".to_string(),
-        "JKS".to_string(),
+        "PKCS12".to_string(),
     );
     properties.insert(
         "nifi.security.truststorePasswd".to_string(),
@@ -541,18 +544,6 @@ pub fn build_state_management_xml(spec: &NifiSpec, zk_connect_string: &str) -> S
             .chroot.as_deref()
             .unwrap_or("")
     )
-}
-
-pub fn build_authorizer_xml() -> String {
-    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>
-     <loginIdentityProviders>
-        <provider>
-            <identifier>single-user-provider</identifier>
-            <class>org.apache.nifi.authentication.single.user.SingleUserLoginIdentityProvider</class>
-            <property name=\"Username\">admin</property>
-            <property name=\"Password\">$2a$12$Uzv2s1v7YsIKdO0TJZ42q.9TRbBOMhkLJKcNzU0YKMf5z/6Cmpue.</property>
-        </provider>
-     </loginIdentityProviders>".to_string()
 }
 
 /// Defines all required roles and their required configuration. In this case we need three files:

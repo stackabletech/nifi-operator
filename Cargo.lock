@@ -1588,6 +1588,7 @@ dependencies = [
  "stackable-operator",
  "strum 0.22.0",
  "strum_macros 0.23.1",
+ "xml-rs",
 ]
 
 [[package]]

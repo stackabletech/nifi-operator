@@ -1,7 +1,7 @@
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
 metadata:
-  name: simple-nifi
+  name: simple-nifi2
 spec:
   version: "1.15.0"
   tlsStoreReference:
@@ -11,6 +11,12 @@ spec:
     name: simple-zk
     namespace: default
     chroot: /nifi
+  authenticationConfig:
+    method: SingleUser
+    secrets:
+      admincredentials:
+        name: nifi-admin-credentials-simple
+        namespace: default
   nodes:
     roleGroups:
       default:
