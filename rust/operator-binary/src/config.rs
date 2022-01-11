@@ -550,8 +550,8 @@ pub fn build_authorizer_xml() -> String {
         <provider>
             <identifier>single-user-provider</identifier>
             <class>org.apache.nifi.authentication.single.user.SingleUserLoginIdentityProvider</class>
-            <property name=\"Username\">admin2</property>
-            <property name=\"Password\">$2b$12$yRBOLlq0UsXeAI.AwebLu.pClqL2ccW5m2yERMB4pL.fkIm7JnZKy</property>
+            <property name=\"Username\">admin</property>
+            <property name=\"Password\">$2a$12$Uzv2s1v7YsIKdO0TJZ42q.9TRbBOMhkLJKcNzU0YKMf5z/6Cmpue.</property>
         </provider>
         </loginIdentityProviders>"
     )
