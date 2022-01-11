@@ -643,7 +643,7 @@ async fn node_addresses(
         .into_iter()
         .map(|node| node.status.unwrap().addresses.unwrap())
         .flatten()
-        .filter(|address| address.type_ == "InternalIP".to_string())
+        .filter(|address| address.type_ == *"ExternalIP")
         .map(|address| address.address)
         .collect::<Vec<_>>()
         .iter()

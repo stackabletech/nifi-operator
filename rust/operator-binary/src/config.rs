@@ -544,17 +544,15 @@ pub fn build_state_management_xml(spec: &NifiSpec, zk_connect_string: &str) -> S
 }
 
 pub fn build_authorizer_xml() -> String {
-    format!(
-        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>
-        <loginIdentityProviders>
+    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>
+     <loginIdentityProviders>
         <provider>
             <identifier>single-user-provider</identifier>
             <class>org.apache.nifi.authentication.single.user.SingleUserLoginIdentityProvider</class>
             <property name=\"Username\">admin</property>
             <property name=\"Password\">$2a$12$Uzv2s1v7YsIKdO0TJZ42q.9TRbBOMhkLJKcNzU0YKMf5z/6Cmpue.</property>
         </provider>
-        </loginIdentityProviders>"
-    )
+     </loginIdentityProviders>".to_string()
 }
 
 /// Defines all required roles and their required configuration. In this case we need three files:
