@@ -55,17 +55,6 @@ pub struct NifiSpec {
     pub authentication_config: AuthenticationConfig<NifiAuthenticationMethod>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TlsStoreReference {
-    /// The name of the configmap
-    pub name: String,
-    /// Optional namespace.
-    pub namespace: Option<String>,
-    /// Optional store type. Defaults to "JKS"
-    pub store_type: Option<String>,
-}
-
 #[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum StoreType {
