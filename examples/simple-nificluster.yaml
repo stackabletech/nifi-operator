@@ -4,9 +4,6 @@ metadata:
   name: simple-nifi2
 spec:
   version: "1.15.0"
-  tlsStoreReference:
-    name: nifi-key-config
-    storeType: JKS
   zookeeperReference:
     name: simple-zk
     namespace: default

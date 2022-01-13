@@ -1,13 +1,11 @@
-use crate::authentication::NifiAuthenticationMethodReference::SingleUser;
+use crate::NifiAuthenticationMethod::SingleUser;
 use serde::{Deserialize, Serialize};
-use snafu::ResultExt;
 use snafu::{OptionExt, Snafu};
 use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{Secret, SecretReference};
 use stackable_operator::k8s_openapi::ByteString;
 use stackable_operator::schemars::{self, JsonSchema};
 use std::collections::BTreeMap;
-use std::string::FromUtf8Error;
 use xml::escape::escape_str_attribute;
 
 #[derive(Snafu, Debug)]
@@ -31,14 +29,8 @@ pub enum Error {
         value
     ))]
     MissingRequiredValue { value: String },
-    #[snafu(display(
-        "Unable to convert from Utf8 to String when reading Secret: [{}]",
-        value
-    ))]
-    Utf8Error {
-        source: FromUtf8Error,
-        value: String,
-    },
+    #[snafu(display("Error accessing secrets referenced in config: [{:?}]", errors))]
+    SecretRetrievalError { errors: Vec<String> },
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -57,69 +49,84 @@ pub enum NifiAuthenticationMethod {
 
 #[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub enum NifiAuthenticationMethodReference {
-    Nothing,
-    SingleUser {
-        admin_user_reference: SecretReference,
-    },
-}
-
-#[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub enum NifiAuthenticationMethodConfig {
     Nothing,
     SingleUser { username: String, password: String },
 }
 
-pub async fn build_auth_reference(
-    config: &AuthenticationConfig<NifiAuthenticationMethod>,
-) -> Result<NifiAuthenticationMethodReference, Error> {
-    match config.method {
-        NifiAuthenticationMethod::SingleUser => {
-            let secrets = config
-                .secrets
-                .as_ref()
-                .with_context(|| MissingSecretReference {
-                    secret: "secrets".to_string(),
-                })?
-                .to_owned();
-            let user_secret =
-                secrets
-                    .get("admincredentials")
-                    .with_context(|| MissingSecretReference {
-                        secret: "admincredentials".to_string(),
-                    })?;
-            Ok(NifiAuthenticationMethodReference::SingleUser {
-                admin_user_reference: user_secret.to_owned(),
-            })
-        }
-    }
-}
-
 pub async fn materialize_auth_config(
     client: &Client,
-    reference: &NifiAuthenticationMethodReference,
+    reference: &AuthenticationConfig<NifiAuthenticationMethod>,
 ) -> Result<NifiAuthenticationMethodConfig, Error> {
-    match reference {
-        SingleUser {
-            admin_user_reference,
-        } => {
-            let secret_name = admin_user_reference.name.as_deref().unwrap();
-            let secret_namespace = admin_user_reference.namespace.as_deref();
+    // Retrieve data for secrets referenced in config
+    let secret_data = match &reference.secrets {
+        None => BTreeMap::new(),
+        Some(secret_list) => get_secret_data(client, secret_list).await?,
+    };
 
-            let secret_content = client
-                .get::<Secret>(secret_name, secret_namespace)
-                .await
-                .with_context(|| MissingSecret {
-                    name: secret_name.to_string(),
-                    namespace: secret_namespace.unwrap_or("Undefined"),
-                })?;
-            let data = &secret_content.data.with_context(|| MissingRequiredValue {
-                value: "admincredentials secret contains no data".to_string(),
-            })?;
-            build_single_user_config(Some(reference), data)
-        }
-        _ => Ok(NifiAuthenticationMethodConfig::Nothing),
+    // Build config object from secret data
+    build_config(reference, &secret_data)
+}
+
+pub async fn get_secret_data(
+    client: &Client,
+    secret_list: &BTreeMap<String, SecretReference>,
+) -> Result<BTreeMap<String, BTreeMap<String, String>>, Error> {
+    let mut result: BTreeMap<String, BTreeMap<String, String>> = BTreeMap::new();
+    let mut error_list: Vec<String> = Vec::new();
+
+    // Get and unwrap secret name and namespace from SecretReference
+    for (secret_key, secret_reference) in secret_list.iter() {
+        let secret_name = match &secret_reference.name {
+            Some(secret_name) => secret_name,
+            None => {
+                error_list.push(format!(
+                    "Field \"name\" not populated for secret with key [{}])",
+                    secret_key
+                ));
+                continue;
+            }
+        };
+        let secret_namespace = secret_reference.namespace.as_deref();
+
+        // Get Secret content from Kube
+        let secret_content: Secret = match client.get::<Secret>(secret_name, secret_namespace).await
+        {
+            Ok(content) => content,
+            Err(e) => {
+                error_list.push(format!(
+                    "Got error when retrieving secret from Kubernetes: [{:?}]",
+                    e
+                ));
+                continue;
+            }
+        };
+
+        let data: BTreeMap<String, ByteString> = match &secret_content.data {
+            Some(secret_data) => secret_data.to_owned(),
+            None => {
+                error_list.push(format!(
+                    "Secret [{}/{}] referenced by config key [{}] does not contain any data.",
+                    secret_name,
+                    secret_namespace.unwrap_or(""),
+                    secret_key
+                ));
+                continue;
+            }
+        };
+
+        result.insert(
+            secret_key.to_owned(),
+            data.into_iter()
+                .map(|(key, value)| (key, String::from_utf8(value.0).unwrap()))
+                .collect::<BTreeMap<String, String>>(),
+        );
+    }
+
+    if error_list.is_empty() {
+        Ok(result)
+    } else {
+        Err(Error::SecretRetrievalError { errors: error_list })
     }
 }
 
@@ -140,90 +147,101 @@ pub fn get_authorizer_xml(config: &NifiAuthenticationMethodConfig) -> String {
     }
 }
 
-fn build_single_user_config(
-    _reference: Option<&NifiAuthenticationMethodReference>,
-    secret_data: &BTreeMap<String, ByteString>,
+fn build_config(
+    reference: &AuthenticationConfig<NifiAuthenticationMethod>,
+    secret_data: &BTreeMap<String, BTreeMap<String, String>>,
 ) -> Result<NifiAuthenticationMethodConfig, Error> {
-    let username = String::from_utf8(
-        secret_data
-            .get("username")
-            .with_context(|| MissingKey {
-                key: "username".to_string(),
-            })?
-            .to_owned()
-            .0,
-    )
-    .with_context(|| Utf8Error {
-        value: "admincredentials.username".to_string(),
-    })?;
+    match reference.method {
+        SingleUser => {
+            let admin_credential_secret_data =
+                secret_data
+                    .get("admincredentials")
+                    .with_context(|| MissingSecretReference {
+                        secret: "admincredentials".to_string(),
+                    })?;
 
-    let password = String::from_utf8(
-        secret_data
-            .get("password")
-            .with_context(|| MissingKey {
-                key: "password".to_string(),
-            })?
-            .to_owned()
-            .0,
-    )
-    .with_context(|| Utf8Error {
-        value: "admincredentials.username".to_string(),
-    })?;
+            let username = admin_credential_secret_data
+                .get("username")
+                .with_context(|| MissingKey {
+                    key: "username".to_string(),
+                })?
+                .to_owned();
 
-    Ok(NifiAuthenticationMethodConfig::SingleUser { username, password })
+            let password = admin_credential_secret_data
+                .get("password")
+                .with_context(|| MissingKey {
+                    key: "password".to_string(),
+                })?
+                .to_owned();
+
+            Ok(NifiAuthenticationMethodConfig::SingleUser { username, password })
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn get_default_config() -> AuthenticationConfig<NifiAuthenticationMethod> {
+        AuthenticationConfig {
+            method: NifiAuthenticationMethod::SingleUser,
+            config: None,
+            secrets: None
+        }
+    }
+
     #[test]
     fn test_password_missing_fails() {
-        let mut secret_data: BTreeMap<String, ByteString> = BTreeMap::new();
-        secret_data.insert(
-            "password".to_string(),
-            ByteString {
-                0: "test".as_bytes().to_vec(),
-            },
-        );
+        let mut secret_data: BTreeMap<String, BTreeMap<String, String>> = BTreeMap::new();
+        let mut admin_credential_data: BTreeMap<String, String> = BTreeMap::new();
 
-        let result = build_single_user_config(None, &secret_data);
+        admin_credential_data.insert(
+            "password".to_string(),
+            "test".to_string(),
+        );
+        secret_data.insert("admincredentials".to_string(), admin_credential_data);
+
+
+        let result = build_config(&get_default_config(), &secret_data);
 
         assert!(result.is_err());
     }
 
     #[test]
     fn test_user_missing_fails() {
-        let mut secret_data: BTreeMap<String, ByteString> = BTreeMap::new();
-        secret_data.insert(
-            "username".to_string(),
-            ByteString {
-                0: "test".as_bytes().to_vec(),
-            },
-        );
+        let mut secret_data: BTreeMap<String, BTreeMap<String, String>> = BTreeMap::new();
+        let mut admin_credential_data: BTreeMap<String, String> = BTreeMap::new();
 
-        let result = build_single_user_config(None, &secret_data);
+        admin_credential_data.insert(
+            "username".to_string(),
+            "test".to_string(),
+        );
+        secret_data.insert("admincredentials".to_string(), admin_credential_data);
+
+
+        let result = build_config(&get_default_config(), &secret_data);
 
         assert!(result.is_err());
     }
 
     #[test]
     fn test_success() {
-        let mut secret_data: BTreeMap<String, ByteString> = BTreeMap::new();
-        secret_data.insert(
-            "username".to_string(),
-            ByteString {
-                0: "test".as_bytes().to_vec(),
-            },
-        );
-        secret_data.insert(
-            "password".to_string(),
-            ByteString {
-                0: "testpassword".as_bytes().to_vec(),
-            },
-        );
+        let mut secret_data: BTreeMap<String, BTreeMap<String, String>> = BTreeMap::new();
+        let mut admin_credential_data: BTreeMap<String, String> = BTreeMap::new();
 
-        let result = build_single_user_config(None, &secret_data).unwrap();
+        admin_credential_data.insert(
+            "username".to_string(),
+            "test".to_string(),
+        );
+        admin_credential_data.insert(
+            "password".to_string(),
+            "testpassword".to_string(),
+        );
+        secret_data.insert("admincredentials".to_string(), admin_credential_data);
+
+
+        let result = build_config(&get_default_config(), &secret_data).unwrap();
 
         match result {
             NifiAuthenticationMethodConfig::SingleUser { username, password } => {
@@ -238,27 +256,24 @@ mod tests {
 
     #[test]
     fn test_success_with_excess_keys() {
-        let mut secret_data: BTreeMap<String, ByteString> = BTreeMap::new();
-        secret_data.insert(
-            "username".to_string(),
-            ByteString {
-                0: "test".as_bytes().to_vec(),
-            },
-        );
-        secret_data.insert(
-            "password".to_string(),
-            ByteString {
-                0: "testpassword".as_bytes().to_vec(),
-            },
-        );
-        secret_data.insert(
-            "unneeded_extra_value".to_string(),
-            ByteString {
-                0: "testpassword".as_bytes().to_vec(),
-            },
-        );
+        let mut secret_data: BTreeMap<String, BTreeMap<String, String>> = BTreeMap::new();
+        let mut admin_credential_data: BTreeMap<String, String> = BTreeMap::new();
 
-        let result = build_single_user_config(None, &secret_data).unwrap();
+        admin_credential_data.insert(
+            "username".to_string(),
+            "test".to_string(),
+        );
+        admin_credential_data.insert(
+            "password".to_string(),
+            "testpassword".to_string(),
+        );
+        admin_credential_data.insert(
+            "unneeded_extra_value".to_string(),
+            "testpassword".to_string());
+
+        secret_data.insert("admincredentials".to_string(), admin_credential_data);
+
+        let result = build_config(&get_default_config(), &secret_data).unwrap();
 
         match result {
             NifiAuthenticationMethodConfig::SingleUser { username, password } => {

@@ -172,13 +172,11 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
         })?;
 
     // read authentication
-    let auth_reference = authentication::build_auth_reference(&nifi.spec.authentication_config)
+    let auth_config = authentication::materialize_auth_config(client, &nifi.spec.authentication_config)
         .await
         .with_context(|| MaterializeError {})?;
 
-    let auth_config = authentication::materialize_auth_config(client, &auth_reference)
-        .await
-        .with_context(|| MaterializeError {})?;
+    println!("auth config: [{:?}]", auth_config);
 
     let validated_config = validated_product_config(
         &nifi,
@@ -246,7 +244,6 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
             })?;
     }
 
-    println!("All done!");
     Ok(ReconcilerAction {
         requeue_after: None,
     })
