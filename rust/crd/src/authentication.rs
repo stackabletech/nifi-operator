@@ -43,15 +43,15 @@ pub enum Error {
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AuthenticationConfig {
-    pub method: AuthenticationMethod,
+pub struct AuthenticationConfig<T> {
+    pub method: T,
     pub config: Option<BTreeMap<String, String>>,
     pub secrets: Option<BTreeMap<String, SecretReference>>,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize, strum::Display)]
 #[strum(serialize_all = "camelCase")]
-pub enum AuthenticationMethod {
+pub enum NifiAuthenticationMethod {
     SingleUser,
 }
 
@@ -72,10 +72,10 @@ pub enum NifiAuthenticationMethodConfig {
 }
 
 pub async fn build_auth_reference(
-    config: &AuthenticationConfig,
+    config: &AuthenticationConfig<NifiAuthenticationMethod>,
 ) -> Result<NifiAuthenticationMethodReference, Error> {
     match config.method {
-        AuthenticationMethod::SingleUser => {
+        NifiAuthenticationMethod::SingleUser => {
             let secrets = config
                 .secrets
                 .as_ref()
