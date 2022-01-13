@@ -50,10 +50,12 @@ pub enum NifiAuthenticationMethod {
 #[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum NifiAuthenticationMethodConfig {
-    Nothing,
     SingleUser { username: String, password: String },
 }
 
+/// This is the main entrypoint into this module and should be called from the operator to
+/// generate a fully qualified authentication enum variant which can be used to generate the actual
+/// config later on.
 pub async fn materialize_auth_config(
     client: &Client,
     reference: &AuthenticationConfig<NifiAuthenticationMethod>,
@@ -68,6 +70,8 @@ pub async fn materialize_auth_config(
     build_config(reference, &secret_data)
 }
 
+/// Takes a list of SecretReferences and retrieves the data stored in these secrets from Kubernetes
+/// Returns an Error containing a list of things that went wrong, or a list of Strings.
 pub async fn get_secret_data(
     client: &Client,
     secret_list: &BTreeMap<String, SecretReference>,
@@ -132,7 +136,6 @@ pub async fn get_secret_data(
 
 pub fn get_authorizer_xml(config: &NifiAuthenticationMethodConfig) -> String {
     match config {
-        NifiAuthenticationMethodConfig::Nothing => "".to_string(),
         NifiAuthenticationMethodConfig::SingleUser { username, password } => {
             format!("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>
      <loginIdentityProviders>
