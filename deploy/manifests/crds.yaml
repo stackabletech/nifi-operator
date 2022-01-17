@@ -25,48 +25,77 @@ spec:
           properties:
             spec:
               properties:
-                metricsPort:
-                  format: uint16
-                  minimum: 0.0
-                  nullable: true
-                  type: integer
-                nodes:
+                authenticationConfig:
+                  description: A reference to a Secret containing username/password for the initial admin user
                   properties:
-                    cliOverrides:
+                    allowAnonymousAccess:
+                      nullable: true
+                      type: boolean
+                    config:
                       additionalProperties:
                         type: string
                       nullable: true
                       type: object
-                    config:
+                    method:
+                      enum:
+                        - SingleUser
+                      type: string
+                    secrets:
+                      additionalProperties:
+                        description: SecretReference represents a Secret Reference. It has enough information to retrieve secret in any namespace
+                        properties:
+                          name:
+                            description: Name is unique within a namespace to reference a secret resource.
+                            type: string
+                          namespace:
+                            description: Namespace defines the space within which the secret name must be unique.
+                            type: string
+                        type: object
                       nullable: true
+                      type: object
+                  required:
+                    - method
+                  type: object
+                nodes:
+                  description: Available NiFi roles
+                  nullable: true
+                  properties:
+                    cliOverrides:
+                      additionalProperties:
+                        type: string
+                      default: {}
+                      type: object
+                    config:
+                      default: {}
                       properties:
-                        httpPort:
-                          format: uint16
-                          minimum: 0.0
+                        log:
                           nullable: true
-                          type: integer
-                        loadBalancePort:
-                          format: uint16
-                          minimum: 0.0
+                          properties:
+                            rootLogLevel:
+                              enum:
+                                - DEBUG
+                                - INFO
+                                - WARN
+                                - ERROR
+                                - FATAL
+                              nullable: true
+                              type: string
+                          type: object
+                        sensitivePropertyKeySecret:
                           nullable: true
-                          type: integer
-                        protocolPort:
-                          format: uint16
-                          minimum: 0.0
-                          nullable: true
-                          type: integer
+                          type: string
                       type: object
                     configOverrides:
                       additionalProperties:
                         additionalProperties:
                           type: string
                         type: object
-                      nullable: true
+                      default: {}
                       type: object
                     envOverrides:
                       additionalProperties:
                         type: string
-                      nullable: true
+                      default: {}
                       type: object
                     roleGroups:
                       additionalProperties:
@@ -74,38 +103,39 @@ spec:
                           cliOverrides:
                             additionalProperties:
                               type: string
-                            nullable: true
+                            default: {}
                             type: object
                           config:
-                            nullable: true
+                            default: {}
                             properties:
-                              httpPort:
-                                format: uint16
-                                minimum: 0.0
+                              log:
                                 nullable: true
-                                type: integer
-                              loadBalancePort:
-                                format: uint16
-                                minimum: 0.0
+                                properties:
+                                  rootLogLevel:
+                                    enum:
+                                      - DEBUG
+                                      - INFO
+                                      - WARN
+                                      - ERROR
+                                      - FATAL
+                                    nullable: true
+                                    type: string
+                                type: object
+                              sensitivePropertyKeySecret:
                                 nullable: true
-                                type: integer
-                              protocolPort:
-                                format: uint16
-                                minimum: 0.0
-                                nullable: true
-                                type: integer
+                                type: string
                             type: object
                           configOverrides:
                             additionalProperties:
                               additionalProperties:
                                 type: string
                               type: object
-                            nullable: true
+                            default: {}
                             type: object
                           envOverrides:
                             additionalProperties:
                               type: string
-                            nullable: true
+                            default: {}
                             type: object
                           replicas:
                             format: uint16
@@ -148,12 +178,16 @@ spec:
                   required:
                     - roleGroups
                   type: object
+                stopped:
+                  description: "Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)"
+                  nullable: true
+                  type: boolean
                 version:
-                  enum:
-                    - 1.13.2
+                  description: The required NiFi image version
+                  nullable: true
                   type: string
                 zookeeperReference:
-                  description: Contains all necessary information identify a Stackable managed ZooKeeper ensemble and build a connection string for it. The main purpose for this struct is for other operators that need to reference a ZooKeeper ensemble to use in their CRDs. This has the benefit of keeping references to Zookeeper ensembles consistent throughout the entire stack.
+                  description: The reference to the ZooKeeper cluster
                   properties:
                     chroot:
                       nullable: true
@@ -167,75 +201,11 @@ spec:
                     - namespace
                   type: object
               required:
-                - nodes
-                - version
+                - authenticationConfig
                 - zookeeperReference
               type: object
             status:
               nullable: true
-              properties:
-                conditions:
-                  items:
-                    description: Condition contains details for one aspect of the current state of this API Resource.
-                    properties:
-                      lastTransitionTime:
-                        description: "lastTransitionTime is the last time the condition transitioned from one status to another. This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable."
-                        format: date-time
-                        type: string
-                      message:
-                        description: message is a human readable message indicating details about the transition. This may be an empty string.
-                        type: string
-                      observedGeneration:
-                        description: "observedGeneration represents the .metadata.generation that the condition was set based upon. For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date with respect to the current state of the instance."
-                        format: int64
-                        type: integer
-                      reason:
-                        description: "reason contains a programmatic identifier indicating the reason for the condition's last transition. Producers of specific condition types may define expected values and meanings for this field, and whether the values are considered a guaranteed API. The value should be a CamelCase string. This field may not be empty."
-                        type: string
-                      status:
-                        description: "status of the condition, one of True, False, Unknown."
-                        type: string
-                      type:
-                        description: type of condition in CamelCase or in foo.example.com/CamelCase.
-                        type: string
-                    required:
-                      - lastTransitionTime
-                      - message
-                      - reason
-                      - status
-                      - type
-                    type: object
-                  type: array
-                history:
-                  nullable: true
-                  properties:
-                    mapping:
-                      additionalProperties:
-                        properties:
-                          name:
-                            type: string
-                        required:
-                          - name
-                        type: object
-                      type: object
-                  required:
-                    - mapping
-                  type: object
-                version:
-                  description: The version of the product provided by the operator. Split into current and target version in order track upgrading and downgrading progress.
-                  nullable: true
-                  properties:
-                    current:
-                      enum:
-                        - 1.13.2
-                      nullable: true
-                      type: string
-                    target:
-                      enum:
-                        - 1.13.2
-                      nullable: true
-                      type: string
-                  type: object
               type: object
           required:
             - spec

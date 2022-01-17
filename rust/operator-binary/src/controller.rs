@@ -7,8 +7,8 @@ use crate::config::{
     NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML,
 };
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_nifi_crd::{authentication, NifiLogConfig};
 use stackable_nifi_crd::authentication::NifiAuthenticationMethodConfig;
+use stackable_nifi_crd::{authentication, NifiLogConfig};
 use stackable_nifi_crd::{
     NifiCluster, NifiRole, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME,
     PROTOCOL_PORT, PROTOCOL_PORT_NAME,
@@ -16,8 +16,9 @@ use stackable_nifi_crd::{
 use stackable_nifi_crd::{APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME};
 use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
-    CSIVolumeSource, EnvVar, EnvVarSource, Node, ObjectFieldSelector, Probe, SecretVolumeSource,
-    SecurityContext, TCPSocketAction,
+    Affinity, CSIVolumeSource, EnvVar, EnvVarSource, Node, ObjectFieldSelector,
+    PodAffinityTerm, PodAntiAffinity, PodSpec, Probe, SecretVolumeSource, SecurityContext,
+    TCPSocketAction,
 };
 use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use stackable_operator::kube::ResourceExt;
@@ -186,8 +187,6 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
     )
     .context(ProductConfigLoadFailed)?;
 
-
-
     let nifi_node_config = validated_config
         .get(&NifiRole::Node.to_string())
         .map(Cow::Borrowed)
@@ -246,6 +245,7 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
             .with_context(|| ApplyRoleGroupConfig {
                 rolegroup: rolegroup.clone(),
             })?;
+
         client
             .apply_patch(FIELD_MANAGER_SCOPE, &rg_statefulset, &rg_statefulset)
             .await
@@ -300,14 +300,15 @@ fn get_log_config(nifi: &NifiCluster, rolegroup: &RoleGroupRef<NifiCluster>) -> 
         Some(role_group) => {
             let config = &role_group.config;
             config.config.clone().log.unwrap_or_default()
-        },
-        None => NifiLogConfig::default()
+        }
+        None => NifiLogConfig::default(),
     }
 }
 
-fn build_node_rolegroup_log_config_map( nifi: &NifiCluster, rolegroup: &RoleGroupRef<NifiCluster>) -> Result<ConfigMap> {
-
-
+fn build_node_rolegroup_log_config_map(
+    nifi: &NifiCluster,
+    rolegroup: &RoleGroupRef<NifiCluster>,
+) -> Result<ConfigMap> {
     ConfigMapBuilder::new()
         .metadata(
             ObjectMetaBuilder::new()
@@ -324,7 +325,10 @@ fn build_node_rolegroup_log_config_map( nifi: &NifiCluster, rolegroup: &RoleGrou
                 )
                 .build(),
         )
-        .add_data("logback.xml", build_logback_xml(&get_log_config(nifi, rolegroup)))
+        .add_data(
+            "logback.xml",
+            build_logback_xml(&get_log_config(nifi, rolegroup)),
+        )
         .build()
         .with_context(|| BuildRoleGroupConfig {
             rolegroup: rolegroup.clone(),
@@ -379,7 +383,7 @@ fn build_node_rolegroup_config_map(
                         kind: NIFI_PROPERTIES.to_string(),
                     })?
                     .clone(),
-                authorizer_config
+                authorizer_config,
             ),
         )
         .add_data(
@@ -527,6 +531,8 @@ fn build_node_rolegroup_statefulset(
             "microdnf install openssl",
             "echo Storing password",
             "echo secret > /stackable/keystore/password",
+            "echo Cleaning up truststore - just in case",
+            "rm -f /stackable/keystore/truststore.p12",
             "echo Creating truststore",
             "keytool -importcert -file /stackable/keystore/ca.crt -keystore /stackable/keystore/truststore.p12 -storetype pkcs12 -noprompt -alias ca_cert -storepass secret",
             "echo Creating certificate chain",
@@ -577,6 +583,7 @@ fn build_node_rolegroup_statefulset(
                 "echo Replacing config directory",
                 "rm -rf /stackable/nifi/conf/*",
                 "cp /conf/* /stackable/nifi/conf",
+                "ln -s /stackable/logconfig/logback.xml /stackable/nifi/conf/logback.xml",
                 "echo Replacing nifi.cluster.node.address in nifi.properties",
                 &format!("sed -i \"s/nifi.cluster.node.address=/nifi.cluster.node.address={}/g\" /stackable/nifi/conf/nifi.properties", node_address),
                 "echo Replacing nifi.web.https.host in nifi.properties",
@@ -613,6 +620,7 @@ fn build_node_rolegroup_statefulset(
         .add_container_port(PROTOCOL_PORT_NAME, PROTOCOL_PORT.into())
         .add_container_port(BALANCE_PORT_NAME, BALANCE_PORT.into())
         .add_container_port(METRICS_PORT_NAME, METRICS_PORT.into())
+
         .build();
 
     container_nifi.liveness_probe = Some(Probe {
@@ -635,6 +643,88 @@ fn build_node_rolegroup_statefulset(
         ..Probe::default()
     });
 
+    let mut pod_template = PodBuilder::new()
+        .metadata_builder(|m| {
+            m.with_recommended_labels(
+                nifi,
+                APP_NAME,
+                nifi_version,
+                &rolegroup_ref.role,
+                &rolegroup_ref.role_group,
+            )
+        })
+        .add_init_container(container_prepare)
+        .add_container(container_nifi)
+        // One volume for the NiFi configuration. A script will later on edit (e.g. nodename)
+        // and copy the whole content to the <NIFI_HOME>/conf folder.
+        .add_volume(Volume {
+            name: "conf".to_string(),
+            config_map: Some(ConfigMapVolumeSource {
+                name: Some(rolegroup_ref.object_name()),
+                ..ConfigMapVolumeSource::default()
+            }),
+            ..Volume::default()
+        })
+        // The logback config is stored in a separate configmap, because this can be updated
+        // on the fly without restarting NiFi
+        // since the rest of the config is copied to a folder inside the container this would
+        // not work for the log config, so this gets mounted from a separate configmap that can
+        // be updated by the Kubelet
+        .add_volume(Volume {
+            name: "logconf".to_string(),
+            config_map: Some(ConfigMapVolumeSource {
+                name: Some(rolegroup_ref.object_name() + "-log"),
+                ..ConfigMapVolumeSource::default()
+            }),
+            ..Volume::default()
+        })
+        // One volume for the keystore and truststore data configmap
+        .add_volume(Volume {
+            name: "keystore".to_string(),
+            csi: Some(CSIVolumeSource {
+                driver: "secrets.stackable.tech".to_string(),
+                volume_attributes: Some(get_stackable_secret_volume_attributes()),
+                ..CSIVolumeSource::default()
+            }),
+            ..Volume::default()
+        })
+        .add_volume(Volume {
+            name: "sensitiveproperty".to_string(),
+            secret: Some(SecretVolumeSource {
+                secret_name: Some(key),
+                ..SecretVolumeSource::default()
+            }),
+            ..Volume::default()
+        })
+        .build_template();
+
+    let mut labels = BTreeMap::new();
+    labels.insert(
+        "app.kubernetes.io/instance".to_string(),
+        "simple-nifiytest".to_string(),
+    );
+
+    let test = PodAntiAffinity {
+        required_during_scheduling_ignored_during_execution: Some(vec![PodAffinityTerm {
+            label_selector: Some(LabelSelector {
+                match_expressions: None,
+                match_labels: Some(labels),
+            }),
+            topology_key: "kubernetes.io/hostname".to_string(),
+            ..PodAffinityTerm::default()
+        }]),
+        ..PodAntiAffinity::default()
+    };
+
+    let affinity = Affinity {
+        pod_anti_affinity: Some(test),
+        ..Affinity::default()
+    };
+
+    pod_template
+        .spec
+        .get_or_insert_with(|| PodSpec::default())
+        .affinity = Some(affinity);
 
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
@@ -667,77 +757,24 @@ fn build_node_rolegroup_statefulset(
                 ..LabelSelector::default()
             },
             service_name: rolegroup_ref.object_name(),
-            template: PodBuilder::new()
-                .metadata_builder(|m| {
-                    m.with_recommended_labels(
-                        nifi,
-                        APP_NAME,
-                        nifi_version,
-                        &rolegroup_ref.role,
-                        &rolegroup_ref.role_group,
-                    )
-                })
-                .add_init_container(container_prepare)
-                .add_container(container_nifi)
-                // One volume for the NiFi configuration. A script will later on edit (e.g. nodename)
-                // and copy the whole content to the <NIFI_HOME>/conf folder.
-                .add_volume(Volume {
-                    name: "conf".to_string(),
-                    config_map: Some(ConfigMapVolumeSource {
-                        name: Some(rolegroup_ref.object_name()),
-                        ..ConfigMapVolumeSource::default()
-                    }),
-                    ..Volume::default()
-                })
-                // The logback config is stored in a separate configmap, because this can be updated
-                // on the fly without restarting NiFi
-                // since the rest of the config is copied to a folder inside the container this would
-                // not work for the log config, so this gets mounted from a separate configmap that can
-                // be updated by the Kubelet
-                .add_volume(Volume {
-                    name: "logconf".to_string(),
-                    config_map: Some(ConfigMapVolumeSource {
-                        name: Some(rolegroup_ref.object_name()+"-log"),
-                        ..ConfigMapVolumeSource::default()
-                    }),
-                    ..Volume::default()
-                })
-                // One volume for the keystore and truststore data configmap
-                .add_volume(Volume {
-                    name: "keystore".to_string(),
-                    csi: Some(CSIVolumeSource {
-                        driver: "secrets.stackable.tech".to_string(),
-                        volume_attributes: Some(get_stackable_secret_volume_attributes()),
-                        ..CSIVolumeSource::default()
-                    }),
-                    ..Volume::default()
-                })
-                .add_volume(Volume {
-                    name: "sensitiveproperty".to_string(),
-                    secret: Some(SecretVolumeSource {
-                        secret_name: Some(key),
-                        ..SecretVolumeSource::default()
-                    }),
-                    ..Volume::default()
-                })
-                .build_template(),
+            template: pod_template,
             volume_claim_templates: Some(vec![
+                /*build_persistent_volume_claim_rwo_storage(
+                    &NifiRepository::Content.repository(),
+                    "2Gi",
+                ),*/
+                build_persistent_volume_claim_rwo_storage(
+                    &NifiRepository::Database.repository(),
+                    "2Gi",
+                ),/*
                 build_persistent_volume_claim_rwo_storage(
                     &NifiRepository::Flowfile.repository(),
                     "2Gi",
                 ),
                 build_persistent_volume_claim_rwo_storage(
-                    &NifiRepository::Database.repository(),
-                    "2Gi",
-                ),
-                build_persistent_volume_claim_rwo_storage(
-                    &NifiRepository::Content.repository(),
-                    "2Gi",
-                ),
-                build_persistent_volume_claim_rwo_storage(
                     &NifiRepository::Provenance.repository(),
                     "2Gi",
-                ),
+                ),*/
             ]),
             ..StatefulSetSpec::default()
         }),
@@ -748,8 +785,8 @@ fn build_node_rolegroup_statefulset(
 fn get_stackable_secret_volume_attributes() -> BTreeMap<String, String> {
     let mut result = BTreeMap::new();
     result.insert(
-        "secrets.stackable.tech/type".to_string(),
-        "secret".to_string(),
+        "secrets.stackable.tech/class".to_string(),
+        "tls".to_string(),
     );
     result.insert(
         "secrets.stackable.tech/scope".to_string(),

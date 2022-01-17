@@ -22,7 +22,7 @@ properties:
           value: "8080"
       roles:
         - name: "node"
-          required: true
+          required: false
       asOfVersion: "0.0.0"
       description: "Start the NiFi node web ui on a different port (default: 8080)"
 
@@ -41,7 +41,7 @@ properties:
         - value: "9088"
       roles:
         - name: "node"
-          required: true
+          required: false
       asOfVersion: "0.0.0"
       description: "Node protocol port. Only set in cluster mode (Stackable default: 9088)."
 
@@ -61,7 +61,7 @@ properties:
           value: "6342"
       roles:
         - name: "node"
-          required: true
+          required: false
       asOfVersion: "0.0.0"
       description: "Load balancing port. Only set in cluster mode (default: 6342)."
 
