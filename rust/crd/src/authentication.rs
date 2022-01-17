@@ -154,7 +154,9 @@ pub async fn get_secret_data(
 
 pub fn get_authorizer_xml(config: &NifiAuthenticationMethodConfig) -> String {
     match config {
-        NifiAuthenticationMethodConfig::SingleUser { username, password, .. } => {
+        NifiAuthenticationMethodConfig::SingleUser {
+            username, password, ..
+        } => {
             format!("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>
      <loginIdentityProviders>
         <provider>

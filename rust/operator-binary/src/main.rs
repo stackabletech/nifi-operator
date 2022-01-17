@@ -2,8 +2,8 @@ mod config;
 mod controller;
 mod monitoring;
 
-use futures::stream::StreamExt;
 use clap::Parser;
+use futures::stream::StreamExt;
 use stackable_nifi_crd::NifiCluster;
 use stackable_operator::cli::Command;
 use stackable_operator::{
@@ -51,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
         Command::Crd => println!("{}", serde_yaml::to_string(&NifiCluster::crd())?,),
-        Command::Run (operator_run) => {
+        Command::Run(operator_run) => {
             stackable_operator::utils::print_startup_string(
                 built_info::PKG_DESCRIPTION,
                 built_info::PKG_VERSION,

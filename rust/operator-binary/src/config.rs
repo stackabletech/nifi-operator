@@ -1,5 +1,8 @@
 use snafu::{ResultExt, Snafu};
-use stackable_nifi_crd::{NifiCluster, NifiConfig, NifiRole, NifiSpec, HTTPS_PORT, PROTOCOL_PORT, LogLevel, NifiLogConfig};
+use stackable_nifi_crd::authentication::NifiAuthenticationMethodConfig;
+use stackable_nifi_crd::{
+    LogLevel, NifiCluster, NifiConfig, NifiLogConfig, NifiRole, NifiSpec, HTTPS_PORT, PROTOCOL_PORT,
+};
 use stackable_operator::product_config::types::PropertyNameKind;
 use stackable_operator::product_config::ProductConfigManager;
 use stackable_operator::product_config_utils::{
@@ -10,7 +13,6 @@ use stackable_operator::role_utils::Role;
 use std::collections::{BTreeMap, HashMap};
 use strum_macros::Display;
 use strum_macros::EnumIter;
-use stackable_nifi_crd::authentication::NifiAuthenticationMethodConfig;
 
 pub const NIFI_BOOTSTRAP_CONF: &str = "bootstrap.conf";
 pub const NIFI_PROPERTIES: &str = "nifi.properties";
@@ -183,7 +185,8 @@ pub fn build_nifi_properties(
     properties.insert(
         "nifi.login.identity.provider.configuration.file".to_string(),
         "./conf/login-identity-pro\
-        viders.xml".to_string(),
+        viders.xml"
+            .to_string(),
     );
     properties.insert(
         "nifi.templates.directory".to_string(),
@@ -477,7 +480,7 @@ pub fn build_nifi_properties(
     );
     properties.insert(
         "nifi.security.allow.anonymous.authentication".to_string(),
-        authorizer_config.allow_anonymous().to_string()
+        authorizer_config.allow_anonymous().to_string(),
     );
     properties.insert(
         "nifi.cluster.protocol.is.secure".to_string(),
@@ -522,7 +525,8 @@ pub fn build_nifi_properties(
 
 pub fn build_logback_xml(log_config: &NifiLogConfig) -> String {
     let root_log_level = log_config.root_log_level.clone().unwrap_or(LogLevel::INFO);
-    include_str!("../resources/logback.xml").replace("STACKABLEROOTLEVEL", &root_log_level.to_string()).to_string()
+    include_str!("../resources/logback.xml")
+        .replace("STACKABLEROOTLEVEL", &root_log_level.to_string())
 }
 
 pub fn build_authorizers_xml() -> String {

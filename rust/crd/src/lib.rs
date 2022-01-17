@@ -88,7 +88,7 @@ pub enum NifiRole {
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, Serialize)]
 pub struct NifiStatus {}
 
-#[derive(Clone, Debug, Default, Deserialize, JsonSchema,PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiConfig {
     pub sensitive_property_key_secret: Option<String>,
@@ -145,9 +145,8 @@ pub enum LogLevel {
     INFO,
     WARN,
     ERROR,
-    FATAL
+    FATAL,
 }
-
 
 #[derive(Debug, Snafu)]
 #[snafu(display("object has no namespace associated"))]

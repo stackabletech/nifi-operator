@@ -16,9 +16,8 @@ use stackable_nifi_crd::{
 use stackable_nifi_crd::{APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME};
 use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
-    Affinity, CSIVolumeSource, EnvVar, EnvVarSource, Node, ObjectFieldSelector,
-    PodAffinityTerm, PodAntiAffinity, PodSpec, Probe, SecretVolumeSource, SecurityContext,
-    TCPSocketAction,
+    Affinity, CSIVolumeSource, EnvVar, EnvVarSource, Node, ObjectFieldSelector, PodAffinityTerm,
+    PodAntiAffinity, PodSpec, Probe, SecretVolumeSource, SecurityContext, TCPSocketAction,
 };
 use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use stackable_operator::kube::ResourceExt;
@@ -723,7 +722,7 @@ fn build_node_rolegroup_statefulset(
 
     pod_template
         .spec
-        .get_or_insert_with(|| PodSpec::default())
+        .get_or_insert_with(PodSpec::default)
         .affinity = Some(affinity);
 
     Ok(StatefulSet {
@@ -766,15 +765,15 @@ fn build_node_rolegroup_statefulset(
                 build_persistent_volume_claim_rwo_storage(
                     &NifiRepository::Database.repository(),
                     "2Gi",
-                ),/*
-                build_persistent_volume_claim_rwo_storage(
-                    &NifiRepository::Flowfile.repository(),
-                    "2Gi",
-                ),
-                build_persistent_volume_claim_rwo_storage(
-                    &NifiRepository::Provenance.repository(),
-                    "2Gi",
-                ),*/
+                ), /*
+                   build_persistent_volume_claim_rwo_storage(
+                       &NifiRepository::Flowfile.repository(),
+                       "2Gi",
+                   ),
+                   build_persistent_volume_claim_rwo_storage(
+                       &NifiRepository::Provenance.repository(),
+                       "2Gi",
+                   ),*/
             ]),
             ..StatefulSetSpec::default()
         }),
