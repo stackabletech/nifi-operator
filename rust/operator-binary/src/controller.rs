@@ -2,12 +2,12 @@
 
 use crate::config;
 use crate::config::{
-    build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
-    validated_product_config, NifiRepository, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES,
-    NIFI_STATE_MANAGEMENT_XML,
+    build_authorizers_xml, build_bootstrap_conf, build_logback_xml, build_nifi_properties,
+    build_state_management_xml, validated_product_config, NifiRepository, NIFI_BOOTSTRAP_CONF,
+    NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML,
 };
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_nifi_crd::authentication;
+use stackable_nifi_crd::{authentication, NifiLogConfig};
 use stackable_nifi_crd::authentication::NifiAuthenticationMethodConfig;
 use stackable_nifi_crd::{
     NifiCluster, NifiRole, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME,
@@ -16,9 +16,10 @@ use stackable_nifi_crd::{
 use stackable_nifi_crd::{APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME};
 use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
-    CSIVolumeSource, EnvVar, EnvVarSource, Node, ObjectFieldSelector, SecretVolumeSource,
-    SecurityContext,
+    CSIVolumeSource, EnvVar, EnvVarSource, Node, ObjectFieldSelector, Probe, SecretVolumeSource,
+    SecurityContext, TCPSocketAction,
 };
+use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::role_utils::RoleGroupRef;
 use stackable_operator::{
@@ -172,11 +173,10 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
         })?;
 
     // read authentication
-    let auth_config = authentication::materialize_auth_config(client, &nifi.spec.authentication_config)
-        .await
-        .with_context(|| MaterializeError {})?;
-
-    println!("auth config: [{:?}]", auth_config);
+    let auth_config =
+        authentication::materialize_auth_config(client, &nifi.spec.authentication_config)
+            .await
+            .with_context(|| MaterializeError {})?;
 
     let validated_config = validated_product_config(
         &nifi,
@@ -185,6 +185,8 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
         &ctx.get_ref().product_config,
     )
     .context(ProductConfigLoadFailed)?;
+
+
 
     let nifi_node_config = validated_config
         .get(&NifiRole::Node.to_string())
@@ -222,6 +224,8 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
             &auth_config,
         )?;
 
+        let rg_log_configmap = build_node_rolegroup_log_config_map(&nifi, &rolegroup)?;
+
         let rg_statefulset = build_node_rolegroup_statefulset(&nifi, &rolegroup, rolegroup_config)?;
 
         client
@@ -232,6 +236,12 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
             })?;
         client
             .apply_patch(FIELD_MANAGER_SCOPE, &rg_configmap, &rg_configmap)
+            .await
+            .with_context(|| ApplyRoleGroupConfig {
+                rolegroup: rolegroup.clone(),
+            })?;
+        client
+            .apply_patch(FIELD_MANAGER_SCOPE, &rg_log_configmap, &rg_log_configmap)
             .await
             .with_context(|| ApplyRoleGroupConfig {
                 rolegroup: rolegroup.clone(),
@@ -279,6 +289,46 @@ pub fn build_node_role_service(nifi: &NifiCluster) -> Result<Service> {
         }),
         status: None,
     })
+}
+
+fn get_log_config(nifi: &NifiCluster, rolegroup: &RoleGroupRef<NifiCluster>) -> NifiLogConfig {
+    let nodes = &nifi.spec.nodes.clone();
+    let role_groups = &nodes.clone().unwrap().role_groups;
+
+    //let role_log_config = test.config.config.log.clone().unwrap_or_default();
+    match role_groups.get(&rolegroup.role_group.to_string()) {
+        Some(role_group) => {
+            let config = &role_group.config;
+            config.config.clone().log.unwrap_or_default()
+        },
+        None => NifiLogConfig::default()
+    }
+}
+
+fn build_node_rolegroup_log_config_map( nifi: &NifiCluster, rolegroup: &RoleGroupRef<NifiCluster>) -> Result<ConfigMap> {
+
+
+    ConfigMapBuilder::new()
+        .metadata(
+            ObjectMetaBuilder::new()
+                .name_and_namespace(nifi)
+                .name(rolegroup.object_name() + "-log")
+                .ownerreference_from_resource(nifi, None, Some(true))
+                .context(ObjectMissingMetadataForOwnerRef)?
+                .with_recommended_labels(
+                    nifi,
+                    APP_NAME,
+                    nifi_version(nifi)?,
+                    &rolegroup.role,
+                    &rolegroup.role_group,
+                )
+                .build(),
+        )
+        .add_data("logback.xml", build_logback_xml(&get_log_config(nifi, rolegroup)))
+        .build()
+        .with_context(|| BuildRoleGroupConfig {
+            rolegroup: rolegroup.clone(),
+        })
 }
 
 /// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the administrator
@@ -329,6 +379,7 @@ fn build_node_rolegroup_config_map(
                         kind: NIFI_PROPERTIES.to_string(),
                     })?
                     .clone(),
+                authorizer_config
             ),
         )
         .add_data(
@@ -339,6 +390,7 @@ fn build_node_rolegroup_config_map(
             "login-identity-providers.xml",
             stackable_nifi_crd::authentication::get_authorizer_xml(authorizer_config),
         )
+        .add_data("authorizers.xml", build_authorizers_xml())
         .build()
         .with_context(|| BuildRoleGroupConfig {
             rolegroup: rolegroup.clone(),
@@ -517,12 +569,14 @@ fn build_node_rolegroup_statefulset(
         .get_or_insert_with(SecurityContext::default)
         .run_as_user = Some(0);
 
-    let container_nifi = container_builder
+    let mut container_nifi = container_builder
         .image(image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
         .args(vec![
             [
-                "/stackable/bin/copy_assets /conf",
+                "echo Replacing config directory",
+                "rm -rf /stackable/nifi/conf/*",
+                "cp /conf/* /stackable/nifi/conf",
                 "echo Replacing nifi.cluster.node.address in nifi.properties",
                 &format!("sed -i \"s/nifi.cluster.node.address=/nifi.cluster.node.address={}/g\" /stackable/nifi/conf/nifi.properties", node_address),
                 "echo Replacing nifi.web.https.host in nifi.properties",
@@ -534,6 +588,7 @@ fn build_node_rolegroup_statefulset(
             .join(" && "),
         ])
         .add_env_vars(env_vars)
+        .add_env_var("BOOTSTRAP_JAVA_OPTS", "-Dlogback.configurationFile=/stackable/logconfig/logback.xml")
         .add_volume_mount("conf", "conf")
         .add_volume_mount("keystore", "/stackable/keystore")
         .add_volume_mount(
@@ -553,11 +608,33 @@ fn build_node_rolegroup_statefulset(
             &NifiRepository::Provenance.mount_path(),
         )
         .add_volume_mount("sensitiveproperty", "/stackable/sensitiveproperty")
+        .add_volume_mount("logconf", "/stackable/logconfig")
         .add_container_port(HTTPS_PORT_NAME, HTTPS_PORT.into())
         .add_container_port(PROTOCOL_PORT_NAME, PROTOCOL_PORT.into())
         .add_container_port(BALANCE_PORT_NAME, BALANCE_PORT.into())
         .add_container_port(METRICS_PORT_NAME, METRICS_PORT.into())
         .build();
+
+    container_nifi.liveness_probe = Some(Probe {
+        initial_delay_seconds: Some(10),
+        period_seconds: Some(10),
+        tcp_socket: Some(TCPSocketAction {
+            port: IntOrString::String(HTTPS_PORT_NAME.to_string()),
+            ..TCPSocketAction::default()
+        }),
+        ..Probe::default()
+    });
+    container_nifi.startup_probe = Some(Probe {
+        initial_delay_seconds: Some(10),
+        period_seconds: Some(10),
+        failure_threshold: Some(20 * 6),
+        tcp_socket: Some(TCPSocketAction {
+            port: IntOrString::String(HTTPS_PORT_NAME.to_string()),
+            ..TCPSocketAction::default()
+        }),
+        ..Probe::default()
+    });
+
 
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
@@ -608,6 +685,19 @@ fn build_node_rolegroup_statefulset(
                     name: "conf".to_string(),
                     config_map: Some(ConfigMapVolumeSource {
                         name: Some(rolegroup_ref.object_name()),
+                        ..ConfigMapVolumeSource::default()
+                    }),
+                    ..Volume::default()
+                })
+                // The logback config is stored in a separate configmap, because this can be updated
+                // on the fly without restarting NiFi
+                // since the rest of the config is copied to a folder inside the container this would
+                // not work for the log config, so this gets mounted from a separate configmap that can
+                // be updated by the Kubelet
+                .add_volume(Volume {
+                    name: "logconf".to_string(),
+                    config_map: Some(ConfigMapVolumeSource {
+                        name: Some(rolegroup_ref.object_name()+"-log"),
                         ..ConfigMapVolumeSource::default()
                     }),
                     ..Volume::default()

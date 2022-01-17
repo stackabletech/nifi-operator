@@ -88,10 +88,11 @@ pub enum NifiRole {
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, Serialize)]
 pub struct NifiStatus {}
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema,PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiConfig {
     pub sensitive_property_key_secret: Option<String>,
+    pub log: Option<NifiLogConfig>,
 }
 
 impl NifiConfig {
@@ -131,6 +132,22 @@ impl Configuration for NifiConfig {
         Ok(BTreeMap::new())
     }
 }
+
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NifiLogConfig {
+    pub root_log_level: Option<LogLevel>,
+}
+
+#[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+pub enum LogLevel {
+    DEBUG,
+    INFO,
+    WARN,
+    ERROR,
+    FATAL
+}
+
 
 #[derive(Debug, Snafu)]
 #[snafu(display("object has no namespace associated"))]

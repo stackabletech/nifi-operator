@@ -1,13 +1,13 @@
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
 metadata:
-  name: simple-nifi2
+  name: simple-nifiytest
 spec:
   version: "1.15.0"
   zookeeperReference:
     name: simple-zk
     namespace: default
-    chroot: /nifi
+    chroot: /nifiytest
   authenticationConfig:
     method: SingleUser
     secrets:
@@ -22,5 +22,7 @@ spec:
             kubernetes.io/os: linux
         config:
           sensitivePropertyKeySecret: nifi-sensitive-property-key
-        replicas: 2
+          log:
+            rootLogLevel: INFO
+        replicas: 4
 

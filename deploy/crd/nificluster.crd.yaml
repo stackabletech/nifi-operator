@@ -25,6 +25,9 @@ spec:
                 authenticationConfig:
                   description: A reference to a Secret containing username/password for the initial admin user
                   properties:
+                    allowAnonymousAccess:
+                      nullable: true
+                      type: boolean
                     config:
                       additionalProperties:
                         type: string
@@ -62,6 +65,19 @@ spec:
                     config:
                       default: {}
                       properties:
+                        log:
+                          nullable: true
+                          properties:
+                            rootLogLevel:
+                              enum:
+                                - DEBUG
+                                - INFO
+                                - WARN
+                                - ERROR
+                                - FATAL
+                              nullable: true
+                              type: string
+                          type: object
                         sensitivePropertyKeySecret:
                           nullable: true
                           type: string
@@ -89,6 +105,19 @@ spec:
                           config:
                             default: {}
                             properties:
+                              log:
+                                nullable: true
+                                properties:
+                                  rootLogLevel:
+                                    enum:
+                                      - DEBUG
+                                      - INFO
+                                      - WARN
+                                      - ERROR
+                                      - FATAL
+                                    nullable: true
+                                    type: string
+                                type: object
                               sensitivePropertyKeySecret:
                                 nullable: true
                                 type: string

@@ -3,9 +3,9 @@ mod controller;
 mod monitoring;
 
 use futures::stream::StreamExt;
+use clap::Parser;
 use stackable_nifi_crd::NifiCluster;
 use stackable_operator::cli::Command;
-use stackable_operator::k8s_openapi::api::core::v1::Endpoints;
 use stackable_operator::{
     k8s_openapi::api::{
         apps::v1::StatefulSet,
@@ -21,16 +21,15 @@ use stackable_operator::{
         CustomResourceExt, Resource,
     },
 };
-use structopt::StructOpt;
 
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
 
-#[derive(StructOpt)]
-#[structopt(about = built_info::PKG_DESCRIPTION, author = "Stackable GmbH - info@stackable.de")]
+#[derive(Parser)]
+#[clap(about = built_info::PKG_DESCRIPTION, author = "Stackable GmbH - info@stackable.de")]
 struct Opts {
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     cmd: Command,
 }
 
@@ -49,10 +48,10 @@ fn erase_controller_result_type<K: Resource, E: std::error::Error + Send + Sync 
 async fn main() -> anyhow::Result<()> {
     stackable_operator::logging::initialize_logging("NIFI_OPERATOR_LOG");
 
-    let opts = Opts::from_args();
+    let opts = Opts::parse();
     match opts.cmd {
         Command::Crd => println!("{}", serde_yaml::to_string(&NifiCluster::crd())?,),
-        Command::Run { product_config } => {
+        Command::Run (operator_run) => {
             stackable_operator::utils::print_startup_string(
                 built_info::PKG_DESCRIPTION,
                 built_info::PKG_VERSION,
@@ -62,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
                 built_info::RUSTC_VERSION,
             );
 
-            let product_config = product_config.load(&[
+            let product_config = operator_run.product_config.load(&[
                 "deploy/config-spec/properties.yaml",
                 "/etc/stackable/nifi-operator/config-spec/properties.yaml",
             ])?;
@@ -73,28 +72,12 @@ async fn main() -> anyhow::Result<()> {
 
             let nifi_controller_builder =
                 Controller::new(client.get_all_api::<NifiCluster>(), ListParams::default());
-            let nifi_store = nifi_controller_builder.store();
 
             let nifi_controller = nifi_controller_builder
                 .owns(client.get_all_api::<Service>(), ListParams::default())
                 .owns(client.get_all_api::<StatefulSet>(), ListParams::default())
                 .owns(client.get_all_api::<ConfigMap>(), ListParams::default())
                 .shutdown_on_signal()
-                .watches(
-                    client.get_all_api::<Endpoints>(),
-                    ListParams::default(),
-                    move |endpoints| {
-                        nifi_store
-                            .state()
-                            .into_iter()
-                            .filter(move |nc| {
-                                let _ = &endpoints; // capture endpoints to prevent it from being dropped (2021 warning)
-                                nc.metadata.namespace == endpoints.metadata.namespace
-                                    && nc.node_role_service_name() == endpoints.metadata.name
-                            })
-                            .map(|nc| ObjectRef::from_obj(&nc))
-                    },
-                )
                 .run(
                     controller::reconcile_nifi,
                     controller::error_policy,

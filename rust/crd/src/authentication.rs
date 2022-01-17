@@ -39,6 +39,8 @@ pub struct AuthenticationConfig<T> {
     pub method: T,
     pub config: Option<BTreeMap<String, String>>,
     pub secrets: Option<BTreeMap<String, SecretReference>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allow_anonymous_access: Option<bool>,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize, strum::Display)]
@@ -50,7 +52,23 @@ pub enum NifiAuthenticationMethod {
 #[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum NifiAuthenticationMethodConfig {
-    SingleUser { username: String, password: String },
+    SingleUser {
+        username: String,
+        password: String,
+        allow_anonymous_access: bool,
+    },
+}
+
+impl NifiAuthenticationMethodConfig {
+    pub fn allow_anonymous(&self) -> &bool {
+        match self {
+            NifiAuthenticationMethodConfig::SingleUser {
+                username: _username,
+                password: _password,
+                allow_anonymous_access,
+            } => allow_anonymous_access,
+        }
+    }
 }
 
 /// This is the main entrypoint into this module and should be called from the operator to
@@ -136,7 +154,7 @@ pub async fn get_secret_data(
 
 pub fn get_authorizer_xml(config: &NifiAuthenticationMethodConfig) -> String {
     match config {
-        NifiAuthenticationMethodConfig::SingleUser { username, password } => {
+        NifiAuthenticationMethodConfig::SingleUser { username, password, .. } => {
             format!("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>
      <loginIdentityProviders>
         <provider>
@@ -177,7 +195,11 @@ fn build_config(
                 })?
                 .to_owned();
 
-            Ok(NifiAuthenticationMethodConfig::SingleUser { username, password })
+            Ok(NifiAuthenticationMethodConfig::SingleUser {
+                username,
+                password,
+                allow_anonymous_access: reference.allow_anonymous_access.unwrap_or(false),
+            })
         }
     }
 }
@@ -190,7 +212,7 @@ mod tests {
         AuthenticationConfig {
             method: NifiAuthenticationMethod::SingleUser,
             config: None,
-            secrets: None
+            secrets: None,
         }
     }
 
@@ -199,12 +221,8 @@ mod tests {
         let mut secret_data: BTreeMap<String, BTreeMap<String, String>> = BTreeMap::new();
         let mut admin_credential_data: BTreeMap<String, String> = BTreeMap::new();
 
-        admin_credential_data.insert(
-            "password".to_string(),
-            "test".to_string(),
-        );
+        admin_credential_data.insert("password".to_string(), "test".to_string());
         secret_data.insert("admincredentials".to_string(), admin_credential_data);
-
 
         let result = build_config(&get_default_config(), &secret_data);
 
@@ -216,12 +234,8 @@ mod tests {
         let mut secret_data: BTreeMap<String, BTreeMap<String, String>> = BTreeMap::new();
         let mut admin_credential_data: BTreeMap<String, String> = BTreeMap::new();
 
-        admin_credential_data.insert(
-            "username".to_string(),
-            "test".to_string(),
-        );
+        admin_credential_data.insert("username".to_string(), "test".to_string());
         secret_data.insert("admincredentials".to_string(), admin_credential_data);
-
 
         let result = build_config(&get_default_config(), &secret_data);
 
@@ -233,16 +247,9 @@ mod tests {
         let mut secret_data: BTreeMap<String, BTreeMap<String, String>> = BTreeMap::new();
         let mut admin_credential_data: BTreeMap<String, String> = BTreeMap::new();
 
-        admin_credential_data.insert(
-            "username".to_string(),
-            "test".to_string(),
-        );
-        admin_credential_data.insert(
-            "password".to_string(),
-            "testpassword".to_string(),
-        );
+        admin_credential_data.insert("username".to_string(), "test".to_string());
+        admin_credential_data.insert("password".to_string(), "testpassword".to_string());
         secret_data.insert("admincredentials".to_string(), admin_credential_data);
-
 
         let result = build_config(&get_default_config(), &secret_data).unwrap();
 
@@ -262,17 +269,12 @@ mod tests {
         let mut secret_data: BTreeMap<String, BTreeMap<String, String>> = BTreeMap::new();
         let mut admin_credential_data: BTreeMap<String, String> = BTreeMap::new();
 
-        admin_credential_data.insert(
-            "username".to_string(),
-            "test".to_string(),
-        );
-        admin_credential_data.insert(
-            "password".to_string(),
-            "testpassword".to_string(),
-        );
+        admin_credential_data.insert("username".to_string(), "test".to_string());
+        admin_credential_data.insert("password".to_string(), "testpassword".to_string());
         admin_credential_data.insert(
             "unneeded_extra_value".to_string(),
-            "testpassword".to_string());
+            "testpassword".to_string(),
+        );
 
         secret_data.insert("admincredentials".to_string(), admin_credential_data);
 

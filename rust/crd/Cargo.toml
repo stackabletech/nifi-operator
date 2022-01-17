@@ -12,7 +12,7 @@ xml-rs = "0.8"
 serde = "1.0"
 serde_json = "1.0"
 snafu = "0.6"
-stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.7.0" }
+stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.8.0" }
 strum = { version = "0.22", features = ["derive"] }
 strum_macros = "0.23"
 
