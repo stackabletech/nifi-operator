@@ -762,22 +762,22 @@ fn build_node_rolegroup_statefulset(
             service_name: rolegroup_ref.object_name(),
             template: pod_template,
             volume_claim_templates: Some(vec![
-                /*build_persistent_volume_claim_rwo_storage(
+                build_persistent_volume_claim_rwo_storage(
                     &NifiRepository::Content.repository(),
                     "2Gi",
-                ),*/
+                ),
                 build_persistent_volume_claim_rwo_storage(
                     &NifiRepository::Database.repository(),
                     "2Gi",
-                ), /*
-                   build_persistent_volume_claim_rwo_storage(
-                       &NifiRepository::Flowfile.repository(),
-                       "2Gi",
-                   ),
-                   build_persistent_volume_claim_rwo_storage(
-                       &NifiRepository::Provenance.repository(),
-                       "2Gi",
-                   ),*/
+                ),
+                build_persistent_volume_claim_rwo_storage(
+                    &NifiRepository::Flowfile.repository(),
+                    "2Gi",
+                ),
+                build_persistent_volume_claim_rwo_storage(
+                    &NifiRepository::Provenance.repository(),
+                    "2Gi",
+                ),
             ]),
             ..StatefulSetSpec::default()
         }),
