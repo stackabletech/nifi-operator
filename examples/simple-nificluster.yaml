@@ -14,6 +14,7 @@ spec:
         adminCredentialsSecret:
           name: nifi-admin-credentials-simple
           namespace: default
+    allowAnonymousAccess: true
   nodes:
     roleGroups:
       default:
@@ -24,5 +25,5 @@ spec:
           sensitivePropertyKeySecret: nifi-sensitive-property-key
           log:
             rootLogLevel: INFO
-        replicas: 2
+        replicas: 3
 

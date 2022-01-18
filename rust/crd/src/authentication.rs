@@ -109,22 +109,25 @@ pub async fn get_login_identity_provider_xml(
                 namespace: admin_credentials_secret
                     .namespace
                     .clone()
-                    .unwrap_or("".to_string())
-                    .to_string(),
+                    .unwrap_or_else(|| "".to_string()),
             })?;
 
-            let password = String::from_utf8(secret_data
-                .get("password")
-                .with_context(|| MissingRequiredValue {
-                    value: "password".to_string(),
-                })?.clone().0,).with_context(|| Utf8Failure {
+            let password = String::from_utf8(
+                secret_data
+                    .get("password")
+                    .with_context(|| MissingRequiredValue {
+                        value: "password".to_string(),
+                    })?
+                    .clone()
+                    .0,
+            )
+            .with_context(|| Utf8Failure {
                 key: "password".to_string(),
                 name: secret_name.to_string(),
                 namespace: admin_credentials_secret
                     .namespace
                     .clone()
-                    .unwrap_or("".to_string())
-                    .to_string(),
+                    .unwrap_or_else(|| "".to_string()),
             })?;
 
             Ok(build_single_user_config(&user_name, &password))
