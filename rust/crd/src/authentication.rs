@@ -147,10 +147,10 @@ fn build_single_user_config(username: &str, password_hash: &str) -> String {
      </loginIdentityProviders>", escape_str_attribute(username), escape_str_attribute(password_hash))
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
-    /*
        fn get_default_config() -> NifiAuthenticationConfig<NifiAuthenticationMethod> {
            NifiAuthenticationConfig {
                method: NifiAuthenticationMethod::SingleUser,
@@ -234,5 +234,5 @@ mod tests {
            }
        }
 
-    */
 }
+    */
