@@ -1,5 +1,4 @@
 use snafu::{ResultExt, Snafu};
-use stackable_nifi_crd::authentication::NifiAuthenticationMethodConfig;
 use stackable_nifi_crd::{
     LogLevel, NifiCluster, NifiConfig, NifiLogConfig, NifiRole, NifiSpec, HTTPS_PORT, PROTOCOL_PORT,
 };
@@ -32,10 +31,10 @@ pub enum NifiRepository {
 
 impl NifiRepository {
     pub fn repository(&self) -> String {
-        format!("{}-repository", self.to_string())
+        format!("{}-repository", self)
     }
     pub fn mount_path(&self) -> String {
-        format!("/stackable/data/{}", self.to_string())
+        format!("/stackable/data/{}", self)
     }
 }
 
@@ -133,7 +132,6 @@ pub fn build_nifi_properties(
     zk_connect_string: &str,
     proxy_hosts: &str,
     overrides: BTreeMap<String, String>,
-    authorizer_config: &NifiAuthenticationMethodConfig,
 ) -> String {
     let mut properties = BTreeMap::new();
     // Core Properties
@@ -480,7 +478,7 @@ pub fn build_nifi_properties(
     );
     properties.insert(
         "nifi.security.allow.anonymous.authentication".to_string(),
-        authorizer_config.allow_anonymous().to_string(),
+        spec.authentication_config.allow_anonymous().to_string(),
     );
     properties.insert(
         "nifi.cluster.protocol.is.secure".to_string(),

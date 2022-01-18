@@ -9,11 +9,11 @@ spec:
     namespace: default
     chroot: /nifiytest
   authenticationConfig:
-    method: SingleUser
-    secrets:
-      admincredentials:
-        name: nifi-admin-credentials-simple
-        namespace: default
+    method:
+      SingleUser:
+        adminCredentialsSecret:
+          name: nifi-admin-credentials-simple
+          namespace: default
   nodes:
     roleGroups:
       default:

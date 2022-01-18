@@ -7,8 +7,7 @@ use crate::config::{
     NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML,
 };
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_nifi_crd::authentication::NifiAuthenticationMethodConfig;
-use stackable_nifi_crd::{authentication, NifiLogConfig};
+use stackable_nifi_crd::NifiLogConfig;
 use stackable_nifi_crd::{
     NifiCluster, NifiRole, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME,
     PROTOCOL_PORT, PROTOCOL_PORT_NAME,
@@ -173,10 +172,10 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
         })?;
 
     // read authentication
-    let auth_config =
-        authentication::materialize_auth_config(client, &nifi.spec.authentication_config)
-            .await
-            .with_context(|| MaterializeError {})?;
+    //let auth_config =
+    //    authentication::materialize_auth_config(client, &nifi.spec.authentication_config)
+    //        .await
+    //        .with_context(|| MaterializeError {})?;
 
     let validated_config = validated_product_config(
         &nifi,
@@ -214,13 +213,14 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
         let proxy_hosts = node_addresses(client, &nifi, &updated_role_service).await?;
 
         let rg_configmap = build_node_rolegroup_config_map(
+            client,
             &nifi,
             &rolegroup,
             &zk_connect_string,
             rolegroup_config,
             &proxy_hosts,
-            &auth_config,
-        )?;
+        )
+        .await?;
 
         let rg_log_configmap = build_node_rolegroup_log_config_map(&nifi, &rolegroup)?;
 
@@ -335,13 +335,13 @@ fn build_node_rolegroup_log_config_map(
 }
 
 /// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the administrator
-fn build_node_rolegroup_config_map(
+async fn build_node_rolegroup_config_map(
+    client: &Client,
     nifi: &NifiCluster,
     rolegroup: &RoleGroupRef<NifiCluster>,
     zk_connect_string: &str,
     config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     proxy_hosts: &str,
-    authorizer_config: &NifiAuthenticationMethodConfig,
 ) -> Result<ConfigMap> {
     ConfigMapBuilder::new()
         .metadata(
@@ -382,7 +382,6 @@ fn build_node_rolegroup_config_map(
                         kind: NIFI_PROPERTIES.to_string(),
                     })?
                     .clone(),
-                authorizer_config,
             ),
         )
         .add_data(
@@ -391,7 +390,12 @@ fn build_node_rolegroup_config_map(
         )
         .add_data(
             "login-identity-providers.xml",
-            stackable_nifi_crd::authentication::get_authorizer_xml(authorizer_config),
+            stackable_nifi_crd::authentication::get_login_identity_provider_xml(
+                client,
+                &nifi.spec.authentication_config,
+            )
+            .await
+            .with_context(|| MaterializeError {})?,
         )
         .add_data("authorizers.xml", build_authorizers_xml())
         .build()

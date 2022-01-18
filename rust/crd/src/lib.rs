@@ -1,6 +1,6 @@
 pub mod authentication;
 
-use crate::authentication::{AuthenticationConfig, NifiAuthenticationMethod};
+use crate::authentication::NifiAuthenticationConfig;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, Snafu};
 use stackable_operator::role_utils::RoleGroupRef;
@@ -52,7 +52,7 @@ pub struct NifiSpec {
     /// The reference to the ZooKeeper cluster
     pub zookeeper_reference: ClusterReference,
     /// A reference to a Secret containing username/password for the initial admin user
-    pub authentication_config: AuthenticationConfig<NifiAuthenticationMethod>,
+    pub authentication_config: NifiAuthenticationConfig,
 }
 
 #[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
