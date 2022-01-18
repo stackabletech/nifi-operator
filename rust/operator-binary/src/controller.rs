@@ -523,8 +523,14 @@ fn build_node_rolegroup_statefulset(
     );
 
     let node_address = format!(
-        "$POD_NAME.{}-node-{}.default.svc.cluster.local",
-        rolegroup_ref.cluster.name, rolegroup_ref.role_group
+        "$POD_NAME.{}-node-{}.{}.svc.cluster.local",
+        rolegroup_ref.cluster.name,
+        rolegroup_ref.role_group,
+        &nifi
+            .metadata
+            .namespace
+            .as_ref()
+            .unwrap_or(&"default".to_string())
     );
 
     let mut container_prepare = ContainerBuilder::new("prepare")
