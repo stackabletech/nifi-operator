@@ -153,10 +153,23 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
     tracing::info!("Starting reconcile");
     let client = &ctx.get_ref().client;
     let nifi_version = nifi_version(&nifi)?;
+    let namespace = &nifi
+        .metadata
+        .namespace
+        .clone()
+        .unwrap_or("default".to_string());
 
     // Zookeeper reference
     let zk_name = nifi.spec.zookeeper_reference.name.clone();
-    let zk_namespace = nifi.spec.zookeeper_reference.namespace.clone();
+    // If no namespace is provided for the ZooKeeper reference, the same namespace as the NiFi
+    // object is assumed
+    let zk_namespace = nifi
+        .spec
+        .zookeeper_reference
+        .namespace
+        .clone()
+        .unwrap_or(namespace.to_string());
+
     let zk_connect_string = client
         .get::<ConfigMap>(&zk_name, Some(&zk_namespace))
         .await
@@ -343,6 +356,12 @@ async fn build_node_rolegroup_config_map(
     config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     proxy_hosts: &str,
 ) -> Result<ConfigMap> {
+    let namespace = &nifi
+        .metadata
+        .namespace
+        .clone()
+        .unwrap_or("default".to_string());
+
     ConfigMapBuilder::new()
         .metadata(
             ObjectMetaBuilder::new()
@@ -393,6 +412,7 @@ async fn build_node_rolegroup_config_map(
             stackable_nifi_crd::authentication::get_login_identity_provider_xml(
                 client,
                 &nifi.spec.authentication_config,
+                &namespace
             )
             .await
             .with_context(|| MaterializeError {})?,

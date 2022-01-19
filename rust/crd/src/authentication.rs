@@ -69,6 +69,7 @@ impl NifiAuthenticationConfig {
 pub async fn get_login_identity_provider_xml(
     client: &Client,
     config: &NifiAuthenticationConfig,
+    current_namespace: &str,
 ) -> Result<String, Error> {
     match &config.method {
         NifiAuthenticationMethod::SingleUser {
@@ -81,9 +82,14 @@ pub async fn get_login_identity_provider_xml(
                     .with_context(|| MissingSecretReference {
                         secret: "admin_credentials_secret".to_string(),
                     })?;
+            // If no namespace was specified the namespace of the NifiCluster object is assumed
+            let secret_namespace = admin_credentials_secret
+                .namespace
+                .clone()
+                .unwrap_or(current_namespace.to_string());
             // Get Secret content from Kube
             let secret_content: Secret = client
-                .get::<Secret>(&secret_name, admin_credentials_secret.namespace.as_deref())
+                .get::<Secret>(&secret_name, Some(&secret_namespace))
                 .await
                 .with_context(|| MissingSecret {
                     name: secret_name.to_string(),
