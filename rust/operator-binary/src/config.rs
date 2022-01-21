@@ -1,6 +1,7 @@
 use snafu::{ResultExt, Snafu};
 use stackable_nifi_crd::{
-    LogLevel, NifiCluster, NifiConfig, NifiLogConfig, NifiRole, NifiSpec, HTTPS_PORT, PROTOCOL_PORT,
+    LogLevel, NifiCluster, NifiConfig, NifiLogConfig, NifiRole, NifiSensitiveKeyAlgorithm,
+    NifiSpec, HTTPS_PORT, PROTOCOL_PORT,
 };
 use stackable_operator::product_config::types::PropertyNameKind;
 use stackable_operator::product_config::ProductConfigManager;
@@ -27,6 +28,8 @@ pub enum NifiRepository {
     Content,
     #[strum(serialize = "provenance")]
     Provenance,
+    #[strum(serialize = "state")]
+    State,
 }
 
 impl NifiRepository {
@@ -439,9 +442,15 @@ pub fn build_nifi_properties(
         "nifi.sensitive.props.key.protected".to_string(),
         "".to_string(),
     );
+
+    let algorithm = &spec
+        .sensitive_properties_config
+        .algorithm
+        .clone()
+        .unwrap_or(NifiSensitiveKeyAlgorithm::Default);
     properties.insert(
         "nifi.sensitive.props.algorithm".to_string(),
-        "NIFI_PBKDF2_AES_GCM_256".to_string(),
+        algorithm.to_string(),
     );
     // key and trust store
     properties.insert(
@@ -538,7 +547,7 @@ pub fn build_state_management_xml(spec: &NifiSpec, zk_connect_string: &str) -> S
           <local-provider>
           <id>local-provider</id>
             <class>org.apache.nifi.controller.state.providers.local.WriteAheadLocalStateProvider</class>
-            <property name=\"Directory\">./state/local</property>
+            <property name=\"Directory\">{}</property>
             <property name=\"Always Sync\">false</property>
             <property name=\"Partitions\">16</property>
             <property name=\"Checkpoint Interval\">2 mins</property>
@@ -552,6 +561,7 @@ pub fn build_state_management_xml(spec: &NifiSpec, zk_connect_string: &str) -> S
             <property name=\"Access Control\">Open</property>
           </cluster-provider>
         </stateManagement>",
+        &NifiRepository::State.mount_path(),
         zk_connect_string,
         &spec
             .zookeeper_reference

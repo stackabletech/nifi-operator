@@ -1541,6 +1541,7 @@ dependencies = [
  "fnv",
  "futures 0.3.19",
  "pin-project",
+ "rand",
  "semver",
  "serde",
  "serde_json",

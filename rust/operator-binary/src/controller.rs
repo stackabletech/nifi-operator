@@ -6,6 +6,7 @@ use crate::config::{
     build_state_management_xml, validated_product_config, NifiRepository, NIFI_BOOTSTRAP_CONF,
     NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML,
 };
+use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_nifi_crd::NifiLogConfig;
 use stackable_nifi_crd::{
@@ -16,7 +17,7 @@ use stackable_nifi_crd::{APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME};
 use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
     Affinity, CSIVolumeSource, EnvVar, EnvVarSource, Node, ObjectFieldSelector, PodAffinityTerm,
-    PodAntiAffinity, PodSpec, Probe, SecretVolumeSource, SecurityContext, TCPSocketAction,
+    PodAntiAffinity, PodSpec, Probe, Secret, SecretVolumeSource, SecurityContext, TCPSocketAction,
 };
 use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use stackable_operator::kube::ResourceExt;
@@ -58,12 +59,20 @@ pub struct Ctx {
 pub enum Error {
     #[snafu(display("object defines no version"))]
     ObjectHasNoVersion,
+    #[snafu(display("object defines no name"))]
+    ObjectHasNoName,
+    #[snafu(display("object defines no namespace"))]
+    ObjectHasNoNamespace,
     #[snafu(display("object defines no metastore role"))]
     NoNodeRole,
     #[snafu(display("failed to calculate global service name"))]
     GlobalServiceNameNotFound,
     #[snafu(display("failed to apply global Service"))]
     ApplyRoleService {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("failed to check sensitive property key secret"))]
+    SensitiveKeySecret {
         source: stackable_operator::error::Error,
     },
     #[snafu(display("failed to apply Service for {}", rolegroup))]
@@ -184,11 +193,8 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
             namespace: zk_namespace.to_string(),
         })?;
 
-    // read authentication
-    //let auth_config =
-    //    authentication::materialize_auth_config(client, &nifi.spec.authentication_config)
-    //        .await
-    //        .with_context(|| MaterializeError {})?;
+    tracing::info!("Checking for sensitive key configuration");
+    check_or_generate_sensitive_key(client, &nifi).await?;
 
     let validated_config = validated_product_config(
         &nifi,
@@ -307,7 +313,6 @@ fn get_log_config(nifi: &NifiCluster, rolegroup: &RoleGroupRef<NifiCluster>) -> 
     let nodes = &nifi.spec.nodes.clone();
     let role_groups = &nodes.clone().unwrap().role_groups;
 
-    //let role_log_config = test.config.config.log.clone().unwrap_or_default();
     match role_groups.get(&rolegroup.role_group.to_string()) {
         Some(role_group) => {
             let config = &role_group.config;
@@ -412,7 +417,7 @@ async fn build_node_rolegroup_config_map(
             stackable_nifi_crd::authentication::get_login_identity_provider_xml(
                 client,
                 &nifi.spec.authentication_config,
-                &namespace
+                &namespace,
             )
             .await
             .with_context(|| MaterializeError {})?,
@@ -499,22 +504,6 @@ fn build_node_rolegroup_statefulset(
         })
         .collect();
 
-    let sensitive_property_key: Vec<Option<String>> = env_vars
-        .iter()
-        .filter(|var| &var.name == "NIFI_SENSITIVE_PROPS_KEY")
-        .map(|var| var.value.to_owned())
-        .collect();
-
-    let key = sensitive_property_key
-        .first()
-        .with_context(|| SensitiveKeySecretError {
-            message: "Key was not present in environment variable".to_string(),
-        })?
-        .clone()
-        .with_context(|| SensitiveKeySecretError {
-            message: "No value set for key in environment".to_string(),
-        })?;
-
     // we need the POD_NAME env var to overwrite `nifi.cluster.node.address` later
     env_vars.push(EnvVar {
         name: "POD_NAME".to_string(),
@@ -552,6 +541,8 @@ fn build_node_rolegroup_statefulset(
             .as_ref()
             .unwrap_or(&"default".to_string())
     );
+
+    let sensitive_key_secret = &nifi.spec.sensitive_properties_config.key_secret;
 
     let mut container_prepare = ContainerBuilder::new("prepare")
         .image(&image)
@@ -595,6 +586,9 @@ fn build_node_rolegroup_statefulset(
         .add_volume_mount(
             &NifiRepository::Provenance.repository(),
             &NifiRepository::Provenance.mount_path(),
+        ).add_volume_mount(
+            &NifiRepository::State.repository(),
+            &NifiRepository::State.mount_path(),
         )
         .add_volume_mount("keystore", "/stackable/keystore")
         .build();
@@ -642,6 +636,9 @@ fn build_node_rolegroup_statefulset(
         .add_volume_mount(
             &NifiRepository::Provenance.repository(),
             &NifiRepository::Provenance.mount_path(),
+        ).add_volume_mount(
+            &NifiRepository::State.repository(),
+            &NifiRepository::State.mount_path(),
         )
         .add_volume_mount("sensitiveproperty", "/stackable/sensitiveproperty")
         .add_volume_mount("logconf", "/stackable/logconfig")
@@ -720,7 +717,7 @@ fn build_node_rolegroup_statefulset(
         .add_volume(Volume {
             name: "sensitiveproperty".to_string(),
             secret: Some(SecretVolumeSource {
-                secret_name: Some(key),
+                secret_name: Some(sensitive_key_secret.to_string()),
                 ..SecretVolumeSource::default()
             }),
             ..Volume::default()
@@ -730,7 +727,11 @@ fn build_node_rolegroup_statefulset(
     let mut labels = BTreeMap::new();
     labels.insert(
         "app.kubernetes.io/instance".to_string(),
-        "simple-nifiytest".to_string(),
+        nifi.metadata
+            .name
+            .as_deref()
+            .with_context(|| ObjectHasNoName {})?
+            .to_string(),
     );
 
     let test = PodAntiAffinity {
@@ -804,11 +805,60 @@ fn build_node_rolegroup_statefulset(
                     &NifiRepository::Provenance.repository(),
                     "2Gi",
                 ),
+                build_persistent_volume_claim_rwo_storage(
+                    &NifiRepository::State.repository(),
+                    "1Gi",
+                ),
             ]),
             ..StatefulSetSpec::default()
         }),
         status: None,
     })
+}
+
+async fn check_or_generate_sensitive_key(
+    client: &Client,
+    nifi: &NifiCluster,
+) -> Result<bool, Error> {
+    let sensitive_config = &nifi.spec.sensitive_properties_config;
+    let namespace = &nifi
+        .metadata
+        .namespace
+        .clone()
+        .with_context(|| ObjectHasNoNamespace {})?;
+
+    match client
+        .exists::<Secret>(&sensitive_config.key_secret, Some(namespace))
+        .await
+        .with_context(|| SensitiveKeySecret {})?
+    {
+        true => Ok(false),
+        false => {
+            tracing::info!("No existing sensitive properties key found, generating new one");
+            let password: String = rand::thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(15)
+                .map(char::from)
+                .collect();
+
+            let mut secret_data = BTreeMap::new();
+            secret_data.insert("nifiSensitivePropsKey".to_string(), password);
+
+            let new_secret = Secret {
+                metadata: ObjectMetaBuilder::new()
+                    .namespace(namespace)
+                    .name(&sensitive_config.key_secret.to_string())
+                    .build(),
+                string_data: Some(secret_data),
+                ..Secret::default()
+            };
+            client
+                .create(&new_secret)
+                .await
+                .with_context(|| SensitiveKeySecret {})?;
+            Ok(true)
+        }
+    }
 }
 
 fn get_stackable_secret_volume_attributes() -> BTreeMap<String, String> {
@@ -886,7 +936,7 @@ async fn node_addresses(
             selector,
         })?;
 
-    Ok(cluster_nodes
+    let mut cluster_nodes = cluster_nodes
         .into_iter()
         .map(|node| node.status.unwrap().addresses.unwrap())
         .flatten()
@@ -895,8 +945,26 @@ async fn node_addresses(
         .collect::<Vec<_>>()
         .iter()
         .map(|node_ip| format!("{}:{}", node_ip, external_port))
-        .collect::<Vec<_>>()
-        .join(","))
+        .collect::<Vec<_>>();
+    cluster_nodes.push(get_service_fqdn(nifi_service)?);
+
+    Ok(cluster_nodes.join(","))
+}
+
+fn get_service_fqdn(service: &Service) -> Result<String, Error> {
+    let name = service
+        .metadata
+        .name
+        .as_ref()
+        .with_context(|| ObjectHasNoName {})?
+        .to_string();
+    let namespace = service
+        .metadata
+        .namespace
+        .as_ref()
+        .with_context(|| ObjectHasNoNamespace {})?
+        .to_string();
+    Ok(format!("{}.{}.svc.cluster.local:8443", name, namespace))
 }
 
 pub fn nifi_version(nifi: &NifiCluster) -> Result<&str> {

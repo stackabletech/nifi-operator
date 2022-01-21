@@ -53,6 +53,38 @@ pub struct NifiSpec {
     pub zookeeper_reference: ClusterReference,
     /// A reference to a Secret containing username/password for the initial admin user
     pub authentication_config: NifiAuthenticationConfig,
+    /// Configuration options for how NiFi encrypts sensitive properties on disk
+    pub sensitive_properties_config: NifiSensitivePropertiesConfig,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NifiSensitivePropertiesConfig {
+    pub key_secret: String,
+    pub algorithm: Option<NifiSensitiveKeyAlgorithm>,
+}
+
+#[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NifiSensitiveKeyAlgorithm {
+    #[strum(serialize = "")]
+    Default,
+    #[strum(serialize = "NIFI_ARGON2_AES_GCM_128")]
+    NifiArgon2AesGcm128,
+    #[strum(serialize = "NIFI_ARGON2_AES_GCM_256")]
+    NifiArgon2AesGcm256,
+    #[strum(serialize = "NIFI_BCRYPT_AES_GCM_128")]
+    NifiBcryptAesGcm128,
+    #[strum(serialize = "NIFI_BCRYPT_AES_GCM_256")]
+    NifiBcryptAesGcm256,
+    #[strum(serialize = "NIFI_PBKDF2_AES_GCM_128")]
+    NifiPbkdf2AesGcm128,
+    #[strum(serialize = "NIFI_PBKDF2_AES_GCM_256")]
+    NifiPbkdf2AesGcm256,
+    #[strum(serialize = "NIFI_SCRYPT_AES_GCM_128")]
+    NifiScryptAesGcm128,
+    #[strum(serialize = "NIFI_SCRYPT_AES_GCM_256")]
+    NifiScryptAesGcm256,
 }
 
 #[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -91,7 +123,6 @@ pub struct NifiStatus {}
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiConfig {
-    pub sensitive_property_key_secret: Option<String>,
     pub log: Option<NifiLogConfig>,
 }
 
@@ -107,12 +138,7 @@ impl Configuration for NifiConfig {
         _resource: &Self::Configurable,
         _role_name: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        let mut result = BTreeMap::new();
-        result.insert(
-            Self::NIFI_SENSITIVE_PROPS_KEY.to_string(),
-            self.sensitive_property_key_secret.clone(),
-        );
-        Ok(result)
+        Ok(BTreeMap::new())
     }
 
     fn compute_cli(
