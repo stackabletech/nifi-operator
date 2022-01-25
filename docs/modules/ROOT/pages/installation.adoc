@@ -1,6 +1,6 @@
 = Installation
 
-There are three ways to run the ZooKeeper Operator:
+There are three ways to run the Stackable Operator for Apache NiFi:
 
 1. Helm managed Docker container deployment on Kubernetes
 
@@ -13,9 +13,14 @@ There are three ways to run the ZooKeeper Operator:
 Helm allows you to download and deploy Stackable operators on Kubernetes and is by far the easiest installation method. First ensure that you have installed the Stackable Operators Helm repository:
 [source,bash]
 ----
-$ helm repo add stackable https://repo.stackable.tech/repository/helm/
+$ helm repo add stackable https://repo.stackable.tech/repository/helm-stable/
 ----
-Then install the Stackable Operator for Apache ZooKeeper
+or to access the latest dev/nightly versions:
+----
+$ helm repo add stackable-dev https://repo.stackable.tech/repository/helm-dev/
+----
+
+Then install the Stackable Operator for Apache NiFi
 [source,bash]
 ----
 $ helm install nifi-operator stackable/nifi-operator

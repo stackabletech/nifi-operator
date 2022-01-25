@@ -1,7 +1,3 @@
 = Monitoring
 
-As of now enabling monitoring in a running cluster is not possible. The same problem appears when trying to disable monitoring in a running cluster that already has monitoring enabled (https://github.com/stackabletech/nifi-operator/issues/53[53]).
-
-== Important
-
-You can start a new cluster with or without monitoring, but you cannot enable or disable the monitoring in a running cluster later on!
+As of now enabling monitoring is currently disabled.

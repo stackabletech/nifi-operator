@@ -13,7 +13,7 @@ spec:
   zookeeperReference:
     name: simple-zk
     namespace: default
-    chroot: /nifiytest
+    chroot: /nifi
   authenticationConfig:
     method:
       SingleUser:
@@ -45,7 +45,7 @@ spec:
         config:
         replicas: 3
 ----
-The nodes element is used to define how many pods with which configuration should be rolled out.
+The `nodes` element is used to define how many pods with which configuration should be rolled out.
 It is possible to define multiple groups of nodes, each with its own distinct configuration, every `roleGroup` has the following elements:
 
  - selector: a Kubernetes `Selector` to specify criteria that can be used to target nodes
@@ -70,11 +70,11 @@ Currently the only supported authentication method is "SingleUser", which allows
 Specification of these users credentials happens via referring to a Secret in Kubernetes, this secret will need to contain at least the two keys `username` and `password`.
 Extra keys may be present, but will be ignored by the operator.
 
-The value for the `password` key has to be a the bcrpyted (weight=12) password that will be used for the admin user.
+The value for the `password` key has to be a bcrpyted (weight=12) password that will be used for the admin user.
 Hashing of the password can for example be done via https://bcrypt.online/ or with various command line tools, the https://bcrypt.online/[NiFi admin guide] has additional information on this hashing method.
 
 ==== Anonymous Access
-NiFi can be configured to allow anonymous access to the web UI, this is turned of by default, but can be enabled via the parameter `allowAnonymousAccess`.
+NiFi can be configured to allow anonymous access to the web UI, this is turned off by default, but can be enabled via the parameter `allowAnonymousAccess`.
 This setting is independent of the configured authentication method and will override anything specified for the authentication provider.
 
 === ZooKeeper Connection
@@ -102,4 +102,4 @@ config:
 ----
 This is the actual NiFi configuration element.
 At the moment only a very limited set of options is supported, but you can expect these to grow quickly over time.
-Anything that is not mentioned here can still be configured via configOverrides.
+Anything that is not mentioned here can be configured via configOverrides. This does not include properties for XML files like `state-management.xml`.
