@@ -42,7 +42,6 @@ impl NifiRepository {
 }
 
 #[derive(Snafu, Debug)]
-#[allow(clippy::enum_variant_names)]
 pub enum Error {
     #[snafu(display("Invalid product config"))]
     InvalidProductConfig {

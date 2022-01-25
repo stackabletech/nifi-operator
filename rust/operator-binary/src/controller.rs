@@ -57,7 +57,6 @@ pub struct Ctx {
 }
 
 #[derive(Snafu, Debug)]
-#[allow(clippy::enum_variant_names)]
 pub enum Error {
     #[snafu(display("object defines no version"))]
     ObjectHasNoVersion,
@@ -150,12 +149,7 @@ pub enum Error {
     #[snafu(display("Failed to materialize authentication config element from k8s"))]
     MaterializeError {
         source: stackable_nifi_crd::authentication::Error,
-    },
-    #[snafu(display(
-        "Failed to obtain name of secret that contains the sensitive-information-key: [{}]",
-        message
-    ))]
-    SensitiveKeySecretError { message: String },
+    }
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -422,7 +416,7 @@ async fn build_node_rolegroup_config_map(
                 namespace,
             )
             .await
-            .with_context(|| MaterializeError {})?,
+            .context(MaterializeError)?,
         )
         .add_data("authorizers.xml", build_authorizers_xml())
         .build()
@@ -547,7 +541,7 @@ fn build_node_rolegroup_statefulset(
     let sensitive_key_secret = &nifi.spec.sensitive_properties_config.key_secret;
 
     let auth_volumes = get_auth_volumes(&nifi.spec.authentication_config.method)
-        .with_context(|| MaterializeError {})?;
+        .context(MaterializeError)?;
 
     let mut container_prepare = ContainerBuilder::new("prepare")
         .image("docker.stackable.tech/soenkeliebau/tools:0f9f1ed3")
