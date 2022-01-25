@@ -22,6 +22,7 @@ use stackable_operator::k8s_openapi::api::core::v1::{
     SecretVolumeSource, SecurityContext, TCPSocketAction, VolumeMount,
 };
 use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
+use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::role_utils::RoleGroupRef;
 use stackable_operator::{
@@ -100,22 +101,13 @@ pub enum Error {
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::error::Error,
     },
-    #[snafu(display(
-        "Failed to get ZooKeeper connection string from config map {} in namespace {}",
-        cm_name,
-        namespace
-    ))]
+    #[snafu(display("Failed to get ZooKeeper connection string from config map {obj_ref}",))]
     GetZookeeperConnStringConfigMap {
         source: stackable_operator::error::Error,
-        cm_name: String,
-        namespace: String,
+        obj_ref: ObjectRef<ConfigMap>,
     },
-    #[snafu(display(
-        "Failed to get ZooKeeper connection string from config map {} in namespace {}",
-        cm_name,
-        namespace
-    ))]
-    MissingZookeeperConnString { cm_name: String, namespace: String },
+    #[snafu(display("Failed to get ZooKeeper connection string from config map {obj_ref}",))]
+    MissingZookeeperConnString { obj_ref: ObjectRef<ConfigMap> },
     #[snafu(display("Failed to load Product Config"))]
     ProductConfigLoadFailed { source: config::Error },
     #[snafu(display("Failed to find information about file [{}] in product config", kind))]
@@ -130,21 +122,16 @@ pub enum Error {
         source: stackable_operator::error::Error,
         name: String,
     },
-    #[snafu(display(
-        "Failed to find any nodes in namespace [{}] with selector [{:?}]",
-        namespace,
-        selector
-    ))]
+    #[snafu(display("Failed to find any nodes in cluster {obj_ref} with selector {selector:?}",))]
     MissingNodes {
         source: stackable_operator::error::Error,
-        namespace: String,
+        obj_ref: ObjectRef<NifiCluster>,
         selector: LabelSelector,
     },
-    #[snafu(display("Failed to find service [{}/{}]", name, namespace))]
+    #[snafu(display("Failed to find service {obj_ref}"))]
     MissingService {
         source: stackable_operator::error::Error,
-        name: String,
-        namespace: String,
+        obj_ref: ObjectRef<Service>,
     },
     #[snafu(display("Failed to materialize authentication config element from k8s"))]
     MaterializeError {
@@ -179,14 +166,12 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
         .get::<ConfigMap>(&zk_name, Some(&zk_namespace))
         .await
         .with_context(|_| GetZookeeperConnStringConfigMapSnafu {
-            cm_name: zk_name.to_string(),
-            namespace: zk_namespace.to_string(),
+            obj_ref: ObjectRef::new(&zk_name).within(&zk_namespace),
         })?
         .data
         .and_then(|mut data| data.remove("ZOOKEEPER"))
         .with_context(|| MissingZookeeperConnStringSnafu {
-            cm_name: zk_name.to_string(),
-            namespace: zk_namespace.to_string(),
+            obj_ref: ObjectRef::new(&zk_name).within(&zk_namespace),
         })?;
 
     tracing::info!("Checking for sensitive key configuration");
@@ -215,8 +200,7 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
         .get(&nifi.name(), nifi.namespace().as_deref())
         .await
         .with_context(|_| MissingServiceSnafu {
-            name: nifi.name(),
-            namespace: nifi.namespace().unwrap_or_default(),
+            obj_ref: ObjectRef::new(&nifi.name()).within(&namespace),
         })?;
 
     for (rolegroup_name, rolegroup_config) in nifi_node_config.iter() {
@@ -956,7 +940,7 @@ async fn node_addresses(
         .list_with_label_selector::<Node>(None, &selector)
         .await
         .with_context(|_| MissingNodesSnafu {
-            namespace: nifi.metadata.namespace.as_deref().unwrap().to_string(),
+            obj_ref: ObjectRef::from_obj(nifi),
             selector,
         })?;
 
