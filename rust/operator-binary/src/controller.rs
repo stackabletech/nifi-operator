@@ -8,17 +8,20 @@ use crate::config::{
 };
 use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_nifi_crd::NifiLogConfig;
+use stackable_nifi_crd::authentication::get_auth_volumes;
 use stackable_nifi_crd::{
     NifiCluster, NifiRole, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME,
     PROTOCOL_PORT, PROTOCOL_PORT_NAME,
 };
+use stackable_nifi_crd::{NifiLogConfig, NifiSpec};
 use stackable_nifi_crd::{APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME};
 use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
-    Affinity, CSIVolumeSource, EnvVar, EnvVarSource, Node, ObjectFieldSelector, PodAffinityTerm,
-    PodAntiAffinity, PodSpec, Probe, Secret, SecretVolumeSource, SecurityContext, TCPSocketAction,
+    Affinity, CSIVolumeSource, EmptyDirVolumeSource, EnvVar, EnvVarSource, Node,
+    ObjectFieldSelector, PodAffinityTerm, PodAntiAffinity, PodSpec, Probe, Secret,
+    SecretVolumeSource, SecurityContext, TCPSocketAction, VolumeMount,
 };
+use stackable_operator::k8s_openapi::api::storage::v1::VolumeAttachment;
 use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::role_utils::RoleGroupRef;
@@ -166,7 +169,7 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
         .metadata
         .namespace
         .clone()
-        .unwrap_or("default".to_string());
+        .unwrap_or_else(|| "default".to_string());
 
     // Zookeeper reference
     let zk_name = nifi.spec.zookeeper_reference.name.clone();
@@ -177,7 +180,7 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
         .zookeeper_reference
         .namespace
         .clone()
-        .unwrap_or(namespace.to_string());
+        .unwrap_or_else(|| namespace.to_string());
 
     let zk_connect_string = client
         .get::<ConfigMap>(&zk_name, Some(&zk_namespace))
@@ -365,7 +368,7 @@ async fn build_node_rolegroup_config_map(
         .metadata
         .namespace
         .clone()
-        .unwrap_or("default".to_string());
+        .unwrap_or_else(|| "default".to_string());
 
     ConfigMapBuilder::new()
         .metadata(
@@ -417,7 +420,7 @@ async fn build_node_rolegroup_config_map(
             stackable_nifi_crd::authentication::get_login_identity_provider_xml(
                 client,
                 &nifi.spec.authentication_config,
-                &namespace,
+                namespace,
             )
             .await
             .with_context(|| MaterializeError {})?,
@@ -544,11 +547,14 @@ fn build_node_rolegroup_statefulset(
 
     let sensitive_key_secret = &nifi.spec.sensitive_properties_config.key_secret;
 
+    let auth_volumes = get_auth_volumes(&nifi.spec.authentication_config.method)
+        .with_context(|| MaterializeError {})?;
+
     let mut container_prepare = ContainerBuilder::new("prepare")
-        .image(&image)
-        .command(vec!["/bin/bash".to_string(), "-c".to_string()])
+        .image("docker.stackable.tech/soenkeliebau/tools:0f9f1ed3")
+        .command(vec!["/bin/bash".to_string(), "-c".to_string(), "-euo".to_string(), "pipefail".to_string()])
+        .add_env_vars(env_vars.clone())
         .args(vec![[
-            "microdnf install openssl",
             "echo Storing password",
             "echo secret > /stackable/keystore/password",
             "echo Cleaning up truststore - just in case",
@@ -561,6 +567,20 @@ fn build_node_rolegroup_statefulset(
             "openssl pkcs12 -export -in /stackable/keystore/chain.crt -inkey /stackable/keystore/tls.key -out /stackable/keystore/keystore.p12 --passout file:/stackable/keystore/password",
             "echo Cleaning up password",
             "rm -f /stackable/keystore/password",
+            "echo Replacing config directory",
+            "cp /conf/* /stackable/nifi/conf",
+            "ln -s /stackable/logconfig/logback.xml /stackable/nifi/conf/logback.xml",
+            "echo Replacing nifi.cluster.node.address in nifi.properties",
+            &format!("sed -i \"s/nifi.cluster.node.address=/nifi.cluster.node.address={}/g\" /stackable/nifi/conf/nifi.properties", node_address),
+            "echo Replacing nifi.web.https.host in nifi.properties",
+            &format!("sed -i \"s/nifi.web.https.host=0.0.0.0/nifi.web.https.host={}/g\" /stackable/nifi/conf/nifi.properties", node_address),
+            "echo Replacing nifi.sensitive.props.key in nifi.properties",
+            "sed -i \"s|nifi.sensitive.props.key=|nifi.sensitive.props.key=$(cat /stackable/sensitiveproperty/nifiSensitivePropsKey)|g\" /stackable/nifi/conf/nifi.properties",
+            "echo Replacing username and password in login-identity-provider.xml",
+            "HASH=$(cat /stackable/adminuser/password | bcrypt --cost=12)",
+            "echo $HASH",
+            "sed -i \"s|xxx|$(cat /stackable/adminuser/username)|g\" /stackable/nifi/conf/login-identity-providers.xml",
+            "sed -i \"s|yyy|$(cat /stackable/adminuser/password | bcrypt --cost=12)|g\" /stackable/nifi/conf/login-identity-providers.xml",
             "echo chowning data directory",
             "chown -R stackable:stackable /stackable/data",
             "echo chmodding data directory",
@@ -590,8 +610,22 @@ fn build_node_rolegroup_statefulset(
             &NifiRepository::State.repository(),
             &NifiRepository::State.mount_path(),
         )
+        .add_volume_mount("conf", "conf")
         .add_volume_mount("keystore", "/stackable/keystore")
+        .add_volume_mount("activeconf", "/stackable/nifi/conf")
+        .add_volume_mount("sensitiveproperty", "/stackable/sensitiveproperty")
         .build();
+
+    for (name, (mount_path, volume)) in &auth_volumes {
+        container_prepare
+            .volume_mounts
+            .get_or_insert_with(Vec::default)
+            .push(VolumeMount {
+                mount_path: mount_path.to_string(),
+                name: name.to_string(),
+                ..VolumeMount::default()
+            });
+    }
 
     container_prepare
         .security_context
@@ -601,25 +635,8 @@ fn build_node_rolegroup_statefulset(
     let mut container_nifi = container_builder
         .image(image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
-        .args(vec![
-            [
-                "echo Replacing config directory",
-                "rm -rf /stackable/nifi/conf/*",
-                "cp /conf/* /stackable/nifi/conf",
-                "ln -s /stackable/logconfig/logback.xml /stackable/nifi/conf/logback.xml",
-                "echo Replacing nifi.cluster.node.address in nifi.properties",
-                &format!("sed -i \"s/nifi.cluster.node.address=/nifi.cluster.node.address={}/g\" /stackable/nifi/conf/nifi.properties", node_address),
-                "echo Replacing nifi.web.https.host in nifi.properties",
-                &format!("sed -i \"s/nifi.web.https.host=0.0.0.0/nifi.web.https.host={}/g\" /stackable/nifi/conf/nifi.properties", node_address),
-                "echo Replacing nifi.sensitive.props.key in nifi.properties",
-                "sed -i \"s|nifi.sensitive.props.key=|nifi.sensitive.props.key=$(cat /stackable/sensitiveproperty/nifiSensitivePropsKey)|g\" /stackable/nifi/conf/nifi.properties",
-                "bin/nifi.sh run",
-            ]
-            .join(" && "),
-        ])
+        .args(vec![["bin/nifi.sh run"].join(" && ")])
         .add_env_vars(env_vars)
-        .add_env_var("BOOTSTRAP_JAVA_OPTS", "-Dlogback.configurationFile=/stackable/logconfig/logback.xml")
-        .add_volume_mount("conf", "conf")
         .add_volume_mount("keystore", "/stackable/keystore")
         .add_volume_mount(
             &NifiRepository::Flowfile.repository(),
@@ -636,17 +653,17 @@ fn build_node_rolegroup_statefulset(
         .add_volume_mount(
             &NifiRepository::Provenance.repository(),
             &NifiRepository::Provenance.mount_path(),
-        ).add_volume_mount(
+        )
+        .add_volume_mount(
             &NifiRepository::State.repository(),
             &NifiRepository::State.mount_path(),
         )
-        .add_volume_mount("sensitiveproperty", "/stackable/sensitiveproperty")
+        .add_volume_mount("activeconf", "/stackable/nifi/conf")
         .add_volume_mount("logconf", "/stackable/logconfig")
         .add_container_port(HTTPS_PORT_NAME, HTTPS_PORT.into())
         .add_container_port(PROTOCOL_PORT_NAME, PROTOCOL_PORT.into())
         .add_container_port(BALANCE_PORT_NAME, BALANCE_PORT.into())
         .add_container_port(METRICS_PORT_NAME, METRICS_PORT.into())
-
         .build();
 
     container_nifi.liveness_probe = Some(Probe {
@@ -669,7 +686,7 @@ fn build_node_rolegroup_statefulset(
         ..Probe::default()
     });
 
-    let mut pod_template = PodBuilder::new()
+    let mut pod_template_builder = PodBuilder::new()
         .metadata_builder(|m| {
             m.with_recommended_labels(
                 nifi,
@@ -722,7 +739,21 @@ fn build_node_rolegroup_statefulset(
             }),
             ..Volume::default()
         })
-        .build_template();
+        .add_volume(Volume {
+            empty_dir: Some(EmptyDirVolumeSource {
+                medium: None,
+                size_limit: None,
+            }),
+            name: "activeconf".to_string(),
+            ..Volume::default()
+        })
+        .clone();
+
+    for (name, (mount_path, volume)) in auth_volumes {
+        pod_template_builder = pod_template_builder.add_volume(volume).clone();
+    }
+
+    let mut pod_template = pod_template_builder.build_template();
 
     let mut labels = BTreeMap::new();
     labels.insert(
@@ -734,7 +765,7 @@ fn build_node_rolegroup_statefulset(
             .to_string(),
     );
 
-    let test = PodAntiAffinity {
+    let anti_affinity = PodAntiAffinity {
         required_during_scheduling_ignored_during_execution: Some(vec![PodAffinityTerm {
             label_selector: Some(LabelSelector {
                 match_expressions: None,
@@ -747,7 +778,7 @@ fn build_node_rolegroup_statefulset(
     };
 
     let affinity = Affinity {
-        pod_anti_affinity: Some(test),
+        pod_anti_affinity: Some(anti_affinity),
         ..Affinity::default()
     };
 

@@ -80,9 +80,6 @@ spec:
                               nullable: true
                               type: string
                           type: object
-                        sensitivePropertyKeySecret:
-                          nullable: true
-                          type: string
                       type: object
                     configOverrides:
                       additionalProperties:
@@ -120,9 +117,6 @@ spec:
                                     nullable: true
                                     type: string
                                 type: object
-                              sensitivePropertyKeySecret:
-                                nullable: true
-                                type: string
                             type: object
                           configOverrides:
                             additionalProperties:
@@ -177,6 +171,26 @@ spec:
                   required:
                     - roleGroups
                   type: object
+                sensitivePropertiesConfig:
+                  description: Configuration options for how NiFi encrypts sensitive properties on disk
+                  properties:
+                    algorithm:
+                      enum:
+                        - nifiArgon2AesGcm128
+                        - nifiArgon2AesGcm256
+                        - nifiBcryptAesGcm128
+                        - nifiBcryptAesGcm256
+                        - nifiPbkdf2AesGcm128
+                        - nifiPbkdf2AesGcm256
+                        - nifiScryptAesGcm128
+                        - nifiScryptAesGcm256
+                      nullable: true
+                      type: string
+                    keySecret:
+                      type: string
+                  required:
+                    - keySecret
+                  type: object
                 stopped:
                   description: "Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)"
                   nullable: true
@@ -201,6 +215,7 @@ spec:
                   type: object
               required:
                 - authenticationConfig
+                - sensitivePropertiesConfig
                 - zookeeperReference
               type: object
             status:

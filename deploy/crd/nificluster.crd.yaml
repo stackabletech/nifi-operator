@@ -173,7 +173,6 @@ spec:
                   properties:
                     algorithm:
                       enum:
-                        - default
                         - nifiArgon2AesGcm128
                         - nifiArgon2AesGcm256
                         - nifiBcryptAesGcm128

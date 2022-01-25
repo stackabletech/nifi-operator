@@ -148,7 +148,7 @@ pub fn build_nifi_properties(
     );
     properties.insert(
         "nifi.flow.configuration.archive.dir".to_string(),
-        "./conf/archive/".to_string(),
+        "/stackable/nifi/conf/archive/".to_string(),
     );
     properties.insert(
         "nifi.flow.configuration.archive.max.time".to_string(),
@@ -181,12 +181,11 @@ pub fn build_nifi_properties(
 
     properties.insert(
         "nifi.authorizer.configuration.file".to_string(),
-        "./conf/authorizers.xml".to_string(),
+        "/stackable/nifi/conf/authorizers.xml".to_string(),
     );
     properties.insert(
         "nifi.login.identity.provider.configuration.file".to_string(),
-        "./conf/login-identity-pro\
-        viders.xml"
+        "/stackable/nifi/conf/login-identity-providers.xml"
             .to_string(),
     );
     properties.insert(
@@ -421,6 +420,8 @@ pub fn build_nifi_properties(
 
     //#############################################
 
+    // This will be replaced in the init container, so 0.0.0.0 acts mainly as
+    // marker
     properties.insert("nifi.web.https.host".to_string(), "0.0.0.0".to_string());
     properties.insert("nifi.web.https.port".to_string(), HTTPS_PORT.to_string());
     properties.insert(
@@ -435,8 +436,10 @@ pub fn build_nifi_properties(
     properties.insert("nifi.web.max.header.size".to_string(), "16 KB".to_string());
     properties.insert("nifi.web.proxy.context.path".to_string(), "".to_string());
     properties.insert("nifi.web.proxy.host".to_string(), proxy_hosts.to_string());
+
+
     // security properties
-    // this property is later set from a secret
+    // this property is later set from a secret, so can remain empty here
     properties.insert("nifi.sensitive.props.key".to_string(), "".to_string());
     properties.insert(
         "nifi.sensitive.props.key.protected".to_string(),
@@ -447,12 +450,15 @@ pub fn build_nifi_properties(
         .sensitive_properties_config
         .algorithm
         .clone()
-        .unwrap_or(NifiSensitiveKeyAlgorithm::Default);
+        .unwrap_or(NifiSensitiveKeyAlgorithm::default());
     properties.insert(
         "nifi.sensitive.props.algorithm".to_string(),
         algorithm.to_string(),
     );
+
     // key and trust store
+    // these properties are ok to hard code here, because the cannot be configured and are
+    // generated with fixed values in the init container
     properties.insert(
         "nifi.security.keystore".to_string(),
         "/stackable/keystore/keystore.p12".to_string(),

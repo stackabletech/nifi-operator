@@ -1,8 +1,11 @@
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::client::Client;
-use stackable_operator::k8s_openapi::api::core::v1::{Secret, SecretReference};
+use stackable_operator::k8s_openapi::api::core::v1::{
+    ConfigMapVolumeSource, Secret, SecretReference, SecretVolumeSource, Volume,
+};
 use stackable_operator::schemars::{self, JsonSchema};
+use std::collections::BTreeMap;
 use std::string::FromUtf8Error;
 use xml::escape::escape_str_attribute;
 
@@ -86,7 +89,7 @@ pub async fn get_login_identity_provider_xml(
             let secret_namespace = admin_credentials_secret
                 .namespace
                 .clone()
-                .unwrap_or(current_namespace.to_string());
+                .unwrap_or_else(|| current_namespace.to_string());
             // Get Secret content from Kube
             let secret_content: Secret = client
                 .get::<Secret>(&secret_name, Some(&secret_namespace))
@@ -141,17 +144,46 @@ pub async fn get_login_identity_provider_xml(
     }
 }
 
+pub fn get_auth_volumes(
+    method: &NifiAuthenticationMethod,
+) -> Result<BTreeMap<String, (String, Volume)>, Error> {
+    match method {
+        NifiAuthenticationMethod::SingleUser {
+            admin_credentials_secret,
+        } => {
+            let mut result = BTreeMap::new();
+            let admin_volume = Volume {
+                name: "adminuser".to_string(),
+                secret: Some(SecretVolumeSource {
+                    secret_name: Some(admin_credentials_secret.name.clone().with_context(|| {
+                        MissingRequiredValue {
+                            value: "name".to_string(),
+                        }
+                    })?),
+                    ..SecretVolumeSource::default()
+                }),
+                ..Volume::default()
+            };
+            result.insert(
+                "adminuser".to_string(),
+                ("/stackable/adminuser".to_string(), admin_volume),
+            );
+            Ok(result)
+        }
+    }
+}
+
 fn build_single_user_config(username: &str, password_hash: &str) -> String {
     format!("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>
      <loginIdentityProviders>
         <provider>
             <identifier>single-user-provider</identifier>
             <class>org.apache.nifi.authentication.single.user.SingleUserLoginIdentityProvider</class>
-            <property name=\"Username\">{}</property>
-            <property name=\"Password\">{}</property>
+            <property name=\"Username\">xxx</property>
+            <property name=\"Password\">$2a$12$.maaJy9xIZIxwRb7cyTMROi8IUVnDlUm/gzSn5x341VPrlRCCSA3W</property>
         </provider>
-     </loginIdentityProviders>", escape_str_attribute(username), escape_str_attribute(password_hash))
-}
+     </loginIdentityProviders>")
+    }
 
 /*
 #[cfg(test)]
