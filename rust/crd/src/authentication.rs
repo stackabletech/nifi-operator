@@ -106,12 +106,8 @@ pub async fn get_login_identity_provider_xml(
             )
             .with_context(|_| Utf8FailureSnafu {
                 key: "username".to_string(),
-                obj_ref: ObjectRef::new(&secret_name).within(
-                    admin_credentials_secret
-                        .namespace
-                        .as_deref()
-                        .unwrap_or_else(|| ""),
-                ),
+                obj_ref: ObjectRef::new(&secret_name)
+                    .within(admin_credentials_secret.namespace.as_deref().unwrap_or("")),
             })?;
 
             let password = String::from_utf8(
@@ -125,12 +121,8 @@ pub async fn get_login_identity_provider_xml(
             )
             .with_context(|_| Utf8FailureSnafu {
                 key: "password".to_string(),
-                obj_ref: ObjectRef::new(&secret_name).within(
-                    admin_credentials_secret
-                        .namespace
-                        .as_deref()
-                        .unwrap_or_else(|| ""),
-                ),
+                obj_ref: ObjectRef::new(&secret_name)
+                    .within(admin_credentials_secret.namespace.as_deref().unwrap_or("")),
             })?;
 
             Ok(build_single_user_config(&user_name, &password))
@@ -168,7 +160,7 @@ pub fn get_auth_volumes(
 }
 
 fn build_single_user_config(_username: &str, _password_hash: &str) -> String {
-    format!("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>
+    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>
      <loginIdentityProviders>
         <provider>
             <identifier>single-user-provider</identifier>
@@ -176,5 +168,5 @@ fn build_single_user_config(_username: &str, _password_hash: &str) -> String {
             <property name=\"Username\">xxx</property>
             <property name=\"Password\">yyy</property>
         </provider>
-     </loginIdentityProviders>")
+     </loginIdentityProviders>".to_string()
 }

@@ -134,7 +134,7 @@ pub enum Error {
         obj_ref: ObjectRef<Service>,
     },
     #[snafu(display("Failed to materialize authentication config element from k8s"))]
-    MaterializeError {
+    MaterializeAuthConfig {
         source: stackable_nifi_crd::authentication::Error,
     },
 }
@@ -200,7 +200,7 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
         .get(&nifi.name(), nifi.namespace().as_deref())
         .await
         .with_context(|_| MissingServiceSnafu {
-            obj_ref: ObjectRef::new(&nifi.name()).within(&namespace),
+            obj_ref: ObjectRef::new(&nifi.name()).within(namespace),
         })?;
 
     for (rolegroup_name, rolegroup_config) in nifi_node_config.iter() {
@@ -400,7 +400,7 @@ async fn build_node_rolegroup_config_map(
                 namespace,
             )
             .await
-            .context(MaterializeSnafu)?,
+            .context(MaterializeAuthConfigSnafu {})?,
         )
         .add_data("authorizers.xml", build_authorizers_xml())
         .build()
@@ -524,8 +524,8 @@ fn build_node_rolegroup_statefulset(
 
     let sensitive_key_secret = &nifi.spec.sensitive_properties_config.key_secret;
 
-    let auth_volumes =
-        get_auth_volumes(&nifi.spec.authentication_config.method).context(MaterializeSnafu)?;
+    let auth_volumes = get_auth_volumes(&nifi.spec.authentication_config.method)
+        .context(MaterializeAuthConfigSnafu)?;
 
     let mut container_prepare = ContainerBuilder::new("prepare")
         .image("docker.stackable.tech/soenkeliebau/tools:f18059a9")

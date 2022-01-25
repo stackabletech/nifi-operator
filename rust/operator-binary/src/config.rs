@@ -1,7 +1,6 @@
 use snafu::{ResultExt, Snafu};
 use stackable_nifi_crd::{
-    LogLevel, NifiCluster, NifiConfig, NifiLogConfig, NifiRole, NifiSensitiveKeyAlgorithm,
-    NifiSpec, HTTPS_PORT, PROTOCOL_PORT,
+    LogLevel, NifiCluster, NifiConfig, NifiLogConfig, NifiRole, NifiSpec, HTTPS_PORT, PROTOCOL_PORT,
 };
 use stackable_operator::product_config::types::PropertyNameKind;
 use stackable_operator::product_config::ProductConfigManager;
@@ -447,7 +446,7 @@ pub fn build_nifi_properties(
         .sensitive_properties_config
         .algorithm
         .clone()
-        .unwrap_or(NifiSensitiveKeyAlgorithm::default());
+        .unwrap_or_default();
     properties.insert(
         "nifi.sensitive.props.algorithm".to_string(),
         algorithm.to_string(),
