@@ -184,8 +184,7 @@ pub fn build_nifi_properties(
     );
     properties.insert(
         "nifi.login.identity.provider.configuration.file".to_string(),
-        "/stackable/nifi/conf/login-identity-providers.xml"
-            .to_string(),
+        "/stackable/nifi/conf/login-identity-providers.xml".to_string(),
     );
     properties.insert(
         "nifi.templates.directory".to_string(),
@@ -435,7 +434,6 @@ pub fn build_nifi_properties(
     properties.insert("nifi.web.max.header.size".to_string(), "16 KB".to_string());
     properties.insert("nifi.web.proxy.context.path".to_string(), "".to_string());
     properties.insert("nifi.web.proxy.host".to_string(), proxy_hosts.to_string());
-
 
     // security properties
     // this property is later set from a secret, so can remain empty here

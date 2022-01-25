@@ -77,13 +77,11 @@ pub async fn get_login_identity_provider_xml(
         NifiAuthenticationMethod::SingleUser {
             admin_credentials_secret,
         } => {
-            let secret_name =
-                admin_credentials_secret
-                    .name
-                    .clone()
-                    .with_context(|| MissingSecretReferenceSnafu {
-                        secret: "admin_credentials_secret".to_string(),
-                    })?;
+            let secret_name = admin_credentials_secret.name.clone().with_context(|| {
+                MissingSecretReferenceSnafu {
+                    secret: "admin_credentials_secret".to_string(),
+                }
+            })?;
             // If no namespace was specified the namespace of the NifiCluster object is assumed
             let secret_namespace = admin_credentials_secret
                 .namespace
@@ -98,9 +96,11 @@ pub async fn get_login_identity_provider_xml(
                     namespace: "".to_string(),
                 })?;
 
-            let secret_data = secret_content.data.with_context(|| MissingRequiredValueSnafu {
-                value: "admin_credentials_secret contains no data".to_string(),
-            })?;
+            let secret_data = secret_content
+                .data
+                .with_context(|| MissingRequiredValueSnafu {
+                    value: "admin_credentials_secret contains no data".to_string(),
+                })?;
 
             let user_name = String::from_utf8(
                 secret_data
@@ -154,11 +154,11 @@ pub fn get_auth_volumes(
             let admin_volume = Volume {
                 name: "adminuser".to_string(),
                 secret: Some(SecretVolumeSource {
-                    secret_name: Some(admin_credentials_secret.name.clone().with_context(|| {
-                        MissingRequiredValueSnafu {
+                    secret_name: Some(admin_credentials_secret.name.clone().with_context(
+                        || MissingRequiredValueSnafu {
                             value: "name".to_string(),
-                        }
-                    })?),
+                        },
+                    )?),
                     ..SecretVolumeSource::default()
                 }),
                 ..Volume::default()
@@ -182,7 +182,7 @@ fn build_single_user_config(_username: &str, _password_hash: &str) -> String {
             <property name=\"Password\">yyy</property>
         </provider>
      </loginIdentityProviders>")
-    }
+}
 
 /*
 #[cfg(test)]

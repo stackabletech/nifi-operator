@@ -9,11 +9,11 @@ use crate::config::{
 use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_nifi_crd::authentication::get_auth_volumes;
+use stackable_nifi_crd::NifiLogConfig;
 use stackable_nifi_crd::{
     NifiCluster, NifiRole, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME,
     PROTOCOL_PORT, PROTOCOL_PORT_NAME,
 };
-use stackable_nifi_crd::{NifiLogConfig};
 use stackable_nifi_crd::{APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME};
 use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
@@ -149,7 +149,7 @@ pub enum Error {
     #[snafu(display("Failed to materialize authentication config element from k8s"))]
     MaterializeError {
         source: stackable_nifi_crd::authentication::Error,
-    }
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -540,8 +540,8 @@ fn build_node_rolegroup_statefulset(
 
     let sensitive_key_secret = &nifi.spec.sensitive_properties_config.key_secret;
 
-    let auth_volumes = get_auth_volumes(&nifi.spec.authentication_config.method)
-        .context(MaterializeSnafu)?;
+    let auth_volumes =
+        get_auth_volumes(&nifi.spec.authentication_config.method).context(MaterializeSnafu)?;
 
     let mut container_prepare = ContainerBuilder::new("prepare")
         .image("docker.stackable.tech/soenkeliebau/tools:0f9f1ed3")
@@ -992,7 +992,10 @@ fn get_service_fqdn(service: &Service) -> Result<String, Error> {
 }
 
 pub fn nifi_version(nifi: &NifiCluster) -> Result<&str> {
-    nifi.spec.version.as_deref().context(ObjectHasNoVersionSnafu)
+    nifi.spec
+        .version
+        .as_deref()
+        .context(ObjectHasNoVersionSnafu)
 }
 
 pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> ReconcilerAction {
