@@ -2,12 +2,11 @@ use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
-    ConfigMapVolumeSource, Secret, SecretReference, SecretVolumeSource, Volume,
+    Secret, SecretReference, SecretVolumeSource, Volume,
 };
 use stackable_operator::schemars::{self, JsonSchema};
 use std::collections::BTreeMap;
 use std::string::FromUtf8Error;
-use xml::escape::escape_str_attribute;
 
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
@@ -173,7 +172,7 @@ pub fn get_auth_volumes(
     }
 }
 
-fn build_single_user_config(username: &str, password_hash: &str) -> String {
+fn build_single_user_config(_username: &str, _password_hash: &str) -> String {
     format!("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>
      <loginIdentityProviders>
         <provider>

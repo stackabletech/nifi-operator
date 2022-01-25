@@ -13,7 +13,7 @@ use stackable_nifi_crd::{
     NifiCluster, NifiRole, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME,
     PROTOCOL_PORT, PROTOCOL_PORT_NAME,
 };
-use stackable_nifi_crd::{NifiLogConfig, NifiSpec};
+use stackable_nifi_crd::{NifiLogConfig};
 use stackable_nifi_crd::{APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME};
 use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
@@ -21,7 +21,6 @@ use stackable_operator::k8s_openapi::api::core::v1::{
     ObjectFieldSelector, PodAffinityTerm, PodAntiAffinity, PodSpec, Probe, Secret,
     SecretVolumeSource, SecurityContext, TCPSocketAction, VolumeMount,
 };
-use stackable_operator::k8s_openapi::api::storage::v1::VolumeAttachment;
 use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::role_utils::RoleGroupRef;
@@ -616,7 +615,7 @@ fn build_node_rolegroup_statefulset(
         .add_volume_mount("sensitiveproperty", "/stackable/sensitiveproperty")
         .build();
 
-    for (name, (mount_path, volume)) in &auth_volumes {
+    for (name, (mount_path, _volume)) in &auth_volumes {
         container_prepare
             .volume_mounts
             .get_or_insert_with(Vec::default)
@@ -749,7 +748,7 @@ fn build_node_rolegroup_statefulset(
         })
         .clone();
 
-    for (name, (mount_path, volume)) in auth_volumes {
+    for (_name, (_mount_path, volume)) in auth_volumes {
         pod_template_builder = pod_template_builder.add_volume(volume).clone();
     }
 
