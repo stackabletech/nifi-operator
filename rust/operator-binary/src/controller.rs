@@ -178,13 +178,13 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
     let zk_connect_string = client
         .get::<ConfigMap>(&zk_name, Some(&zk_namespace))
         .await
-        .with_context(|| GetZookeeperConnStringConfigMap {
+        .with_context(|_| GetZookeeperConnStringConfigMapSnafu {
             cm_name: zk_name.to_string(),
             namespace: zk_namespace.to_string(),
         })?
         .data
         .and_then(|mut data| data.remove("ZOOKEEPER"))
-        .with_context(|| MissingZookeeperConnString {
+        .with_context(|| MissingZookeeperConnStringSnafu {
             cm_name: zk_name.to_string(),
             namespace: zk_namespace.to_string(),
         })?;
@@ -195,10 +195,10 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
     let validated_config = validated_product_config(
         &nifi,
         nifi_version,
-        nifi.spec.nodes.as_ref().context(NoNodeRole)?,
+        nifi.spec.nodes.as_ref().context(NoNodeRoleSnafu)?,
         &ctx.get_ref().product_config,
     )
-    .context(ProductConfigLoadFailed)?;
+    .context(ProductConfigLoadFailedSnafu)?;
 
     let nifi_node_config = validated_config
         .get(&NifiRole::Node.to_string())
@@ -209,12 +209,12 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
     client
         .apply_patch(FIELD_MANAGER_SCOPE, &node_role_service, &node_role_service)
         .await
-        .context(ApplyRoleService)?;
+        .context(ApplyRoleServiceSnafu)?;
 
     let updated_role_service = client
         .get(&nifi.name(), nifi.namespace().as_deref())
         .await
-        .with_context(|| MissingService {
+        .with_context(|_| MissingServiceSnafu {
             name: nifi.name(),
             namespace: nifi.namespace().unwrap_or_default(),
         })?;
@@ -244,26 +244,26 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
         client
             .apply_patch(FIELD_MANAGER_SCOPE, &rg_service, &rg_service)
             .await
-            .with_context(|| ApplyRoleGroupService {
+            .with_context(|_| ApplyRoleGroupServiceSnafu {
                 rolegroup: rolegroup.clone(),
             })?;
         client
             .apply_patch(FIELD_MANAGER_SCOPE, &rg_configmap, &rg_configmap)
             .await
-            .with_context(|| ApplyRoleGroupConfig {
+            .with_context(|_| ApplyRoleGroupConfigSnafu {
                 rolegroup: rolegroup.clone(),
             })?;
         client
             .apply_patch(FIELD_MANAGER_SCOPE, &rg_log_configmap, &rg_log_configmap)
             .await
-            .with_context(|| ApplyRoleGroupConfig {
+            .with_context(|_| ApplyRoleGroupConfigSnafu {
                 rolegroup: rolegroup.clone(),
             })?;
 
         client
             .apply_patch(FIELD_MANAGER_SCOPE, &rg_statefulset, &rg_statefulset)
             .await
-            .with_context(|| ApplyRoleGroupStatefulSet {
+            .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
                 rolegroup: rolegroup.clone(),
             })?;
     }
@@ -280,13 +280,13 @@ pub fn build_node_role_service(nifi: &NifiCluster) -> Result<Service> {
 
     let role_svc_name = nifi
         .node_role_service_name()
-        .context(GlobalServiceNameNotFound)?;
+        .context(GlobalServiceNameNotFoundSnafu)?;
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(nifi)
             .name(&role_svc_name)
             .ownerreference_from_resource(nifi, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRef)?
+            .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(nifi, APP_NAME, nifi_version(nifi)?, &role_name, "global")
             .build(),
         spec: Some(ServiceSpec {
@@ -328,7 +328,7 @@ fn build_node_rolegroup_log_config_map(
                 .name_and_namespace(nifi)
                 .name(rolegroup.object_name() + "-log")
                 .ownerreference_from_resource(nifi, None, Some(true))
-                .context(ObjectMissingMetadataForOwnerRef)?
+                .context(ObjectMissingMetadataForOwnerRefSnafu)?
                 .with_recommended_labels(
                     nifi,
                     APP_NAME,
@@ -343,7 +343,7 @@ fn build_node_rolegroup_log_config_map(
             build_logback_xml(&get_log_config(nifi, rolegroup)),
         )
         .build()
-        .with_context(|| BuildRoleGroupConfig {
+        .with_context(|_| BuildRoleGroupConfigSnafu {
             rolegroup: rolegroup.clone(),
         })
 }
@@ -369,7 +369,7 @@ async fn build_node_rolegroup_config_map(
                 .name_and_namespace(nifi)
                 .name(rolegroup.object_name())
                 .ownerreference_from_resource(nifi, None, Some(true))
-                .context(ObjectMissingMetadataForOwnerRef)?
+                .context(ObjectMissingMetadataForOwnerRefSnafu)?
                 .with_recommended_labels(
                     nifi,
                     APP_NAME,
@@ -384,7 +384,7 @@ async fn build_node_rolegroup_config_map(
             build_bootstrap_conf(
                 config
                     .get(&PropertyNameKind::File(NIFI_BOOTSTRAP_CONF.to_string()))
-                    .with_context(|| ProductConfigKindNotSpecified {
+                    .with_context(|| ProductConfigKindNotSpecifiedSnafu {
                         kind: NIFI_BOOTSTRAP_CONF.to_string(),
                     })?
                     .clone(),
@@ -398,7 +398,7 @@ async fn build_node_rolegroup_config_map(
                 proxy_hosts,
                 config
                     .get(&PropertyNameKind::File(NIFI_PROPERTIES.to_string()))
-                    .with_context(|| ProductConfigKindNotSpecified {
+                    .with_context(|| ProductConfigKindNotSpecifiedSnafu {
                         kind: NIFI_PROPERTIES.to_string(),
                     })?
                     .clone(),
@@ -416,11 +416,11 @@ async fn build_node_rolegroup_config_map(
                 namespace,
             )
             .await
-            .context(MaterializeError)?,
+            .context(MaterializeSnafu)?,
         )
         .add_data("authorizers.xml", build_authorizers_xml())
         .build()
-        .with_context(|| BuildRoleGroupConfig {
+        .with_context(|_| BuildRoleGroupConfigSnafu {
             rolegroup: rolegroup.clone(),
         })
 }
@@ -437,7 +437,7 @@ fn build_node_rolegroup_service(
             .name_and_namespace(nifi)
             .name(&rolegroup.object_name())
             .ownerreference_from_resource(nifi, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRef)?
+            .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(
                 nifi,
                 APP_NAME,
@@ -489,7 +489,7 @@ fn build_node_rolegroup_statefulset(
     // get env vars and env overrides
     let mut env_vars: Vec<EnvVar> = config
         .get(&PropertyNameKind::Env)
-        .with_context(|| ProductConfigKindNotSpecified {
+        .with_context(|| ProductConfigKindNotSpecifiedSnafu {
             kind: "ENV".to_string(),
         })?
         .iter()
@@ -517,7 +517,7 @@ fn build_node_rolegroup_statefulset(
         .spec
         .nodes
         .as_ref()
-        .context(NoNodeRole)?
+        .context(NoNodeRoleSnafu)?
         .role_groups
         .get(&rolegroup_ref.role_group);
 
@@ -541,7 +541,7 @@ fn build_node_rolegroup_statefulset(
     let sensitive_key_secret = &nifi.spec.sensitive_properties_config.key_secret;
 
     let auth_volumes = get_auth_volumes(&nifi.spec.authentication_config.method)
-        .context(MaterializeError)?;
+        .context(MaterializeSnafu)?;
 
     let mut container_prepare = ContainerBuilder::new("prepare")
         .image("docker.stackable.tech/soenkeliebau/tools:0f9f1ed3")
@@ -754,7 +754,7 @@ fn build_node_rolegroup_statefulset(
         nifi.metadata
             .name
             .as_deref()
-            .with_context(|| ObjectHasNoName {})?
+            .with_context(|| ObjectHasNoNameSnafu {})?
             .to_string(),
     );
 
@@ -785,7 +785,7 @@ fn build_node_rolegroup_statefulset(
             .name_and_namespace(nifi)
             .name(&rolegroup_ref.object_name())
             .ownerreference_from_resource(nifi, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRef)?
+            .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(
                 nifi,
                 APP_NAME,
@@ -849,12 +849,12 @@ async fn check_or_generate_sensitive_key(
         .metadata
         .namespace
         .clone()
-        .with_context(|| ObjectHasNoNamespace {})?;
+        .with_context(|| ObjectHasNoNamespaceSnafu {})?;
 
     match client
         .exists::<Secret>(&sensitive_config.key_secret, Some(namespace))
         .await
-        .with_context(|| SensitiveKeySecret {})?
+        .with_context(|_| SensitiveKeySecretSnafu {})?
     {
         true => Ok(false),
         false => {
@@ -879,7 +879,7 @@ async fn check_or_generate_sensitive_key(
             client
                 .create(&new_secret)
                 .await
-                .with_context(|| SensitiveKeySecret {})?;
+                .with_context(|_| SensitiveKeySecretSnafu {})?;
             Ok(true)
         }
     }
@@ -955,7 +955,7 @@ async fn node_addresses(
     let cluster_nodes = client
         .list_with_label_selector::<Node>(None, &selector)
         .await
-        .with_context(|| MissingNodes {
+        .with_context(|_| MissingNodesSnafu {
             namespace: nifi.metadata.namespace.as_deref().unwrap().to_string(),
             selector,
         })?;
@@ -980,19 +980,19 @@ fn get_service_fqdn(service: &Service) -> Result<String, Error> {
         .metadata
         .name
         .as_ref()
-        .with_context(|| ObjectHasNoName {})?
+        .with_context(|| ObjectHasNoNameSnafu {})?
         .to_string();
     let namespace = service
         .metadata
         .namespace
         .as_ref()
-        .with_context(|| ObjectHasNoNamespace {})?
+        .with_context(|| ObjectHasNoNamespaceSnafu {})?
         .to_string();
     Ok(format!("{}.{}.svc.cluster.local:8443", name, namespace))
 }
 
 pub fn nifi_version(nifi: &NifiCluster) -> Result<&str> {
-    nifi.spec.version.as_deref().context(ObjectHasNoVersion)
+    nifi.spec.version.as_deref().context(ObjectHasNoVersionSnafu)
 }
 
 pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> ReconcilerAction {

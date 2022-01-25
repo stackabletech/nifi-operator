@@ -609,10 +609,10 @@ pub fn validated_product_config(
     );
 
     let role_config =
-        transform_all_roles_to_config(resource, roles).context(ProductConfigTransform)?;
+        transform_all_roles_to_config(resource, roles).context(ProductConfigTransformSnafu)?;
 
     validate_all_roles_and_groups_config(version, &role_config, product_config, false, false)
-        .context(InvalidProductConfig)
+        .context(InvalidProductConfigSnafu)
 }
 
 // TODO: Use crate like https://crates.io/crates/java-properties (currently does not work for Nifi

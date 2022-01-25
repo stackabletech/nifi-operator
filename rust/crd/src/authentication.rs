@@ -81,7 +81,7 @@ pub async fn get_login_identity_provider_xml(
                 admin_credentials_secret
                     .name
                     .clone()
-                    .with_context(|| MissingSecretReference {
+                    .with_context(|| MissingSecretReferenceSnafu {
                         secret: "admin_credentials_secret".to_string(),
                     })?;
             // If no namespace was specified the namespace of the NifiCluster object is assumed
@@ -93,25 +93,25 @@ pub async fn get_login_identity_provider_xml(
             let secret_content: Secret = client
                 .get::<Secret>(&secret_name, Some(&secret_namespace))
                 .await
-                .with_context(|| MissingSecret {
+                .with_context(|_| MissingSecretSnafu {
                     name: secret_name.to_string(),
                     namespace: "".to_string(),
                 })?;
 
-            let secret_data = secret_content.data.with_context(|| MissingRequiredValue {
+            let secret_data = secret_content.data.with_context(|| MissingRequiredValueSnafu {
                 value: "admin_credentials_secret contains no data".to_string(),
             })?;
 
             let user_name = String::from_utf8(
                 secret_data
                     .get("username")
-                    .with_context(|| MissingRequiredValue {
+                    .with_context(|| MissingRequiredValueSnafu {
                         value: "username".to_string(),
                     })?
                     .clone()
                     .0,
             )
-            .with_context(|| Utf8Failure {
+            .with_context(|_| Utf8FailureSnafu {
                 key: "username".to_string(),
                 name: secret_name.to_string(),
                 namespace: admin_credentials_secret
@@ -123,13 +123,13 @@ pub async fn get_login_identity_provider_xml(
             let password = String::from_utf8(
                 secret_data
                     .get("password")
-                    .with_context(|| MissingRequiredValue {
+                    .with_context(|| MissingRequiredValueSnafu {
                         value: "password".to_string(),
                     })?
                     .clone()
                     .0,
             )
-            .with_context(|| Utf8Failure {
+            .with_context(|_| Utf8FailureSnafu {
                 key: "password".to_string(),
                 name: secret_name.to_string(),
                 namespace: admin_credentials_secret
@@ -155,7 +155,7 @@ pub fn get_auth_volumes(
                 name: "adminuser".to_string(),
                 secret: Some(SecretVolumeSource {
                     secret_name: Some(admin_credentials_secret.name.clone().with_context(|| {
-                        MissingRequiredValue {
+                        MissingRequiredValueSnafu {
                             value: "name".to_string(),
                         }
                     })?),

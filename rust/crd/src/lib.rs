@@ -215,7 +215,7 @@ impl NifiCluster {
             .metadata
             .namespace
             .clone()
-            .context(NoNamespaceContext)?;
+            .context(NoNamespaceSnafu)?;
         Ok(self
             .spec
             .nodes
