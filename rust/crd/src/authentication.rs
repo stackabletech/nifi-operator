@@ -180,7 +180,7 @@ fn build_single_user_config(username: &str, password_hash: &str) -> String {
             <identifier>single-user-provider</identifier>
             <class>org.apache.nifi.authentication.single.user.SingleUserLoginIdentityProvider</class>
             <property name=\"Username\">xxx</property>
-            <property name=\"Password\">$2a$12$.maaJy9xIZIxwRb7cyTMROi8IUVnDlUm/gzSn5x341VPrlRCCSA3W</property>
+            <property name=\"Password\">yyy</property>
         </provider>
      </loginIdentityProviders>")
     }
