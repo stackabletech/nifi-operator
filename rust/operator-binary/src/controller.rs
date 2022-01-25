@@ -528,7 +528,7 @@ fn build_node_rolegroup_statefulset(
         get_auth_volumes(&nifi.spec.authentication_config.method).context(MaterializeSnafu)?;
 
     let mut container_prepare = ContainerBuilder::new("prepare")
-        .image("docker.stackable.tech/soenkeliebau/tools:0f9f1ed3")
+        .image("docker.stackable.tech/soenkeliebau/tools:f18059a9")
         .command(vec!["/bin/bash".to_string(), "-c".to_string(), "-euo".to_string(), "pipefail".to_string()])
         .add_env_vars(env_vars.clone())
         .args(vec![[
@@ -554,10 +554,8 @@ fn build_node_rolegroup_statefulset(
             "echo Replacing nifi.sensitive.props.key in nifi.properties",
             "sed -i \"s|nifi.sensitive.props.key=|nifi.sensitive.props.key=$(cat /stackable/sensitiveproperty/nifiSensitivePropsKey)|g\" /stackable/nifi/conf/nifi.properties",
             "echo Replacing username and password in login-identity-provider.xml",
-            "HASH=$(cat /stackable/adminuser/password | bcrypt --cost=12)",
-            "echo $HASH",
             "sed -i \"s|xxx|$(cat /stackable/adminuser/username)|g\" /stackable/nifi/conf/login-identity-providers.xml",
-            "sed -i \"s|yyy|$(cat /stackable/adminuser/password | bcrypt --cost=12)|g\" /stackable/nifi/conf/login-identity-providers.xml",
+            "sed -i \"s|yyy|$(cat /stackable/adminuser/password | java -jar /bin/stackable-bcrypt.jar)|g\" /stackable/nifi/conf/login-identity-providers.xml",
             "echo chowning data directory",
             "chown -R stackable:stackable /stackable/data",
             "echo chmodding data directory",
