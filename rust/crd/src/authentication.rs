@@ -4,6 +4,7 @@ use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
     Secret, SecretReference, SecretVolumeSource, Volume,
 };
+use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::schemars::{self, JsonSchema};
 use std::collections::BTreeMap;
 use std::string::FromUtf8Error;
@@ -11,23 +12,16 @@ use std::string::FromUtf8Error;
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("Failed to find referenced secret [{}/{}]", name, namespace))]
+    #[snafu(display("Failed to find referenced secret {obj_ref}"))]
     MissingSecret {
         source: stackable_operator::error::Error,
-        name: String,
-        namespace: String,
+        obj_ref: ObjectRef<Secret>,
     },
-    #[snafu(display(
-        "Failed to parse utf8 string for key [{}] in secret [{}/{}]",
-        key,
-        name,
-        namespace
-    ))]
+    #[snafu(display("Failed to parse utf8 string for key [{key}] in secret {obj_ref}",))]
     Utf8Failure {
         source: FromUtf8Error,
+        obj_ref: ObjectRef<Secret>,
         key: String,
-        name: String,
-        namespace: String,
     },
     #[snafu(display("Missing mandatory configuration key [{}] when parsing secret", key))]
     MissingKey { key: String },
@@ -92,8 +86,7 @@ pub async fn get_login_identity_provider_xml(
                 .get::<Secret>(&secret_name, Some(&secret_namespace))
                 .await
                 .with_context(|_| MissingSecretSnafu {
-                    name: secret_name.to_string(),
-                    namespace: "".to_string(),
+                    obj_ref: ObjectRef::new(&secret_name).within(&secret_namespace),
                 })?;
 
             let secret_data = secret_content
@@ -113,11 +106,12 @@ pub async fn get_login_identity_provider_xml(
             )
             .with_context(|_| Utf8FailureSnafu {
                 key: "username".to_string(),
-                name: secret_name.to_string(),
-                namespace: admin_credentials_secret
-                    .namespace
-                    .clone()
-                    .unwrap_or_else(|| "".to_string()),
+                obj_ref: ObjectRef::new(&secret_name).within(
+                    admin_credentials_secret
+                        .namespace
+                        .as_deref()
+                        .unwrap_or_else(|| ""),
+                ),
             })?;
 
             let password = String::from_utf8(
@@ -131,11 +125,12 @@ pub async fn get_login_identity_provider_xml(
             )
             .with_context(|_| Utf8FailureSnafu {
                 key: "password".to_string(),
-                name: secret_name.to_string(),
-                namespace: admin_credentials_secret
-                    .namespace
-                    .clone()
-                    .unwrap_or_else(|| "".to_string()),
+                obj_ref: ObjectRef::new(&secret_name).within(
+                    admin_credentials_secret
+                        .namespace
+                        .as_deref()
+                        .unwrap_or_else(|| ""),
+                ),
             })?;
 
             Ok(build_single_user_config(&user_name, &password))
