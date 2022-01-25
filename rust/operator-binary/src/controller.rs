@@ -610,7 +610,7 @@ fn build_node_rolegroup_statefulset(
             &NifiRepository::State.repository(),
             &NifiRepository::State.mount_path(),
         )
-        .add_volume_mount("conf", "conf")
+        .add_volume_mount("conf", "/conf")
         .add_volume_mount("keystore", "/stackable/keystore")
         .add_volume_mount("activeconf", "/stackable/nifi/conf")
         .add_volume_mount("sensitiveproperty", "/stackable/sensitiveproperty")
