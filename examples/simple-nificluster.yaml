@@ -2,11 +2,11 @@
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
 metadata:
-  name: test-nifi
+  name: simple-nifi
 spec:
   version: "1.15.0"
   zookeeperReference:
-    name: test-zk
+    name: simple-zk
     chroot: /nifi
   authenticationConfig:
     method:
