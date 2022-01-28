@@ -63,6 +63,8 @@ pub enum Error {
     ObjectHasNoVersion,
     #[snafu(display("object defines no name"))]
     ObjectHasNoName,
+    #[snafu(display("object defines no spec"))]
+    ObjectHasNoSpec,
     #[snafu(display("object defines no namespace"))]
     ObjectHasNoNamespace,
     #[snafu(display("object defines no metastore role"))]
@@ -137,6 +139,8 @@ pub enum Error {
     MaterializeAuthConfig {
         source: stackable_nifi_crd::authentication::Error,
     },
+    #[snafu(display("Failed to find an external port to use for proxy hosts"))]
+    ExternalPort {},
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -209,7 +213,7 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
         let rg_service = build_node_rolegroup_service(&nifi, &rolegroup)?;
 
         // node addresses
-        let proxy_hosts = node_addresses(client, &nifi, &updated_role_service).await?;
+        let proxy_hosts = get_proxy_hosts(client, &nifi, &updated_role_service).await?;
 
         let rg_configmap = build_node_rolegroup_config_map(
             client,
@@ -906,19 +910,19 @@ async fn external_node_port(nifi_service: &Service) -> Result<i32> {
     Ok(nifi_service
         .spec
         .as_ref()
-        .unwrap()
+        .with_context(|| ObjectHasNoSpecSnafu {})?
         .ports
         .as_ref()
-        .unwrap()
+        .with_context(|| ExternalPortSnafu {})?
         .iter()
         .filter(|p| p.name == Some(HTTPS_PORT_NAME.to_string()))
-        .map(|p| p.node_port.unwrap())
+        .map(|p| p.node_port.with_context(|| ExternalPortSnafu {})?)
         .collect::<Vec<_>>()
         .pop()
-        .unwrap())
+        .with_context(|| ExternalPortSnafu {})?)
 }
 
-async fn node_addresses(
+async fn get_proxy_hosts(
     client: &Client,
     nifi: &NifiCluster,
     nifi_service: &Service,
