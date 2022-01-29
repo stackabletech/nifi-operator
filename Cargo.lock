@@ -1523,12 +1523,14 @@ dependencies = [
 name = "stackable-nifi-crd"
 version = "0.5.0-nightly"
 dependencies = [
+ "rand",
  "serde",
  "serde_json",
  "snafu",
  "stackable-operator",
  "strum",
  "strum_macros",
+ "tracing",
  "xml-rs",
 ]
 

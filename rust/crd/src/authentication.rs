@@ -1,5 +1,8 @@
+use rand::distributions::Alphanumeric;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::builder::ObjectMetaBuilder;
 use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
     Secret, SecretReference, SecretVolumeSource, Volume,
@@ -16,6 +19,11 @@ pub enum Error {
     MissingSecret {
         source: stackable_operator::error::Error,
         obj_ref: ObjectRef<Secret>,
+    },
+    #[snafu(display("Error when communication with apiserver while:  {reason} "))]
+    Kube {
+        source: stackable_operator::error::Error,
+        reason: String,
     },
     #[snafu(display("Failed to parse utf8 string for key [{key}] in secret {obj_ref}",))]
     Utf8Failure {
@@ -35,9 +43,11 @@ pub enum Error {
         value
     ))]
     MissingRequiredValue { value: String },
-    #[snafu(display("Error accessing secrets referenced in config: [{:?}]", errors))]
-    SecretRetrievalError { errors: Vec<String> },
 }
+
+pub const DEFAULT_SINGLEUSER_ADMIN: &str = "admin";
+pub const SINGLEUSER_USER_KEY: &str = "username";
+pub const SINGLEUSER_PASSWORD_KEY: &str = "password";
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -81,51 +91,16 @@ pub async fn get_login_identity_provider_xml(
                 .namespace
                 .clone()
                 .unwrap_or_else(|| current_namespace.to_string());
-            // Get Secret content from Kube
-            let secret_content: Secret = client
-                .get::<Secret>(&secret_name, Some(&secret_namespace))
-                .await
-                .with_context(|_| MissingSecretSnafu {
-                    obj_ref: ObjectRef::new(&secret_name).within(&secret_namespace),
-                })?;
 
-            let secret_data = secret_content
-                .data
-                .with_context(|| MissingRequiredValueSnafu {
-                    value: "admin_credentials_secret contains no data".to_string(),
-                })?;
+            // Check if the referenced secret exists and contains all necessary keys, otherwise
+            // generate random password and default user
+            check_or_generate_admin_credentials(client, &secret_name, &secret_namespace)
+                .await?;
 
-            let user_name = String::from_utf8(
-                secret_data
-                    .get("username")
-                    .with_context(|| MissingRequiredValueSnafu {
-                        value: "username".to_string(),
-                    })?
-                    .clone()
-                    .0,
+            Ok(include_str!(
+                "../../operator-binary/resources/singleuser-login-identity-providers.xml"
             )
-            .with_context(|_| Utf8FailureSnafu {
-                key: "username".to_string(),
-                obj_ref: ObjectRef::new(&secret_name)
-                    .within(admin_credentials_secret.namespace.as_deref().unwrap_or("")),
-            })?;
-
-            let password = String::from_utf8(
-                secret_data
-                    .get("password")
-                    .with_context(|| MissingRequiredValueSnafu {
-                        value: "password".to_string(),
-                    })?
-                    .clone()
-                    .0,
-            )
-            .with_context(|_| Utf8FailureSnafu {
-                key: "password".to_string(),
-                obj_ref: ObjectRef::new(&secret_name)
-                    .within(admin_credentials_secret.namespace.as_deref().unwrap_or("")),
-            })?;
-
-            Ok(build_single_user_config(&user_name, &password))
+            .to_string())
         }
     }
 }
@@ -159,14 +134,134 @@ pub fn get_auth_volumes(
     }
 }
 
-fn build_single_user_config(_username: &str, _password_hash: &str) -> String {
-    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>
-     <loginIdentityProviders>
-        <provider>
-            <identifier>single-user-provider</identifier>
-            <class>org.apache.nifi.authentication.single.user.SingleUserLoginIdentityProvider</class>
-            <property name=\"Username\">xxx</property>
-            <property name=\"Password\">yyy</property>
-        </provider>
-     </loginIdentityProviders>".to_string()
+async fn check_or_generate_admin_credentials(
+    client: &Client,
+    secret_name: &str,
+    secret_namespace: &str,
+) -> Result<bool, Error> {
+    match client
+        .exists::<Secret>(&secret_name, Some(secret_namespace))
+        .await
+        .with_context(|_| KubeSnafu {
+            reason: format!(
+                "checking if admin credential secret exists [{}/{}]",
+                secret_name, secret_namespace
+            ),
+        })? {
+        true => {
+            // The secret exists, retrieve the content and check that all required keys are present
+            // any missing keys will be filled with default or generated values
+            let secret_content: Secret = client
+                .get::<Secret>(&secret_name, Some(&secret_namespace))
+                .await
+                .with_context(|_| MissingSecretSnafu {
+                    obj_ref: ObjectRef::new(&secret_name).within(&secret_namespace),
+                })?;
+
+            let mut additional_data = None;
+            let empty_map = BTreeMap::new();
+
+            // Check if user key is present, otherwise add to additional data
+            if !secret_content
+                .data
+                .as_ref()
+                .unwrap_or_else(|| &empty_map)
+                .contains_key(SINGLEUSER_USER_KEY)
+            {
+                tracing::info!(
+                    "key [{}] not found in secret [{}/{}], inserting default value of \"admin\"",
+                    SINGLEUSER_USER_KEY,
+                    secret_name,
+                    secret_namespace
+                );
+                additional_data.get_or_insert(BTreeMap::new()).insert(
+                    SINGLEUSER_USER_KEY.to_string(),
+                    DEFAULT_SINGLEUSER_ADMIN.to_string(),
+                );
+            }
+
+            // Check if password key is present, otherwise add to additional data
+            if !secret_content
+                .data
+                .as_ref()
+                .unwrap_or_else(|| &empty_map)
+                .contains_key(SINGLEUSER_PASSWORD_KEY)
+            {
+                tracing::info!(
+                    "key [{}] not found in secret [{}/{}], inserting generated password",
+                    SINGLEUSER_PASSWORD_KEY,
+                    secret_name,
+                    secret_namespace
+                );
+                let generated_password = rand::thread_rng()
+                    .sample_iter(&Alphanumeric)
+                    .take(15)
+                    .map(char::from)
+                    .collect();
+                additional_data
+                    .get_or_insert(BTreeMap::new())
+                    .insert(SINGLEUSER_PASSWORD_KEY.to_string(), generated_password);
+            }
+
+            // Apply patch to secret if any additional data was needed and return
+            if additional_data.is_some() {
+                tracing::debug!(
+                    "patching keys [{:?}] in secret [{}/{}]",
+                    additional_data.clone().unwrap_or_default().keys(),
+                    secret_name,
+                    secret_namespace,
+                );
+                let secret_patch = Secret {
+                    metadata: ObjectMetaBuilder::new()
+                        .namespace(secret_namespace)
+                        .name(secret_name)
+                        .build(),
+                    string_data: additional_data,
+                    ..Secret::default()
+                };
+                client.apply_patch("nificluster", &secret_patch, &secret_patch).await.with_context(|_| KubeSnafu {reason: format!{"patch admin credentialsecret [{}/{}]with missing data", secret_name, secret_namespace}})?;
+                Ok(true)
+            } else {
+                // All needed keys are present, no need to change anything
+                tracing::debug!(
+                    "all required data for admin credentials found in secret [{}/{}]",
+                    secret_name,
+                    secret_namespace
+                );
+                Ok(false)
+            }
+        }
+        false => {
+            tracing::info!("No existing admin credentials found, generating a random password.");
+            let password: String = rand::thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(15)
+                .map(char::from)
+                .collect();
+
+            let mut secret_data = BTreeMap::new();
+
+            secret_data.insert(SINGLEUSER_USER_KEY.to_string(), DEFAULT_SINGLEUSER_ADMIN.to_string());
+            secret_data.insert(SINGLEUSER_PASSWORD_KEY.to_string(), password.to_string());
+
+            let new_secret = Secret {
+                metadata: ObjectMetaBuilder::new()
+                    .namespace(secret_namespace)
+                    .name(secret_name)
+                    .build(),
+                string_data: Some(secret_data),
+                ..Secret::default()
+            };
+            client
+                .create(&new_secret)
+                .await
+                .with_context(|_| KubeSnafu {
+                    reason: format!(
+                        "creating new secret for admincredentials: [{}/{}]",
+                        secret_name, secret_namespace
+                    ),
+                })?;
+            Ok(true)
+        }
+    }
 }

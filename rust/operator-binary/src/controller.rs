@@ -149,12 +149,13 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
     tracing::info!("Starting reconcile");
     let client = &ctx.get_ref().client;
     let nifi_version = nifi_version(&nifi)?;
+    tracing::warn!("1");
     let namespace = &nifi
         .metadata
         .namespace
         .clone()
-        .unwrap_or_else(|| "default".to_string());
-
+        .with_context(|| ObjectHasNoNamespaceSnafu {})?;
+    tracing::warn!("2");
     // Zookeeper reference
     let zk_name = nifi.spec.zookeeper_reference.name.clone();
     // If no namespace is provided for the ZooKeeper reference, the same namespace as the NiFi
@@ -349,7 +350,7 @@ async fn build_node_rolegroup_config_map(
         .metadata
         .namespace
         .clone()
-        .unwrap_or_else(|| "default".to_string());
+        .with_context(|| ObjectHasNoNamespaceSnafu {})?;
 
     ConfigMapBuilder::new()
         .metadata(
@@ -523,7 +524,7 @@ fn build_node_rolegroup_statefulset(
             .metadata
             .namespace
             .as_ref()
-            .unwrap_or(&"default".to_string())
+            .with_context(|| ObjectHasNoNamespaceSnafu {})?
     );
 
     let sensitive_key_secret = &nifi.spec.sensitive_properties_config.key_secret;
@@ -907,7 +908,7 @@ fn build_persistent_volume_claim_rwo_storage(name: &str, storage: &str) -> Persi
 }
 
 async fn external_node_port(nifi_service: &Service) -> Result<i32> {
-    Ok(nifi_service
+    let external_ports = nifi_service
         .spec
         .as_ref()
         .with_context(|| ObjectHasNoSpecSnafu {})?
@@ -916,10 +917,13 @@ async fn external_node_port(nifi_service: &Service) -> Result<i32> {
         .with_context(|| ExternalPortSnafu {})?
         .iter()
         .filter(|p| p.name == Some(HTTPS_PORT_NAME.to_string()))
-        .map(|p| p.node_port.with_context(|| ExternalPortSnafu {})?)
-        .collect::<Vec<_>>()
-        .pop()
-        .with_context(|| ExternalPortSnafu {})?)
+        .collect::<Vec<_>>();
+
+    let port = external_ports
+        .first()
+        .with_context(|| ExternalPortSnafu {})?;
+
+    Ok(port.node_port.with_context(|| ExternalPortSnafu {})?)
 }
 
 async fn get_proxy_hosts(
