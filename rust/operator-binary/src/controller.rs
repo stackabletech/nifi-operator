@@ -149,13 +149,12 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
     tracing::info!("Starting reconcile");
     let client = &ctx.get_ref().client;
     let nifi_version = nifi_version(&nifi)?;
-    tracing::warn!("1");
     let namespace = &nifi
         .metadata
         .namespace
         .clone()
         .with_context(|| ObjectHasNoNamespaceSnafu {})?;
-    tracing::warn!("2");
+
     // Zookeeper reference
     let zk_name = nifi.spec.zookeeper_reference.name.clone();
     // If no namespace is provided for the ZooKeeper reference, the same namespace as the NiFi
