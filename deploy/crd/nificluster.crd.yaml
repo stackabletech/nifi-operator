@@ -46,7 +46,7 @@ spec:
                                   type: string
                               type: object
                             autoGenerate:
-                              default: true
+                              default: false
                               type: boolean
                           required:
                             - adminCredentialsSecret
@@ -187,7 +187,7 @@ spec:
                       nullable: true
                       type: string
                     autoGenerate:
-                      default: true
+                      default: false
                       type: boolean
                     keySecret:
                       type: string

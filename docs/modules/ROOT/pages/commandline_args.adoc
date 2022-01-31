@@ -1,11 +1,9 @@
 
-=== product-config
+=== Command Line Arguments
 
-*Default value*: `/etc/stackable/nifi-operator/config-spec/properties.yaml`
+The operator accepts the following commands:
 
-*Required*: false
+*run*: Run the operator and start deploying pods.
 
-*Multiple values:* false
+*crd*: Print the current version of CRDs which the operator requires to be deployed to Kubernetes.
 
-
-This file contains property definitions for the Apache NiFi configuration.
