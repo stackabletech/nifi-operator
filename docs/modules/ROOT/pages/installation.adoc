@@ -30,6 +30,14 @@ Helm will deploy the operator in a Kubernetes container and apply the CRDs for t
 
 A valid Zookeeper installation must be available and configured accordingly in the custom resource.
 
+This operator also requires the https://github.com/stackabletech/secret-operator[Stackable Secret Operator] to be present as CSI provider in Kubernetes.
+
+The simplest way to install it is to just run:
+----
+$ helm install secret-operator stackable-dev/secret-operator
+----
+
+
 == Docker
 
 This Operator is published as a Docker image:
