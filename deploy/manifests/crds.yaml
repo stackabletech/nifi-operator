@@ -48,6 +48,9 @@ spec:
                                   description: Namespace defines the space within which the secret name must be unique.
                                   type: string
                               type: object
+                            autoGenerate:
+                              default: false
+                              type: boolean
                           required:
                             - adminCredentialsSecret
                           type: object
@@ -186,6 +189,9 @@ spec:
                         - nifiScryptAesGcm256
                       nullable: true
                       type: string
+                    autoGenerate:
+                      default: false
+                      type: boolean
                     keySecret:
                       type: string
                   required:
