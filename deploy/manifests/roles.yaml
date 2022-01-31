@@ -27,6 +27,7 @@ rules:
       - configmaps
       - services
       - endpoints
+      - secrets
     verbs:
       - create
       - delete
