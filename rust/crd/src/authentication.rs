@@ -155,7 +155,7 @@ async fn check_or_generate_admin_credentials(
     auto_generate: &bool,
 ) -> Result<bool, Error> {
     match client
-        .exists::<Secret>(&secret_name, Some(secret_namespace))
+        .exists::<Secret>(secret_name, Some(secret_namespace))
         .await
         .with_context(|_| KubeSnafu {
             reason: format!(
@@ -167,10 +167,10 @@ async fn check_or_generate_admin_credentials(
             // The secret exists, retrieve the content and check that all required keys are present
             // any missing keys will be filled with default or generated values
             let secret_content: Secret = client
-                .get::<Secret>(&secret_name, Some(&secret_namespace))
+                .get::<Secret>(secret_name, Some(secret_namespace))
                 .await
                 .with_context(|_| MissingSecretSnafu {
-                    obj_ref: ObjectRef::new(&secret_name).within(&secret_namespace),
+                    obj_ref: ObjectRef::new(secret_name).within(secret_namespace),
                 })?;
 
             let mut additional_data = None;
@@ -180,7 +180,7 @@ async fn check_or_generate_admin_credentials(
             if !secret_content
                 .data
                 .as_ref()
-                .unwrap_or_else(|| &empty_map)
+                .unwrap_or(&empty_map)
                 .contains_key(SINGLEUSER_USER_KEY)
             {
                 tracing::info!(
@@ -199,7 +199,7 @@ async fn check_or_generate_admin_credentials(
             if !secret_content
                 .data
                 .as_ref()
-                .unwrap_or_else(|| &empty_map)
+                .unwrap_or(&empty_map)
                 .contains_key(SINGLEUSER_PASSWORD_KEY)
             {
                 tracing::info!(
