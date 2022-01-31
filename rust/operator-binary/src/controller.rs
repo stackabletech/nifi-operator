@@ -79,6 +79,11 @@ pub enum Error {
     SensitiveKeySecret {
         source: stackable_operator::error::Error,
     },
+    #[snafu(display("sensitive key secret [{}/{}] is missing, but auto generation is disabled", name, namespace))]
+    SensitiveKeySecretMissing {
+        name: String,
+        namespace: String
+    },
     #[snafu(display("failed to apply Service for {}", rolegroup))]
     ApplyRoleGroupService {
         source: stackable_operator::error::Error,
@@ -831,7 +836,7 @@ async fn check_or_generate_sensitive_key(
     nifi: &NifiCluster,
 ) -> Result<bool, Error> {
     let sensitive_config = &nifi.spec.sensitive_properties_config;
-    let namespace = &nifi
+    let namespace:&str = &nifi
         .metadata
         .namespace
         .clone()
@@ -844,6 +849,9 @@ async fn check_or_generate_sensitive_key(
     {
         true => Ok(false),
         false => {
+            if !sensitive_config.auto_generate {
+                return Err(Error::SensitiveKeySecretMissing {name: sensitive_config.key_secret.clone(), namespace: namespace.to_string()});
+            }
             tracing::info!("No existing sensitive properties key found, generating new one");
             let password: String = rand::thread_rng()
                 .sample_iter(&Alphanumeric)

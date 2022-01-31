@@ -43,9 +43,14 @@ pub enum Error {
         value
     ))]
     MissingRequiredValue { value: String },
+    #[snafu(display(
+        "Unable to load admin credentials and auto-generation is disabled: [{}]",
+        message
+    ))]
+    AdminCredentials { message: String },
 }
 
-pub const DEFAULT_SINGLEUSER_ADMIN: &str = "admin";
+pub const SINGLEUSER_DEFAULT_ADMIN: &str = "admin";
 pub const SINGLEUSER_USER_KEY: &str = "username";
 pub const SINGLEUSER_PASSWORD_KEY: &str = "password";
 
@@ -63,6 +68,8 @@ pub enum NifiAuthenticationMethod {
     #[serde(rename_all = "camelCase")]
     SingleUser {
         admin_credentials_secret: SecretReference,
+        #[serde(default)]
+        auto_generate: bool,
     },
 }
 
@@ -80,6 +87,7 @@ pub async fn get_login_identity_provider_xml(
     match &config.method {
         NifiAuthenticationMethod::SingleUser {
             admin_credentials_secret,
+            auto_generate,
         } => {
             let secret_name = admin_credentials_secret.name.clone().with_context(|| {
                 MissingSecretReferenceSnafu {
@@ -94,8 +102,13 @@ pub async fn get_login_identity_provider_xml(
 
             // Check if the referenced secret exists and contains all necessary keys, otherwise
             // generate random password and default user
-            check_or_generate_admin_credentials(client, &secret_name, &secret_namespace)
-                .await?;
+            check_or_generate_admin_credentials(
+                client,
+                &secret_name,
+                &secret_namespace,
+                auto_generate,
+            )
+            .await?;
 
             Ok(include_str!(
                 "../../operator-binary/resources/singleuser-login-identity-providers.xml"
@@ -111,6 +124,7 @@ pub fn get_auth_volumes(
     match method {
         NifiAuthenticationMethod::SingleUser {
             admin_credentials_secret,
+            ..
         } => {
             let mut result = BTreeMap::new();
             let admin_volume = Volume {
@@ -138,6 +152,7 @@ async fn check_or_generate_admin_credentials(
     client: &Client,
     secret_name: &str,
     secret_namespace: &str,
+    auto_generate: &bool,
 ) -> Result<bool, Error> {
     match client
         .exists::<Secret>(&secret_name, Some(secret_namespace))
@@ -176,7 +191,7 @@ async fn check_or_generate_admin_credentials(
                 );
                 additional_data.get_or_insert(BTreeMap::new()).insert(
                     SINGLEUSER_USER_KEY.to_string(),
-                    DEFAULT_SINGLEUSER_ADMIN.to_string(),
+                    SINGLEUSER_DEFAULT_ADMIN.to_string(),
                 );
             }
 
@@ -205,6 +220,15 @@ async fn check_or_generate_admin_credentials(
 
             // Apply patch to secret if any additional data was needed and return
             if additional_data.is_some() {
+                // Check if we are allowed to auto generate and abort if not
+                if !auto_generate {
+                    return Err(Error::AdminCredentials {
+                        message: format!(
+                            "Admin credential secret [{}/{}] is missing keys: [{:?}]",
+                            secret_name, secret_namespace, additional_data.unwrap().keys()
+                        ),
+                    });
+                }
                 tracing::debug!(
                     "patching keys [{:?}] in secret [{}/{}]",
                     additional_data.clone().unwrap_or_default().keys(),
@@ -232,6 +256,14 @@ async fn check_or_generate_admin_credentials(
             }
         }
         false => {
+            if !auto_generate {
+                return Err(Error::AdminCredentials {
+                    message: format!(
+                        "Admin credential secret [{}/{}] does not exist.",
+                        secret_name, secret_namespace
+                    ),
+                });
+            }
             tracing::info!("No existing admin credentials found, generating a random password.");
             let password: String = rand::thread_rng()
                 .sample_iter(&Alphanumeric)
@@ -241,7 +273,10 @@ async fn check_or_generate_admin_credentials(
 
             let mut secret_data = BTreeMap::new();
 
-            secret_data.insert(SINGLEUSER_USER_KEY.to_string(), DEFAULT_SINGLEUSER_ADMIN.to_string());
+            secret_data.insert(
+                SINGLEUSER_USER_KEY.to_string(),
+                SINGLEUSER_DEFAULT_ADMIN.to_string(),
+            );
             secret_data.insert(SINGLEUSER_PASSWORD_KEY.to_string(), password.to_string());
 
             let new_secret = Secret {

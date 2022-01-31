@@ -13,8 +13,10 @@ spec:
       SingleUser:
         adminCredentialsSecret:
           name: nifi-admin-credentials-simple
+        autoGenerate: true
   sensitivePropertiesConfig:
     keySecret: nifi-sensitive-property-key
+    autoGenerate: true
   nodes:
     roleGroups:
       default:
