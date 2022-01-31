@@ -63,7 +63,7 @@ pub struct NifiSensitivePropertiesConfig {
     pub key_secret: String,
     pub algorithm: Option<NifiSensitiveKeyAlgorithm>,
     #[serde(default)]
-    pub auto_generate: bool
+    pub auto_generate: bool,
 }
 
 #[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]

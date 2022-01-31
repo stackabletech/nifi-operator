@@ -225,7 +225,9 @@ async fn check_or_generate_admin_credentials(
                     return Err(Error::AdminCredentials {
                         message: format!(
                             "Admin credential secret [{}/{}] is missing keys: [{:?}]",
-                            secret_name, secret_namespace, additional_data.unwrap().keys()
+                            secret_name,
+                            secret_namespace,
+                            additional_data.unwrap().keys()
                         ),
                     });
                 }
