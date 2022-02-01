@@ -46,6 +46,12 @@ spec:
           log:
             rootLogLevel: INFO
         replicas: 3
+----
+
+If you want to set a password for the initial admin user you can do this by applying the following object:
+
+[source,yaml]
+----
 ---
 apiVersion: v1
 kind: Secret
