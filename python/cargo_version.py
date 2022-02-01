@@ -3,10 +3,10 @@
 # Utility for viewing and managing versions of cargo workspaces and crates.
 # For workspaces, it assumes that all crate members use a single shared version.
 #
-# usage: cargo-version.py [-h] [-p PROJECT] [-r] [-n {major,minor,patch}] [-s SET] [-o]
-# 
+# usage: cargo_version.py [-h] [-p PROJECT] [-r] [-n {major,minor,patch}] [-s SET] [-o]
+#
 # Change versions of cargo projects.
-# 
+#
 # optional arguments:
 #   -h, --help            show this help message and exit
 #   -p PROJECT, --project PROJECT
@@ -16,11 +16,11 @@
 #                         Version
 #   -s SET, --set SET     Version
 #   -o, --show            Version
-# 
 
-import toml
-import semver
 import argparse
+import semver
+import toml
+
 
 class Crate:
     def __init__(self, path, name, version, dependencies):
@@ -30,7 +30,7 @@ class Crate:
         self.dependencies = dependencies
 
     def with_dependencies(self, names):
-        deps = {k:v for k,v in self.dependencies.items() if k in names}
+        deps = {k: v for k, v in self.dependencies.items() if k in names}
         return Crate(self.path, self.name, self.version, deps)
 
     @classmethod
@@ -42,12 +42,12 @@ class Crate:
         v = semver.VersionInfo.parse(version)
         if level == 'major':
             return str(v.bump_major())
-        elif level == 'minor':
+        if level == 'minor':
             return str(v.bump_minor())
-        elif level == 'patch':
+        if level == 'patch':
             return str(v.bump_patch())
         else:
-            return str(v.bump_prerelease('nightly'))[:-2] ### remove the .1 suffix that semver always adds to the prererelease.
+            return str(v.bump_prerelease('nightly'))[:-2]  ### remove the .1 suffix that semver always adds to the prererelease.
 
     @classmethod
     def prerelease(cls, version, prerelease):
@@ -90,6 +90,7 @@ class Crate:
 
     def __str__(self):
         return f'Crate({self.path}, {self.name}, {self.version}, {self.dependencies})'
+
 
 class Workspace:
     def __init__(self, crates):
@@ -135,22 +136,25 @@ class Workspace:
         for cn in self.crates.keys():
             self.crates[cn].save(previous.crates[cn])
 
+
 def load(root):
     r = toml.load(f"{root}/Cargo.toml")
     if "workspace" in r:
-        return Workspace([load(f"{root}/{path}") for path in r["workspace"]["members"]]) 
-    else:
-        return Crate(path=root, name=r["package"]["name"], version=r["package"]["version"], dependencies={dn: r["dependencies"][dn]["version"] for dn in r["dependencies"] if "version" in r["dependencies"][dn]})
+        return Workspace([load(f"{root}/{path}") for path in r["workspace"]["members"]])
+
+    return Crate(path=root, name=r["package"]["name"], version=r["package"]["version"], dependencies={dn: r["dependencies"][dn]["version"] for dn in r["dependencies"] if "version" in r["dependencies"][dn]})
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Change versions of cargo projects.")
     parser.add_argument("-p", "--project", help="Project folder", default=".")
     parser.add_argument("-r", "--release", help="Version", action="store_true")
     parser.add_argument("-n", "--next", help="Version", choices=['major', 'minor', 'patch'])
-    parser.add_argument("-s", "--set", help="Version" )
+    parser.add_argument("-s", "--set", help="Version")
     parser.add_argument("-o", "--show", help="Version", action="store_true")
-    parser.add_argument("-m", "--prerelease", help="Set pre-prelease string." )
+    parser.add_argument("-m", "--prerelease", help="Set pre-prelease string.")
     return parser.parse_args()
+
 
 if __name__ == "__main__":
     args = parse_args()
@@ -173,5 +177,3 @@ if __name__ == "__main__":
         new.save(old)
     elif args.show:
         print(old.show_version())
-
-
