@@ -54,6 +54,10 @@ spec:
                           minimum: 0.0
                           nullable: true
                           type: integer
+                        sensitivePropertyKeySecret:
+                          type: string
+                      required:
+                        - sensitivePropertyKeySecret
                       type: object
                     configOverrides:
                       additionalProperties:
@@ -93,6 +97,10 @@ spec:
                                 minimum: 0.0
                                 nullable: true
                                 type: integer
+                              sensitivePropertyKeySecret:
+                                type: string
+                            required:
+                              - sensitivePropertyKeySecret
                             type: object
                           configOverrides:
                             additionalProperties:
@@ -149,7 +157,7 @@ spec:
                   type: object
                 version:
                   enum:
-                    - 1.13.2
+                    - 1.15.0
                   type: string
                 zookeeperReference:
                   description: Contains all necessary information identify a Stackable managed ZooKeeper ensemble and build a connection string for it. The main purpose for this struct is for other operators that need to reference a ZooKeeper ensemble to use in their CRDs. This has the benefit of keeping references to Zookeeper ensembles consistent throughout the entire stack.
@@ -226,12 +234,12 @@ spec:
                   properties:
                     current:
                       enum:
-                        - 1.13.2
+                        - 1.15.0
                       nullable: true
                       type: string
                     target:
                       enum:
-                        - 1.13.2
+                        - 1.15.0
                       nullable: true
                       type: string
                   type: object
