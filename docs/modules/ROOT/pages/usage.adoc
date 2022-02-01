@@ -11,7 +11,9 @@ The admin credentials that you can then log in with are: `admin:supersecretpassw
 If you do not provide the admin user credentials the operator can auto generate a random password for you, if you enable this functionality.
 You can retrieve this password by running the following command:
 
-    kubectl get secret nifi-admin-credentials-simple -o jsonpath="{.data.password}" | base64 --decode
+    kubectl get secret nifi-admin-credentials-simple -o jsonpath="{.data.password}" | base64 --decode | cat - <(echo)
+
+You may need to adjust this command if you change the configuration for `adminCredentialsSecret` in the example below.
 
 [source,yaml]
 ----
