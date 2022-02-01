@@ -17,7 +17,7 @@ use stackable_nifi_crd::{
 use stackable_nifi_crd::{APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME};
 use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
-    Affinity, CSIVolumeSource, EmptyDirVolumeSource, EnvVar, EnvVarSource, Node,
+    Affinity, CSIVolumeSource, EmptyDirVolumeSource, EnvVar, EnvVarSource, Node, NodeAddress,
     ObjectFieldSelector, PodAffinityTerm, PodAntiAffinity, PodSpec, Probe, Secret,
     SecretVolumeSource, SecurityContext, TCPSocketAction, VolumeMount,
 };
@@ -218,7 +218,11 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
 
         let rg_service = build_node_rolegroup_service(&nifi, &rolegroup)?;
 
-        // node addresses
+        // This is due to the fact that users might access NiFi via these addresses, if they try to
+        // connect from an external machine (not inside the k8s overlay network).
+        // Since we cannot predict which of the addresses a user might decide to use we will simply
+        // add all of them to the setting for now.
+        // For more information see <https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#proxy_configuration>
         let proxy_hosts = get_proxy_hosts(client, &nifi, &updated_role_service).await?;
 
         let rg_configmap = build_node_rolegroup_config_map(
@@ -918,7 +922,7 @@ fn build_persistent_volume_claim_rwo_storage(name: &str, storage: &str) -> Persi
     }
 }
 
-async fn external_node_port(nifi_service: &Service) -> Result<i32> {
+fn external_node_port(nifi_service: &Service) -> Result<i32> {
     let external_ports = nifi_service
         .spec
         .as_ref()
@@ -934,7 +938,7 @@ async fn external_node_port(nifi_service: &Service) -> Result<i32> {
         .first()
         .with_context(|| ExternalPortSnafu {})?;
 
-    Ok(port.node_port.with_context(|| ExternalPortSnafu {})?)
+    port.node_port.with_context(|| ExternalPortSnafu {})
 }
 
 async fn get_proxy_hosts(
@@ -951,7 +955,7 @@ async fn get_proxy_hosts(
         ..LabelSelector::default()
     };
 
-    let external_port = external_node_port(nifi_service).await?;
+    let external_port = external_node_port(nifi_service)?;
 
     let cluster_nodes = client
         .list_with_label_selector::<Node>(None, &selector)
@@ -961,19 +965,27 @@ async fn get_proxy_hosts(
             selector,
         })?;
 
-    let mut cluster_nodes = cluster_nodes
+    // We need the addresses of all nodes to add these to the NiFi proxy setting
+    // Since there is no real convention about how to label these addresses we will simply
+    // take all published addresses for now to be on the safe side.
+    let mut proxy_setting = cluster_nodes
         .into_iter()
-        .map(|node| node.status.unwrap().addresses.unwrap())
+        .map(|node| {
+            node.status
+                .unwrap_or_default()
+                .addresses
+                .unwrap_or_default()
+        })
         .flatten()
-        .filter(|address| address.type_ == *"ExternalIP")
-        .map(|address| address.address)
-        .collect::<Vec<_>>()
+        .collect::<Vec<NodeAddress>>()
         .iter()
-        .map(|node_ip| format!("{}:{}", node_ip, external_port))
+        .map(|node_address| format!("{}:{}", node_address.address, external_port))
         .collect::<Vec<_>>();
-    cluster_nodes.push(get_service_fqdn(nifi_service)?);
 
-    Ok(cluster_nodes.join(","))
+    // Also add the loadbalancer service
+    proxy_setting.push(get_service_fqdn(nifi_service)?);
+
+    Ok(proxy_setting.join(","))
 }
 
 fn get_service_fqdn(service: &Service) -> Result<String, Error> {

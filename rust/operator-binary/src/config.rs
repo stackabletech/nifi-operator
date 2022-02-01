@@ -576,7 +576,7 @@ pub fn build_state_management_xml(spec: &NifiSpec, zk_connect_string: &str) -> S
 /// `bootstrap.conf`, `nifi.properties` and `state-management.xml`.
 ///
 /// We do not require any env variables yet. We will however utilize them to change the
-/// configuration directory - check https://github.com/apache/nifi/pull/2985 for more detail.
+/// configuration directory - check <https://github.com/apache/nifi/pull/2985> for more detail.
 ///
 /// The roles and their configs are then validated and complemented by the product config.
 ///
