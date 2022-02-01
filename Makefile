@@ -34,24 +34,19 @@ compile-chart: version crds config
 chart-clean:
 	rm -rf deploy/helm/nifi-operator/configs
 	rm -rf deploy/helm/nifi-operator/crds
-	rm -rf deploy/helm/nifi-operator/templates/crds.yaml
 
 version:
 	yq eval -i '.version = ${VERSION} | .appVersion = ${VERSION}' deploy/helm/nifi-operator/Chart.yaml
 
-config: deploy/helm/nifi-operator/configs
-
-deploy/helm/nifi-operator/configs:
+config:
 	cp -r deploy/config-spec deploy/helm/nifi-operator/configs
 
-crds: deploy/helm/nifi-operator/crds/crds.yaml
-
-deploy/helm/nifi-operator/crds/crds.yaml:
+crds:
 	mkdir -p deploy/helm/nifi-operator/crds
-	cat deploy/crd/*.yaml | yq eval '.metadata.annotations["helm.sh/resource-policy"]="keep"' - > ${@}
+	cat deploy/crd/*.yaml | yq eval '.metadata.annotations["helm.sh/resource-policy"]="keep"' - > deploy/helm/nifi-operator/crds/crds.yaml
 
 chart-lint: compile-chart
-	docker run -it -v $(shell pwd):/build/helm-charts -w /build/helm-charts quay.io/helmpack/chart-testing:v3.4.0  ct lint --config deploy/helm/chart_testing.yaml
+	docker run -it -v $(shell pwd):/build/helm-charts -w /build/helm-charts quay.io/helmpack/chart-testing:v3.5.0  ct lint --config deploy/helm/ct.yaml
 
 ## Manifest related targets
 clean-manifests:
