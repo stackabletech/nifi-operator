@@ -542,7 +542,7 @@ fn build_node_rolegroup_statefulset(
         .context(MaterializeAuthConfigSnafu)?;
 
     let mut container_prepare = ContainerBuilder::new("prepare")
-        .image("docker.stackable.tech/soenkeliebau/tools:f18059a9")
+        .image("docker.stackable.tech/stackable/tools:0.2.0-stackable0")
         .command(vec!["/bin/bash".to_string(), "-c".to_string(), "-euo".to_string(), "pipefail".to_string()])
         .add_env_vars(env_vars.clone())
         .args(vec![[
