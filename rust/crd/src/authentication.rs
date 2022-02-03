@@ -10,7 +10,6 @@ use stackable_operator::k8s_openapi::api::core::v1::{
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::schemars::{self, JsonSchema};
 use std::collections::BTreeMap;
-use std::string::FromUtf8Error;
 
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
@@ -25,29 +24,23 @@ pub enum Error {
         source: stackable_operator::error::Error,
         reason: String,
     },
-    #[snafu(display("Failed to parse utf8 string for key [{key}] in secret {obj_ref}",))]
-    Utf8Failure {
-        source: FromUtf8Error,
-        obj_ref: ObjectRef<Secret>,
-        key: String,
+    MissingSecretReference {
+        secret: String,
     },
-    #[snafu(display("Missing mandatory configuration key [{}] when parsing secret", key))]
-    MissingKey { key: String },
-    #[snafu(display(
-        "Missing mandatory secret reference when parsing authentication configuration: [{}]",
-        secret
-    ))]
-    MissingSecretReference { secret: String },
     #[snafu(display(
         "A required value was not found when parsing the authentication config: [{}]",
         value
     ))]
-    MissingRequiredValue { value: String },
+    MissingRequiredValue {
+        value: String,
+    },
     #[snafu(display(
         "Unable to load admin credentials and auto-generation is disabled: [{}]",
         message
     ))]
-    AdminCredentials { message: String },
+    AdminCredentials {
+        message: String,
+    },
 }
 
 pub const SINGLEUSER_DEFAULT_ADMIN: &str = "admin";

@@ -120,16 +120,6 @@ pub enum Error {
     ProductConfigLoadFailed { source: config::Error },
     #[snafu(display("Failed to find information about file [{}] in product config", kind))]
     ProductConfigKindNotSpecified { kind: String },
-    #[snafu(display(
-        "Failed to locate configmap [{}]. Please check if it is supplied correctly!",
-        cm_name
-    ))]
-    KeyConfigMapNotFound { cm_name: String },
-    #[snafu(display("Failed to find NiFi Service [{}]", name))]
-    NifiServiceNotFound {
-        source: stackable_operator::error::Error,
-        name: String,
-    },
     #[snafu(display("Failed to find any nodes in cluster {obj_ref} with selector {selector:?}",))]
     MissingNodes {
         source: stackable_operator::error::Error,
@@ -1001,7 +991,10 @@ fn get_service_fqdn(service: &Service) -> Result<String, Error> {
         .as_ref()
         .with_context(|| ObjectHasNoNamespaceSnafu {})?
         .to_string();
-    Ok(format!("{}.{}.svc.cluster.local:8443", name, namespace))
+    Ok(format!(
+        "{}.{}.svc.cluster.local:{}",
+        name, namespace, HTTPS_PORT
+    ))
 }
 
 pub fn nifi_version(nifi: &NifiCluster) -> Result<&str> {

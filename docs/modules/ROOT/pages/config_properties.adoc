@@ -66,7 +66,7 @@ It is possible to define multiple groups of nodes, each with its own distinct co
 All authentication related parameters are configured in the authenticationConfig element.
 
 ==== Authentication Method
-Currently the only supported authentication method is "SingleUser", which allows the definition of one admin user which can then access the cluster.
+Currently, the only supported authentication method is "SingleUser", which allows the definition of one admin user which can then access the cluster.
 Specification of these users credentials happens via referring to a Secret in Kubernetes, this secret will need to contain at least the two keys `username` and `password`.
 Extra keys may be present, but will be ignored by the operator.
 
@@ -80,7 +80,7 @@ This setting is independent of the configured authentication method and will ove
   zookeeperReference:
     name: simple-zk
     namespace: default
-    chroot: /nifiytest
+    chroot: /nifi
 ----
 NiFi in cluster mode requires a ZooKeeper ensemble for state management and leader election purposes, this operator at the moment does not support single node deployments without ZooKeeper, hence this is a required setting.
 Configuration happens via a ConfigMap, which needs to contain one key called `ZOOKEEPER` with the value being the ZooKeeper connection string.
@@ -115,9 +115,6 @@ The following snippet shows an example of how this would look in the NifiCluster
 [source,yaml]
 ----
         config:
-          httpPort: 10000
-          protocolPort: 10443
-          loadBalancePort: 6342
           sensitivePropertyKeySecret: nifi-sensitive-property-
         configOverrides:
           nifi.properties:
