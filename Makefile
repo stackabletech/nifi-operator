@@ -60,3 +60,5 @@ clean-manifests:
 
 generate-manifests: clean-manifests compile-chart
 	./scripts/generate-manifests.sh
+
+rebuild: clean-manifests chart-clean compile-chart generate-manifests

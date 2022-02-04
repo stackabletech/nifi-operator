@@ -1,29 +1,29 @@
-use semver::Version;
+pub mod authentication;
+
+use crate::authentication::NifiAuthenticationConfig;
 use serde::{Deserialize, Serialize};
-use stackable_operator::identity::PodToNodeMapping;
-use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::Condition;
-use stackable_operator::kube::CustomResource;
-use stackable_operator::product_config_utils::{ConfigError, Configuration};
-use stackable_operator::role_utils::Role;
-use stackable_operator::schemars::{self, JsonSchema};
-use stackable_operator::status::{Conditions, Status, Versioned};
-use stackable_operator::versioning::{ProductVersion, Versioning, VersioningState};
-use std::cmp::Ordering;
+use snafu::{OptionExt, Snafu};
+use stackable_operator::role_utils::RoleGroupRef;
+use stackable_operator::{
+    kube::{runtime::reflector::ObjectRef, CustomResource},
+    product_config_utils::{ConfigError, Configuration},
+    role_utils::Role,
+    schemars::{self, JsonSchema},
+};
 use std::collections::BTreeMap;
-use strum_macros::Display;
-use strum_macros::EnumIter;
 
 pub const APP_NAME: &str = "nifi";
-pub const MANAGED_BY: &str = "nifi-operator";
 
-pub const NIFI_WEB_HTTP_PORT: &str = "nifi.web.http.port";
-pub const NIFI_CLUSTER_NODE_PROTOCOL_PORT: &str = "nifi.cluster.node.protocol.port";
-pub const NIFI_CLUSTER_LOAD_BALANCE_PORT: &str = "nifi.cluster.load.balance.port";
-pub const NIFI_CLUSTER_METRICS_PORT: &str = "metricsPort";
+pub const HTTPS_PORT_NAME: &str = "https";
+pub const HTTPS_PORT: u16 = 8443;
+pub const PROTOCOL_PORT_NAME: &str = "protocol";
+pub const PROTOCOL_PORT: u16 = 9088;
+pub const BALANCE_PORT_NAME: &str = "balance";
+pub const BALANCE_PORT: u16 = 6243;
+pub const METRICS_PORT_NAME: &str = "metrics";
+pub const METRICS_PORT: u16 = 8081;
 
-pub const NIFI_SENSITIVE_PROPS_KEY: &str = "NIFI_SENSITIVE_PROPS_KEY";
-
-#[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
+#[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[kube(
     group = "nifi.stackable.tech",
     version = "v1alpha1",
@@ -31,114 +31,109 @@ pub const NIFI_SENSITIVE_PROPS_KEY: &str = "NIFI_SENSITIVE_PROPS_KEY";
     shortname = "nifi",
     status = "NifiStatus",
     namespaced,
-    kube_core = "stackable_operator::kube::core",
-    k8s_openapi = "stackable_operator::k8s_openapi",
-    schemars = "stackable_operator::schemars"
+    crates(
+        kube_core = "stackable_operator::kube::core",
+        k8s_openapi = "stackable_operator::k8s_openapi",
+        schemars = "stackable_operator::schemars"
+    )
 )]
 #[kube()]
 #[serde(rename_all = "camelCase")]
 pub struct NifiSpec {
-    pub metrics_port: Option<u16>,
-    pub nodes: Role<NifiConfig>,
-    pub version: NifiVersion,
-    pub zookeeper_reference: stackable_zookeeper_crd::util::ZookeeperReference,
+    /// Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stopped: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// The required NiFi image version
+    pub version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Available NiFi roles
+    pub nodes: Option<Role<NifiConfig>>,
+    /// The reference to the ZooKeeper cluster
+    pub zookeeper_reference: ClusterReference,
+    /// A reference to a Secret containing username/password for the initial admin user
+    pub authentication_config: NifiAuthenticationConfig,
+    /// Configuration options for how NiFi encrypts sensitive properties on disk
+    pub sensitive_properties_config: NifiSensitivePropertiesConfig,
 }
 
-impl Status<NifiStatus> for NifiCluster {
-    fn status(&self) -> &Option<NifiStatus> {
-        &self.status
-    }
-    fn status_mut(&mut self) -> &mut Option<NifiStatus> {
-        &mut self.status
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NifiSensitivePropertiesConfig {
+    pub key_secret: String,
+    pub algorithm: Option<NifiSensitiveKeyAlgorithm>,
+    #[serde(default)]
+    pub auto_generate: bool,
+}
+
+#[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NifiSensitiveKeyAlgorithm {
+    #[strum(serialize = "NIFI_ARGON2_AES_GCM_128")]
+    NifiArgon2AesGcm128,
+    #[strum(serialize = "NIFI_ARGON2_AES_GCM_256")]
+    NifiArgon2AesGcm256,
+    #[strum(serialize = "NIFI_BCRYPT_AES_GCM_128")]
+    NifiBcryptAesGcm128,
+    #[strum(serialize = "NIFI_BCRYPT_AES_GCM_256")]
+    NifiBcryptAesGcm256,
+    #[strum(serialize = "NIFI_PBKDF2_AES_GCM_128")]
+    NifiPbkdf2AesGcm128,
+    #[strum(serialize = "NIFI_PBKDF2_AES_GCM_256")]
+    NifiPbkdf2AesGcm256,
+    #[strum(serialize = "NIFI_SCRYPT_AES_GCM_128")]
+    NifiScryptAesGcm128,
+    #[strum(serialize = "NIFI_SCRYPT_AES_GCM_256")]
+    NifiScryptAesGcm256,
+}
+
+impl Default for NifiSensitiveKeyAlgorithm {
+    fn default() -> Self {
+        Self::NifiArgon2AesGcm256
     }
 }
 
-#[allow(non_camel_case_types)]
-#[derive(
-    Clone,
-    Debug,
-    Deserialize,
-    Eq,
-    Hash,
-    JsonSchema,
-    PartialEq,
-    Serialize,
-    strum_macros::Display,
-    strum_macros::EnumString,
-)]
-pub enum NifiVersion {
-    #[serde(rename = "1.15.0")]
-    #[strum(serialize = "1.15.0")]
-    v1_15_0,
+#[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StoreType {
+    #[strum(serialize = "JKS")]
+    JKS,
+    #[strum(serialize = "PKCS12")]
+    PKCS12,
 }
 
-impl Versioning for NifiVersion {
-    fn versioning_state(&self, other: &Self) -> VersioningState {
-        let from_version = match Version::parse(&self.to_string()) {
-            Ok(v) => v,
-            Err(e) => {
-                return VersioningState::Invalid(format!(
-                    "Could not parse [{}] to SemVer: {}",
-                    self.to_string(),
-                    e.to_string()
-                ))
-            }
-        };
-
-        let to_version = match Version::parse(&other.to_string()) {
-            Ok(v) => v,
-            Err(e) => {
-                return VersioningState::Invalid(format!(
-                    "Could not parse [{}] to SemVer: {}",
-                    other.to_string(),
-                    e.to_string()
-                ))
-            }
-        };
-
-        match to_version.cmp(&from_version) {
-            Ordering::Greater => VersioningState::ValidUpgrade,
-            Ordering::Less => VersioningState::ValidDowngrade,
-            Ordering::Equal => VersioningState::NoOp,
-        }
+impl Default for StoreType {
+    fn default() -> Self {
+        Self::JKS
     }
+}
+
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClusterReference {
+    pub name: String,
+    pub namespace: Option<String>,
+    pub chroot: Option<String>,
+}
+
+#[derive(strum::Display)]
+#[strum(serialize_all = "camelCase")]
+pub enum NifiRole {
+    #[strum(serialize = "node")]
+    Node,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, Serialize)]
-pub struct NifiStatus {
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub conditions: Vec<Condition>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub version: Option<ProductVersion<NifiVersion>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub history: Option<PodToNodeMapping>,
-}
+pub struct NifiStatus {}
 
-impl Versioned<NifiVersion> for NifiStatus {
-    fn version(&self) -> &Option<ProductVersion<NifiVersion>> {
-        &self.version
-    }
-    fn version_mut(&mut self) -> &mut Option<ProductVersion<NifiVersion>> {
-        &mut self.version
-    }
-}
-
-impl Conditions for NifiStatus {
-    fn conditions(&self) -> &[Condition] {
-        self.conditions.as_slice()
-    }
-    fn conditions_mut(&mut self) -> &mut Vec<Condition> {
-        &mut self.conditions
-    }
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiConfig {
-    pub http_port: Option<u16>,
-    pub protocol_port: Option<u16>,
-    pub load_balance_port: Option<u16>,
-    pub sensitive_property_key_secret: String,
+    pub log: Option<NifiLogConfig>,
+}
+
+impl NifiConfig {
+    pub const NIFI_SENSITIVE_PROPS_KEY: &'static str = "NIFI_SENSITIVE_PROPS_KEY";
 }
 
 impl Configuration for NifiConfig {
@@ -146,21 +141,10 @@ impl Configuration for NifiConfig {
 
     fn compute_env(
         &self,
-        resource: &Self::Configurable,
+        _resource: &Self::Configurable,
         _role_name: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        let mut result = BTreeMap::new();
-        if let Some(metrics_port) = &resource.spec.metrics_port {
-            result.insert(
-                NIFI_CLUSTER_METRICS_PORT.to_string(),
-                Some(metrics_port.to_string()),
-            );
-        }
-        result.insert(
-            NIFI_SENSITIVE_PROPS_KEY.to_string(),
-            Some(self.sensitive_property_key_secret.to_string()),
-        );
-        Ok(result)
+        Ok(BTreeMap::new())
     }
 
     fn compute_cli(
@@ -177,51 +161,93 @@ impl Configuration for NifiConfig {
         _role_name: &str,
         _file: &str,
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
-        let mut result = BTreeMap::new();
-
-        if let Some(http_port) = &self.http_port {
-            result.insert(NIFI_WEB_HTTP_PORT.to_string(), Some(http_port.to_string()));
-        }
-        if let Some(protocol_port) = &self.protocol_port {
-            result.insert(
-                NIFI_CLUSTER_NODE_PROTOCOL_PORT.to_string(),
-                Some(protocol_port.to_string()),
-            );
-        }
-        if let Some(load_balance_port) = &self.load_balance_port {
-            result.insert(
-                NIFI_CLUSTER_LOAD_BALANCE_PORT.to_string(),
-                Some(load_balance_port.to_string()),
-            );
-        }
-
-        Ok(result)
+        Ok(BTreeMap::new())
     }
 }
 
-#[derive(EnumIter, Debug, Display, PartialEq, Eq, Hash)]
-pub enum NifiRole {
-    #[strum(serialize = "node")]
-    Node,
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NifiLogConfig {
+    pub root_log_level: Option<LogLevel>,
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::NifiVersion;
-    use stackable_operator::versioning::{Versioning, VersioningState};
-    use std::str::FromStr;
+#[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+pub enum LogLevel {
+    DEBUG,
+    INFO,
+    WARN,
+    ERROR,
+    FATAL,
+}
 
-    #[test]
-    fn test_zookeeper_version_versioning() {
-        assert_eq!(
-            NifiVersion::v1_15_0.versioning_state(&NifiVersion::v1_15_0),
-            VersioningState::NoOp
-        );
+#[derive(Debug, Snafu)]
+#[snafu(display("object has no namespace associated"))]
+pub struct NoNamespaceError;
+
+impl NifiCluster {
+    /// The name of the role-level load-balanced Kubernetes `Service`
+    pub fn node_role_service_name(&self) -> Option<String> {
+        self.metadata.name.clone()
     }
 
-    #[test]
-    fn test_version_conversion() {
-        NifiVersion::from_str("1.15.0").unwrap();
-        NifiVersion::from_str("1.2.3").unwrap_err();
+    /// The fully-qualified domain name of the role-level load-balanced Kubernetes `Service`
+    pub fn node_role_service_fqdn(&self) -> Option<String> {
+        Some(format!(
+            "{}.{}.svc.cluster.local",
+            self.node_role_service_name()?,
+            self.metadata.namespace.as_ref()?
+        ))
+    }
+
+    /// Metadata about a metastore rolegroup
+    pub fn node_rolegroup_ref(&self, group_name: impl Into<String>) -> RoleGroupRef<NifiCluster> {
+        RoleGroupRef {
+            cluster: ObjectRef::from_obj(self),
+            role: NifiRole::Node.to_string(),
+            role_group: group_name.into(),
+        }
+    }
+
+    /// List all pods expected to form the cluster
+    ///
+    /// We try to predict the pods here rather than looking at the current cluster state in order to
+    /// avoid instance churn.
+    pub fn pods(&self) -> Result<impl Iterator<Item = PodRef> + '_, NoNamespaceError> {
+        let ns = self.metadata.namespace.clone().context(NoNamespaceSnafu)?;
+        Ok(self
+            .spec
+            .nodes
+            .iter()
+            .flat_map(|role| &role.role_groups)
+            // Order rolegroups consistently, to avoid spurious downstream rewrites
+            .collect::<BTreeMap<_, _>>()
+            .into_iter()
+            .flat_map(move |(rolegroup_name, rolegroup)| {
+                let rolegroup_ref = self.node_rolegroup_ref(rolegroup_name);
+                let ns = ns.clone();
+                (0..rolegroup.replicas.unwrap_or(0)).map(move |i| PodRef {
+                    namespace: ns.clone(),
+                    role_group_service_name: rolegroup_ref.object_name(),
+                    pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
+                })
+            }))
+    }
+}
+
+/// Reference to a single `Pod` that is a component of a [`NifiCluster`]
+/// Used for service discovery.
+// TODO: this should move to operator-rs
+pub struct PodRef {
+    pub namespace: String,
+    pub role_group_service_name: String,
+    pub pod_name: String,
+}
+
+impl PodRef {
+    pub fn fqdn(&self) -> String {
+        format!(
+            "{}.{}.{}.svc.cluster.local",
+            self.pod_name, self.role_group_service_name, self.namespace
+        )
     }
 }

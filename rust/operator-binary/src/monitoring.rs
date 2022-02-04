@@ -1,7 +1,8 @@
-use crate::{APP_NAME, HTTP_PORT_NAME};
+/*
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::Response;
 use serde::{Deserialize, Serialize};
+use stackable_nifi_crd::{APP_NAME, HTTP_PORT_NAME};
 use stackable_operator::k8s_openapi::api::core::v1::{Container, Pod};
 use std::convert::TryFrom;
 use std::future::Future;
@@ -489,10 +490,10 @@ fn build_task_name() -> String {
 
 /// Extract [`PodMonitoringInfo`] containing required information for monitoring. Contains
 /// node_name and 'container' http_port which are required to build a host address in the format
-/// <node_name>:<http_port>.   
+/// <node_name>:<http_port>.
 ///
 /// # Arguments
-/// * `pod` - The pod to extract the [`PodMonitoringInfo`] from  
+/// * `pod` - The pod to extract the [`PodMonitoringInfo`] from
 ///
 fn nifi_rest_endpoint(pod: &Pod) -> Result<NifiRestEndpoint, NifiMonitoringError> {
     let pod_name = pod.metadata.name.as_ref().unwrap();
@@ -593,3 +594,4 @@ where
         Ok(())
     }
 }
+*/

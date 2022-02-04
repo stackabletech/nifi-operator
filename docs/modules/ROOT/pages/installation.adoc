@@ -1,83 +1,42 @@
 = Installation
 
-There are three ways to run the NiFi Operator:
+There are three ways to run the Stackable Operator for Apache NiFi:
 
-1. Build from source. This is documented in xref:building.adoc[Building the Operator].
+1. Helm managed Docker container deployment on Kubernetes
 
-2. Operating System packages (dep & RPM)
+2. As a Docker container
 
-3. As a Docker container
+3. Build from source.
 
-== Operating System Packages
 
-=== Debian
-
-We do provide `deb` packages for Debian 10:
-
-|===
-| Version | Repository
-
-| Development
-| `https://repo.stackable.tech/repository/deb-dev/ buster main`
-
-| Stable
-| `https://repo.stackable.tech/repository/deb-release/ buster main`
-|===
-
-To add these repositories run a command like this:
-
+== Helm
+Helm allows you to download and deploy Stackable operators on Kubernetes and is by far the easiest installation method. First ensure that you have installed the Stackable Operators Helm repository:
 [source,bash]
 ----
-echo "deb https://repo.stackable.tech/repository/deb-release/ buster main" | sudo tee -a /etc/apt/sources.list.d/stackable.list
+$ helm repo add stackable https://repo.stackable.tech/repository/helm-stable/
+----
+or to access the latest dev/nightly versions:
+----
+$ helm repo add stackable-dev https://repo.stackable.tech/repository/helm-dev/
 ----
 
-After you added the repository run:
-
+Then install the Stackable Operator for Apache NiFi
 [source,bash]
 ----
-sudo apt-get update
-sudo apt-get install stackable-nifi-operator
+$ helm install nifi-operator stackable/nifi-operator
 ----
 
-=== RHEL/CentOS
+Helm will deploy the operator in a Kubernetes container and apply the CRDs for the Apache NiFi service. You're now ready to deploy Apache NiFi in Kubernetes.
 
-We do provide `RPM` packages for RHEL 7 & 8.
+A valid Zookeeper installation must be available and configured accordingly in the custom resource.
 
-|===
-| Version | Repository
+This operator also requires the https://github.com/stackabletech/secret-operator[Stackable Secret Operator] to be present as CSI provider in Kubernetes.
 
-| Development RHEL 7
-| `https://repo.stackable.tech/repository/rpm-dev/el7`
-
-| Stable RHEL 7
-| `https://repo.stackable.tech/repository/rpm-release/el7`
-
-| Development RHEL 8
-| `https://repo.stackable.tech/repository/rpm-dev/el8`
-
-| Stable RHEL 8
-| `https://repo.stackable.tech/repository/rpm-release/el8`
-
-|===
-
-Add this to `/etc/yum.repos.d/stackable.repo` and make sure to pick the corrrect repository:
-
-[source]
+The simplest way to install it is to just run:
 ----
-[stackable]
-name=Stackable
-baseurl=https://repo.stackable.tech/repository/rpm-release/el8
-repo_gpgcheck=0
-enabled=1
-gpgcheck=0
+$ helm install secret-operator stackable-dev/secret-operator
 ----
 
-Install the Operator:
-
-[source,bash]
-----
-sudo yum install stackable-nifi-operator
-----
 
 == Docker
 
@@ -88,8 +47,29 @@ This Operator is published as a Docker image:
 docker.stackable.tech/stackable/nifi-operator
 ----
 
+When installing manually with Docker you will need to install the Stackable CRDs for Apache ZooKeeper in your Kubernetes environment. These are available on the
+https://github.com/stackabletech/nifi-operator/tree/main/deploy/crd[Stackable GitHub repository] for this operator.
+[source]
+----
+$ sudo kubectl apply -f simple-nificluster.yaml
+----
+
 To run it straight from Docker you can use this command:
 [source,bash]
 ----
-docker run -e NIFI_OPERATOR_LOG=trace -e KUBECONFIG=/root/.kube/k3s.yaml --mount type=bind,source="$HOME/.kube/k3s.yaml",target="/root/.kube/k3s.yaml" -it docker.stackable.tech/stackable/nifi-operator:latest
+docker run \
+    --name nifi-operator \
+    --network host \
+    --env KUBECONFIG=/home/stackable/.kube/config \
+    --mount type=bind,source="$HOME/.kube/config",target="/home/stackable/.kube/config" \
+    docker.stackable.tech/stackable/nifi-operator:latest
+----
+
+== Building the operator from source
+
+This operator is written in Rust and is developed against the latest stable Rust release (1.56 at the time of writing).
+
+[source]
+----
+cargo build
 ----

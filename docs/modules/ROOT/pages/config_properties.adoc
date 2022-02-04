@@ -1,19 +1,26 @@
 == Kubernetes custom resource options
 The cluster can be configured via a YAML file. This custom resource specifies the amount of replicas for each role group or role specific configuration like port definitions etc.
+The following listing shows a fairly complete example that sets most available options, for more detail about the individual elements please refer to the table further down on the page.
 
 [source,yaml]
 ----
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
 metadata:
-  name: simple
+  name: simple-nifi
 spec:
-  metricsPort: 8428
-  version: "1.13.2"
+  version: "1.15.0"
   zookeeperReference:
-    name: simple
+    name: simple-zk
     namespace: default
     chroot: /nifi
+  authenticationConfig:
+    method:
+      SingleUser:
+        adminCredentialsSecret:
+          name: nifi-admin-credentials-simple
+          namespace: default
+    allowAnonymousAccess: true
   nodes:
     roleGroups:
       default:
@@ -21,38 +28,96 @@ spec:
           matchLabels:
             kubernetes.io/os: linux
         config:
-          httpPort: 10000
-          protocolPort: 10443
-          loadBalancePort: 6342
+          sensitivePropertyKeySecret: nifi-sensitive-property-key
+          log:
+            rootLogLevel: INFO
+        replicas: 3
 ----
+=== Node Configuration
+[source,yaml]
+----
+ nodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        config:
+        replicas: 3
+----
+The `nodes` element is used to define how many pods with which configuration should be rolled out.
+It is possible to define multiple groups of nodes, each with its own distinct configuration, every `roleGroup` has the following elements:
 
+ - selector: a Kubernetes `Selector` to specify criteria that can be used to target nodes
+ - config: The NiFi config to use for this group
+ - replicas: How many pods to roll out for this group
 
-[cols="1,1,1,1,1"]
-|===
-| config-spec Property | Actual Property | Default Value | Recommended Value | Location
+=== Authentication
+[source,yaml]
+----
+  authenticationConfig:
+    method:
+      SingleUser:
+        adminCredentialsSecret:
+          name: nifi-admin-credentials-simple
+          namespace: default
+    allowAnonymousAccess: true
+----
+All authentication related parameters are configured in the authenticationConfig element.
 
-| httpPort
-| nifi.web.http.port
-| 8080
-|
-| file:nifi.properties
+==== Authentication Method
+Currently, the only supported authentication method is "SingleUser", which allows the definition of one admin user which can then access the cluster.
+Specification of these users credentials happens via referring to a Secret in Kubernetes, this secret will need to contain at least the two keys `username` and `password`.
+Extra keys may be present, but will be ignored by the operator.
 
-| protocolPort
-| nifi.cluster.node.protocol.port
-| 9088
-|
-| file:nifi.properties
+==== Anonymous Access
+NiFi can be configured to allow anonymous access to the web UI, this is turned off by default, but can be enabled via the parameter `allowAnonymousAccess`.
+This setting is independent of the configured authentication method and will override anything specified for the authentication provider.
 
-| loadBalancePort
-| nifi.cluster.load.balance.port
-| 6342
-|
-| file:nifi.properties
+=== ZooKeeper Connection
+[source,yaml]
+----
+  zookeeperReference:
+    name: simple-zk
+    namespace: default
+    chroot: /nifi
+----
+NiFi in cluster mode requires a ZooKeeper ensemble for state management and leader election purposes, this operator at the moment does not support single node deployments without ZooKeeper, hence this is a required setting.
+Configuration happens via a ConfigMap, which needs to contain one key called `ZOOKEEPER` with the value being the ZooKeeper connection string.
 
-| metricsPort
-| metricsPort
-|
-|
-| JMX Exporter/CLI
+When using a Stackable provided ZooKeeper there is no need to manually create this ConfigMap, as it will be managed by the Stackable Operator for Apache ZooKeeper and kept up to date with a valid connection string for the target cluster.
 
-|===
+`chroot` is an optional parameter that allows keeping NiFi data under a specific znode in ZooKeeper, which is highly recommended to avoid any potential side effects of having multiple applications use the same ZooKeeper cluster.
+
+=== NiFi Configuration
+[source,yaml]
+----
+config:
+  sensitivePropertyKeySecret: nifi-sensitive-property-key
+  log:
+    rootLogLevel: INFO
+----
+This is the actual NiFi configuration element.
+At the moment only a very limited set of options is supported, but you can expect these to grow quickly over time.
+Anything that is not mentioned here can be configured via configOverrides. This does not include properties for XML files like `state-management.xml`.
+
+=== Configuration Overrides
+Apache NiFi runtime configuration is stored in a file named nifi.properties.
+The configOverrides block allows you to add custom parameters to this file.
+A Full list of the available configuration options can be found in the official Apache NiFi documentation at https://nifi.apache.org/docs/nifi-docs/components/nifi-docs/html/administration-guide.html#system_properties.
+
+Overrides consist of a key, which must match the property name in the configuration file and a value. This allows arbitrary configuration properties to be added to Spark. In the example above a property aws.region is being explicitly set to 'eu-west-1', overriding the default value.
+
+WARNING: Please be aware that by overriding config settings in this section you have a very high risk of breaking things, because the product does not behave the way the Stackable Operator for Apache NiFi expects it to behave any more.
+
+The following snippet shows an example of how this would look in the NifiCluster definition:
+
+[source,yaml]
+----
+        config:
+          sensitivePropertyKeySecret: nifi-sensitive-property-
+        configOverrides:
+          nifi.properties:
+            aws.region: eu-west-1
+        replicas: 2
+----

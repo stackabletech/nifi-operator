@@ -26,6 +26,7 @@ rules:
       - configmaps
       - services
       - endpoints
+      - secrets
       - serviceaccounts
     verbs:
       - create

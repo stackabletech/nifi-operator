@@ -1,44 +1,63 @@
 = Usage
 
-After installation, the CRD for this operator must be created:
+If you are not installing the operator using Helm then after installation the CRD for this operator must be created:
 
-    kubectl apply -f /etc/stackable/nifi-operator/crd/nificluster.crd.yaml
+    kubectl apply -f deploy/nificluster.yaml
 
-To create a single node Apache NiFi (v1.15.0) cluster with Prometheus metrics exposed on port 8428 and the WebUi on port 10000. As of now only one instance per node is supported:
+To create a three-node Apache NiFi (v1.15.0) cluster with SingleUser authentication enabled apply the following to your Kubernetes cluster.
 
+The admin credentials that you can then log in with are: `admin:supersecretpassword`
 
-    cat <<EOF | kubectl apply -f -
-    apiVersion: nifi.stackable.tech/v1alpha1
-    kind: NifiCluster
-    metadata:
-      name: simple-nificluster
-    spec:
-      metricsPort: 8428
-      version: "1.15.0"
-      zookeeperReference:
-        name: simple
-        namespace: default
-        chroot: /nifi
-      nodes:
-        roleGroups:
-          default:
-            selector:
-              matchLabels:
-                kubernetes.io/os: linux
-            replicas: 1
-            config:
-              httpPort: 10000
-              protocolPort: 10443
-              loadBalancePort: 6342
-              sensitivePropertyKeySecret: nifi-sensitive-property-key
-    EOF
+If you do not provide the admin user credentials the operator can auto generate a random password for you, if you enable this functionality.
+You can retrieve this password by running the following command:
 
+    kubectl get secret nifi-admin-credentials-simple -o jsonpath="{.data.password}" | base64 --decode | cat - <(echo)
 
-    cat <<EOF | kubectl apply -f -
-    apiVersion: v1alpha1
-    kind: Secret
-    metadata:
-      name: nifi-sensitive-property-key
-    stringData:
-      nifiSensitivePropsKey: mYsUp3rS3cr3tk3y
-    EOF
+You may need to adjust this command if you change the configuration for `adminCredentialsSecret` in the example below.
+
+[source,yaml]
+----
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: simple-nifi
+spec:
+  version: "1.15.0"
+  zookeeperReference:
+    name: simple-zk
+    namespace: default
+    chroot: /nifi
+  authenticationConfig:
+    method:
+      SingleUser:
+        adminCredentialsSecret:
+          name: nifi-admin-credentials-simple
+          namespace: default
+        aut
+    allowAnonymousAccess: true
+  nodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        config:
+          sensitivePropertyKeySecret: nifi-sensitive-property-key
+          log:
+            rootLogLevel: INFO
+        replicas: 3
+----
+
+If you want to set a password for the initial admin user you can do this by applying the following object:
+
+[source,yaml]
+----
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nifi-admin-credentials-simple
+stringData:
+  username: admin
+  password: supersecretpassword
+----

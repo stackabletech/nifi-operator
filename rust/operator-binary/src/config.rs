@@ -1,0 +1,625 @@
+use snafu::{ResultExt, Snafu};
+use stackable_nifi_crd::{
+    LogLevel, NifiCluster, NifiConfig, NifiLogConfig, NifiRole, NifiSpec, HTTPS_PORT, PROTOCOL_PORT,
+};
+use stackable_operator::product_config::types::PropertyNameKind;
+use stackable_operator::product_config::ProductConfigManager;
+use stackable_operator::product_config_utils::{
+    transform_all_roles_to_config, validate_all_roles_and_groups_config,
+    ValidatedRoleConfigByPropertyKind,
+};
+use stackable_operator::role_utils::Role;
+use std::collections::{BTreeMap, HashMap};
+use strum_macros::Display;
+use strum_macros::EnumIter;
+
+pub const NIFI_BOOTSTRAP_CONF: &str = "bootstrap.conf";
+pub const NIFI_PROPERTIES: &str = "nifi.properties";
+pub const NIFI_STATE_MANAGEMENT_XML: &str = "state-management.xml";
+
+#[derive(Debug, Display, EnumIter)]
+pub enum NifiRepository {
+    #[strum(serialize = "flowfile")]
+    Flowfile,
+    #[strum(serialize = "database")]
+    Database,
+    #[strum(serialize = "content")]
+    Content,
+    #[strum(serialize = "provenance")]
+    Provenance,
+    #[strum(serialize = "state")]
+    State,
+}
+
+impl NifiRepository {
+    pub fn repository(&self) -> String {
+        format!("{}-repository", self)
+    }
+    pub fn mount_path(&self) -> String {
+        format!("/stackable/data/{}", self)
+    }
+}
+
+#[derive(Snafu, Debug)]
+pub enum Error {
+    #[snafu(display("Invalid product config"))]
+    InvalidProductConfig {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("Failed to transform product configs"))]
+    ProductConfigTransform {
+        source: stackable_operator::product_config_utils::ConfigError,
+    },
+}
+
+/// Create the NiFi bootstrap.conf
+pub fn build_bootstrap_conf(overrides: BTreeMap<String, String>) -> String {
+    let mut bootstrap = BTreeMap::new();
+    // Java command to use when running NiFi
+    bootstrap.insert("java".to_string(), "java".to_string());
+    // Username to use when running NiFi. This value will be ignored on Windows.
+    bootstrap.insert("run.as".to_string(), "".to_string());
+    // Preserve shell environment while runnning as "run.as" user
+    bootstrap.insert("preserve.environment".to_string(), "false".to_string());
+    // Configure where NiFi's lib and conf directories live
+    bootstrap.insert("lib.dir".to_string(), "./lib".to_string());
+    bootstrap.insert("conf.dir".to_string(), "./conf".to_string());
+    // How long to wait after telling NiFi to shutdown before explicitly killing the Process
+    bootstrap.insert("graceful.shutdown.seconds".to_string(), "20".to_string());
+    // Disable JSR 199 so that we can use JSP's without running a JDK
+    bootstrap.insert(
+        "java.arg.1".to_string(),
+        "-Dorg.apache.jasper.compiler.disablejsr199=true".to_string(),
+    );
+    // JVM memory settings
+    bootstrap.insert("java.arg.2".to_string(), "-Xms1024m".to_string());
+    bootstrap.insert("java.arg.3".to_string(), "-Xmx1024m".to_string());
+
+    bootstrap.insert(
+        "java.arg.4".to_string(),
+        "-Djava.net.preferIPv4Stack=true".to_string(),
+    );
+
+    // allowRestrictedHeaders is required for Cluster/Node communications to work properly
+    bootstrap.insert(
+        "java.arg.5".to_string(),
+        "-Dsun.net.http.allowRestrictedHeaders=true".to_string(),
+    );
+    bootstrap.insert(
+        "java.arg.6".to_string(),
+        "-Djava.protocol.handler.pkgs=sun.net.www.protocol".to_string(),
+    );
+
+    // The G1GC is known to cause some problems in Java 8 and earlier, but the issues were addressed in Java 9. If using Java 8 or earlier,
+    // it is recommended that G1GC not be used, especially in conjunction with the Write Ahead Provenance Repository. However, if using a newer
+    // version of Java, it can result in better performance without significant \"stop-the-world\" delays.
+    bootstrap.insert("java.arg.13".to_string(), "-XX:+UseG1GC".to_string());
+
+    // Set headless mode by default
+    bootstrap.insert(
+        "java.arg.14".to_string(),
+        "-Djava.awt.headless=true".to_string(),
+    );
+    // Root key in hexadecimal format for encrypted sensitive configuration values
+    //bootstrap.insert("nifi.bootstrap.sensitive.key=".to_string(), "".to_string());
+    // Sets the provider of SecureRandom to /dev/urandom to prevent blocking on VMs
+    bootstrap.insert(
+        "java.arg.15".to_string(),
+        "-Djava.security.egd=file:/dev/urandom".to_string(),
+    );
+    // Requires JAAS to use only the provided JAAS configuration to authenticate a Subject, without using any "fallback" methods (such as prompting for username/password)
+    // Please see https://docs.oracle.com/javase/8/docs/technotes/guides/security/jgss/single-signon.html, section "EXCEPTIONS TO THE MODEL"
+    bootstrap.insert(
+        "java.arg.16".to_string(),
+        "-Djavax.security.auth.useSubjectCredsOnly=true".to_string(),
+    );
+
+    // Zookeeper 3.5 now includes an Admin Server that starts on port 8080, since NiFi is already using that port disable by default.
+    // Please see https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_adminserver_config for configuration options.
+    bootstrap.insert(
+        "java.arg.17".to_string(),
+        "-Dzookeeper.admin.enableServer=false".to_string(),
+    );
+
+    // override with config overrides
+    bootstrap.extend(overrides);
+
+    format_properties(bootstrap)
+}
+
+/// Create the NiFi nifi.properties
+pub fn build_nifi_properties(
+    spec: &NifiSpec,
+    zk_connect_string: &str,
+    proxy_hosts: &str,
+    overrides: BTreeMap<String, String>,
+) -> String {
+    let mut properties = BTreeMap::new();
+    // Core Properties
+    properties.insert(
+        "nifi.flow.configuration.file".to_string(),
+        NifiRepository::Database.mount_path() + "/flow.xml.gz",
+    );
+    properties.insert(
+        "nifi.flow.configuration.archive.enabled".to_string(),
+        "true".to_string(),
+    );
+    properties.insert(
+        "nifi.flow.configuration.archive.dir".to_string(),
+        "/stackable/nifi/conf/archive/".to_string(),
+    );
+    properties.insert(
+        "nifi.flow.configuration.archive.max.time".to_string(),
+        "30 days".to_string(),
+    );
+    properties.insert(
+        "nifi.flow.configuration.archive.max.storage".to_string(),
+        "500 MB".to_string(),
+    );
+    properties.insert(
+        "nifi.flow.configuration.archive.max.count".to_string(),
+        "".to_string(),
+    );
+    properties.insert(
+        "nifi.flowcontroller.autoResumeState".to_string(),
+        "true".to_string(),
+    );
+    properties.insert(
+        "nifi.flowcontroller.graceful.shutdown.period".to_string(),
+        "10 sec".to_string(),
+    );
+    properties.insert(
+        "nifi.flowservice.writedelay.interval".to_string(),
+        "500 ms".to_string(),
+    );
+    properties.insert(
+        "nifi.administrative.yield.duration".to_string(),
+        "30 sec".to_string(),
+    );
+
+    properties.insert(
+        "nifi.authorizer.configuration.file".to_string(),
+        "/stackable/nifi/conf/authorizers.xml".to_string(),
+    );
+    properties.insert(
+        "nifi.login.identity.provider.configuration.file".to_string(),
+        "/stackable/nifi/conf/login-identity-providers.xml".to_string(),
+    );
+    properties.insert(
+        "nifi.templates.directory".to_string(),
+        "./conf/templates".to_string(),
+    );
+    properties.insert("nifi.ui.banner.text".to_string(), "".to_string());
+    properties.insert(
+        "nifi.ui.autorefresh.interval".to_string(),
+        "30 sec".to_string(),
+    );
+    properties.insert(
+        "nifi.nar.library.directory".to_string(),
+        "./lib".to_string(),
+    );
+    properties.insert(
+        "nifi.nar.library.autoload.directory".to_string(),
+        "./extensions".to_string(),
+    );
+    properties.insert(
+        "nifi.nar.working.directory".to_string(),
+        "./work/nar/".to_string(),
+    );
+    properties.insert(
+        "nifi.documentation.working.directory".to_string(),
+        "./work/docs/components".to_string(),
+    );
+
+    //###################
+    // State Management #
+    //###################
+    properties.insert(
+        "nifi.state.management.configuration.file".to_string(),
+        "./conf/state-management.xml".to_string(),
+    );
+    // The ID of the local state provider
+    properties.insert(
+        "nifi.state.management.provider.local".to_string(),
+        "local-provider".to_string(),
+    );
+    // The ID of the cluster-wide state provider. This will be ignored if NiFi is not clustered but must be populated if running in a cluster.
+    properties.insert(
+        "nifi.state.management.provider.cluster".to_string(),
+        "zk-provider".to_string(),
+    );
+    // Specifies whether or not this instance of NiFi should run an embedded ZooKeeper server
+    properties.insert(
+        "nifi.state.management.embedded.zookeeper.start".to_string(),
+        "false".to_string(),
+    );
+
+    // H2 Settings
+    properties.insert(
+        "nifi.database.directory".to_string(),
+        NifiRepository::Database.mount_path(),
+    );
+    properties.insert(
+        "nifi.h2.url.append".to_string(),
+        ";LOCK_TIMEOUT=25000;WRITE_DELAY=0;AUTO_SERVER=FALSE".to_string(),
+    );
+
+    // FlowFile Repository
+    properties.insert(
+        "nifi.flowfile.repository.implementation".to_string(),
+        "org.apache.nifi.controller.repository.WriteAheadFlowFileRepository".to_string(),
+    );
+    properties.insert(
+        "nifi.flowfile.repository.wal.implementation".to_string(),
+        "org.apache.nifi.wali.SequentialAccessWriteAheadLog".to_string(),
+    );
+    properties.insert(
+        "nifi.flowfile.repository.directory".to_string(),
+        NifiRepository::Flowfile.mount_path(),
+    );
+    properties.insert(
+        "nifi.flowfile.repository.checkpoint.interval".to_string(),
+        "20 secs".to_string(),
+    );
+    properties.insert(
+        "nifi.flowfile.repository.always.sync".to_string(),
+        "false".to_string(),
+    );
+    properties.insert(
+        "nifi.flowfile.repository.retain.orphaned.flowfiles".to_string(),
+        "true".to_string(),
+    );
+
+    properties.insert(
+        "nifi.swap.manager.implementation".to_string(),
+        "org.apache.nifi.controller.FileSystemSwapManager".to_string(),
+    );
+    properties.insert("nifi.queue.swap.threshold".to_string(), "20000".to_string());
+
+    // Content Repository
+    properties.insert(
+        "nifi.content.repository.implementation".to_string(),
+        "org.apache.nifi.controller.repository.FileSystemRepository".to_string(),
+    );
+    properties.insert(
+        "nifi.content.claim.max.appendable.size".to_string(),
+        "1 MB".to_string(),
+    );
+    properties.insert(
+        "nifi.content.repository.directory.default".to_string(),
+        NifiRepository::Content.mount_path(),
+    );
+    properties.insert(
+        "nifi.content.repository.archive.max.retention.period".to_string(),
+        "7 days".to_string(),
+    );
+    properties.insert(
+        "nifi.content.repository.archive.max.usage.percentage".to_string(),
+        "50%".to_string(),
+    );
+    properties.insert(
+        "nifi.content.repository.archive.enabled".to_string(),
+        "true".to_string(),
+    );
+    properties.insert(
+        "nifi.content.repository.always.sync".to_string(),
+        "false".to_string(),
+    );
+    properties.insert(
+        "nifi.content.viewer.url".to_string(),
+        "../nifi-content-viewer/".to_string(),
+    );
+
+    // Provenance Repository Properties
+    properties.insert(
+        "nifi.provenance.repository.implementation".to_string(),
+        "org.apache.nifi.provenance.WriteAheadProvenanceRepository".to_string(),
+    );
+
+    // Persistent Provenance Repository Properties
+    properties.insert(
+        "nifi.provenance.repository.directory.default".to_string(),
+        NifiRepository::Provenance.mount_path(),
+    );
+    properties.insert(
+        "nifi.provenance.repository.max.storage.time".to_string(),
+        "30 days".to_string(),
+    );
+    properties.insert(
+        "nifi.provenance.repository.max.storage.size".to_string(),
+        "10 GB".to_string(),
+    );
+    properties.insert(
+        "nifi.provenance.repository.rollover.time".to_string(),
+        "10 mins".to_string(),
+    );
+    properties.insert(
+        "nifi.provenance.repository.rollover.size".to_string(),
+        "100 MB".to_string(),
+    );
+    properties.insert(
+        "nifi.provenance.repository.query.threads".to_string(),
+        "2".to_string(),
+    );
+    properties.insert(
+        "nifi.provenance.repository.index.threads".to_string(),
+        "2".to_string(),
+    );
+    properties.insert(
+        "nifi.provenance.repository.compress.on.rollover".to_string(),
+        "true".to_string(),
+    );
+    properties.insert(
+        "nifi.provenance.repository.always.sync".to_string(),
+        "false".to_string(),
+    );
+    // Comma-separated list of fields. Fields that are not indexed will not be searchable. Valid fields are:
+    // EventType, FlowFileUUID, Filename, TransitURI, ProcessorID, AlternateIdentifierURI, Relationship, Details
+    properties.insert(
+        "nifi.provenance.repository.indexed.fields".to_string(),
+        "EventType, FlowFileUUID, Filename, ProcessorID, Relationship".to_string(),
+    );
+    // FlowFile Attributes that should be indexed and made searchable.  Some examples to consider are filename, uuid, mime.type
+    properties.insert(
+        "nifi.provenance.repository.indexed.attributes".to_string(),
+        "".to_string(),
+    );
+    // Large values for the shard size will result in more Java heap usage when searching the Provenance Repository
+    // but should provide better performance
+    properties.insert(
+        "nifi.provenance.repository.index.shard.size".to_string(),
+        "500 MB".to_string(),
+    );
+    // Indicates the maximum length that a FlowFile attribute can be when retrieving a Provenance Event from
+    // the repository. If the length of any attribute exceeds this value, it will be truncated when the event is retrieved.
+    properties.insert(
+        "nifi.provenance.repository.max.attribute.length".to_string(),
+        "65536".to_string(),
+    );
+    properties.insert(
+        "nifi.provenance.repository.concurrent.merge.threads".to_string(),
+        "2".to_string(),
+    );
+
+    // Volatile Provenance Respository Properties
+    properties.insert(
+        "nifi.provenance.repository.buffer.size".to_string(),
+        "100000".to_string(),
+    );
+
+    // Component Status Repository
+    properties.insert(
+        "nifi.components.status.repository.implementation".to_string(),
+        "org.apache.nifi.controller.status.history.VolatileComponentStatusRepository".to_string(),
+    );
+    properties.insert(
+        "nifi.components.status.repository.buffer.size".to_string(),
+        "1440".to_string(),
+    );
+    properties.insert(
+        "nifi.components.status.snapshot.frequency".to_string(),
+        "1 min".to_string(),
+    );
+
+    // QuestDB Status History Repository Properties
+    properties.insert(
+        "nifi.status.repository.questdb.persist.node.days".to_string(),
+        "14".to_string(),
+    );
+    properties.insert(
+        "nifi.status.repository.questdb.persist.component.days".to_string(),
+        "3".to_string(),
+    );
+    properties.insert(
+        "nifi.status.repository.questdb.persist.location".to_string(),
+        "./status_repository".to_string(),
+    );
+
+    //#############################################
+
+    // This will be replaced in the init container, so 0.0.0.0 acts mainly as
+    // marker
+    properties.insert("nifi.web.https.host".to_string(), "0.0.0.0".to_string());
+    properties.insert("nifi.web.https.port".to_string(), HTTPS_PORT.to_string());
+    properties.insert(
+        "nifi.web.https.network.interface.default".to_string(),
+        "".to_string(),
+    );
+    properties.insert(
+        "nifi.web.jetty.working.directory".to_string(),
+        "./work/jetty".to_string(),
+    );
+    properties.insert("nifi.web.jetty.threads".to_string(), "200".to_string());
+    properties.insert("nifi.web.max.header.size".to_string(), "16 KB".to_string());
+    properties.insert("nifi.web.proxy.context.path".to_string(), "".to_string());
+    properties.insert("nifi.web.proxy.host".to_string(), proxy_hosts.to_string());
+
+    // security properties
+    // this property is later set from a secret, so can remain empty here
+    properties.insert("nifi.sensitive.props.key".to_string(), "".to_string());
+    properties.insert(
+        "nifi.sensitive.props.key.protected".to_string(),
+        "".to_string(),
+    );
+
+    let algorithm = &spec
+        .sensitive_properties_config
+        .algorithm
+        .clone()
+        .unwrap_or_default();
+    properties.insert(
+        "nifi.sensitive.props.algorithm".to_string(),
+        algorithm.to_string(),
+    );
+
+    // key and trust store
+    // these properties are ok to hard code here, because the cannot be configured and are
+    // generated with fixed values in the init container
+    properties.insert(
+        "nifi.security.keystore".to_string(),
+        "/stackable/keystore/keystore.p12".to_string(),
+    );
+    properties.insert(
+        "nifi.security.keystoreType".to_string(),
+        "PKCS12".to_string(),
+    );
+    properties.insert(
+        "nifi.security.keystorePasswd".to_string(),
+        "secret".to_string(),
+    );
+    properties.insert(
+        "nifi.security.truststore".to_string(),
+        "/stackable/keystore/truststore.p12".to_string(),
+    );
+    properties.insert(
+        "nifi.security.truststoreType".to_string(),
+        "PKCS12".to_string(),
+    );
+    properties.insert(
+        "nifi.security.truststorePasswd".to_string(),
+        "secret".to_string(),
+    );
+    properties.insert(
+        "nifi.security.user.login.identity.provider".to_string(),
+        "single-user-provider".to_string(),
+    );
+    properties.insert(
+        "nifi.security.user.authorizer".to_string(),
+        "single-user-authorizer".to_string(),
+    );
+    properties.insert(
+        "nifi.security.allow.anonymous.authentication".to_string(),
+        spec.authentication_config.allow_anonymous().to_string(),
+    );
+    properties.insert(
+        "nifi.cluster.protocol.is.secure".to_string(),
+        "true".to_string(),
+    );
+    // cluster node properties (only configure for cluster nodes)
+    properties.insert("nifi.cluster.is.node".to_string(), "true".to_string());
+    // this will be overwritten to the correct FQDN in the container start command
+    properties.insert("nifi.cluster.node.address".to_string(), "".to_string());
+    properties.insert(
+        "nifi.cluster.node.protocol.port".to_string(),
+        PROTOCOL_PORT.to_string(),
+    );
+    // TODO: set to 1 min for testing (default 5)
+    properties.insert(
+        "nifi.cluster.flow.election.max.wait.time".to_string(),
+        "1 mins".to_string(),
+    );
+    properties.insert(
+        "nifi.cluster.flow.election.max.candidates".to_string(),
+        "".to_string(),
+    );
+    // zookeeper properties, used for cluster management
+    properties.insert(
+        "nifi.zookeeper.connect.string".to_string(),
+        zk_connect_string.to_string(),
+    );
+    properties.insert(
+        "nifi.zookeeper.root.node".to_string(),
+        spec.zookeeper_reference
+            .chroot
+            .as_deref()
+            .unwrap_or("nifi")
+            .to_string(),
+    );
+
+    // override with config overrides
+    properties.extend(overrides);
+
+    format_properties(properties)
+}
+
+pub fn build_logback_xml(log_config: &NifiLogConfig) -> String {
+    let root_log_level = log_config.root_log_level.clone().unwrap_or(LogLevel::INFO);
+    include_str!("../resources/logback.xml")
+        .replace("STACKABLEROOTLEVEL", &root_log_level.to_string())
+}
+
+pub fn build_authorizers_xml() -> String {
+    include_str!("../resources/authorizers.xml").to_string()
+}
+
+pub fn build_state_management_xml(spec: &NifiSpec, zk_connect_string: &str) -> String {
+    format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
+        <stateManagement>
+          <local-provider>
+          <id>local-provider</id>
+            <class>org.apache.nifi.controller.state.providers.local.WriteAheadLocalStateProvider</class>
+            <property name=\"Directory\">{}</property>
+            <property name=\"Always Sync\">false</property>
+            <property name=\"Partitions\">16</property>
+            <property name=\"Checkpoint Interval\">2 mins</property>
+          </local-provider>
+          <cluster-provider>
+            <id>zk-provider</id>
+            <class>org.apache.nifi.controller.state.providers.zookeeper.ZooKeeperStateProvider</class>
+            <property name=\"Connect String\">{}</property>
+            <property name=\"Root Node\">{}</property>
+            <property name=\"Session Timeout\">10 seconds</property>
+            <property name=\"Access Control\">Open</property>
+          </cluster-provider>
+        </stateManagement>",
+        &NifiRepository::State.mount_path(),
+        zk_connect_string,
+        &spec
+            .zookeeper_reference
+            .chroot.as_deref()
+            .unwrap_or("")
+    )
+}
+
+/// Defines all required roles and their required configuration. In this case we need three files:
+/// `bootstrap.conf`, `nifi.properties` and `state-management.xml`.
+///
+/// We do not require any env variables yet. We will however utilize them to change the
+/// configuration directory - check <https://github.com/apache/nifi/pull/2985> for more detail.
+///
+/// The roles and their configs are then validated and complemented by the product config.
+///
+/// # Arguments
+/// * `resource`        - The NifiCluster containing the role definitions.
+/// * `version`         - The NifiCluster version.
+/// * `product_config`  - The product config to validate and complement the user config.
+///
+pub fn validated_product_config(
+    resource: &NifiCluster,
+    version: &str,
+    role: &Role<NifiConfig>,
+    product_config: &ProductConfigManager,
+) -> Result<ValidatedRoleConfigByPropertyKind, Error> {
+    let mut roles = HashMap::new();
+    roles.insert(
+        NifiRole::Node.to_string(),
+        (
+            vec![
+                PropertyNameKind::File(NIFI_BOOTSTRAP_CONF.to_string()),
+                PropertyNameKind::File(NIFI_PROPERTIES.to_string()),
+                PropertyNameKind::File(NIFI_STATE_MANAGEMENT_XML.to_string()),
+                PropertyNameKind::Env,
+            ],
+            role.clone(),
+        ),
+    );
+
+    let role_config =
+        transform_all_roles_to_config(resource, roles).context(ProductConfigTransformSnafu)?;
+
+    validate_all_roles_and_groups_config(version, &role_config, product_config, false, false)
+        .context(InvalidProductConfigSnafu)
+}
+
+// TODO: Use crate like https://crates.io/crates/java-properties (currently does not work for Nifi
+//    because of escapes), to have save handling of escapes etc.
+fn format_properties(properties: BTreeMap<String, String>) -> String {
+    let mut result = String::new();
+
+    for (key, value) in properties {
+        result.push_str(&format!("{}={}\n", key, value));
+    }
+
+    result
+}

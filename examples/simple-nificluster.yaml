@@ -1,14 +1,22 @@
+---
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
 metadata:
-  name: simple
+  name: simple-nifi
 spec:
-  metricsPort: 8428
   version: "1.15.0"
   zookeeperReference:
-    name: simple
-    namespace: default
+    name: simple-zk
     chroot: /nifi
+  authenticationConfig:
+    method:
+      SingleUser:
+        adminCredentialsSecret:
+          name: nifi-admin-credentials-simple
+        autoGenerate: true
+  sensitivePropertiesConfig:
+    keySecret: nifi-sensitive-property-key
+    autoGenerate: true
   nodes:
     roleGroups:
       default:
@@ -16,9 +24,6 @@ spec:
           matchLabels:
             kubernetes.io/os: linux
         config:
-          httpPort: 10000
-          protocolPort: 10443
-          loadBalancePort: 6342
-          sensitivePropertyKeySecret: nifi-sensitive-property-key
-        replicas: 2
-
+          log:
+            rootLogLevel: INFO
+        replicas: 3
