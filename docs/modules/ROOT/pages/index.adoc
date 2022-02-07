@@ -4,6 +4,12 @@ This is an operator for Kubernetes that can manage https://nifi.apache.org/[Apac
 
 WARNING: This operator only works with images from the https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%2Fnifi[Stackable] repository
 
+== Supported Versions
+
+The Stackable Operator for Apache NiFi currently supports the following versions of Trino:
+
+include::partial$supported-versions.adoc[]
+
 [source]
 ----
 docker pull docker.stackable.tech/stackable/nifi:<version>

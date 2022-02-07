@@ -1,0 +1,5 @@
+// The version ranges supported by NiFi-Operator
+// This is a separate file, since it is used by both the direct NiFi-Operator documentation, and the overarching
+// Stackable Platform documentation.
+
+- 1.15.0
