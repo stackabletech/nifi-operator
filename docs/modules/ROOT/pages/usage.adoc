@@ -68,5 +68,4 @@ metadata:
 spec:
   clusterRef:
     name: simple-zk
-    namespace: default
 ----
