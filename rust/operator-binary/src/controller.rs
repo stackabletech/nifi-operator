@@ -45,9 +45,9 @@ use stackable_operator::{
     product_config::{types::PropertyNameKind, ProductConfigManager},
 };
 use std::{
-    sync::Arc,
     borrow::Cow,
     collections::{BTreeMap, HashMap},
+    sync::Arc,
     time::Duration,
 };
 
@@ -444,6 +444,9 @@ fn build_node_rolegroup_statefulset(
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
     config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
 ) -> Result<StatefulSet> {
+    let zookeeper_host = "ZOOKEEPER_HOSTS";
+    let zookeeper_chroot = "ZOOKEEPER_CHROOT";
+
     let mut container_builder = ContainerBuilder::new(APP_NAME);
 
     // get env vars and env overrides
@@ -474,11 +477,24 @@ fn build_node_rolegroup_statefulset(
     });
 
     env_vars.push(EnvVar {
-        name: "ZOOKEEPER".to_string(),
+        name: zookeeper_host.to_string(),
         value_from: Some(EnvVarSource {
             config_map_key_ref: Some(ConfigMapKeySelector {
                 name: Some(nifi.spec.zookeeper_config_map_name.clone()),
-                key: "ZOOKEEPER".to_string(),
+                key: zookeeper_host.to_string(),
+                ..ConfigMapKeySelector::default()
+            }),
+            ..EnvVarSource::default()
+        }),
+        ..EnvVar::default()
+    });
+
+    env_vars.push(EnvVar {
+        name: zookeeper_chroot.to_string(),
+        value_from: Some(EnvVarSource {
+            config_map_key_ref: Some(ConfigMapKeySelector {
+                name: Some(nifi.spec.zookeeper_config_map_name.clone()),
+                key: zookeeper_chroot.to_string(),
                 ..ConfigMapKeySelector::default()
             }),
             ..EnvVarSource::default()
@@ -535,7 +551,7 @@ fn build_node_rolegroup_statefulset(
             "rm -f /stackable/keystore/password",
             "echo Replacing config directory",
             "cp /conf/* /stackable/nifi/conf",
-            "ln -s /stackable/logconfig/logback.xml /stackable/nifi/conf/logback.xml",
+            //"ln -s /stackable/logconfig/logback.xml /stackable/nifi/conf/logback.xml",
             "echo Replacing nifi.cluster.node.address in nifi.properties",
             &format!("sed -i \"s/nifi.cluster.node.address=/nifi.cluster.node.address={}/g\" /stackable/nifi/conf/nifi.properties", node_address),
             "echo Replacing nifi.web.https.host in nifi.properties",
@@ -553,11 +569,14 @@ fn build_node_rolegroup_statefulset(
             "chown -R stackable:stackable /stackable/keystore",
             "echo chmodding keystore directory",
             "chmod -R a=,u=rwX /stackable/keystore",
-            
-            "echo Replacing 'nifi.zookeeper.connect.string' in /stackable/nifi/conf/nifi.properties",
-            "sed \"s|nifi.zookeeper.connect.string=xxx|nifi.zookeeper.connect.string=${ZOOKEEPER}|g\" /stackable/nifi/conf/nifi.properties",
-            "echo Replacing '<property name=\"Connect String\">xxx</property>' in /stackable/nifi/conf/state-management.xml",
-            "sed \"s|<property name=\"Connect String\">xxx</property>|<property name=\"Connect String\">${ZOOKEEPER}</property>|g\" /stackable/nifi/conf/state-management.xml",
+            "echo Replacing 'nifi.zookeeper.connect.string=xxxxxx' in /stackable/nifi/conf/nifi.properties",
+            &format!("sed -i \"s|nifi.zookeeper.connect.string=xxxxxx|nifi.zookeeper.connect.string=${{{}}}|g\" /stackable/nifi/conf/nifi.properties", zookeeper_host),
+            "echo Replacing 'nifi.zookeeper.root.node=xxxxxx' in /stackable/nifi/conf/nifi.properties",
+            &format!("sed -i \"s|nifi.zookeeper.root.node=xxxxxx|nifi.zookeeper.root.node=${{{}}}|g\" /stackable/nifi/conf/nifi.properties", zookeeper_chroot),
+            "echo Replacing connect string 'xxxxxx' in /stackable/nifi/conf/state-management.xml",
+            &format!("sed -i \"s|xxxxxx|${{{}}}|g\" /stackable/nifi/conf/state-management.xml", zookeeper_host),
+            "echo Replacing root node 'yyyyyy' in /stackable/nifi/conf/state-management.xml",
+            &format!("sed -i \"s|yyyyyy|${{{}}}|g\" /stackable/nifi/conf/state-management.xml",zookeeper_chroot)
         ]
         .join(" && ")])
         .add_volume_mount(

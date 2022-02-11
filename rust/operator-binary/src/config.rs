@@ -515,10 +515,10 @@ pub fn build_nifi_properties(
     // this will be replaced via a container command script
     properties.insert(
         "nifi.zookeeper.connect.string".to_string(),
-        "xxx".to_string(),
+        "xxxxxx".to_string(),
     );
-    // TODO: replace?
-    properties.insert("nifi.zookeeper.root.node".to_string(), "nifi".to_string());
+    // this will be replaced via a container command script
+    properties.insert("nifi.zookeeper.root.node".to_string(), "xxxxxx".to_string());
 
     // override with config overrides
     properties.extend(overrides);
@@ -553,8 +553,8 @@ pub fn build_state_management_xml() -> String {
           <cluster-provider>
             <id>zk-provider</id>
             <class>org.apache.nifi.controller.state.providers.zookeeper.ZooKeeperStateProvider</class>
-            <property name=\"Connect String\">xxx</property>
-            <property name=\"Root Node\">nifi</property>
+            <property name=\"Connect String\">xxxxxx</property>
+            <property name=\"Root Node\">yyyyyy</property>
             <property name=\"Session Timeout\">10 seconds</property>
             <property name=\"Access Control\">Open</property>
           </cluster-provider>

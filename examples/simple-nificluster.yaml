@@ -1,3 +1,6 @@
+# Deploy a NiFi cluster, a user secret amd a ZooKeeper cluster and a respective
+# ZNode `simple-nifi-znode` which will be referenced
+---
 apiVersion: zookeeper.stackable.tech/v1alpha1
 kind: ZookeeperCluster
 metadata:
@@ -36,7 +39,7 @@ metadata:
   name: simple-nifi
 spec:
   version: "1.15.0"
-  zookeeperConfigMapName: simple-zk
+  zookeeperConfigMapName: simple-nifi-znode
   authenticationConfig:
     method:
       SingleUser:
