@@ -69,3 +69,43 @@ spec:
   clusterRef:
     name: simple-zk
 ----
+
+== Configuration & Environment Overrides
+
+The cluster definition also supports overriding configuration properties and environment variables, either per role or per role group, where the more specific override (role group) has precedence over the less specific one (role).
+
+IMPORTANT: Do not override port numbers. This will lead to faulty installations.
+
+=== Configuration Properties
+
+Currently, not supported for any file.
+
+=== Environment Variables
+
+Environment variables can be (over)written by adding the `envOverrides` property.
+
+For example per role group:
+
+[source,yaml]
+----
+nodes:
+  roleGroups:
+    default:
+      config: {}
+      replicas: 1
+      envOverrides:
+        MY_ENV_VAR: "MY_VALUE"
+----
+
+or per role:
+
+[source,yaml]
+----
+nodes:
+  envOverrides:
+    MY_ENV_VAR: "MY_VALUE"
+  roleGroups:
+    default:
+      config: {}
+      replicas: 1
+----
