@@ -23,7 +23,6 @@ metadata:
 spec:
   clusterRef:
     name: simple-zk
-    namespace: default
 ---
 apiVersion: v1
 kind: Secret
