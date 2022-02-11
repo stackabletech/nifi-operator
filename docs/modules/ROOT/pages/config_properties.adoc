@@ -10,10 +10,7 @@ metadata:
   name: simple-nifi
 spec:
   version: "1.15.0"
-  zookeeperReference:
-    name: simple-zk
-    namespace: default
-    chroot: /nifi
+  zookeeperConfigMapName: simple-zk
   authenticationConfig:
     method:
       SingleUser:
@@ -77,17 +74,10 @@ This setting is independent of the configured authentication method and will ove
 === ZooKeeper Connection
 [source,yaml]
 ----
-  zookeeperReference:
-    name: simple-zk
-    namespace: default
-    chroot: /nifi
+  zookeeperConfigMapName: simple-zk
 ----
 NiFi in cluster mode requires a ZooKeeper ensemble for state management and leader election purposes, this operator at the moment does not support single node deployments without ZooKeeper, hence this is a required setting.
 Configuration happens via a ConfigMap, which needs to contain one key called `ZOOKEEPER` with the value being the ZooKeeper connection string.
-
-When using a Stackable provided ZooKeeper there is no need to manually create this ConfigMap, as it will be managed by the Stackable Operator for Apache ZooKeeper and kept up to date with a valid connection string for the target cluster.
-
-`chroot` is an optional parameter that allows keeping NiFi data under a specific znode in ZooKeeper, which is highly recommended to avoid any potential side effects of having multiple applications use the same ZooKeeper cluster.
 
 === NiFi Configuration
 [source,yaml]

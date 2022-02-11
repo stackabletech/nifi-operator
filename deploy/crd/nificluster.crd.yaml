@@ -202,24 +202,13 @@ spec:
                   description: The required NiFi image version
                   nullable: true
                   type: string
-                zookeeperReference:
+                zookeeperConfigMapName:
                   description: The reference to the ZooKeeper cluster
-                  properties:
-                    chroot:
-                      nullable: true
-                      type: string
-                    name:
-                      type: string
-                    namespace:
-                      nullable: true
-                      type: string
-                  required:
-                    - name
-                  type: object
+                  type: string
               required:
                 - authenticationConfig
                 - sensitivePropertiesConfig
-                - zookeeperReference
+                - zookeeperConfigMapName
               type: object
             status:
               nullable: true

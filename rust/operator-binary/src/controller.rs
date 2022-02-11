@@ -17,9 +17,9 @@ use stackable_nifi_crd::{
 use stackable_nifi_crd::{APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME};
 use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{
-    Affinity, CSIVolumeSource, EmptyDirVolumeSource, EnvVar, EnvVarSource, Node, NodeAddress,
-    ObjectFieldSelector, PodAffinityTerm, PodAntiAffinity, PodSpec, Probe, Secret,
-    SecretVolumeSource, SecurityContext, TCPSocketAction, VolumeMount,
+    Affinity, CSIVolumeSource, ConfigMapKeySelector, EmptyDirVolumeSource, EnvVar, EnvVarSource,
+    Node, NodeAddress, ObjectFieldSelector, PodAffinityTerm, PodAntiAffinity, PodSpec, Probe,
+    Secret, SecretVolumeSource, SecurityContext, TCPSocketAction, VolumeMount,
 };
 use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use stackable_operator::kube::runtime::reflector::ObjectRef;
@@ -45,6 +45,7 @@ use stackable_operator::{
     product_config::{types::PropertyNameKind, ProductConfigManager},
 };
 use std::{
+    sync::Arc,
     borrow::Cow,
     collections::{BTreeMap, HashMap},
     time::Duration,
@@ -141,7 +142,7 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<ReconcilerAction> {
+pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Context<Ctx>) -> Result<ReconcilerAction> {
     tracing::info!("Starting reconcile");
     let client = &ctx.get_ref().client;
     let nifi_version = nifi_version(&nifi)?;
@@ -150,29 +151,6 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
         .namespace
         .clone()
         .with_context(|| ObjectHasNoNamespaceSnafu {})?;
-
-    // Zookeeper reference
-    let zk_name = nifi.spec.zookeeper_reference.name.clone();
-    // If no namespace is provided for the ZooKeeper reference, the same namespace as the NiFi
-    // object is assumed
-    let zk_namespace = nifi
-        .spec
-        .zookeeper_reference
-        .namespace
-        .clone()
-        .unwrap_or_else(|| namespace.to_string());
-
-    let zk_connect_string = client
-        .get::<ConfigMap>(&zk_name, Some(&zk_namespace))
-        .await
-        .with_context(|_| GetZookeeperConnStringConfigMapSnafu {
-            obj_ref: ObjectRef::new(&zk_name).within(&zk_namespace),
-        })?
-        .data
-        .and_then(|mut data| data.remove("ZOOKEEPER"))
-        .with_context(|| MissingZookeeperConnStringSnafu {
-            obj_ref: ObjectRef::new(&zk_name).within(&zk_namespace),
-        })?;
 
     tracing::info!("Checking for sensitive key configuration");
     check_or_generate_sensitive_key(client, &nifi).await?;
@@ -219,7 +197,6 @@ pub async fn reconcile_nifi(nifi: NifiCluster, ctx: Context<Ctx>) -> Result<Reco
             client,
             &nifi,
             &rolegroup,
-            &zk_connect_string,
             rolegroup_config,
             &proxy_hosts,
         )
@@ -341,7 +318,6 @@ async fn build_node_rolegroup_config_map(
     client: &Client,
     nifi: &NifiCluster,
     rolegroup: &RoleGroupRef<NifiCluster>,
-    zk_connect_string: &str,
     config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     proxy_hosts: &str,
 ) -> Result<ConfigMap> {
@@ -382,7 +358,6 @@ async fn build_node_rolegroup_config_map(
             NIFI_PROPERTIES,
             build_nifi_properties(
                 &nifi.spec,
-                zk_connect_string,
                 proxy_hosts,
                 config
                     .get(&PropertyNameKind::File(NIFI_PROPERTIES.to_string()))
@@ -392,10 +367,7 @@ async fn build_node_rolegroup_config_map(
                     .clone(),
             ),
         )
-        .add_data(
-            NIFI_STATE_MANAGEMENT_XML,
-            build_state_management_xml(&nifi.spec, zk_connect_string),
-        )
+        .add_data(NIFI_STATE_MANAGEMENT_XML, build_state_management_xml())
         .add_data(
             "login-identity-providers.xml",
             stackable_nifi_crd::authentication::get_login_identity_provider_xml(
@@ -501,6 +473,19 @@ fn build_node_rolegroup_statefulset(
         ..EnvVar::default()
     });
 
+    env_vars.push(EnvVar {
+        name: "ZOOKEEPER".to_string(),
+        value_from: Some(EnvVarSource {
+            config_map_key_ref: Some(ConfigMapKeySelector {
+                name: Some(nifi.spec.zookeeper_config_map_name.clone()),
+                key: "ZOOKEEPER".to_string(),
+                ..ConfigMapKeySelector::default()
+            }),
+            ..EnvVarSource::default()
+        }),
+        ..EnvVar::default()
+    });
+
     let rolegroup = nifi
         .spec
         .nodes
@@ -568,6 +553,11 @@ fn build_node_rolegroup_statefulset(
             "chown -R stackable:stackable /stackable/keystore",
             "echo chmodding keystore directory",
             "chmod -R a=,u=rwX /stackable/keystore",
+            
+            "echo Replacing 'nifi.zookeeper.connect.string' in /stackable/nifi/conf/nifi.properties",
+            "sed \"s|nifi.zookeeper.connect.string=xxx|nifi.zookeeper.connect.string=${ZOOKEEPER}|g\" /stackable/nifi/conf/nifi.properties",
+            "echo Replacing '<property name=\"Connect String\">xxx</property>' in /stackable/nifi/conf/state-management.xml",
+            "sed \"s|<property name=\"Connect String\">xxx</property>|<property name=\"Connect String\">${ZOOKEEPER}</property>|g\" /stackable/nifi/conf/state-management.xml",
         ]
         .join(" && ")])
         .add_volume_mount(

@@ -1,3 +1,34 @@
+apiVersion: zookeeper.stackable.tech/v1alpha1
+kind: ZookeeperCluster
+metadata:
+  name: simple-zk
+spec:
+  version: 3.5.8
+  servers:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        replicas: 3
+        config: {}
+---
+apiVersion: zookeeper.stackable.tech/v1alpha1
+kind: ZookeeperZnode
+metadata:
+  name: simple-nifi-znode
+spec:
+  clusterRef:
+    name: simple-zk
+    namespace: default
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nifi-admin-credentials-simple
+stringData:
+  username: admin
+  password: supersecretpassword
 ---
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
@@ -5,9 +36,7 @@ metadata:
   name: simple-nifi
 spec:
   version: "1.15.0"
-  zookeeperReference:
-    name: simple-zk
-    chroot: /nifi
+  zookeeperConfigMapName: simple-zk
   authenticationConfig:
     method:
       SingleUser:

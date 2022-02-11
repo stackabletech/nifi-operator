@@ -50,7 +50,7 @@ pub struct NifiSpec {
     /// Available NiFi roles
     pub nodes: Option<Role<NifiConfig>>,
     /// The reference to the ZooKeeper cluster
-    pub zookeeper_reference: ClusterReference,
+    pub zookeeper_config_map_name: String,
     /// A reference to a Secret containing username/password for the initial admin user
     pub authentication_config: NifiAuthenticationConfig,
     /// Configuration options for how NiFi encrypts sensitive properties on disk
@@ -106,14 +106,6 @@ impl Default for StoreType {
     fn default() -> Self {
         Self::JKS
     }
-}
-
-#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ClusterReference {
-    pub name: String,
-    pub namespace: Option<String>,
-    pub chroot: Option<String>,
 }
 
 #[derive(strum::Display)]
