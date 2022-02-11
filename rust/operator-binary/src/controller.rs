@@ -551,7 +551,7 @@ fn build_node_rolegroup_statefulset(
             "rm -f /stackable/keystore/password",
             "echo Replacing config directory",
             "cp /conf/* /stackable/nifi/conf",
-            //"ln -s /stackable/logconfig/logback.xml /stackable/nifi/conf/logback.xml",
+            "ln -s /stackable/logconfig/logback.xml /stackable/nifi/conf/logback.xml",
             "echo Replacing nifi.cluster.node.address in nifi.properties",
             &format!("sed -i \"s/nifi.cluster.node.address=/nifi.cluster.node.address={}/g\" /stackable/nifi/conf/nifi.properties", node_address),
             "echo Replacing nifi.web.https.host in nifi.properties",

@@ -10,7 +10,7 @@ metadata:
   name: simple-nifi
 spec:
   version: "1.15.0"
-  zookeeperConfigMapName: simple-zk
+  zookeeperConfigMapName: simple-nifi-znode
   authenticationConfig:
     method:
       SingleUser:
@@ -74,10 +74,10 @@ This setting is independent of the configured authentication method and will ove
 === ZooKeeper Connection
 [source,yaml]
 ----
-  zookeeperConfigMapName: simple-zk
+  zookeeperConfigMapName: simple-nifi-znode
 ----
 NiFi in cluster mode requires a ZooKeeper ensemble for state management and leader election purposes, this operator at the moment does not support single node deployments without ZooKeeper, hence this is a required setting.
-Configuration happens via a ConfigMap, which needs to contain one key called `ZOOKEEPER` with the value being the ZooKeeper connection string.
+Configuration happens via a ConfigMap, which needs to contain two keys called `ZOOKEEPER_HOSTS` with the value being the ZooKeeper connection string and `ZOOKEEPER_CHROOT` with the value being the ZooKeeper chroot.
 
 === NiFi Configuration
 [source,yaml]
