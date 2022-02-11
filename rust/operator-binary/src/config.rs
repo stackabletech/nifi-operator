@@ -130,7 +130,6 @@ pub fn build_bootstrap_conf(overrides: BTreeMap<String, String>) -> String {
 /// Create the NiFi nifi.properties
 pub fn build_nifi_properties(
     spec: &NifiSpec,
-    zk_connect_string: &str,
     proxy_hosts: &str,
     overrides: BTreeMap<String, String>,
 ) -> String {
@@ -513,18 +512,13 @@ pub fn build_nifi_properties(
         "".to_string(),
     );
     // zookeeper properties, used for cluster management
+    // this will be replaced via a container command script
     properties.insert(
         "nifi.zookeeper.connect.string".to_string(),
-        zk_connect_string.to_string(),
+        "xxxxxx".to_string(),
     );
-    properties.insert(
-        "nifi.zookeeper.root.node".to_string(),
-        spec.zookeeper_reference
-            .chroot
-            .as_deref()
-            .unwrap_or("nifi")
-            .to_string(),
-    );
+    // this will be replaced via a container command script
+    properties.insert("nifi.zookeeper.root.node".to_string(), "xxxxxx".to_string());
 
     // override with config overrides
     properties.extend(overrides);
@@ -542,7 +536,9 @@ pub fn build_authorizers_xml() -> String {
     include_str!("../resources/authorizers.xml").to_string()
 }
 
-pub fn build_state_management_xml(spec: &NifiSpec, zk_connect_string: &str) -> String {
+pub fn build_state_management_xml() -> String {
+    // The "xxx" Connect String is a placeholder and will be replaced via container
+    // command script
     format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
         <stateManagement>
@@ -557,18 +553,13 @@ pub fn build_state_management_xml(spec: &NifiSpec, zk_connect_string: &str) -> S
           <cluster-provider>
             <id>zk-provider</id>
             <class>org.apache.nifi.controller.state.providers.zookeeper.ZooKeeperStateProvider</class>
-            <property name=\"Connect String\">{}</property>
-            <property name=\"Root Node\">{}</property>
+            <property name=\"Connect String\">xxxxxx</property>
+            <property name=\"Root Node\">yyyyyy</property>
             <property name=\"Session Timeout\">10 seconds</property>
             <property name=\"Access Control\">Open</property>
           </cluster-provider>
         </stateManagement>",
         &NifiRepository::State.mount_path(),
-        zk_connect_string,
-        &spec
-            .zookeeper_reference
-            .chroot.as_deref()
-            .unwrap_or("")
     )
 }
 

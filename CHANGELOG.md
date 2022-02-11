@@ -4,8 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [0.4.0] - 2021-12-06
+### Changed
 
+- The ZooKeeper discovery now references config map name of ZNode ([#207]).
+- `operator-rs` `0.9.0` → `0.10.0` ([#207]).
+
+[#207]: https://github.com/stackabletech/nifi-operator/pull/207
+
+## [0.4.0] - 2021-12-06
 
 ### Added
 - Support for 1.15.0 ([#125])

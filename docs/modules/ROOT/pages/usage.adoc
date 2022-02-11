@@ -23,10 +23,7 @@ metadata:
   name: simple-nifi
 spec:
   version: "1.15.0"
-  zookeeperReference:
-    name: simple-zk
-    namespace: default
-    chroot: /nifi
+  zookeeperConfigMapName: simple-nifi-znode
   authenticationConfig:
     method:
       SingleUser:
@@ -52,7 +49,6 @@ If you want to set a password for the initial admin user you can do this by appl
 
 [source,yaml]
 ----
----
 apiVersion: v1
 kind: Secret
 metadata:
@@ -60,4 +56,16 @@ metadata:
 stringData:
   username: admin
   password: supersecretpassword
+----
+
+You can create the ZNode config map referenced in `zookeeperConfigMapName` via (assuming there is a ZooKeeper cluster called `simple-zk`:
+[source,yaml]
+----
+apiVersion: zookeeper.stackable.tech/v1alpha1
+kind: ZookeeperZnode
+metadata:
+  name: simple-nifi-znode
+spec:
+  clusterRef:
+    name: simple-zk
 ----
