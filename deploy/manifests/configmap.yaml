@@ -12,8 +12,8 @@ kind: ConfigMap
 metadata:
   name: nifi-operator-configmap
   labels:
-    helm.sh/chart: nifi-operator-0.5.0
+    helm.sh/chart: nifi-operator-0.6.0-nightly
     app.kubernetes.io/name: nifi-operator
     app.kubernetes.io/instance: nifi-operator
-    app.kubernetes.io/version: "0.5.0"
+    app.kubernetes.io/version: "0.6.0-nightly"
     app.kubernetes.io/managed-by: Helm
