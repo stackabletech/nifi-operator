@@ -20,14 +20,14 @@ serde = "1.0"
 serde_json = "1.0"
 serde_yaml = "0.8"
 snafu = "0.7"
-stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.10.0" }
+stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.12.0" }
 stackable-nifi-crd = { path = "../crd" }
 strum = "0.23"
 strum_macros = "0.23"
-tokio = { version = "1.16", features = ["full"] }
+tokio = { version = "1.17", features = ["full"] }
 tracing = "0.1"
 
 [build-dependencies]
 built = { version =  "0.5", features = ["chrono", "git2"] }
-stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.10.0" }
+stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.12.0" }
 stackable-nifi-crd = { path = "../crd" }

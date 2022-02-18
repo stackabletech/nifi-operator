@@ -1,5 +1,4 @@
 //! Ensures that `Pod`s are configured and running for each [`NifiCluster`]
-
 use crate::config;
 use crate::config::{
     build_authorizers_xml, build_bootstrap_conf, build_logback_xml, build_nifi_properties,
@@ -8,23 +7,11 @@ use crate::config::{
 };
 use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_nifi_crd::authentication::get_auth_volumes;
-use stackable_nifi_crd::NifiLogConfig;
 use stackable_nifi_crd::{
-    NifiCluster, NifiRole, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME,
-    PROTOCOL_PORT, PROTOCOL_PORT_NAME,
+    authentication::get_auth_volumes, NifiCluster, NifiLogConfig, NifiRole, HTTPS_PORT,
+    HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
 };
 use stackable_nifi_crd::{APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME};
-use stackable_operator::client::Client;
-use stackable_operator::k8s_openapi::api::core::v1::{
-    Affinity, CSIVolumeSource, ConfigMapKeySelector, EmptyDirVolumeSource, EnvVar, EnvVarSource,
-    Node, NodeAddress, ObjectFieldSelector, PodAffinityTerm, PodAntiAffinity, PodSpec, Probe,
-    Secret, SecretVolumeSource, SecurityContext, TCPSocketAction, VolumeMount,
-};
-use stackable_operator::k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
-use stackable_operator::kube::runtime::reflector::ObjectRef;
-use stackable_operator::kube::ResourceExt;
-use stackable_operator::role_utils::RoleGroupRef;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder},
     k8s_openapi::{
@@ -35,14 +22,28 @@ use stackable_operator::{
                 ResourceRequirements, Service, ServicePort, ServiceSpec, Volume,
             },
         },
-        apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
+        apimachinery::pkg::{
+            api::resource::Quantity, apis::meta::v1::LabelSelector, util::intstr::IntOrString,
+        },
     },
     kube::{
         api::ObjectMeta,
         runtime::controller::{Context, ReconcilerAction},
+        runtime::reflector::ObjectRef,
+        ResourceExt,
     },
     labels::{role_group_selector_labels, role_selector_labels},
+    logging::controller::ReconcilerError,
     product_config::{types::PropertyNameKind, ProductConfigManager},
+    role_utils::RoleGroupRef,
+};
+use stackable_operator::{
+    client::Client,
+    k8s_openapi::api::core::v1::{
+        Affinity, CSIVolumeSource, ConfigMapKeySelector, EmptyDirVolumeSource, EnvVar,
+        EnvVarSource, Node, NodeAddress, ObjectFieldSelector, PodAffinityTerm, PodAntiAffinity,
+        PodSpec, Probe, Secret, SecretVolumeSource, SecurityContext, TCPSocketAction, VolumeMount,
+    },
 };
 use std::{
     borrow::Cow,
@@ -50,6 +51,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
+use strum::{EnumDiscriminants, IntoStaticStr};
 
 const FIELD_MANAGER_SCOPE: &str = "nificluster";
 
@@ -58,7 +60,9 @@ pub struct Ctx {
     pub product_config: ProductConfigManager,
 }
 
-#[derive(Snafu, Debug)]
+#[derive(Snafu, Debug, EnumDiscriminants)]
+#[strum_discriminants(derive(IntoStaticStr))]
+#[allow(clippy::enum_variant_names)]
 pub enum Error {
     #[snafu(display("object defines no version"))]
     ObjectHasNoVersion,
@@ -141,6 +145,12 @@ pub enum Error {
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
+
+impl ReconcilerError for Error {
+    fn category(&self) -> &'static str {
+        ErrorDiscriminants::from(self).into()
+    }
+}
 
 pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Context<Ctx>) -> Result<ReconcilerAction> {
     tracing::info!("Starting reconcile");

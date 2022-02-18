@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Reconciliation errors are now reported as Kubernetes events ([#218]).
+
+### Changed
+
+- `operator-rs` `0.10.0` -> `0.12.0` ([#218]).
+
+[#218]: https://github.com/stackabletech/nifi-operator/pull/218
+
 ## [0.5.0] - 2022-02-14
 
 ### Changed
