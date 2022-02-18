@@ -12,7 +12,7 @@ All notable changes to this project will be documented in this file.
 
 - `operator-rs` `0.10.0` -> `0.12.0` ([#218]).
 
-[#228]: https://github.com/stackabletech/nifi-operator/pull/218
+[#218]: https://github.com/stackabletech/nifi-operator/pull/218
 
 ## [0.5.0] - 2022-02-14
 
