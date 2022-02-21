@@ -5,15 +5,6 @@ kind: ClusterRole
 metadata:
   name: nifi-operator-clusterrole
 rules:
-  # For Apache ZooKeeper dependents
-  - apiGroups:
-      - zookeeper.stackable.tech
-    resources:
-      - zookeeperclusters
-    verbs:
-      - get
-      - list
-      - watch
   - apiGroups:
       - ""
     resources:
@@ -79,23 +70,11 @@ rules:
     verbs:
       - get
   - apiGroups:
-      - command.nifi.stackable.tech
+      - events.k8s.io
     resources:
-      - inits
-      - restarts
-      - starts
-      - stops
+      - events
     verbs:
-      - get
-      - list
-      - patch
-      - watch
-  - apiGroups:
-      - command.nifi.stackable.tech
-    resources:
-      - inits/status
-    verbs:
-      - patch
+      - create
   - apiGroups:
       - nifi.stackable.tech
     resources:
