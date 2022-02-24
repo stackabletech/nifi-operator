@@ -37,7 +37,10 @@ async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
         Command::Crd => println!("{}", serde_yaml::to_string(&NifiCluster::crd())?),
-        Command::Run(ProductOperatorRun { product_config }) => {
+        Command::Run(ProductOperatorRun {
+            product_config,
+            watch_namespace,
+        }) => {
             stackable_operator::utils::print_startup_string(
                 built_info::PKG_DESCRIPTION,
                 built_info::PKG_VERSION,
@@ -56,24 +59,36 @@ async fn main() -> anyhow::Result<()> {
                 stackable_operator::client::create_client(Some("nifi.stackable.tech".to_string()))
                     .await?;
 
-            Controller::new(client.get_all_api::<NifiCluster>(), ListParams::default())
-                .owns(client.get_all_api::<Service>(), ListParams::default())
-                .owns(client.get_all_api::<StatefulSet>(), ListParams::default())
-                .owns(client.get_all_api::<ConfigMap>(), ListParams::default())
-                .shutdown_on_signal()
-                .run(
-                    controller::reconcile_nifi,
-                    controller::error_policy,
-                    Context::new(controller::Ctx {
-                        client: client.clone(),
-                        product_config,
-                    }),
-                )
-                .map(|res| {
-                    report_controller_reconciled(&client, "nificlusters.nifi.stackable.tech", &res)
-                })
-                .collect::<()>()
-                .await;
+            Controller::new(
+                watch_namespace.get_api::<NifiCluster>(&client),
+                ListParams::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<Service>(&client),
+                ListParams::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<StatefulSet>(&client),
+                ListParams::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<ConfigMap>(&client),
+                ListParams::default(),
+            )
+            .shutdown_on_signal()
+            .run(
+                controller::reconcile_nifi,
+                controller::error_policy,
+                Context::new(controller::Ctx {
+                    client: client.clone(),
+                    product_config,
+                }),
+            )
+            .map(|res| {
+                report_controller_reconciled(&client, "nificlusters.nifi.stackable.tech", &res)
+            })
+            .collect::<()>()
+            .await;
         }
     }
 
