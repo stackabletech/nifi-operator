@@ -7,12 +7,15 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Reconciliation errors are now reported as Kubernetes events ([#218]).
+- Use cli argument `watch-namespace` / env var `WATCH_NAMESPACE` to specify
+  a single namespace to watch ([#223]).
 
 ### Changed
 
-- `operator-rs` `0.10.0` -> `0.12.0` ([#218]).
+- `operator-rs` `0.10.0` -> `0.13.0` ([#218],[#223]).
 
 [#218]: https://github.com/stackabletech/nifi-operator/pull/218
+[#223]: https://github.com/stackabletech/nifi-operator/pull/223
 
 ## [0.5.0] - 2022-02-14
 
