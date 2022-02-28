@@ -10,8 +10,7 @@ use stackable_operator::product_config_utils::{
 };
 use stackable_operator::role_utils::Role;
 use std::collections::{BTreeMap, HashMap};
-use strum_macros::Display;
-use strum_macros::EnumIter;
+use strum::{Display, EnumIter};
 
 pub const NIFI_BOOTSTRAP_CONF: &str = "bootstrap.conf";
 pub const NIFI_PROPERTIES: &str = "nifi.properties";
