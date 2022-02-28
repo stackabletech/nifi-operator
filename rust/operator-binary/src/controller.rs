@@ -979,13 +979,12 @@ async fn get_proxy_hosts(
     // take all published addresses for now to be on the safe side.
     let mut proxy_setting = cluster_nodes
         .into_iter()
-        .map(|node| {
+        .flat_map(|node| {
             node.status
                 .unwrap_or_default()
                 .addresses
                 .unwrap_or_default()
         })
-        .flatten()
         .collect::<Vec<NodeAddress>>()
         .iter()
         .map(|node_address| format!("{}:{}", node_address.address, external_port))
