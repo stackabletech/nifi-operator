@@ -47,6 +47,9 @@ pub const SINGLEUSER_DEFAULT_ADMIN: &str = "admin";
 pub const SINGLEUSER_USER_KEY: &str = "username";
 pub const SINGLEUSER_PASSWORD_KEY: &str = "password";
 
+pub const AUTH_VOLUME_NAME: &str = "adminuser";
+pub const AUTH_VOLUME_MOUNT_PATH: &str = "/stackable/adminuser";
+
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiAuthenticationConfig {
@@ -121,7 +124,7 @@ pub fn get_auth_volumes(
         } => {
             let mut result = BTreeMap::new();
             let admin_volume = Volume {
-                name: "adminuser".to_string(),
+                name: AUTH_VOLUME_NAME.to_string(),
                 secret: Some(SecretVolumeSource {
                     secret_name: Some(admin_credentials_secret.name.clone().with_context(
                         || MissingRequiredValueSnafu {
@@ -133,8 +136,8 @@ pub fn get_auth_volumes(
                 ..Volume::default()
             };
             result.insert(
-                "adminuser".to_string(),
-                ("/stackable/adminuser".to_string(), admin_volume),
+                AUTH_VOLUME_NAME.to_string(),
+                (AUTH_VOLUME_MOUNT_PATH.to_string(), admin_volume),
             );
             Ok(result)
         }
