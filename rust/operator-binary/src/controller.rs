@@ -13,6 +13,7 @@ use stackable_nifi_crd::{
     METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
 };
 use stackable_nifi_crd::{APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME};
+use stackable_operator::k8s_openapi::api::apps::v1::StatefulSetUpdateStrategy;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder},
     client::Client,
@@ -816,6 +817,10 @@ fn build_node_rolegroup_statefulset(
             },
             service_name: rolegroup_ref.object_name(),
             template: pod_template,
+            update_strategy: Some(StatefulSetUpdateStrategy {
+                type_: Some("OnDelete".to_string()),
+                ..StatefulSetUpdateStrategy::default()
+            }),
             volume_claim_templates: Some(vec![
                 build_persistent_volume_claim_rwo_storage(
                     &NifiRepository::Content.repository(),
@@ -911,10 +916,16 @@ fn build_reporting_task_job(
         volumes.push(volume);
     }
 
+    let job_name = format!(
+        "{}-create-reporting-task-{}",
+        nifi.name(),
+        nifi_version(nifi)?.replace('.', "-")
+    );
+
     let pod = PodTemplateSpec {
         metadata: Some(
             ObjectMetaBuilder::new()
-                .name(format!("{}-create-reporting-task", nifi.name()))
+                .name(job_name.clone())
                 .namespace_opt(nifi.namespace())
                 .build(),
         ),
@@ -932,7 +943,7 @@ fn build_reporting_task_job(
 
     let job = Job {
         metadata: ObjectMetaBuilder::new()
-            .name(format!("{}-create-reporting-task", nifi.name()))
+            .name(job_name)
             .namespace_opt(nifi.namespace())
             .ownerreference_from_resource(nifi, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
