@@ -949,6 +949,8 @@ fn build_reporting_task_job(
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .build(),
         spec: Some(JobSpec {
+            backoff_limit: Some(100),
+            ttl_seconds_after_finished: Some(120),
             template: pod,
             ..Default::default()
         }),
