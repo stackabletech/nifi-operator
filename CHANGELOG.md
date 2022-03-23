@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- `operator-rs` `0.10.0` -> `0.14.0` ([#218], [#223], [#230]).
+- `operator-rs` `0.10.0` -> `0.15.0` ([#218], [#223], [#230]).
 
 ### Removed
 

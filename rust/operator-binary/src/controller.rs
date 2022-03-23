@@ -36,7 +36,7 @@ use stackable_operator::{
     },
     kube::{
         api::ObjectMeta,
-        runtime::controller::{Context, ReconcilerAction},
+        runtime::controller::{Action, Context},
         runtime::reflector::ObjectRef,
         ResourceExt,
     },
@@ -164,7 +164,7 @@ impl ReconcilerError for Error {
     }
 }
 
-pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Context<Ctx>) -> Result<ReconcilerAction> {
+pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Context<Ctx>) -> Result<Action> {
     tracing::info!("Starting reconcile");
     let client = &ctx.get_ref().client;
     let nifi_version = nifi_version(&nifi)?;
@@ -266,9 +266,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Context<Ctx>) -> Result
             .context(ApplyCreateReportingTaskJobSnafu)?;
     }
 
-    Ok(ReconcilerAction {
-        requeue_after: None,
-    })
+    Ok(Action::await_change())
 }
 
 /// The node-role service is the primary endpoint that should be used by clients that do not
@@ -1144,8 +1142,6 @@ pub fn nifi_version(nifi: &NifiCluster) -> Result<&str> {
         .context(ObjectHasNoVersionSnafu)
 }
 
-pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> ReconcilerAction {
-    ReconcilerAction {
-        requeue_after: Some(Duration::from_secs(20)),
-    }
+pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {
+    Action::requeue(Duration::from_secs(10))
 }
