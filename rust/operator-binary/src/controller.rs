@@ -932,7 +932,6 @@ fn build_reporting_task_job(
             // We use "OnFailure" here instead of "Never" to avoid spawning pods and pods. We just
             // restart the existing pod in case the script fails
             // (e.g. because the NiFi cluster is not ready yet).
-            // TODO: Do we want to add a final number of fails or a timeout?
             restart_policy: Some("OnFailure".to_string()),
             volumes: Some(volumes),
             ..Default::default()
