@@ -1,3 +1,0 @@
-= Monitoring
-
-As of now enabling monitoring is currently disabled.

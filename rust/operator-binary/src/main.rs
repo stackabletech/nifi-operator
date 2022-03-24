@@ -1,6 +1,5 @@
 mod config;
 mod controller;
-mod monitoring;
 
 use clap::Parser;
 use futures::stream::StreamExt;
