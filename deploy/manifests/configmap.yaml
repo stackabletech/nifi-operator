@@ -1,19 +1,16 @@
 ---
-# Source: nifi-operator/templates/configmap.yaml
 apiVersion: v1
 data:
   properties.yaml: |
     version: 0.1.0
     spec:
       units: []
-  
+
     properties: []
 kind: ConfigMap
 metadata:
   name: nifi-operator-configmap
   labels:
-    helm.sh/chart: nifi-operator-0.6.0-nightly
     app.kubernetes.io/name: nifi-operator
     app.kubernetes.io/instance: nifi-operator
     app.kubernetes.io/version: "0.6.0-nightly"
-    app.kubernetes.io/managed-by: Helm

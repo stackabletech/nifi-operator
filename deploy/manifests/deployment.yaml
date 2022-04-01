@@ -1,15 +1,12 @@
 ---
-# Source: nifi-operator/templates/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nifi-operator-deployment
   labels:
-    helm.sh/chart: nifi-operator-0.6.0-nightly
     app.kubernetes.io/name: nifi-operator
     app.kubernetes.io/instance: nifi-operator
     app.kubernetes.io/version: "0.6.0-nightly"
-    app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
   strategy:
@@ -25,16 +22,13 @@ spec:
         app.kubernetes.io/instance: nifi-operator
     spec:
       serviceAccountName: nifi-operator-serviceaccount
-      securityContext:
-        {}
+      securityContext: {}
       containers:
         - name: nifi-operator
-          securityContext:
-            {}
+          securityContext: {}
           image: "docker.stackable.tech/stackable/nifi-operator:0.6.0-nightly"
           imagePullPolicy: IfNotPresent
-          resources:
-            {}
+          resources: {}
           volumeMounts:
             - mountPath: /etc/stackable/nifi-operator/config-spec
               name: config-spec
