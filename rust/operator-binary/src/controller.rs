@@ -822,7 +822,7 @@ fn build_node_rolegroup_statefulset(
             volume_claim_templates: Some(vec![
                 build_persistent_volume_claim_rwo_storage(
                     &NifiRepository::Content.repository(),
-                    "2Gi",
+                    "10Gi",
                 ),
                 build_persistent_volume_claim_rwo_storage(
                     &NifiRepository::Database.repository(),
