@@ -71,8 +71,8 @@ pub fn build_bootstrap_conf(overrides: BTreeMap<String, String>) -> String {
         "-Dorg.apache.jasper.compiler.disablejsr199=true".to_string(),
     );
     // JVM memory settings
-    bootstrap.insert("java.arg.2".to_string(), "-Xms1024m".to_string());
-    bootstrap.insert("java.arg.3".to_string(), "-Xmx1024m".to_string());
+    bootstrap.insert("java.arg.2".to_string(), "-Xms4096m".to_string());
+    bootstrap.insert("java.arg.3".to_string(), "-Xmx4096m".to_string());
 
     bootstrap.insert(
         "java.arg.4".to_string(),
