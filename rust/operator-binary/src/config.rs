@@ -1,7 +1,9 @@
 use snafu::{ResultExt, Snafu};
 use stackable_nifi_crd::{
-    LogLevel, NifiCluster, NifiConfig, NifiLogConfig, NifiRole, NifiSpec, HTTPS_PORT, PROTOCOL_PORT,
+    LogLevel, NifiCluster, NifiConfig, NifiLogConfig, NifiRole, NifiSpec, NifiStorageConfig,
+    HTTPS_PORT, PROTOCOL_PORT,
 };
+use stackable_operator::commons::resources::Resources;
 use stackable_operator::product_config::types::PropertyNameKind;
 use stackable_operator::product_config::ProductConfigManager;
 use stackable_operator::product_config_utils::{
@@ -52,7 +54,10 @@ pub enum Error {
 }
 
 /// Create the NiFi bootstrap.conf
-pub fn build_bootstrap_conf(overrides: BTreeMap<String, String>) -> String {
+pub fn build_bootstrap_conf(
+    resource_config: Resources<NifiStorageConfig>,
+    overrides: BTreeMap<String, String>,
+) -> String {
     let mut bootstrap = BTreeMap::new();
     // Java command to use when running NiFi
     bootstrap.insert("java".to_string(), "java".to_string());
@@ -70,9 +75,10 @@ pub fn build_bootstrap_conf(overrides: BTreeMap<String, String>) -> String {
         "java.arg.1".to_string(),
         "-Dorg.apache.jasper.compiler.disablejsr199=true".to_string(),
     );
+    let heap_size = resource_config.memory.limit.unwrap().replace("Gi", "Gb");
     // JVM memory settings
-    bootstrap.insert("java.arg.2".to_string(), "-Xms1024m".to_string());
-    bootstrap.insert("java.arg.3".to_string(), "-Xmx1024m".to_string());
+    bootstrap.insert("java.arg.2".to_string(), format!("-Xms{heap_size}"));
+    bootstrap.insert("java.arg.3".to_string(), format!("-Xmx{heap_size}"));
 
     bootstrap.insert(
         "java.arg.4".to_string(),

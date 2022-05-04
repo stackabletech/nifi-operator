@@ -3,6 +3,10 @@ pub mod authentication;
 use crate::authentication::NifiAuthenticationConfig;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, Snafu};
+use stackable_operator::commons::resources::{
+    CpuLimits, MemoryLimits, NoRuntimeLimits, PvcConfig, Resources,
+};
+use stackable_operator::config::merge::{Atomic, Merge};
 use stackable_operator::role_utils::RoleGroupRef;
 use stackable_operator::{
     kube::{runtime::reflector::ObjectRef, CustomResource},
@@ -122,10 +126,51 @@ pub struct NifiStatus {}
 #[serde(rename_all = "camelCase")]
 pub struct NifiConfig {
     pub log: Option<NifiLogConfig>,
+    pub resources: Option<Resources<NifiStorageConfig, NoRuntimeLimits>>,
 }
 
 impl NifiConfig {
     pub const NIFI_SENSITIVE_PROPS_KEY: &'static str = "NIFI_SENSITIVE_PROPS_KEY";
+
+    pub fn default_resources() -> Resources<NifiStorageConfig, NoRuntimeLimits> {
+        Resources {
+            memory: MemoryLimits {
+                limit: Some("6Gi".to_string()),
+                runtime_limits: NoRuntimeLimits {},
+            },
+            cpu: CpuLimits {
+                min: Some("1".to_string()),
+                max: Some("4".to_string()),
+            },
+            storage: NifiStorageConfig {
+                flowfile_repo: PvcConfig {
+                    capacity: Some("2Gi".to_string()),
+                    storage_class: None,
+                    selectors: None,
+                },
+                provenance_repo: PvcConfig {
+                    capacity: Some("2Gi".to_string()),
+                    storage_class: None,
+                    selectors: None,
+                },
+                database_repo: PvcConfig {
+                    capacity: Some("2Gi".to_string()),
+                    storage_class: None,
+                    selectors: None,
+                },
+                content_repo: PvcConfig {
+                    capacity: Some("2Gi".to_string()),
+                    storage_class: None,
+                    selectors: None,
+                },
+                state_repo: PvcConfig {
+                    capacity: Some("2Gi".to_string()),
+                    storage_class: None,
+                    selectors: None,
+                },
+            },
+        }
+    }
 }
 
 impl Configuration for NifiConfig {
@@ -157,11 +202,13 @@ impl Configuration for NifiConfig {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Merge, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiLogConfig {
     pub root_log_level: Option<LogLevel>,
 }
+
+impl Atomic for LogLevel {}
 
 #[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 pub enum LogLevel {
@@ -170,6 +217,21 @@ pub enum LogLevel {
     WARN,
     ERROR,
     FATAL,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Merge, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NifiStorageConfig {
+    #[serde(default)]
+    pub flowfile_repo: PvcConfig,
+    #[serde(default)]
+    pub provenance_repo: PvcConfig,
+    #[serde(default)]
+    pub database_repo: PvcConfig,
+    #[serde(default)]
+    pub content_repo: PvcConfig,
+    #[serde(default)]
+    pub state_repo: PvcConfig,
 }
 
 #[derive(Debug, Snafu)]
