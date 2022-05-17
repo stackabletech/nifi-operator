@@ -4,6 +4,7 @@ use stackable_nifi_crd::{
     HTTPS_PORT, PROTOCOL_PORT,
 };
 use stackable_operator::commons::resources::Resources;
+use stackable_operator::memory::to_java_heap;
 use stackable_operator::product_config::types::PropertyNameKind;
 use stackable_operator::product_config::ProductConfigManager;
 use stackable_operator::product_config_utils::{
@@ -75,10 +76,19 @@ pub fn build_bootstrap_conf(
         "java.arg.1".to_string(),
         "-Dorg.apache.jasper.compiler.disablejsr199=true".to_string(),
     );
-    let heap_size = resource_config.memory.limit.unwrap().replace("Gi", "Gb");
-    // JVM memory settings
-    bootstrap.insert("java.arg.2".to_string(), format!("-Xms{heap_size}"));
-    bootstrap.insert("java.arg.3".to_string(), format!("-Xmx{heap_size}"));
+
+    // TODO: log failure to compute Java heap size
+    if let Ok(heap_size) = resource_config
+        .memory
+        .limit
+        .map(|q| to_java_heap(&q, 0.8))
+        .unwrap_or_else(|| Ok("".to_string()))
+    {
+        // JVM memory settings
+        if !heap_size.is_empty() {
+            bootstrap.insert("java.arg.3".to_string(), heap_size);
+        }
+    }
 
     bootstrap.insert(
         "java.arg.4".to_string(),

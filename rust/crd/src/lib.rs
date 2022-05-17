@@ -7,6 +7,7 @@ use stackable_operator::commons::resources::{
     CpuLimits, MemoryLimits, NoRuntimeLimits, PvcConfig, Resources,
 };
 use stackable_operator::config::merge::{Atomic, Merge};
+use stackable_operator::k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use stackable_operator::role_utils::RoleGroupRef;
 use stackable_operator::{
     kube::{runtime::reflector::ObjectRef, CustomResource},
@@ -135,36 +136,36 @@ impl NifiConfig {
     pub fn default_resources() -> Resources<NifiStorageConfig, NoRuntimeLimits> {
         Resources {
             memory: MemoryLimits {
-                limit: Some("6Gi".to_string()),
+                limit: Some(Quantity("6Gi".to_string())),
                 runtime_limits: NoRuntimeLimits {},
             },
             cpu: CpuLimits {
-                min: Some("1".to_string()),
-                max: Some("4".to_string()),
+                min: Some(Quantity("1".to_string())),
+                max: Some(Quantity("4".to_string())),
             },
             storage: NifiStorageConfig {
                 flowfile_repo: PvcConfig {
-                    capacity: Some("2Gi".to_string()),
+                    capacity: Some(Quantity("2Gi".to_string())),
                     storage_class: None,
                     selectors: None,
                 },
                 provenance_repo: PvcConfig {
-                    capacity: Some("2Gi".to_string()),
+                    capacity: Some(Quantity("2Gi".to_string())),
                     storage_class: None,
                     selectors: None,
                 },
                 database_repo: PvcConfig {
-                    capacity: Some("2Gi".to_string()),
+                    capacity: Some(Quantity("2Gi".to_string())),
                     storage_class: None,
                     selectors: None,
                 },
                 content_repo: PvcConfig {
-                    capacity: Some("2Gi".to_string()),
+                    capacity: Some(Quantity("2Gi".to_string())),
                     storage_class: None,
                     selectors: None,
                 },
                 state_repo: PvcConfig {
-                    capacity: Some("2Gi".to_string()),
+                    capacity: Some(Quantity("2Gi".to_string())),
                     storage_class: None,
                     selectors: None,
                 },
