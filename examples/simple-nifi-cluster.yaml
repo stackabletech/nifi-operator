@@ -6,7 +6,7 @@ kind: ZookeeperCluster
 metadata:
   name: simple-zk
 spec:
-  version: 3.5.8
+  version: 3.5.8-stackable0.7.0
   servers:
     roleGroups:
       default:
@@ -37,7 +37,7 @@ kind: NifiCluster
 metadata:
   name: simple-nifi
 spec:
-  version: "1.15.0"
+  version: "1.15.0-stackable0.4.0"
   zookeeperConfigMapName: simple-nifi-znode
   authenticationConfig:
     method:
@@ -49,12 +49,48 @@ spec:
     keySecret: nifi-sensitive-property-key
     autoGenerate: true
   nodes:
+    config:
+      resources:
+        memory:
+          limit: "1"  # Option
+        cpu:
+          min: "2"  # Option
+          max: "3" # Option
+        storage:
+          contentRepo:
+            capacity: "10Gi"  # Option
+          databaseRepo:
+            capacity: "20Gi" # Option
+          flowfileRepo:
+            capacity: "20Gi" # Option
+          provenanceRepo:
+            capacity: "20Gi" # Option
+          stateRepo:
+            capacity: "20Gi"
     roleGroups:
       default:
+
         selector:
           matchLabels:
             kubernetes.io/os: linux
         config:
           log:
             rootLogLevel: INFO
+          resources:
+            memory:
+              limit: "1Gi"  # Option
+            cpu:
+              min: "2"  # Option
+              max: "3" # Option
+            storage:
+              contentRepo:
+                capacity: "10Gi"  # Option
+              databaseRepo:
+                capacity: "20Gi" # Option
+              flowfileRepo:
+                capacity: "20Gi" # Option
+              provenanceRepo:
+                capacity: "20Gi" # Option
+              stateRepo:
+                capacity: "20Gi"
         replicas: 3

@@ -491,6 +491,9 @@ fn resolve_resource_config_for_rolegroup(
     // Initialize the result with all default values as baseline
     let conf_defaults = NifiConfig::default_resources();
 
+    let debug_yaml = serde_yaml::to_string(&conf_defaults).unwrap_or("serde error".to_string());
+    println!("Defaults:\n{debug_yaml}");
+
     // Retrieve global role resource config
     let mut conf_role: Resources<NifiStorageConfig, NoRuntimeLimits> = nifi
         .spec
@@ -503,12 +506,21 @@ fn resolve_resource_config_for_rolegroup(
         .clone()
         .unwrap_or_default();
 
+
+    let debug_yaml = serde_yaml::to_string(&conf_role).unwrap_or("serde error".to_string());
+    println!("Role:\n{debug_yaml}");
+
+
     // Retrieve rolegroup specific resource config
     let mut conf_rolegroup: Resources<NifiStorageConfig, NoRuntimeLimits> = role
         .role_groups
         .get(&rolegroup_ref.role_group)
         .and_then(|rg| rg.config.config.resources.clone())
         .unwrap_or_default();
+
+    let debug_yaml = serde_yaml::to_string(&conf_rolegroup).unwrap_or("serde error".to_string());
+    println!("Rolegroup:\n{debug_yaml}");
+
 
     // Merge more specific configs into default config
     // Hierarchy is:
@@ -517,6 +529,10 @@ fn resolve_resource_config_for_rolegroup(
     // 3. Default
     conf_role.merge(&conf_defaults);
     conf_rolegroup.merge(&conf_role);
+
+
+    let debug_yaml = serde_yaml::to_string(&conf_rolegroup).unwrap_or("serde error".to_string());
+    println!("Merged:\n{debug_yaml}");
 
     Ok(conf_rolegroup)
 }
@@ -578,7 +594,7 @@ fn build_node_rolegroup_statefulset(
 
     let nifi_version = nifi_version(nifi)?;
     let image = format!(
-        "docker.stackable.tech/stackable/nifi:{}-stackable0",
+        "docker.stackable.tech/stackable/nifi:{}",
         nifi_version
     );
 
