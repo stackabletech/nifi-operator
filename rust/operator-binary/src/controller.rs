@@ -869,23 +869,23 @@ fn build_node_rolegroup_statefulset(
                 resource_config
                     .storage
                     .content_repo
-                    .build_pvc(&NifiRepository::Content.repository(), None),
+                    .build_pvc(&NifiRepository::Content.repository(), Some(vec!["ReadWriteOnce"])),
                 resource_config
                     .storage
                     .database_repo
-                    .build_pvc(&NifiRepository::Database.repository(), None),
+                    .build_pvc(&NifiRepository::Database.repository(), Some(vec!["ReadWriteOnce"])),
                 resource_config
                     .storage
                     .flowfile_repo
-                    .build_pvc(&NifiRepository::Flowfile.repository(), None),
+                    .build_pvc(&NifiRepository::Flowfile.repository(), Some(vec!["ReadWriteOnce"])),
                 resource_config
                     .storage
                     .provenance_repo
-                    .build_pvc(&NifiRepository::Provenance.repository(), None),
+                    .build_pvc(&NifiRepository::Provenance.repository(), Some(vec!["ReadWriteOnce"])),
                 resource_config
                     .storage
                     .state_repo
-                    .build_pvc(&NifiRepository::State.repository(), None),
+                    .build_pvc(&NifiRepository::State.repository(), Some(vec!["ReadWriteOnce"])),
             ]),
             ..StatefulSetSpec::default()
         }),
