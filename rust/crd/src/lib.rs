@@ -136,12 +136,12 @@ impl NifiConfig {
     pub fn default_resources() -> Resources<NifiStorageConfig, NoRuntimeLimits> {
         Resources {
             memory: MemoryLimits {
-                limit: Some(Quantity("6Gi".to_string())),
+                limit: None,
                 runtime_limits: NoRuntimeLimits {},
             },
             cpu: CpuLimits {
-                min: Some(Quantity("1".to_string())),
-                max: Some(Quantity("4".to_string())),
+                min: None,
+                max: None,
             },
             storage: NifiStorageConfig {
                 flowfile_repo: PvcConfig {

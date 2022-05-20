@@ -118,7 +118,7 @@ pub fn build_bootstrap_conf(
         java_args
             .into_iter()
             .enumerate()
-            .map(|(i, a)| (format!("java.arg.{i}"), a)),
+            .map(|(i, a)| (format!("java.arg.{}", i + 1), a)),
     );
     // override with config overrides
     bootstrap.extend(overrides);
