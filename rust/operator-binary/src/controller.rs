@@ -154,6 +154,9 @@ pub enum Error {
 
     #[snafu(display("Could not build role service fqdn"))]
     NoRoleServiceFqdn,
+
+    #[snafu(display("Bootstrap configuration error"))]
+    BoostrapConfig { source: crate::config::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -384,7 +387,8 @@ async fn build_node_rolegroup_config_map(
                         kind: NIFI_BOOTSTRAP_CONF.to_string(),
                     })?
                     .clone(),
-            ),
+            )
+            .context(BoostrapConfigSnafu)?,
         )
         .add_data(
             NIFI_PROPERTIES,
@@ -492,7 +496,7 @@ fn resolve_resource_config_for_rolegroup(
         .spec
         .nodes
         .as_ref()
-        .context(NoNodeRoleSnafu)?
+        .context(NoNodesDefinedSnafu)?
         .role_groups
         .get(&rolegroup_ref.role_group)
         .and_then(|rg| rg.config.config.resources.clone())
@@ -900,7 +904,7 @@ fn build_node_rolegroup_statefulset(
 /// docker image and more specifically the `create_nifi_reporting_task.py` Python script.
 ///
 /// This script uses the [`nipyapi`](https://nipyapi.readthedocs.io/en/latest/readme.html)
-/// library to authenticate and run the required REST calls to the NiFi REST API.     
+/// library to authenticate and run the required REST calls to the NiFi REST API.
 ///
 /// In order to authenticate we need the `username` and `password` from the
 /// [`NifiAuthenticationConfig`](`stackable_nifi_crd::authentication::NifiAuthenticationConfig`)
