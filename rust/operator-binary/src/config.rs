@@ -80,7 +80,7 @@ pub fn build_bootstrap_conf(
         .memory
         .limit
         .map(|q| to_java_heap(&q, 0.8))
-        .unwrap()
+        .unwrap_or_else(|| Ok("".to_string()))
         .context(InvalidProductConfigSnafu)?;
 
     // JVM memory settings

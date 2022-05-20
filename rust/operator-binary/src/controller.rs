@@ -75,8 +75,6 @@ pub enum Error {
     ObjectHasNoSpec,
     #[snafu(display("object defines no namespace"))]
     ObjectHasNoNamespace,
-    #[snafu(display("object defines no metastore role"))]
-    NoNodeRole,
     #[snafu(display("failed to calculate global service name"))]
     GlobalServiceNameNotFound,
     #[snafu(display("failed to apply global Service"))]
@@ -183,7 +181,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Context<Ctx>) -> Result
     let validated_config = validated_product_config(
         &nifi,
         nifi_version,
-        nifi.spec.nodes.as_ref().context(NoNodeRoleSnafu)?,
+        nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?,
         &ctx.get_ref().product_config,
     )
     .context(ProductConfigLoadFailedSnafu)?;
@@ -570,7 +568,7 @@ fn build_node_rolegroup_statefulset(
         .spec
         .nodes
         .as_ref()
-        .context(NoNodeRoleSnafu)?
+        .context(NoNodesDefinedSnafu)?
         .role_groups
         .get(&rolegroup_ref.role_group);
 
