@@ -1,0 +1,30 @@
+---
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: test-nifi
+spec:
+  version: {{ test_scenario['values']['nifi'] }}
+  zookeeperConfigMapName: test-nifi-znode
+  authenticationConfig:
+    method:
+      SingleUser:
+        adminCredentialsSecret:
+          name: nifi-admin-credentials-simple
+    allowAnonymousAccess: true
+  nodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        config:
+          sensitivePropertyKeySecret: nifi-sensitive-property-key
+          log:
+            rootLogLevel: INFO
+        replicas: 2
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - command: kubectl rollout restart statefulset test-nifi-node-default --namespace $NAMESPACE
