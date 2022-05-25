@@ -13,7 +13,7 @@ def get_token(username, password, namespace):
 
     # TODO: handle actual errors when connecting properly
     url = 'https://test-nifi-node-default-1.test-nifi-node-default.' + namespace + '.svc.cluster.local:8443/nifi-api/access/token'
-    response = requests.post(url, headers=headers, data=data, verify=False)#, cert='./tmp/cacert.pem')
+    response = requests.post(url, headers=headers, data=data, verify=False)  # , cert='./tmp/cacert.pem')
 
     if response.ok:
         token = response.content.decode('utf-8')
@@ -40,7 +40,7 @@ if __name__ == '__main__':
 
     headers = {'Authorization': token}
     url = 'https://test-nifi-node-default-1.test-nifi-node-default.' + args['namespace'] + '.svc.cluster.local:8443/nifi-api/controller/cluster'
-    cluster = requests.get(url, headers=headers, verify=False)#, cert='/tmp/cacert.pem')
+    cluster = requests.get(url, headers=headers, verify=False)  # , cert='/tmp/cacert.pem')
 
     if cluster.ok:
         cluster_data = json.loads(cluster.content.decode('utf-8'))
