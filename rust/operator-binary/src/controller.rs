@@ -491,7 +491,8 @@ fn resolve_resource_config_for_rolegroup(
     // Initialize the result with all default values as baseline
     let conf_defaults = NifiConfig::default_resources();
 
-    let debug_yaml = serde_yaml::to_string(&conf_defaults).unwrap_or_else(|_| "serde error".to_string());
+    let debug_yaml =
+        serde_yaml::to_string(&conf_defaults).unwrap_or_else(|_| "serde error".to_string());
     println!("Defaults:\n{debug_yaml}");
 
     // Retrieve global role resource config
@@ -506,7 +507,8 @@ fn resolve_resource_config_for_rolegroup(
         .clone()
         .unwrap_or_default();
 
-    let debug_yaml = serde_yaml::to_string(&conf_role).unwrap_or_else(|_| "serde error".to_string());
+    let debug_yaml =
+        serde_yaml::to_string(&conf_role).unwrap_or_else(|_| "serde error".to_string());
     println!("Role:\n{debug_yaml}");
 
     // Retrieve rolegroup specific resource config
@@ -516,7 +518,8 @@ fn resolve_resource_config_for_rolegroup(
         .and_then(|rg| rg.config.config.resources.clone())
         .unwrap_or_default();
 
-    let debug_yaml = serde_yaml::to_string(&conf_rolegroup).unwrap_or_else(|_| "serde error".to_string());
+    let debug_yaml =
+        serde_yaml::to_string(&conf_rolegroup).unwrap_or_else(|_| "serde error".to_string());
     println!("Rolegroup:\n{debug_yaml}");
 
     // Merge more specific configs into default config
@@ -527,7 +530,8 @@ fn resolve_resource_config_for_rolegroup(
     conf_role.merge(&conf_defaults);
     conf_rolegroup.merge(&conf_role);
 
-    let debug_yaml = serde_yaml::to_string(&conf_rolegroup).unwrap_or_else(|_| "serde error".to_string());
+    let debug_yaml =
+        serde_yaml::to_string(&conf_rolegroup).unwrap_or_else(|_| "serde error".to_string());
     println!("Merged:\n{debug_yaml}");
 
     Ok(conf_rolegroup)
