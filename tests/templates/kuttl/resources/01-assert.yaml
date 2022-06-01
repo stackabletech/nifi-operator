@@ -1,0 +1,34 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+metadata:
+  name: install-nifi
+timeout: 600
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test-nifi-node-default
+status:
+  readyReplicas: 1
+  replicas: 1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-nifi-node-default-0
+spec:
+  containers:
+    - name: nifi
+      resources:
+        limits:
+          memory: 2Gi
+        requests:
+          memory: 2Gi
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+metadata:
+  name: check-jvm-heap-args
+commands:
+  - script: kubectl get cm -n $NAMESPACE test-nifi-node-default -o yaml | grep -E 'java.arg..=-Xmx1638m' | xargs test ! -z
