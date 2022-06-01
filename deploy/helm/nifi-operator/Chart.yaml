@@ -1,7 +1,7 @@
 ---
 apiVersion: v2
 name: nifi-operator
-version: 0.6.0-nightly
+version: "0.6.0-nightly"
 appVersion: "0.6.0-nightly"
 description: The Stackable Operator for Apache NiFi
 home: https://github.com/stackabletech/nifi-operator

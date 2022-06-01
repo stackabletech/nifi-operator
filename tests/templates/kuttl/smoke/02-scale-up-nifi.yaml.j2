@@ -1,0 +1,25 @@
+---
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: test-nifi
+spec:
+  version: {{ test_scenario['values']['nifi'] }}
+  zookeeperConfigMapName: test-nifi-znode
+  authenticationConfig:
+    method:
+      SingleUser:
+        adminCredentialsSecret:
+          name: nifi-admin-credentials-simple
+  sensitivePropertiesConfig:
+    keySecret: nifi-sensitive-property-key
+  nodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        config:
+          log:
+            rootLogLevel: INFO
+        replicas: 3
