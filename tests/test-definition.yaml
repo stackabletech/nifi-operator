@@ -15,3 +15,7 @@ tests:
     dimensions:
       - nifi
       - zookeeper
+  - name: resources
+    dimensions:
+      - nifi
+      - zookeeper
