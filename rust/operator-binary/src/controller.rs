@@ -527,10 +527,7 @@ fn build_node_rolegroup_statefulset(
         .get(&rolegroup_ref.role_group);
 
     let nifi_version = nifi_version(nifi)?;
-    let image = format!(
-        "docker.stackable.tech/stackable/nifi:{}-stackable0",
-        nifi_version
-    );
+    let image = format!("docker.stackable.tech/stackable/nifi:{}", nifi_version);
 
     let node_address = format!(
         "$POD_NAME.{}-node-{}.{}.svc.cluster.local",

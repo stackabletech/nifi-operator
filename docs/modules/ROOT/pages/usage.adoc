@@ -4,7 +4,12 @@ If you are not installing the operator using Helm then after installation the CR
 
     kubectl apply -f deploy/nificluster.yaml
 
-To create a three-node Apache NiFi (v1.15.0) cluster with SingleUser authentication enabled apply the following to your Kubernetes cluster.
+To create a three-node Apache NiFi cluster with SingleUser authentication enabled apply the following to your Kubernetes cluster.
+
+Please note that the version you need to specify is not only the version of NiFi which you want to roll out, but has to be amended with a Stackable version as shown.
+This Stackable version is the version of the underlying container image which is used to execute the processes.
+For a list of available versions please check our https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%2Fnifi%2Ftags[image registry].
+It should generally be safe to simply use the latest image version that is available.
 
 The admin credentials that you can then log in with are: `admin:supersecretpassword`
 
@@ -22,7 +27,7 @@ kind: NifiCluster
 metadata:
   name: simple-nifi
 spec:
-  version: "1.15.0"
+  version: "1.15.0-stackable0.4.0"
   zookeeperConfigMapName: simple-nifi-znode
   authenticationConfig:
     method:
