@@ -16,7 +16,7 @@ All notable changes to this project will be documented in this file.
 
 - `operator-rs` `0.10.0` -> `0.15.0` ([#218], [#223], [#230]).
 - [BREAKING] Specifying the product version has been changed to adhere to [ADR018](https://docs.stackable.tech/home/contributor/adr/ADR018-product_image_versioning.html) instead of just specifying the product version you will now have to add the Stackable image version as well, so `version: 3.5.8` becomes (for example) `version: 3.5.8-stackable0.1.0` ([#270])
-- [BREAKING] CRD overhaul: Moved `authenticationConfig` to top level `config.authentication`. `SingleUser` now proper camelCase `singleUser`. `adminCredentialsSecret` now takes a String instead of `SecretReference`  ([#277]). 
+- [BREAKING] CRD overhaul: Moved `authenticationConfig` to top level `config.authentication`. `SingleUser` now proper camelCase `singleUser`. `adminCredentialsSecret` now takes a String instead of `SecretReference` ([#277]).
 - [BREAKING] CRD overhaul: Moved `sensitivePropertiesConfig` to top level `config.sensitiveProperties` ([#277]).  
 
 ### Removed
