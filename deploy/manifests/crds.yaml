@@ -25,38 +25,60 @@ spec:
           properties:
             spec:
               properties:
-                authenticationConfig:
-                  description: A reference to a Secret containing username/password for the initial admin user
+                config:
+                  description: Global Nifi config for e.g. authentication or sensitive properties
                   properties:
-                    allowAnonymousAccess:
-                      nullable: true
-                      type: boolean
-                    method:
-                      oneOf:
-                        - required:
-                            - SingleUser
+                    authentication:
+                      description: A reference to a Secret containing username/password for the initial admin user
                       properties:
-                        SingleUser:
+                        allowAnonymousAccess:
+                          nullable: true
+                          type: boolean
+                        method:
+                          oneOf:
+                            - required:
+                                - singleUser
                           properties:
-                            adminCredentialsSecret:
-                              description: SecretReference represents a Secret Reference. It has enough information to retrieve secret in any namespace
+                            singleUser:
                               properties:
-                                name:
-                                  description: Name is unique within a namespace to reference a secret resource.
+                                adminCredentialsSecret:
                                   type: string
-                                namespace:
-                                  description: Namespace defines the space within which the secret name must be unique.
-                                  type: string
+                                autoGenerate:
+                                  default: false
+                                  type: boolean
+                              required:
+                                - adminCredentialsSecret
                               type: object
-                            autoGenerate:
-                              default: false
-                              type: boolean
-                          required:
-                            - adminCredentialsSecret
                           type: object
+                      required:
+                        - method
+                      type: object
+                    sensitiveProperties:
+                      description: Configuration options for how NiFi encrypts sensitive properties on disk
+                      properties:
+                        algorithm:
+                          enum:
+                            - nifiArgon2AesGcm128
+                            - nifiArgon2AesGcm256
+                            - nifiBcryptAesGcm128
+                            - nifiBcryptAesGcm256
+                            - nifiPbkdf2AesGcm128
+                            - nifiPbkdf2AesGcm256
+                            - nifiScryptAesGcm128
+                            - nifiScryptAesGcm256
+                          nullable: true
+                          type: string
+                        autoGenerate:
+                          default: false
+                          type: boolean
+                        keySecret:
+                          type: string
+                      required:
+                        - keySecret
                       type: object
                   required:
-                    - method
+                    - authentication
+                    - sensitiveProperties
                   type: object
                 nodes:
                   description: Available NiFi roles
@@ -174,29 +196,6 @@ spec:
                   required:
                     - roleGroups
                   type: object
-                sensitivePropertiesConfig:
-                  description: Configuration options for how NiFi encrypts sensitive properties on disk
-                  properties:
-                    algorithm:
-                      enum:
-                        - nifiArgon2AesGcm128
-                        - nifiArgon2AesGcm256
-                        - nifiBcryptAesGcm128
-                        - nifiBcryptAesGcm256
-                        - nifiPbkdf2AesGcm128
-                        - nifiPbkdf2AesGcm256
-                        - nifiScryptAesGcm128
-                        - nifiScryptAesGcm256
-                      nullable: true
-                      type: string
-                    autoGenerate:
-                      default: false
-                      type: boolean
-                    keySecret:
-                      type: string
-                  required:
-                    - keySecret
-                  type: object
                 stopped:
                   description: "Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)"
                   nullable: true
@@ -209,8 +208,7 @@ spec:
                   description: The reference to the ZooKeeper cluster
                   type: string
               required:
-                - authenticationConfig
-                - sensitivePropertiesConfig
+                - config
                 - zookeeperConfigMapName
               type: object
             status:

@@ -21,13 +21,13 @@ metadata:
 spec:
   version: {{ test_scenario['values']['nifi'] }}
   zookeeperConfigMapName: test-nifi-znode
-  authenticationConfig:
-    method:
-      SingleUser:
-        adminCredentialsSecret:
-          name: nifi-admin-credentials-simple
-  sensitivePropertiesConfig:
-    keySecret: nifi-sensitive-property-key
+  config:
+    authentication:
+      method:
+        singleUser:
+          adminCredentialsSecret: nifi-admin-credentials-simple
+    sensitiveProperties:
+      keySecret: nifi-sensitive-property-key
   nodes:
     roleGroups:
       default:

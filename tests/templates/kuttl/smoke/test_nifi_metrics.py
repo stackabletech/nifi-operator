@@ -14,7 +14,7 @@ if __name__ == '__main__':
                           help="The namespace the test is running in")
     all_args.add_argument("-p", "--port", required=False, default="8081",
                           help="The port where metrics are exposed")
-    all_args.add_argument("-t", "--timeout", required=False, default="60",
+    all_args.add_argument("-t", "--timeout", required=False, default="120",
                           help="The timeout in seconds to wait for the metrics port to be opened")
 
     args = vars(all_args.parse_args())
@@ -39,6 +39,6 @@ if __name__ == '__main__':
                 time.sleep(timeout)
         except Exception as ex:
             print(f"Failed to connect to [{url}]:\n {str(ex)}")
-            time.sleep(timeout)
+            time.sleep(10)
 
     exit(-1)

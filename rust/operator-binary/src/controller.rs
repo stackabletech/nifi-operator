@@ -151,9 +151,10 @@ pub enum Error {
     },
     #[snafu(display("Failed to find an external port to use for proxy hosts"))]
     ExternalPort,
-
     #[snafu(display("Could not build role service fqdn"))]
     NoRoleServiceFqdn,
+    #[snafu(display("Could not extract NiFi product version (x.x.x) from image: [{version}]. Expected format e.g. x.x.x-stackable0.1.0"))]
+    FailedNifiProductVersionRetrieval { version: String },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -167,7 +168,7 @@ impl ReconcilerError for Error {
 pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Context<Ctx>) -> Result<Action> {
     tracing::info!("Starting reconcile");
     let client = &ctx.get_ref().client;
-    let nifi_version = nifi_version(&nifi)?;
+    let nifi_product_version = nifi_product_version(&nifi)?;
     let namespace = &nifi
         .metadata
         .namespace
@@ -179,7 +180,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Context<Ctx>) -> Result
 
     let validated_config = validated_product_config(
         &nifi,
-        nifi_version,
+        nifi_product_version,
         nifi.spec.nodes.as_ref().context(NoNodeRoleSnafu)?,
         &ctx.get_ref().product_config,
     )
@@ -283,7 +284,13 @@ pub fn build_node_role_service(nifi: &NifiCluster) -> Result<Service> {
             .name(&role_svc_name)
             .ownerreference_from_resource(nifi, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(nifi, APP_NAME, nifi_version(nifi)?, &role_name, "global")
+            .with_recommended_labels(
+                nifi,
+                APP_NAME,
+                nifi_image_version(nifi)?,
+                &role_name,
+                "global",
+            )
             .build(),
         spec: Some(ServiceSpec {
             ports: Some(vec![ServicePort {
@@ -328,7 +335,7 @@ fn build_node_rolegroup_log_config_map(
                 .with_recommended_labels(
                     nifi,
                     APP_NAME,
-                    nifi_version(nifi)?,
+                    nifi_image_version(nifi)?,
                     &rolegroup.role,
                     &rolegroup.role_group,
                 )
@@ -368,7 +375,7 @@ async fn build_node_rolegroup_config_map(
                 .with_recommended_labels(
                     nifi,
                     APP_NAME,
-                    nifi_version(nifi)?,
+                    nifi_image_version(nifi)?,
                     &rolegroup.role,
                     &rolegroup.role_group,
                 )
@@ -403,7 +410,7 @@ async fn build_node_rolegroup_config_map(
             "login-identity-providers.xml",
             stackable_nifi_crd::authentication::get_login_identity_provider_xml(
                 client,
-                &nifi.spec.authentication_config,
+                &nifi.spec.config.authentication,
                 namespace,
             )
             .await
@@ -432,7 +439,7 @@ fn build_node_rolegroup_service(
             .with_recommended_labels(
                 nifi,
                 APP_NAME,
-                nifi_version(nifi)?,
+                nifi_image_version(nifi)?,
                 &rolegroup.role,
                 &rolegroup.role_group,
             )
@@ -526,7 +533,7 @@ fn build_node_rolegroup_statefulset(
         .role_groups
         .get(&rolegroup_ref.role_group);
 
-    let nifi_version = nifi_version(nifi)?;
+    let nifi_version = nifi_image_version(nifi)?;
     let image = format!("docker.stackable.tech/stackable/nifi:{}", nifi_version);
 
     let node_address = format!(
@@ -540,9 +547,9 @@ fn build_node_rolegroup_statefulset(
             .with_context(|| ObjectHasNoNamespaceSnafu {})?
     );
 
-    let sensitive_key_secret = &nifi.spec.sensitive_properties_config.key_secret;
+    let sensitive_key_secret = &nifi.spec.config.sensitive_properties.key_secret;
 
-    let auth_volumes = get_auth_volumes(&nifi.spec.authentication_config.method)
+    let auth_volumes = get_auth_volumes(&nifi.spec.config.authentication.method)
         .context(MaterializeAuthConfigSnafu)?;
 
     let mut container_prepare = ContainerBuilder::new("prepare")
@@ -864,6 +871,7 @@ fn build_reporting_task_job(
 ) -> Result<Job> {
     let rolegroup_obj_name = rolegroup_ref.object_name();
     let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
+    let product_version = nifi_product_version(nifi)?;
     let nifi_connect_url = format!(
         "https://{rolegroup}-0.{rolegroup}.{namespace}.svc.cluster.local:{port}/nifi-api",
         rolegroup = rolegroup_obj_name,
@@ -879,7 +887,7 @@ fn build_reporting_task_job(
             &format!("-n {}", nifi_connect_url),
             &format!("-u $(cat {}/username)", AUTH_VOLUME_MOUNT_PATH),
             &format!("-p $(cat {}/password)", AUTH_VOLUME_MOUNT_PATH),
-            &format!("-v {}", nifi_version(nifi)?),
+            &format!("-v {}", product_version),
             &format!("-m {}", METRICS_PORT),
             &format!("-c {}/ca.crt", KEYSTORE_REPORTING_TASK_MOUNT),
         ]
@@ -896,7 +904,7 @@ fn build_reporting_task_job(
     let mut volumes = vec![build_keystore_volume(KEYSTORE_VOLUME_NAME)];
 
     // Volume and Volume mounts for the authentication secret
-    let auth_volumes = get_auth_volumes(&nifi.spec.authentication_config.method)
+    let auth_volumes = get_auth_volumes(&nifi.spec.config.authentication.method)
         .context(MaterializeAuthConfigSnafu)?;
 
     for (name, (mount_path, volume)) in auth_volumes {
@@ -914,7 +922,7 @@ fn build_reporting_task_job(
     let job_name = format!(
         "{}-create-reporting-task-{}",
         nifi.name(),
-        nifi_version(nifi)?.replace('.', "-")
+        product_version.replace('.', "-")
     );
 
     let pod = PodTemplateSpec {
@@ -958,7 +966,7 @@ async fn check_or_generate_sensitive_key(
     client: &Client,
     nifi: &NifiCluster,
 ) -> Result<bool, Error> {
-    let sensitive_config = &nifi.spec.sensitive_properties_config;
+    let sensitive_config = &nifi.spec.config.sensitive_properties;
     let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
 
     match client
@@ -1131,11 +1139,25 @@ async fn get_proxy_hosts(
     Ok(proxy_setting.join(","))
 }
 
-pub fn nifi_version(nifi: &NifiCluster) -> Result<&str> {
+/// Returns the provided docker image e.g. 1.15.0-stackable0
+fn nifi_image_version(nifi: &NifiCluster) -> Result<&str> {
     nifi.spec
         .version
         .as_deref()
         .context(ObjectHasNoVersionSnafu)
+}
+
+/// Returns our semver representation for product config e.g. 1.15.0
+fn nifi_product_version(nifi: &NifiCluster) -> Result<&str> {
+    let image_version = nifi_image_version(nifi)?;
+    image_version
+        .split('-')
+        .collect::<Vec<_>>()
+        .first()
+        .cloned()
+        .with_context(|| FailedNifiProductVersionRetrievalSnafu {
+            version: image_version.to_string(),
+        })
 }
 
 pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {

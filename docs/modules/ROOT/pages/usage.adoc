@@ -29,14 +29,13 @@ metadata:
 spec:
   version: "1.15.0-stackable0.4.0"
   zookeeperConfigMapName: simple-nifi-znode
-  authenticationConfig:
-    method:
-      SingleUser:
-        adminCredentialsSecret:
-          name: nifi-admin-credentials-simple
-          namespace: default
-        aut
-    allowAnonymousAccess: true
+  config:
+    authentication:
+      method:
+        singleUser:
+          adminCredentialsSecret: nifi-admin-credentials-simple
+    sensitiveProperties:
+      keySecret: nifi-sensitive-property-key
   nodes:
     roleGroups:
       default:
@@ -44,7 +43,6 @@ spec:
           matchLabels:
             kubernetes.io/os: linux
         config:
-          sensitivePropertyKeySecret: nifi-sensitive-property-key
           log:
             rootLogLevel: INFO
         replicas: 3

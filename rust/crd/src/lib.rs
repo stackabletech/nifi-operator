@@ -51,10 +51,17 @@ pub struct NifiSpec {
     pub nodes: Option<Role<NifiConfig>>,
     /// The reference to the ZooKeeper cluster
     pub zookeeper_config_map_name: String,
+    /// Global Nifi config for e.g. authentication or sensitive properties
+    pub config: NifiGlobalConfig,
+}
+
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NifiGlobalConfig {
     /// A reference to a Secret containing username/password for the initial admin user
-    pub authentication_config: NifiAuthenticationConfig,
+    pub authentication: NifiAuthenticationConfig,
     /// Configuration options for how NiFi encrypts sensitive properties on disk
-    pub sensitive_properties_config: NifiSensitivePropertiesConfig,
+    pub sensitive_properties: NifiSensitivePropertiesConfig,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]

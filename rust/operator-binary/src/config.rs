@@ -441,7 +441,8 @@ pub fn build_nifi_properties(
     );
 
     let algorithm = &spec
-        .sensitive_properties_config
+        .config
+        .sensitive_properties
         .algorithm
         .clone()
         .unwrap_or_default();
@@ -487,7 +488,7 @@ pub fn build_nifi_properties(
     );
     properties.insert(
         "nifi.security.allow.anonymous.authentication".to_string(),
-        spec.authentication_config.allow_anonymous().to_string(),
+        spec.config.authentication.allow_anonymous().to_string(),
     );
     properties.insert(
         "nifi.cluster.protocol.is.secure".to_string(),

@@ -6,20 +6,20 @@ metadata:
 spec:
   version: {{ test_scenario['values']['nifi'] }}
   zookeeperConfigMapName: test-nifi-znode
-  authenticationConfig:
-    method:
-      SingleUser:
-        adminCredentialsSecret:
-          name: nifi-admin-credentials-simple
-    allowAnonymousAccess: true
+  config:
+    authentication:
+      method:
+        singleUser:
+          adminCredentialsSecret: nifi-admin-credentials-simple
+      allowAnonymousAccess: true
+    sensitiveProperties:
+      keySecret: nifi-sensitive-property-key
   nodes:
     roleGroups:
       default:
         selector:
           matchLabels:
             kubernetes.io/os: linux
-        config:
-          sensitivePropertyKeySecret: nifi-sensitive-property-key
           log:
             rootLogLevel: INFO
         replicas: 2
