@@ -4,7 +4,7 @@ use stackable_nifi_crd::{
     HTTPS_PORT, PROTOCOL_PORT,
 };
 use stackable_operator::commons::resources::Resources;
-use stackable_operator::memory::to_java_heap;
+use stackable_operator::memory::{to_java_heap_value, BinaryMultiple};
 use stackable_operator::product_config::types::PropertyNameKind;
 use stackable_operator::product_config::ProductConfigManager;
 use stackable_operator::product_config_utils::{
@@ -75,17 +75,20 @@ pub fn build_bootstrap_conf(
     let mut java_args = Vec::with_capacity(18);
     // Disable JSR 199 so that we can use JSP's without running a JDK
     java_args.push("-Dorg.apache.jasper.compiler.disablejsr199=true".to_string());
+
     // Max JVM heap computed from container memory limits
     let heap_size = resource_config
         .memory
         .limit
-        .map(|q| to_java_heap(&q, 0.8))
-        .unwrap_or_else(|| Ok("".to_string()))
+        .map(|q| to_java_heap_value(&q, 0.8, BinaryMultiple::Mebi))
+        .unwrap_or_else(|| Ok(0))
         .context(InvalidProductConfigSnafu)?;
 
     // JVM memory settings
-    if !heap_size.is_empty() {
-        java_args.push(heap_size);
+    // if -1 no memory limits were configured, default should be used
+    if heap_size != 0 {
+        java_args.push(format!("--Xmx{}", heap_size));
+        java_args.push(format!("--Xms{}", heap_size));
     }
 
     java_args.push("-Djava.net.preferIPv4Stack=true".to_string());
