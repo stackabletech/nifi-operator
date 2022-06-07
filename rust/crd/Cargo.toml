@@ -16,4 +16,3 @@ rand = "0.8"
 stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.15.0" }
 strum = { version = "0.24", features = ["derive"] }
 tracing = "0.1"
-

@@ -17,7 +17,7 @@ All notable changes to this project will be documented in this file.
 - `operator-rs` `0.10.0` -> `0.15.0` ([#218], [#223], [#230]).
 - [BREAKING] Specifying the product version has been changed to adhere to [ADR018](https://docs.stackable.tech/home/contributor/adr/ADR018-product_image_versioning.html) instead of just specifying the product version you will now have to add the Stackable image version as well, so `version: 3.5.8` becomes (for example) `version: 3.5.8-stackable0.1.0` ([#270])
 - [BREAKING] CRD overhaul: Moved `authenticationConfig` to top level `config.authentication`. `SingleUser` now proper camelCase `singleUser`. `adminCredentialsSecret` now takes a String instead of `SecretReference` ([#277]).
-- [BREAKING] CRD overhaul: Moved `sensitivePropertiesConfig` to top level `config.sensitiveProperties` ([#277]).  
+- [BREAKING] CRD overhaul: Moved `sensitivePropertiesConfig` to top level `config.sensitiveProperties` ([#277]).
 
 ### Removed
 
@@ -41,6 +41,7 @@ All notable changes to this project will be documented in this file.
 ## [0.4.0] - 2021-12-06
 
 ### Added
+
 - Support for 1.15.0 ([#125])
 - Sensitive property key is setable via a secret ([#125])
 
@@ -59,6 +60,7 @@ All notable changes to this project will be documented in this file.
 ## [0.3.0] - 2021-10-27
 
 ### Added
+
 - Added versioning code from operator-rs for up and downgrades ([#81]).
 - Added `ProductVersion` to status ([#81]).
 - Added `Condition` to status ([#81]).
@@ -71,8 +73,9 @@ All notable changes to this project will be documented in this file.
 - `kube-rs`: `0.58` → `0.60` ([#83]).
 - `k8s-openapi` `0.12` → `0.13` and features: `v1_21` → `v1_22` ([#83]).
 - `operator-rs` `0.2.1` → `0.2.2` ([#83]).
- 
+
 ### Fixed
+
 - Fixed a bug where `wait_until_crds_present` only reacted to the main CRD, not the commands ([#92]).
 
 [#92]: https://github.com/stackabletech/nifi-operator/pull/92
@@ -83,6 +86,7 @@ All notable changes to this project will be documented in this file.
 ## [0.2.0] - 2021-09-14
 
 ### Changed
+
 - **Breaking:** Repository structure was changed and the -server crate renamed to -binary. As part of this change the -server suffix was removed from both the package name for os packages and the name of the executable ([#72]).
 
 [#72]: https://github.com/stackabletech/nifi-operator/pull/72

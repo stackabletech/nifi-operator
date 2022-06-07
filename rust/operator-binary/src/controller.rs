@@ -858,7 +858,7 @@ fn build_node_rolegroup_statefulset(
 /// docker image and more specifically the `create_nifi_reporting_task.py` Python script.
 ///
 /// This script uses the [`nipyapi`](https://nipyapi.readthedocs.io/en/latest/readme.html)
-/// library to authenticate and run the required REST calls to the NiFi REST API.     
+/// library to authenticate and run the required REST calls to the NiFi REST API.
 ///
 /// In order to authenticate we need the `username` and `password` from the
 /// [`NifiAuthenticationConfig`](`stackable_nifi_crd::authentication::NifiAuthenticationConfig`)
