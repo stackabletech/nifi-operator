@@ -1,0 +1,19 @@
+---
+apiVersion: t2.stackable.tech/v1
+kind: Infra
+template: hcloud-centos-8
+metadata:
+  name: nifi-operator-integration-tests
+  description: "Cluster for NiFi Operator Integration Tests (Hetzner Cloud / CentOS 8)"
+domain: stackable.test
+publicKeys: []
+spec:
+  location: "hel1"
+  k8sVersion: "$K8S_VERSION"
+  wireguard: false
+  versions:
+    _-operator: NIGHTLY
+    nifi-operator: "$NIFI_OPERATOR_VERSION"
+  nodes:
+    main:
+      numberOfNodes: 3
