@@ -69,8 +69,6 @@ pub struct Ctx {
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("object defines no version"))]
-    ObjectHasNoVersion,
     #[snafu(display("object defines no name"))]
     ObjectHasNoName,
     #[snafu(display("object defines no spec"))]
@@ -153,8 +151,8 @@ pub enum Error {
     ExternalPort,
     #[snafu(display("Could not build role service fqdn"))]
     NoRoleServiceFqdn,
-    #[snafu(display("Could not extract NiFi product version (x.x.x) from image: [{version}]. Expected format e.g. x.x.x-stackable0.1.0"))]
-    FailedNifiProductVersionRetrieval { version: String },
+    #[snafu(display("failed to parse NiFi version"))]
+    NifiVersionParseFailure { source: stackable_nifi_crd::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -168,7 +166,9 @@ impl ReconcilerError for Error {
 pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Context<Ctx>) -> Result<Action> {
     tracing::info!("Starting reconcile");
     let client = &ctx.get_ref().client;
-    let nifi_product_version = nifi_product_version(&nifi)?;
+    let nifi_product_version = nifi
+        .product_version()
+        .context(NifiVersionParseFailureSnafu)?;
     let namespace = &nifi
         .metadata
         .namespace
@@ -287,7 +287,7 @@ pub fn build_node_role_service(nifi: &NifiCluster) -> Result<Service> {
             .with_recommended_labels(
                 nifi,
                 APP_NAME,
-                nifi_image_version(nifi)?,
+                nifi.image_version().context(NifiVersionParseFailureSnafu)?,
                 &role_name,
                 "global",
             )
@@ -335,7 +335,7 @@ fn build_node_rolegroup_log_config_map(
                 .with_recommended_labels(
                     nifi,
                     APP_NAME,
-                    nifi_image_version(nifi)?,
+                    nifi.image_version().context(NifiVersionParseFailureSnafu)?,
                     &rolegroup.role,
                     &rolegroup.role_group,
                 )
@@ -375,7 +375,7 @@ async fn build_node_rolegroup_config_map(
                 .with_recommended_labels(
                     nifi,
                     APP_NAME,
-                    nifi_image_version(nifi)?,
+                    nifi.image_version().context(NifiVersionParseFailureSnafu)?,
                     &rolegroup.role,
                     &rolegroup.role_group,
                 )
@@ -439,7 +439,7 @@ fn build_node_rolegroup_service(
             .with_recommended_labels(
                 nifi,
                 APP_NAME,
-                nifi_image_version(nifi)?,
+                nifi.image_version().context(NifiVersionParseFailureSnafu)?,
                 &rolegroup.role,
                 &rolegroup.role_group,
             )
@@ -533,7 +533,7 @@ fn build_node_rolegroup_statefulset(
         .role_groups
         .get(&rolegroup_ref.role_group);
 
-    let nifi_version = nifi_image_version(nifi)?;
+    let nifi_version = nifi.image_version().context(NifiVersionParseFailureSnafu)?;
     let image = format!("docker.stackable.tech/stackable/nifi:{}", nifi_version);
 
     let node_address = format!(
@@ -871,7 +871,9 @@ fn build_reporting_task_job(
 ) -> Result<Job> {
     let rolegroup_obj_name = rolegroup_ref.object_name();
     let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
-    let product_version = nifi_product_version(nifi)?;
+    let product_version = nifi
+        .product_version()
+        .context(NifiVersionParseFailureSnafu)?;
     let nifi_connect_url = format!(
         "https://{rolegroup}-0.{rolegroup}.{namespace}.svc.cluster.local:{port}/nifi-api",
         rolegroup = rolegroup_obj_name,
@@ -1137,27 +1139,6 @@ async fn get_proxy_hosts(
     );
 
     Ok(proxy_setting.join(","))
-}
-
-/// Returns the provided docker image e.g. 1.15.0-stackable0
-fn nifi_image_version(nifi: &NifiCluster) -> Result<&str> {
-    nifi.spec
-        .version
-        .as_deref()
-        .context(ObjectHasNoVersionSnafu)
-}
-
-/// Returns our semver representation for product config e.g. 1.15.0
-fn nifi_product_version(nifi: &NifiCluster) -> Result<&str> {
-    let image_version = nifi_image_version(nifi)?;
-    image_version
-        .split('-')
-        .collect::<Vec<_>>()
-        .first()
-        .cloned()
-        .with_context(|| FailedNifiProductVersionRetrievalSnafu {
-            version: image_version.to_string(),
-        })
 }
 
 pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {

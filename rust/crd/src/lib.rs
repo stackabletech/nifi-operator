@@ -23,6 +23,16 @@ pub const BALANCE_PORT: u16 = 6243;
 pub const METRICS_PORT_NAME: &str = "metrics";
 pub const METRICS_PORT: u16 = 8081;
 
+#[derive(Snafu, Debug)]
+pub enum Error {
+    #[snafu(display("could not parse product version from image: [{image_version}]. Expected format e.g. [1.15.0-stackable0.1.0]"))]
+    NifiProductVersion { image_version: String },
+    #[snafu(display("object has no namespace associated"))]
+    NoNamespace,
+    #[snafu(display("object defines no version"))]
+    ObjectHasNoVersion,
+}
+
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[kube(
     group = "nifi.stackable.tech",
@@ -179,10 +189,6 @@ pub enum LogLevel {
     FATAL,
 }
 
-#[derive(Debug, Snafu)]
-#[snafu(display("object has no namespace associated"))]
-pub struct NoNamespaceError;
-
 impl NifiCluster {
     /// The name of the role-level load-balanced Kubernetes `Service`
     pub fn node_role_service_name(&self) -> Option<String> {
@@ -211,7 +217,7 @@ impl NifiCluster {
     ///
     /// We try to predict the pods here rather than looking at the current cluster state in order to
     /// avoid instance churn.
-    pub fn pods(&self) -> Result<impl Iterator<Item = PodRef> + '_, NoNamespaceError> {
+    pub fn pods(&self) -> Result<impl Iterator<Item = PodRef> + '_, Error> {
         let ns = self.metadata.namespace.clone().context(NoNamespaceSnafu)?;
         Ok(self
             .spec
@@ -230,6 +236,27 @@ impl NifiCluster {
                     pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
                 })
             }))
+    }
+
+    /// Returns the provided docker image e.g. 1.15.0-stackable0
+    pub fn image_version(&self) -> Result<&str, Error> {
+        self.spec
+            .version
+            .as_deref()
+            .context(ObjectHasNoVersionSnafu)
+    }
+
+    /// Returns our semver representation for product config e.g. 1.15.0
+    pub fn product_version(&self) -> Result<&str, Error> {
+        let image_version = self.image_version()?;
+        image_version
+            .split('-')
+            .collect::<Vec<_>>()
+            .first()
+            .cloned()
+            .with_context(|| NifiProductVersionSnafu {
+                image_version: image_version.to_string(),
+            })
     }
 }
 
