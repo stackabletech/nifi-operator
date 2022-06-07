@@ -2,8 +2,8 @@
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 metadata:
-  name: upscale-nifi
-timeout: 600
+  name: scale-up-nifi
+timeout: 1200
 ---
 apiVersion: apps/v1
 kind: StatefulSet

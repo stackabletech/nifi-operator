@@ -2,7 +2,7 @@
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 metadata:
-  name: enable-anonymous
+  name: test-nifi-anonymous
 timeout: 600
 ---
 apiVersion: v1
