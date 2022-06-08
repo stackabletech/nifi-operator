@@ -87,8 +87,8 @@ pub fn build_bootstrap_conf(
     // JVM memory settings
     // if -1 no memory limits were configured, default should be used
     if heap_size != 0 {
-        java_args.push(format!("--Xmx{}", heap_size));
-        java_args.push(format!("--Xms{}", heap_size));
+        java_args.push(format!("--Xmx{}m", heap_size));
+        java_args.push(format!("--Xms{}m", heap_size));
     }
 
     java_args.push("-Djava.net.preferIPv4Stack=true".to_string());
