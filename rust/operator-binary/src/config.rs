@@ -77,16 +77,17 @@ pub fn build_bootstrap_conf(
     java_args.push("-Dorg.apache.jasper.compiler.disablejsr199=true".to_string());
 
     // Max JVM heap computed from container memory limits
-    let heap_size = resource_config
-        .memory
-        .limit
-        .map(|q| to_java_heap_value(&q, 0.8, BinaryMultiple::Mebi))
-        .unwrap_or_else(|| Ok(0))
-        .context(InvalidProductConfigSnafu)?;
+    if let Some(heap_size_definition) = resource_config.memory.limit {
+        tracing::debug!("Read {:?} from crd as memory limit", heap_size_definition);
+        let heap_size = to_java_heap_value(&heap_size_definition, 0.8, BinaryMultiple::Mebi)
+            .context(InvalidProductConfigSnafu)?;
+        tracing::debug!(
+            "Converted {:?} to {}m for java heap config",
+            &heap_size_definition,
+            heap_size
+        );
 
-    // JVM memory settings
-    // if -1 no memory limits were configured, default should be used
-    if heap_size != 0 {
+        // Push heap size config as max and min size to java args
         java_args.push(format!("--Xmx{}m", heap_size));
         java_args.push(format!("--Xms{}m", heap_size));
     }
