@@ -76,7 +76,7 @@ pub fn build_bootstrap_conf(
     // Disable JSR 199 so that we can use JSP's without running a JDK
     java_args.push("-Dorg.apache.jasper.compiler.disablejsr199=true".to_string());
 
-    // Max JVM heap computed from container memory limits
+    // Read memory limits from config
     if let Some(heap_size_definition) = resource_config.memory.limit {
         tracing::debug!("Read {:?} from crd as memory limit", heap_size_definition);
         let heap_size = to_java_heap_value(&heap_size_definition, 0.8, BinaryMultiple::Mebi)
@@ -90,6 +90,8 @@ pub fn build_bootstrap_conf(
         // Push heap size config as max and min size to java args
         java_args.push(format!("--Xmx{}m", heap_size));
         java_args.push(format!("--Xms{}m", heap_size));
+    } else {
+        tracing::debug!("No memory limits defined");
     }
 
     java_args.push("-Djava.net.preferIPv4Stack=true".to_string());

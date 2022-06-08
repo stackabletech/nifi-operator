@@ -51,6 +51,7 @@ use std::{
     time::Duration,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
+use tracing::Instrument;
 
 const FIELD_MANAGER_SCOPE: &str = "nificluster";
 const STACKABLE_TOOLS_IMAGE: &str = "docker.stackable.tech/stackable/tools:0.2.0-stackable0";
@@ -206,77 +207,85 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Context<Ctx>) -> Result
         })?;
 
     for (rolegroup_name, rolegroup_config) in nifi_node_config.iter() {
-        let rolegroup = nifi.node_rolegroup_ref(rolegroup_name);
+        let rg_span = tracing::info_span!("rolegroup_span", rolegroup = rolegroup_name.as_str());
+        async {
+            let rolegroup = nifi.node_rolegroup_ref(rolegroup_name);
 
-        let rg_service = build_node_rolegroup_service(&nifi, &rolegroup)?;
+            tracing::debug!("Processing rolegroup {}", rolegroup);
+            let rg_service = build_node_rolegroup_service(&nifi, &rolegroup)?;
 
-        let role = nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?;
+            let role = nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?;
 
-        let resource_definition = resolve_resource_config_for_rolegroup(&nifi, &rolegroup, role)?;
+            let resource_definition =
+                resolve_resource_config_for_rolegroup(&nifi, &rolegroup, role)?;
 
-        // This is due to the fact that users might access NiFi via these addresses, if they try to
-        // connect from an external machine (not inside the k8s overlay network).
-        // Since we cannot predict which of the addresses a user might decide to use we will simply
-        // add all of them to the setting for now.
-        // For more information see <https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#proxy_configuration>
-        let proxy_hosts = get_proxy_hosts(client, &nifi, &updated_role_service).await?;
+            // This is due to the fact that users might access NiFi via these addresses, if they try to
+            // connect from an external machine (not inside the k8s overlay network).
+            // Since we cannot predict which of the addresses a user might decide to use we will simply
+            // add all of them to the setting for now.
+            // For more information see <https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#proxy_configuration>
+            let proxy_hosts = get_proxy_hosts(client, &nifi, &updated_role_service).await?;
 
-        let rg_configmap = build_node_rolegroup_config_map(
-            client,
-            &nifi,
-            &rolegroup,
-            rolegroup_config,
-            &proxy_hosts,
-            &resource_definition,
-        )
-        .await?;
-
-        let rg_log_configmap = build_node_rolegroup_log_config_map(&nifi, &rolegroup)?;
-
-        let rg_statefulset = build_node_rolegroup_statefulset(
-            &nifi,
-            &rolegroup,
-            rolegroup_config,
-            role,
-            &resource_definition,
-        )?;
-
-        let reporting_task_job = build_reporting_task_job(&nifi, &rolegroup)?;
-
-        client
-            .apply_patch(FIELD_MANAGER_SCOPE, &rg_service, &rg_service)
-            .await
-            .with_context(|_| ApplyRoleGroupServiceSnafu {
-                rolegroup: rolegroup.clone(),
-            })?;
-        client
-            .apply_patch(FIELD_MANAGER_SCOPE, &rg_configmap, &rg_configmap)
-            .await
-            .with_context(|_| ApplyRoleGroupConfigSnafu {
-                rolegroup: rolegroup.clone(),
-            })?;
-        client
-            .apply_patch(FIELD_MANAGER_SCOPE, &rg_log_configmap, &rg_log_configmap)
-            .await
-            .with_context(|_| ApplyRoleGroupConfigSnafu {
-                rolegroup: rolegroup.clone(),
-            })?;
-
-        client
-            .apply_patch(FIELD_MANAGER_SCOPE, &rg_statefulset, &rg_statefulset)
-            .await
-            .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
-                rolegroup: rolegroup.clone(),
-            })?;
-
-        client
-            .apply_patch(
-                FIELD_MANAGER_SCOPE,
-                &reporting_task_job,
-                &reporting_task_job,
+            let rg_configmap = build_node_rolegroup_config_map(
+                client,
+                &nifi,
+                &rolegroup,
+                rolegroup_config,
+                &proxy_hosts,
+                &resource_definition,
             )
-            .await
-            .context(ApplyCreateReportingTaskJobSnafu)?;
+            .await?;
+
+            let rg_log_configmap = build_node_rolegroup_log_config_map(&nifi, &rolegroup)?;
+
+            let rg_statefulset = build_node_rolegroup_statefulset(
+                &nifi,
+                &rolegroup,
+                rolegroup_config,
+                role,
+                &resource_definition,
+            )?;
+
+            let reporting_task_job = build_reporting_task_job(&nifi, &rolegroup)?;
+
+            client
+                .apply_patch(FIELD_MANAGER_SCOPE, &rg_service, &rg_service)
+                .await
+                .with_context(|_| ApplyRoleGroupServiceSnafu {
+                    rolegroup: rolegroup.clone(),
+                })?;
+            client
+                .apply_patch(FIELD_MANAGER_SCOPE, &rg_configmap, &rg_configmap)
+                .await
+                .with_context(|_| ApplyRoleGroupConfigSnafu {
+                    rolegroup: rolegroup.clone(),
+                })?;
+            client
+                .apply_patch(FIELD_MANAGER_SCOPE, &rg_log_configmap, &rg_log_configmap)
+                .await
+                .with_context(|_| ApplyRoleGroupConfigSnafu {
+                    rolegroup: rolegroup.clone(),
+                })?;
+
+            client
+                .apply_patch(FIELD_MANAGER_SCOPE, &rg_statefulset, &rg_statefulset)
+                .await
+                .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
+                    rolegroup: rolegroup.clone(),
+                })?;
+
+            client
+                .apply_patch(
+                    FIELD_MANAGER_SCOPE,
+                    &reporting_task_job,
+                    &reporting_task_job,
+                )
+                .await
+                .context(ApplyCreateReportingTaskJobSnafu)?;
+            Ok(())
+        }
+        .instrument(rg_span)
+        .await?
     }
 
     Ok(Action::await_change())
@@ -366,6 +375,7 @@ async fn build_node_rolegroup_config_map(
     proxy_hosts: &str,
     resource_definition: &Resources<NifiStorageConfig>,
 ) -> Result<ConfigMap> {
+    tracing::debug!("building rolegroup configmaps");
     let namespace = &nifi
         .metadata
         .namespace
@@ -491,10 +501,6 @@ fn resolve_resource_config_for_rolegroup(
     // Initialize the result with all default values as baseline
     let conf_defaults = NifiConfig::default_resources();
 
-    let debug_yaml =
-        serde_yaml::to_string(&conf_defaults).unwrap_or_else(|_| "serde error".to_string());
-    println!("Defaults:\n{debug_yaml}");
-
     // Retrieve global role resource config
     let mut conf_role: Resources<NifiStorageConfig, NoRuntimeLimits> = nifi
         .spec
@@ -507,20 +513,12 @@ fn resolve_resource_config_for_rolegroup(
         .clone()
         .unwrap_or_default();
 
-    let debug_yaml =
-        serde_yaml::to_string(&conf_role).unwrap_or_else(|_| "serde error".to_string());
-    println!("Role:\n{debug_yaml}");
-
     // Retrieve rolegroup specific resource config
     let mut conf_rolegroup: Resources<NifiStorageConfig, NoRuntimeLimits> = role
         .role_groups
         .get(&rolegroup_ref.role_group)
         .and_then(|rg| rg.config.config.resources.clone())
         .unwrap_or_default();
-
-    let debug_yaml =
-        serde_yaml::to_string(&conf_rolegroup).unwrap_or_else(|_| "serde error".to_string());
-    println!("Rolegroup:\n{debug_yaml}");
 
     // Merge more specific configs into default config
     // Hierarchy is:
@@ -530,10 +528,7 @@ fn resolve_resource_config_for_rolegroup(
     conf_role.merge(&conf_defaults);
     conf_rolegroup.merge(&conf_role);
 
-    let debug_yaml =
-        serde_yaml::to_string(&conf_rolegroup).unwrap_or_else(|_| "serde error".to_string());
-    println!("Merged:\n{debug_yaml}");
-
+    tracing::debug!("Merged resource config: {:?}", conf_rolegroup);
     Ok(conf_rolegroup)
 }
 
@@ -548,6 +543,7 @@ fn build_node_rolegroup_statefulset(
     role: &Role<NifiConfig>,
     resource_definition: &Resources<NifiStorageConfig>,
 ) -> Result<StatefulSet> {
+    tracing::debug!("Building statefulset");
     let zookeeper_host = "ZOOKEEPER_HOSTS";
     let zookeeper_chroot = "ZOOKEEPER_CHROOT";
 
