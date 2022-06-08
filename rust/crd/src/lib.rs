@@ -251,9 +251,7 @@ impl NifiCluster {
         let image_version = self.image_version()?;
         image_version
             .split('-')
-            .collect::<Vec<_>>()
-            .first()
-            .cloned()
+            .next()
             .with_context(|| NifiProductVersionSnafu {
                 image_version: image_version.to_string(),
             })
