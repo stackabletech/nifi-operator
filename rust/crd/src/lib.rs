@@ -252,10 +252,6 @@ pub struct NifiStorageConfig {
     pub state_repo: PvcConfig,
 }
 
-#[derive(Debug, Snafu)]
-#[snafu(display("object has no namespace associated"))]
-pub struct NoNamespaceError;
-
 impl NifiCluster {
     /// The name of the role-level load-balanced Kubernetes `Service`
     pub fn node_role_service_name(&self) -> Option<String> {
