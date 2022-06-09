@@ -119,3 +119,71 @@ nodes:
       config: {}
       replicas: 1
 ----
+
+=== Volume storage
+
+By default, a Nifi cluster will create five different persistent volume claims for flow files, provenance, database, content and state folders. These PVCs will request `2Gi`. It is recommended that you configure these volume requests according to your needs.
+
+Storage requests can be configured at role or group level, for one or more of the persistent volumes as follows:
+
+[source,yaml]
+----
+nodes:
+  roleGroups:
+    default:
+      config:
+        resources:
+          storage:
+            flowfile_repo:
+              capacity: 12Gi
+            provenance_repo:
+              capacity: 12Gi
+            database_repo:
+              capacity: 12Gi
+            content_repo:
+              capacity: 12Gi
+            state_repo:
+              capacity: 12Gi
+----
+
+In the above example, all nodes in the default group will request `12Gi` of storage the various folders.
+
+=== Memory requests
+
+You can request a certain amount of memory for each individual role group as shown below:
+
+[source,yaml]
+----
+nodes:
+  roleGroups:
+    default:
+      config:
+        resources:
+          memory:
+            limit: '2Gi'
+----
+
+In this example, each node container in the "default" group will have a maximum of `2Gi` of memory.
+
+Setting this property will automatically also set the maximum Java heap size for the corresponding process to 80% of the available memory. Be aware that if the memory constraint is too low, the cluster might fail to start. If pods terminate with an 'OOMKilled' status and the cluster doesn't start, try increasing the memory limit.
+
+For more details regarding Kubernetes memory requests and limits see: https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/[Assign Memory Resources to Containers and Pods].
+
+=== CPU requests
+
+Similarly to memory resources, you can also configure CPU limits, as shown below:
+
+[source,yaml]
+----
+nodes:
+  roleGroups:
+    default:
+      config:
+        resources:
+          cpu:
+            max: '500m'
+            min: '250m'
+----
+
+For more details regarding Kubernetes CPU limits see: https://kubernetes.io/docs/tasks/configure-pod-container/assign-cpu-resource/[Assign CPU Resources to Containers and Pods].
+

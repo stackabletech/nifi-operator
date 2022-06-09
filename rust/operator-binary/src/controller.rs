@@ -9,11 +9,14 @@ use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_nifi_crd::{
     authentication::{get_auth_volumes, AUTH_VOLUME_MOUNT_PATH},
-    NifiCluster, NifiLogConfig, NifiRole, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT,
-    METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
+    NifiCluster, NifiConfig, NifiLogConfig, NifiRole, NifiStorageConfig, HTTPS_PORT,
+    HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
 };
 use stackable_nifi_crd::{APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME};
+use stackable_operator::commons::resources::{NoRuntimeLimits, Resources};
+use stackable_operator::config::merge::Merge;
 use stackable_operator::k8s_openapi::api::apps::v1::StatefulSetUpdateStrategy;
+use stackable_operator::role_utils::Role;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder},
     client::Client,
@@ -24,18 +27,14 @@ use stackable_operator::{
             core::v1::{
                 Affinity, CSIVolumeSource, ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource,
                 EmptyDirVolumeSource, EnvVar, EnvVarSource, Node, NodeAddress, ObjectFieldSelector,
-                PersistentVolumeClaim, PersistentVolumeClaimSpec, PodAffinityTerm, PodAntiAffinity,
-                PodSpec, PodTemplateSpec, Probe, ResourceRequirements, Secret, SecretVolumeSource,
-                SecurityContext, Service, ServicePort, ServiceSpec, TCPSocketAction, Volume,
-                VolumeMount,
+                PodAffinityTerm, PodAntiAffinity, PodSpec, PodTemplateSpec, Probe, Secret,
+                SecretVolumeSource, SecurityContext, Service, ServicePort, ServiceSpec,
+                TCPSocketAction, Volume, VolumeMount,
             },
         },
-        apimachinery::pkg::{
-            api::resource::Quantity, apis::meta::v1::LabelSelector, util::intstr::IntOrString,
-        },
+        apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
     },
     kube::{
-        api::ObjectMeta,
         runtime::controller::{Action, Context},
         runtime::reflector::ObjectRef,
         ResourceExt,
@@ -52,6 +51,7 @@ use std::{
     time::Duration,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
+use tracing::Instrument;
 
 const FIELD_MANAGER_SCOPE: &str = "nificluster";
 const STACKABLE_TOOLS_IMAGE: &str = "docker.stackable.tech/stackable/tools:0.2.0-stackable0";
@@ -77,8 +77,6 @@ pub enum Error {
     ObjectHasNoSpec,
     #[snafu(display("object defines no namespace"))]
     ObjectHasNoNamespace,
-    #[snafu(display("object defines no metastore role"))]
-    NoNodeRole,
     #[snafu(display("failed to calculate global service name"))]
     GlobalServiceNameNotFound,
     #[snafu(display("failed to apply global Service"))]
@@ -105,6 +103,8 @@ pub enum Error {
         source: stackable_operator::error::Error,
         rolegroup: RoleGroupRef<NifiCluster>,
     },
+    #[snafu(display("object has no nodes defined"))]
+    NoNodesDefined,
     #[snafu(display("failed to apply ConfigMap for {}", rolegroup))]
     ApplyRoleGroupConfig {
         source: stackable_operator::error::Error,
@@ -154,6 +154,9 @@ pub enum Error {
 
     #[snafu(display("Could not build role service fqdn"))]
     NoRoleServiceFqdn,
+
+    #[snafu(display("Bootstrap configuration error"))]
+    BoostrapConfig { source: crate::config::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -180,7 +183,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Context<Ctx>) -> Result
     let validated_config = validated_product_config(
         &nifi,
         nifi_version,
-        nifi.spec.nodes.as_ref().context(NoNodeRoleSnafu)?,
+        nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?,
         &ctx.get_ref().product_config,
     )
     .context(ProductConfigLoadFailedSnafu)?;
@@ -204,66 +207,85 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Context<Ctx>) -> Result
         })?;
 
     for (rolegroup_name, rolegroup_config) in nifi_node_config.iter() {
-        let rolegroup = nifi.node_rolegroup_ref(rolegroup_name);
+        let rg_span = tracing::info_span!("rolegroup_span", rolegroup = rolegroup_name.as_str());
+        async {
+            let rolegroup = nifi.node_rolegroup_ref(rolegroup_name);
 
-        let rg_service = build_node_rolegroup_service(&nifi, &rolegroup)?;
+            tracing::debug!("Processing rolegroup {}", rolegroup);
+            let rg_service = build_node_rolegroup_service(&nifi, &rolegroup)?;
 
-        // This is due to the fact that users might access NiFi via these addresses, if they try to
-        // connect from an external machine (not inside the k8s overlay network).
-        // Since we cannot predict which of the addresses a user might decide to use we will simply
-        // add all of them to the setting for now.
-        // For more information see <https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#proxy_configuration>
-        let proxy_hosts = get_proxy_hosts(client, &nifi, &updated_role_service).await?;
+            let role = nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?;
 
-        let rg_configmap = build_node_rolegroup_config_map(
-            client,
-            &nifi,
-            &rolegroup,
-            rolegroup_config,
-            &proxy_hosts,
-        )
-        .await?;
+            let resource_definition =
+                resolve_resource_config_for_rolegroup(&nifi, &rolegroup, role)?;
 
-        let rg_log_configmap = build_node_rolegroup_log_config_map(&nifi, &rolegroup)?;
+            // This is due to the fact that users might access NiFi via these addresses, if they try to
+            // connect from an external machine (not inside the k8s overlay network).
+            // Since we cannot predict which of the addresses a user might decide to use we will simply
+            // add all of them to the setting for now.
+            // For more information see <https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#proxy_configuration>
+            let proxy_hosts = get_proxy_hosts(client, &nifi, &updated_role_service).await?;
 
-        let rg_statefulset = build_node_rolegroup_statefulset(&nifi, &rolegroup, rolegroup_config)?;
-
-        let reporting_task_job = build_reporting_task_job(&nifi, &rolegroup)?;
-
-        client
-            .apply_patch(FIELD_MANAGER_SCOPE, &rg_service, &rg_service)
-            .await
-            .with_context(|_| ApplyRoleGroupServiceSnafu {
-                rolegroup: rolegroup.clone(),
-            })?;
-        client
-            .apply_patch(FIELD_MANAGER_SCOPE, &rg_configmap, &rg_configmap)
-            .await
-            .with_context(|_| ApplyRoleGroupConfigSnafu {
-                rolegroup: rolegroup.clone(),
-            })?;
-        client
-            .apply_patch(FIELD_MANAGER_SCOPE, &rg_log_configmap, &rg_log_configmap)
-            .await
-            .with_context(|_| ApplyRoleGroupConfigSnafu {
-                rolegroup: rolegroup.clone(),
-            })?;
-
-        client
-            .apply_patch(FIELD_MANAGER_SCOPE, &rg_statefulset, &rg_statefulset)
-            .await
-            .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
-                rolegroup: rolegroup.clone(),
-            })?;
-
-        client
-            .apply_patch(
-                FIELD_MANAGER_SCOPE,
-                &reporting_task_job,
-                &reporting_task_job,
+            let rg_configmap = build_node_rolegroup_config_map(
+                client,
+                &nifi,
+                &rolegroup,
+                rolegroup_config,
+                &proxy_hosts,
+                &resource_definition,
             )
-            .await
-            .context(ApplyCreateReportingTaskJobSnafu)?;
+            .await?;
+
+            let rg_log_configmap = build_node_rolegroup_log_config_map(&nifi, &rolegroup)?;
+
+            let rg_statefulset = build_node_rolegroup_statefulset(
+                &nifi,
+                &rolegroup,
+                rolegroup_config,
+                role,
+                &resource_definition,
+            )?;
+
+            let reporting_task_job = build_reporting_task_job(&nifi, &rolegroup)?;
+
+            client
+                .apply_patch(FIELD_MANAGER_SCOPE, &rg_service, &rg_service)
+                .await
+                .with_context(|_| ApplyRoleGroupServiceSnafu {
+                    rolegroup: rolegroup.clone(),
+                })?;
+            client
+                .apply_patch(FIELD_MANAGER_SCOPE, &rg_configmap, &rg_configmap)
+                .await
+                .with_context(|_| ApplyRoleGroupConfigSnafu {
+                    rolegroup: rolegroup.clone(),
+                })?;
+            client
+                .apply_patch(FIELD_MANAGER_SCOPE, &rg_log_configmap, &rg_log_configmap)
+                .await
+                .with_context(|_| ApplyRoleGroupConfigSnafu {
+                    rolegroup: rolegroup.clone(),
+                })?;
+
+            client
+                .apply_patch(FIELD_MANAGER_SCOPE, &rg_statefulset, &rg_statefulset)
+                .await
+                .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
+                    rolegroup: rolegroup.clone(),
+                })?;
+
+            client
+                .apply_patch(
+                    FIELD_MANAGER_SCOPE,
+                    &reporting_task_job,
+                    &reporting_task_job,
+                )
+                .await
+                .context(ApplyCreateReportingTaskJobSnafu)?;
+            Ok(())
+        }
+        .instrument(rg_span)
+        .await?
     }
 
     Ok(Action::await_change())
@@ -351,7 +373,9 @@ async fn build_node_rolegroup_config_map(
     rolegroup: &RoleGroupRef<NifiCluster>,
     config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     proxy_hosts: &str,
+    resource_definition: &Resources<NifiStorageConfig>,
 ) -> Result<ConfigMap> {
+    tracing::debug!("building rolegroup configmaps");
     let namespace = &nifi
         .metadata
         .namespace
@@ -377,13 +401,15 @@ async fn build_node_rolegroup_config_map(
         .add_data(
             NIFI_BOOTSTRAP_CONF,
             build_bootstrap_conf(
+                resource_definition.clone(),
                 config
                     .get(&PropertyNameKind::File(NIFI_BOOTSTRAP_CONF.to_string()))
                     .with_context(|| ProductConfigKindNotSpecifiedSnafu {
                         kind: NIFI_BOOTSTRAP_CONF.to_string(),
                     })?
                     .clone(),
-            ),
+            )
+            .context(BoostrapConfigSnafu)?,
         )
         .add_data(
             NIFI_PROPERTIES,
@@ -467,6 +493,45 @@ fn build_node_rolegroup_service(
     })
 }
 
+fn resolve_resource_config_for_rolegroup(
+    nifi: &NifiCluster,
+    rolegroup_ref: &RoleGroupRef<NifiCluster>,
+    role: &Role<NifiConfig>,
+) -> Result<Resources<NifiStorageConfig, NoRuntimeLimits>> {
+    // Initialize the result with all default values as baseline
+    let conf_defaults = NifiConfig::default_resources();
+
+    // Retrieve global role resource config
+    let mut conf_role: Resources<NifiStorageConfig, NoRuntimeLimits> = nifi
+        .spec
+        .nodes
+        .as_ref()
+        .with_context(|| NoNodesDefinedSnafu {})?
+        .config
+        .config
+        .resources
+        .clone()
+        .unwrap_or_default();
+
+    // Retrieve rolegroup specific resource config
+    let mut conf_rolegroup: Resources<NifiStorageConfig, NoRuntimeLimits> = role
+        .role_groups
+        .get(&rolegroup_ref.role_group)
+        .and_then(|rg| rg.config.config.resources.clone())
+        .unwrap_or_default();
+
+    // Merge more specific configs into default config
+    // Hierarchy is:
+    // 1. RoleGroup
+    // 2. Role
+    // 3. Default
+    conf_role.merge(&conf_defaults);
+    conf_rolegroup.merge(&conf_role);
+
+    tracing::debug!("Merged resource config: {:?}", conf_rolegroup);
+    Ok(conf_rolegroup)
+}
+
 /// The rolegroup [`StatefulSet`] runs the rolegroup, as configured by the administrator.
 ///
 /// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the
@@ -475,7 +540,10 @@ fn build_node_rolegroup_statefulset(
     nifi: &NifiCluster,
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
     config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    role: &Role<NifiConfig>,
+    resource_definition: &Resources<NifiStorageConfig>,
 ) -> Result<StatefulSet> {
+    tracing::debug!("Building statefulset");
     let zookeeper_host = "ZOOKEEPER_HOSTS";
     let zookeeper_chroot = "ZOOKEEPER_CHROOT";
 
@@ -518,13 +586,7 @@ fn build_node_rolegroup_statefulset(
         &nifi.spec.zookeeper_config_map_name,
     ));
 
-    let rolegroup = nifi
-        .spec
-        .nodes
-        .as_ref()
-        .context(NoNodeRoleSnafu)?
-        .role_groups
-        .get(&rolegroup_ref.role_group);
+    let rolegroup = role.role_groups.get(&rolegroup_ref.role_group);
 
     let nifi_version = nifi_version(nifi)?;
     let image = format!("docker.stackable.tech/stackable/nifi:{}", nifi_version);
@@ -687,6 +749,8 @@ fn build_node_rolegroup_statefulset(
         ..Probe::default()
     });
 
+    container_nifi.resources = Some(resource_definition.clone().into());
+
     let mut pod_template_builder = PodBuilder::new()
         .metadata_builder(|m| {
             m.with_recommended_labels(
@@ -817,25 +881,25 @@ fn build_node_rolegroup_statefulset(
                 ..StatefulSetUpdateStrategy::default()
             }),
             volume_claim_templates: Some(vec![
-                build_persistent_volume_claim_rwo_storage(
+                resource_definition.storage.content_repo.build_pvc(
                     &NifiRepository::Content.repository(),
-                    "2Gi",
+                    Some(vec!["ReadWriteOnce"]),
                 ),
-                build_persistent_volume_claim_rwo_storage(
+                resource_definition.storage.database_repo.build_pvc(
                     &NifiRepository::Database.repository(),
-                    "2Gi",
+                    Some(vec!["ReadWriteOnce"]),
                 ),
-                build_persistent_volume_claim_rwo_storage(
+                resource_definition.storage.flowfile_repo.build_pvc(
                     &NifiRepository::Flowfile.repository(),
-                    "2Gi",
+                    Some(vec!["ReadWriteOnce"]),
                 ),
-                build_persistent_volume_claim_rwo_storage(
+                resource_definition.storage.provenance_repo.build_pvc(
                     &NifiRepository::Provenance.repository(),
-                    "2Gi",
+                    Some(vec!["ReadWriteOnce"]),
                 ),
-                build_persistent_volume_claim_rwo_storage(
+                resource_definition.storage.state_repo.build_pvc(
                     &NifiRepository::State.repository(),
-                    "1Gi",
+                    Some(vec!["ReadWriteOnce"]),
                 ),
             ]),
             ..StatefulSetSpec::default()
@@ -851,7 +915,7 @@ fn build_node_rolegroup_statefulset(
 /// docker image and more specifically the `create_nifi_reporting_task.py` Python script.
 ///
 /// This script uses the [`nipyapi`](https://nipyapi.readthedocs.io/en/latest/readme.html)
-/// library to authenticate and run the required REST calls to the NiFi REST API.     
+/// library to authenticate and run the required REST calls to the NiFi REST API.
 ///
 /// In order to authenticate we need the `username` and `password` from the
 /// [`NifiAuthenticationConfig`](`stackable_nifi_crd::authentication::NifiAuthenticationConfig`)
@@ -1012,28 +1076,6 @@ fn get_stackable_secret_volume_attributes() -> BTreeMap<String, String> {
         "node,pod".to_string(),
     );
     result
-}
-
-fn build_persistent_volume_claim_rwo_storage(name: &str, storage: &str) -> PersistentVolumeClaim {
-    PersistentVolumeClaim {
-        metadata: ObjectMeta {
-            name: Some(name.to_string()),
-            ..ObjectMeta::default()
-        },
-        spec: Some(PersistentVolumeClaimSpec {
-            access_modes: Some(vec!["ReadWriteOnce".to_string()]),
-            resources: Some(ResourceRequirements {
-                requests: Some({
-                    let mut map = BTreeMap::new();
-                    map.insert("storage".to_string(), Quantity(storage.to_string()));
-                    map
-                }),
-                ..ResourceRequirements::default()
-            }),
-            ..PersistentVolumeClaimSpec::default()
-        }),
-        ..PersistentVolumeClaim::default()
-    }
 }
 
 fn external_node_port(nifi_service: &Service) -> Result<i32> {
