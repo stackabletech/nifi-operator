@@ -88,8 +88,8 @@ pub fn build_bootstrap_conf(
         );
 
         // Push heap size config as max and min size to java args
-        java_args.push(format!("--Xmx{}m", heap_size));
-        java_args.push(format!("--Xms{}m", heap_size));
+        java_args.push(format!("-Xmx{}m", heap_size));
+        java_args.push(format!("-Xms{}m", heap_size));
     } else {
         tracing::debug!("No memory limits defined");
     }
