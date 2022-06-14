@@ -1,12 +1,10 @@
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::builder::ObjectMetaBuilder;
 use stackable_operator::client::Client;
-use stackable_operator::k8s_openapi::api::core::v1::{
-    Secret, SecretReference, SecretVolumeSource, Volume,
-};
+use stackable_operator::k8s_openapi::api::core::v1::{Secret, SecretVolumeSource, Volume};
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::schemars::{self, JsonSchema};
 use std::collections::BTreeMap;
@@ -59,11 +57,11 @@ pub struct NifiAuthenticationConfig {
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize, strum::Display)]
-#[strum(serialize_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
 pub enum NifiAuthenticationMethod {
     #[serde(rename_all = "camelCase")]
     SingleUser {
-        admin_credentials_secret: SecretReference,
+        admin_credentials_secret: String,
         #[serde(default)]
         auto_generate: bool,
     },
@@ -85,23 +83,12 @@ pub async fn get_login_identity_provider_xml(
             admin_credentials_secret,
             auto_generate,
         } => {
-            let secret_name = admin_credentials_secret.name.clone().with_context(|| {
-                MissingSecretReferenceSnafu {
-                    secret: "admin_credentials_secret".to_string(),
-                }
-            })?;
-            // If no namespace was specified the namespace of the NifiCluster object is assumed
-            let secret_namespace = admin_credentials_secret
-                .namespace
-                .clone()
-                .unwrap_or_else(|| current_namespace.to_string());
-
             // Check if the referenced secret exists and contains all necessary keys, otherwise
             // generate random password and default user
             check_or_generate_admin_credentials(
                 client,
-                &secret_name,
-                &secret_namespace,
+                admin_credentials_secret,
+                current_namespace,
                 auto_generate,
             )
             .await?;
@@ -126,11 +113,7 @@ pub fn get_auth_volumes(
             let admin_volume = Volume {
                 name: AUTH_VOLUME_NAME.to_string(),
                 secret: Some(SecretVolumeSource {
-                    secret_name: Some(admin_credentials_secret.name.clone().with_context(
-                        || MissingRequiredValueSnafu {
-                            value: "name".to_string(),
-                        },
-                    )?),
+                    secret_name: Some(admin_credentials_secret.to_string()),
                     ..SecretVolumeSource::default()
                 }),
                 ..Volume::default()
