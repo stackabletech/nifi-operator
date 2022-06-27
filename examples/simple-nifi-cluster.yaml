@@ -92,4 +92,4 @@ spec:
                 capacity: "20Gi" # Option
               stateRepo:
                 capacity: "20Gi"
-        replicas: 2
+        replicas: 3
