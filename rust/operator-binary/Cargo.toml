@@ -6,7 +6,7 @@ description = "Stackable Operator for Apache NiFi"
 license = "OSL-3.0"
 name = "stackable-nifi-operator"
 repository = "https://github.com/stackabletech/nifi-operator"
-version = "0.6.0-nightly"
+version = "0.7.0-nightly"
 
 [dependencies]
 anyhow = "1.0"
