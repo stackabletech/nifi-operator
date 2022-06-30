@@ -1,6 +1,6 @@
 name: nifi
-version: nightly
+version: "0.6"
 title: Stackable Operator for Apache NiFi
 nav:
   - modules/ROOT/nav.adoc
-prerelease: true
+prerelease: false
