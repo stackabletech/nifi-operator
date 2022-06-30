@@ -12,7 +12,7 @@ use stackable_operator::product_config_utils::{
     ValidatedRoleConfigByPropertyKind,
 };
 use stackable_operator::role_utils::Role;
-use std::collections::{BTreeMap, HashMap};
+use std::{fmt::Write,collections::{BTreeMap, HashMap}};
 use strum::{Display, EnumIter};
 
 pub const NIFI_BOOTSTRAP_CONF: &str = "bootstrap.conf";
@@ -615,7 +615,7 @@ fn format_properties(properties: BTreeMap<String, String>) -> String {
     let mut result = String::new();
 
     for (key, value) in properties {
-        result.push_str(&format!("{}={}\n", key, value));
+        let _ = writeln!(result, "{}={}", key, value);
     }
 
     result
