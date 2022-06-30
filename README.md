@@ -7,5 +7,5 @@ This is a Kubernetes Operator to manage [Apache NiFi](https://nifi.apache.org/) 
 
 It is written by [Stackable](https://www.stackable.tech) in Rust.
 
-The documentation for this operator can be found at [https://docs.stackable.tech/nifi/stable/index.html](https://docs.stackable.tech/nifi/stable/index.html).
-The documentation for all Stackable products can be found at [https://docs.stackable.tech](https://docs.stackable.tech).
+The documentation for this operator can be found at <https://docs.stackable.tech/nifi/stable/index.html>.
+The documentation for all Stackable products can be found at <https://docs.stackable.tech>.
