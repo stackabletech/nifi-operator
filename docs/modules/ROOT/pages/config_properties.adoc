@@ -108,6 +108,8 @@ The following snippet shows an example of how this would look in the NifiCluster
           sensitivePropertyKeySecret: nifi-sensitive-property-
         configOverrides:
           nifi.properties:
-            aws.region: eu-west-1
+            nifi.config.property: eu-west-1
+        bootstrap.conf:
+            boostrap.config.property: some_string
         replicas: 2
 ----
