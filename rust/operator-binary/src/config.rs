@@ -12,7 +12,10 @@ use stackable_operator::product_config_utils::{
     ValidatedRoleConfigByPropertyKind,
 };
 use stackable_operator::role_utils::Role;
-use std::{fmt::Write,collections::{BTreeMap, HashMap}};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fmt::Write,
+};
 use strum::{Display, EnumIter};
 
 pub const NIFI_BOOTSTRAP_CONF: &str = "bootstrap.conf";
