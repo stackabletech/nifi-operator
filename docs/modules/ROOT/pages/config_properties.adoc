@@ -9,7 +9,7 @@ kind: NifiCluster
 metadata:
   name: simple-nifi
 spec:
-  version: "1.15.0-stackable0.4.0"
+  version: 1.16.3-stackable0.1.0
   zookeeperConfigMapName: simple-nifi-znode
   authenticationConfig:
     method:
