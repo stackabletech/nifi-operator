@@ -109,7 +109,7 @@ The following snippet shows an example of how this would look in the NifiCluster
         configOverrides:
           nifi.properties:
             nifi.config.property: eu-west-1
-        bootstrap.conf:
+          bootstrap.conf:
             boostrap.config.property: some_string
         replicas: 2
 ----
