@@ -1,3 +1,4 @@
+== Kubernetes custom resource options
 
 The cluster can be configured via a YAML file. This custom resource specifies the amount of replicas for each role group or role specific configuration like port definitions etc.
 The following listing shows a fairly complete example that sets most available options, for more detail about the individual elements please refer to the table further down on the page.
