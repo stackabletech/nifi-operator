@@ -34,11 +34,7 @@ use stackable_operator::{
         },
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
     },
-    kube::{
-        runtime::controller::{Action, Context},
-        runtime::reflector::ObjectRef,
-        ResourceExt,
-    },
+    kube::{runtime::controller::Action, runtime::reflector::ObjectRef, ResourceExt},
     labels::{role_group_selector_labels, role_selector_labels},
     logging::controller::ReconcilerError,
     product_config::{types::PropertyNameKind, ProductConfigManager},
@@ -165,9 +161,9 @@ impl ReconcilerError for Error {
     }
 }
 
-pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Context<Ctx>) -> Result<Action> {
+pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Action> {
     tracing::info!("Starting reconcile");
-    let client = &ctx.get_ref().client;
+    let client = &ctx.client;
     let nifi_product_version = nifi
         .product_version()
         .context(NifiVersionParseFailureSnafu)?;
@@ -184,7 +180,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Context<Ctx>) -> Result
         &nifi,
         nifi_product_version,
         nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?,
-        &ctx.get_ref().product_config,
+        &ctx.product_config,
     )
     .context(ProductConfigLoadFailedSnafu)?;
 
@@ -239,14 +235,16 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Context<Ctx>) -> Result
             let rg_log_configmap = build_node_rolegroup_log_config_map(&nifi, &rolegroup)?;
 
             let rg_statefulset = build_node_rolegroup_statefulset(
+                client,
                 &nifi,
                 &rolegroup,
                 rolegroup_config,
                 role,
                 &resource_definition,
-            )?;
+            )
+            .await?;
 
-            let reporting_task_job = build_reporting_task_job(&nifi, &rolegroup)?;
+            let reporting_task_job = build_reporting_task_job(client, &nifi, &rolegroup).await?;
 
             client
                 .apply_patch(FIELD_MANAGER_SCOPE, &rg_service, &rg_service)
@@ -542,7 +540,8 @@ fn resolve_resource_config_for_rolegroup(
 ///
 /// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the
 /// corresponding [`Service`] (from [`build_node_rolegroup_service`]).
-fn build_node_rolegroup_statefulset(
+async fn build_node_rolegroup_statefulset(
+    client: &Client,
     nifi: &NifiCluster,
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
     config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
@@ -610,7 +609,8 @@ fn build_node_rolegroup_statefulset(
 
     let sensitive_key_secret = &nifi.spec.config.sensitive_properties.key_secret;
 
-    let auth_volumes = get_auth_volumes(&nifi.spec.config.authentication.method)
+    let auth_volumes = get_auth_volumes(client, &nifi.spec.config.authentication.method)
+        .await
         .context(MaterializeAuthConfigSnafu)?;
 
     let mut container_prepare = ContainerBuilder::new("prepare")
@@ -928,7 +928,8 @@ fn build_node_rolegroup_statefulset(
 /// as well as a public certificate provided by the Stackable
 /// [`secret-operator`](https://github.com/stackabletech/secret-operator)
 ///
-fn build_reporting_task_job(
+async fn build_reporting_task_job(
+    client: &Client,
     nifi: &NifiCluster,
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
 ) -> Result<Job> {
@@ -969,7 +970,8 @@ fn build_reporting_task_job(
     let mut volumes = vec![build_keystore_volume(KEYSTORE_VOLUME_NAME)];
 
     // Volume and Volume mounts for the authentication secret
-    let auth_volumes = get_auth_volumes(&nifi.spec.config.authentication.method)
+    let auth_volumes = get_auth_volumes(client, &nifi.spec.config.authentication.method)
+        .await
         .context(MaterializeAuthConfigSnafu)?;
 
     for (name, (mount_path, volume)) in auth_volumes {
@@ -1182,6 +1184,6 @@ async fn get_proxy_hosts(
     Ok(proxy_setting.join(","))
 }
 
-pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {
+pub fn error_policy(_error: &Error, _ctx: Arc<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(10))
 }
