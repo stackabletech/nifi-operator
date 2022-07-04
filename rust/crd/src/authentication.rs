@@ -1,10 +1,13 @@
+use indoc::indoc;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use stackable_operator::builder::ObjectMetaBuilder;
 use stackable_operator::client::Client;
-use stackable_operator::commons::authentication::AuthenticationClass;
+use stackable_operator::commons::authentication::{
+    AuthenticationClass, AuthenticationClassProvider,
+};
 use stackable_operator::k8s_openapi::api::core::v1::{Secret, SecretVolumeSource, Volume};
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::schemars::{self, JsonSchema};
@@ -43,6 +46,11 @@ pub enum Error {
     #[snafu(display("failed to retrieve AuthenticationClass {authentication_class}"))]
     AuthenticationClassRetrieval {
         source: stackable_operator::error::Error,
+        authentication_class: ObjectRef<AuthenticationClass>,
+    },
+    #[snafu(display("Nifi doesn't support the AuthenticationClass provider {authentication_class_provider} from AuthenticationClass {authentication_class}"))]
+    AuthenticationClassProviderNotSupported {
+        authentication_class_provider: String,
         authentication_class: ObjectRef<AuthenticationClass>,
     },
 }
@@ -85,6 +93,12 @@ pub async fn get_login_identity_provider_xml(
     config: &NifiAuthenticationConfig,
     current_namespace: &str,
 ) -> Result<String, Error> {
+    let mut identity_provider_xml = indoc! {r#"
+        <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+        <loginIdentityProviders>
+    "#}
+    .to_string();
+
     match &config.method {
         NifiAuthenticationMethod::SingleUser {
             admin_credentials_secret,
@@ -100,13 +114,43 @@ pub async fn get_login_identity_provider_xml(
             )
             .await?;
 
-            Ok(include_str!(
-                "../../operator-binary/resources/singleuser-login-identity-providers.xml"
-            )
-            .to_string())
+            identity_provider_xml.push_str(indoc! {r#"
+                <provider>
+                    <identifier>single-user-provider</identifier>
+                    <class>org.apache.nifi.authentication.single.user.SingleUserLoginIdentityProvider</class>
+                    <property name="Username">xxx_singleuser_username_xxx</property>
+                    <property name="Password">xxx_singleuser_password_xxx</property>
+                </provider>
+            "#});
         }
-        NifiAuthenticationMethod::AuthenticationClass(authentication_class_name) => todo!(),
+        NifiAuthenticationMethod::AuthenticationClass(authentication_class_name) => {
+            let authentication_class =
+                AuthenticationClass::resolve(client, authentication_class_name)
+                    .await
+                    .context(AuthenticationClassRetrievalSnafu {
+                        authentication_class: ObjectRef::<AuthenticationClass>::new(
+                            authentication_class_name,
+                        ),
+                    })?;
+
+            match authentication_class.spec.provider {
+                AuthenticationClassProvider::Ldap(_) => todo!(),
+                _ => return AuthenticationClassProviderNotSupportedSnafu {
+                    authentication_class_provider: authentication_class.spec.provider.to_string(),
+                    authentication_class: ObjectRef::<AuthenticationClass>::new(
+                        authentication_class_name,
+                    ),
+                }
+                .fail(),
+            }
+        }
     }
+
+    identity_provider_xml.push_str(indoc! {r#"
+        </loginIdentityProviders>
+    "#});
+
+    Ok(identity_provider_xml)
 }
 
 pub async fn get_auth_volumes(
@@ -134,7 +178,7 @@ pub async fn get_auth_volumes(
             Ok(result)
         }
         NifiAuthenticationMethod::AuthenticationClass(authentication_class_name) => {
-            let authentication_class =
+            let _authentication_class =
                 AuthenticationClass::resolve(client, authentication_class_name)
                     .await
                     .context(AuthenticationClassRetrievalSnafu {
