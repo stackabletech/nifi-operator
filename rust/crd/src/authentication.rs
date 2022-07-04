@@ -65,6 +65,8 @@ pub enum NifiAuthenticationMethod {
         #[serde(default)]
         auto_generate: bool,
     },
+    #[serde(rename_all = "camelCase")]
+    AuthenticationClass { authentication_class: String },
 }
 
 impl NifiAuthenticationConfig {
@@ -98,6 +100,9 @@ pub async fn get_login_identity_provider_xml(
             )
             .to_string())
         }
+        NifiAuthenticationMethod::AuthenticationClass {
+            authentication_class,
+        } => todo!(),
     }
 }
 
@@ -124,6 +129,9 @@ pub fn get_auth_volumes(
             );
             Ok(result)
         }
+        NifiAuthenticationMethod::AuthenticationClass {
+            authentication_class,
+        } => todo!(),
     }
 }
 
