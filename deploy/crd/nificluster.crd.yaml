@@ -39,12 +39,7 @@ spec:
                                 - authenticationClass
                           properties:
                             authenticationClass:
-                              properties:
-                                authenticationClass:
-                                  type: string
-                              required:
-                                - authenticationClass
-                              type: object
+                              type: string
                             singleUser:
                               properties:
                                 adminCredentialsSecret:

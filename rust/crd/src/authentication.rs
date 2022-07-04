@@ -71,8 +71,7 @@ pub enum NifiAuthenticationMethod {
         #[serde(default)]
         auto_generate: bool,
     },
-    #[serde(rename_all = "camelCase")]
-    AuthenticationClass { authentication_class: String },
+    AuthenticationClass(String),
 }
 
 impl NifiAuthenticationConfig {
@@ -106,9 +105,7 @@ pub async fn get_login_identity_provider_xml(
             )
             .to_string())
         }
-        NifiAuthenticationMethod::AuthenticationClass {
-            authentication_class,
-        } => todo!(),
+        NifiAuthenticationMethod::AuthenticationClass(authentication_class_name) => todo!(),
     }
 }
 
@@ -136,16 +133,15 @@ pub async fn get_auth_volumes(
             );
             Ok(result)
         }
-        NifiAuthenticationMethod::AuthenticationClass {
-            authentication_class,
-        } => {
-            let authentication_class = AuthenticationClass::resolve(client, authentication_class)
-                .await
-                .context(AuthenticationClassRetrievalSnafu {
-                    authentication_class: ObjectRef::<AuthenticationClass>::new(
-                        authentication_class,
-                    ),
-                })?;
+        NifiAuthenticationMethod::AuthenticationClass(authentication_class_name) => {
+            let authentication_class =
+                AuthenticationClass::resolve(client, authentication_class_name)
+                    .await
+                    .context(AuthenticationClassRetrievalSnafu {
+                        authentication_class: ObjectRef::<AuthenticationClass>::new(
+                            authentication_class_name,
+                        ),
+                    })?;
 
             todo!()
         }
