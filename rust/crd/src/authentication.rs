@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use stackable_operator::builder::ObjectMetaBuilder;
 use stackable_operator::client::Client;
+use stackable_operator::commons::authentication::AuthenticationClass;
 use stackable_operator::k8s_openapi::api::core::v1::{Secret, SecretVolumeSource, Volume};
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::schemars::{self, JsonSchema};
@@ -38,6 +39,11 @@ pub enum Error {
     ))]
     AdminCredentials {
         message: String,
+    },
+    #[snafu(display("failed to retrieve AuthenticationClass {authentication_class}"))]
+    AuthenticationClassRetrieval {
+        source: stackable_operator::error::Error,
+        authentication_class: ObjectRef<AuthenticationClass>,
     },
 }
 
@@ -106,7 +112,8 @@ pub async fn get_login_identity_provider_xml(
     }
 }
 
-pub fn get_auth_volumes(
+pub async fn get_auth_volumes(
+    client: &Client,
     method: &NifiAuthenticationMethod,
 ) -> Result<BTreeMap<String, (String, Volume)>, Error> {
     match method {
@@ -131,7 +138,17 @@ pub fn get_auth_volumes(
         }
         NifiAuthenticationMethod::AuthenticationClass {
             authentication_class,
-        } => todo!(),
+        } => {
+            let authentication_class = AuthenticationClass::resolve(client, authentication_class)
+                .await
+                .context(AuthenticationClassRetrievalSnafu {
+                    authentication_class: ObjectRef::<AuthenticationClass>::new(
+                        authentication_class,
+                    ),
+                })?;
+
+            todo!()
+        }
     }
 }
 
