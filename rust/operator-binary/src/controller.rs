@@ -1,14 +1,14 @@
 //! Ensures that `Pod`s are configured and running for each [`NifiCluster`]
 use crate::config;
 use crate::config::{
-    build_authorizers_xml, build_bootstrap_conf, build_logback_xml, build_nifi_properties,
-    build_state_management_xml, validated_product_config, NifiRepository, NIFI_BOOTSTRAP_CONF,
-    NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML,
+    build_bootstrap_conf, build_logback_xml, build_nifi_properties, build_state_management_xml,
+    validated_product_config, NifiRepository, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES,
+    NIFI_STATE_MANAGEMENT_XML,
 };
 use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_nifi_crd::{
-    authentication::{get_auth_volumes, AUTH_VOLUME_MOUNT_PATH},
+    authentication::{get_auth_configs, get_auth_volumes, AUTH_VOLUME_MOUNT_PATH},
     NifiCluster, NifiConfig, NifiLogConfig, NifiRole, NifiStorageConfig, HTTPS_PORT,
     HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
 };
@@ -386,6 +386,11 @@ async fn build_node_rolegroup_config_map(
         .clone()
         .with_context(|| ObjectHasNoNamespaceSnafu {})?;
 
+    let (authorizers_xml, login_identity_provider_xml) =
+        get_auth_configs(client, &nifi.spec.config.authentication, namespace)
+            .await
+            .context(MaterializeAuthConfigSnafu {})?;
+
     ConfigMapBuilder::new()
         .metadata(
             ObjectMetaBuilder::new()
@@ -429,17 +434,8 @@ async fn build_node_rolegroup_config_map(
             ),
         )
         .add_data(NIFI_STATE_MANAGEMENT_XML, build_state_management_xml())
-        .add_data(
-            "login-identity-providers.xml",
-            stackable_nifi_crd::authentication::get_login_identity_provider_xml(
-                client,
-                &nifi.spec.config.authentication,
-                namespace,
-            )
-            .await
-            .context(MaterializeAuthConfigSnafu {})?,
-        )
-        .add_data("authorizers.xml", build_authorizers_xml())
+        .add_data("authorizers.xml", authorizers_xml)
+        .add_data("login-identity-providers.xml", login_identity_provider_xml)
         .build()
         .with_context(|_| BuildRoleGroupConfigSnafu {
             rolegroup: rolegroup.clone(),

@@ -1,4 +1,4 @@
-use indoc::indoc;
+use indoc::{formatdoc, indoc};
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -8,6 +8,7 @@ use stackable_operator::client::Client;
 use stackable_operator::commons::authentication::{
     AuthenticationClass, AuthenticationClassProvider,
 };
+use stackable_operator::commons::ldap::LdapAuthenticationProvider;
 use stackable_operator::k8s_openapi::api::core::v1::{Secret, SecretVolumeSource, Volume};
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::schemars::{self, JsonSchema};
@@ -88,14 +89,20 @@ impl NifiAuthenticationConfig {
     }
 }
 
-pub async fn get_login_identity_provider_xml(
+/// Returns login_identity_provider.xml and authorizers.xml
+pub async fn get_auth_configs(
     client: &Client,
     config: &NifiAuthenticationConfig,
     current_namespace: &str,
-) -> Result<String, Error> {
-    let mut identity_provider_xml = indoc! {r#"
+) -> Result<(String, String), Error> {
+    let mut login_identity_provider_xml = indoc! {r#"
         <?xml version="1.0" encoding="UTF-8" standalone="no"?>
         <loginIdentityProviders>
+    "#}
+    .to_string();
+    let mut authorizers_xml = indoc! {r#"
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <authorizers>
     "#}
     .to_string();
 
@@ -114,13 +121,20 @@ pub async fn get_login_identity_provider_xml(
             )
             .await?;
 
-            identity_provider_xml.push_str(indoc! {r#"
+            login_identity_provider_xml.push_str(indoc! {r#"
                 <provider>
-                    <identifier>single-user-provider</identifier>
+                    <identifier>login-identity-provider</identifier>
                     <class>org.apache.nifi.authentication.single.user.SingleUserLoginIdentityProvider</class>
                     <property name="Username">xxx_singleuser_username_xxx</property>
                     <property name="Password">xxx_singleuser_password_xxx</property>
                 </provider>
+            "#});
+
+            authorizers_xml.push_str(indoc! {r#"
+                <authorizer>
+                    <identifier>authorizer</identifier>
+                    <class>org.apache.nifi.authorization.single.user.SingleUserAuthorizer</class>
+                </authorizer>
             "#});
         }
         NifiAuthenticationMethod::AuthenticationClass(authentication_class_name) => {
@@ -134,35 +148,47 @@ pub async fn get_login_identity_provider_xml(
                     })?;
 
             match authentication_class.spec.provider {
-                AuthenticationClassProvider::Ldap(_) => todo!(),
-                _ => return AuthenticationClassProviderNotSupportedSnafu {
-                    authentication_class_provider: authentication_class.spec.provider.to_string(),
-                    authentication_class: ObjectRef::<AuthenticationClass>::new(
-                        authentication_class_name,
-                    ),
+                AuthenticationClassProvider::Ldap(ldap) => {
+                    login_identity_provider_xml.push_str(&get_ldap_login_identity_provider(&ldap));
+                    authorizers_xml.push_str(&get_ldap_authorizer(&ldap, current_namespace));
                 }
-                .fail(),
+                _ => {
+                    return AuthenticationClassProviderNotSupportedSnafu {
+                        authentication_class_provider: authentication_class
+                            .spec
+                            .provider
+                            .to_string(),
+                        authentication_class: ObjectRef::<AuthenticationClass>::new(
+                            authentication_class_name,
+                        ),
+                    }
+                    .fail()
+                }
             }
         }
     }
 
-    identity_provider_xml.push_str(indoc! {r#"
+    login_identity_provider_xml.push_str(indoc! {r#"
         </loginIdentityProviders>
     "#});
+    authorizers_xml.push_str(indoc! {r#"
+        </authorizers>
+    "#});
 
-    Ok(identity_provider_xml)
+    Ok((authorizers_xml, login_identity_provider_xml))
 }
 
 pub async fn get_auth_volumes(
     client: &Client,
     method: &NifiAuthenticationMethod,
 ) -> Result<BTreeMap<String, (String, Volume)>, Error> {
+    let mut result = BTreeMap::new();
+
     match method {
         NifiAuthenticationMethod::SingleUser {
             admin_credentials_secret,
             ..
         } => {
-            let mut result = BTreeMap::new();
             let admin_volume = Volume {
                 name: AUTH_VOLUME_NAME.to_string(),
                 secret: Some(SecretVolumeSource {
@@ -175,7 +201,6 @@ pub async fn get_auth_volumes(
                 AUTH_VOLUME_NAME.to_string(),
                 (AUTH_VOLUME_MOUNT_PATH.to_string(), admin_volume),
             );
-            Ok(result)
         }
         NifiAuthenticationMethod::AuthenticationClass(authentication_class_name) => {
             let _authentication_class =
@@ -187,9 +212,11 @@ pub async fn get_auth_volumes(
                         ),
                     })?;
 
-            todo!()
+            //TODO Add volumes
         }
     }
+
+    Ok(result)
 }
 
 async fn check_or_generate_admin_credentials(
@@ -345,4 +372,68 @@ async fn check_or_generate_admin_credentials(
             Ok(true)
         }
     }
+}
+
+fn get_ldap_login_identity_provider(_ldap: &LdapAuthenticationProvider) -> String {
+    formatdoc! {r#"
+        <provider>
+            <identifier>login-identity-provider</identifier>
+            <class>org.apache.nifi.ldap.LdapProvider</class>
+            <property name="Authentication Strategy">SIMPLE</property>
+
+            <property name="Manager DN">cn=admin,dc=example,dc=org</property>
+            <property name="Manager Password">admin</property>
+
+            <property name="TLS - Keystore">/stackable/keystore/keystore.p12</property>
+            <property name="TLS - Keystore Password">secret</property>
+            <property name="TLS - Keystore Type">PKCS12</property>
+            <property name="TLS - Truststore">/stackable/keystore/truststore.p12</property>
+            <property name="TLS - Truststore Password">secret</property>
+            <property name="TLS - Truststore Type">PKCS12</property>
+            <property name="TLS - Client Auth">NONE</property>
+
+            <property name="Referral Strategy">THROW</property>
+            <property name="Connect Timeout">10 secs</property>
+            <property name="Read Timeout">10 secs</property>
+
+            <property name="Url">ldap://openldap.default.svc.cluster.local:1389</property>
+            <property name="User Search Base">ou=users,dc=example,dc=org</property>
+            <property name="User Search Filter">cn={{0}}</property>
+
+            <property name="Identity Strategy">USE_DN</property>
+            <property name="Authentication Expiration">12 hours</property>
+        </provider>
+    "#}
+}
+
+fn get_ldap_authorizer(_ldap: &LdapAuthenticationProvider, namespace: &str) -> String {
+    formatdoc! {r#"
+        <userGroupProvider>
+            <identifier>file-user-group-provider</identifier>
+            <class>org.apache.nifi.authorization.FileUserGroupProvider</class>
+            <property name="Users File">./conf/users.xml</property>
+            <property name="Initial User Identity admin">cn=integrationtest,ou=users,dc=example,dc=org</property>
+            <!-- <property name="Initial User Identity 0">CN=test-nifi-node-default-0.test-nifi-node-default.{namespace}.svc.cluster.local</property> -->
+            <!-- <property name="Initial User Identity 1">CN=test-nifi-node-default-1.test-nifi-node-default.{namespace}.svc.cluster.local</property> -->
+            <property name="Initial User Identity 42">CN=generated certificate for pod</property>
+        </userGroupProvider>
+
+        <accessPolicyProvider>
+            <identifier>file-access-policy-provider</identifier>
+            <class>org.apache.nifi.authorization.FileAccessPolicyProvider</class>
+            <property name="User Group Provider">file-user-group-provider</property>
+            <property name="Authorizations File">./conf/authorizations.xml</property>
+            <property name="Initial Admin Identity">cn=integrationtest,ou=users,dc=example,dc=org</property>
+
+            <!-- <property name="Node Identity 0">CN=test-nifi-node-default-0.test-nifi-node-default.{namespace}.svc.cluster.local</property> -->
+            <!-- <property name="Node Identity 1">CN=test-nifi-node-default-1.test-nifi-node-default.{namespace}.svc.cluster.local</property> -->
+            <property name="Node Identity 42">CN=generated certificate for pod</property>
+        </accessPolicyProvider>
+
+        <authorizer>
+            <identifier>authorizer</identifier>
+            <class>org.apache.nifi.authorization.StandardManagedAuthorizer</class>
+            <property name="Access Policy Provider">file-access-policy-provider</property>
+        </authorizer>
+    "#}
 }

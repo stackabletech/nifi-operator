@@ -1,0 +1,23 @@
+---
+apiVersion: authentication.stackable.tech/v1alpha1
+kind: AuthenticationClass
+metadata:
+  name: ldap
+spec:
+  provider:
+    ldap:
+      hostname: openldap.default.svc.cluster.local
+      port: 1389
+      searchBase: ou=users,dc=example,dc=org
+      bindCredentials:
+        secretClass: nifi-with-ldap-bind
+---
+apiVersion: secrets.stackable.tech/v1alpha1
+kind: SecretClass
+metadata:
+  name: nifi-with-ldap-bind
+spec:
+  backend:
+    k8sSearch:
+      searchNamespace:
+        pod: {}
