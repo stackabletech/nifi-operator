@@ -2,6 +2,6 @@
 
 include::commandline_args.adoc[]
 
-include::env_var_args.adoc[]
+include::partial$env_var_args.adoc[]
 
-include::config_properties.adoc[]
+include::partial$config_properties.adoc[]
