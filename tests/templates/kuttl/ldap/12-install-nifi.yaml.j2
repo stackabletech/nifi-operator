@@ -21,8 +21,8 @@ metadata:
   labels:
     secrets.stackable.tech/class: nifi-with-ldap-bind
 stringData:
-  user: cn=admin,dc=example,dc=org
-  password: admin
+  user: cn=integrationtest,ou=users,dc=example,dc=org
+  password: integrationtest
 ---
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster

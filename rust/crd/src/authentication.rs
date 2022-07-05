@@ -167,9 +167,8 @@ pub async fn get_auth_configs(
                         }
                         .fail();
                     }
-
                     login_identity_provider_xml.push_str(&get_ldap_login_identity_provider(ldap));
-                    authorizers_xml.push_str(&get_ldap_authorizer(ldap, current_namespace));
+                    authorizers_xml.push_str(&get_ldap_authorizer(ldap));
                 }
                 _ => {
                     return AuthenticationClassProviderNotSupportedSnafu {
@@ -259,6 +258,7 @@ pub async fn get_auth_volumes(
                         "echo Replacing ldap bind username and password in login-identity-provider.xml".to_string(),
                         format!("sed -i \"s|xxx_ldap_bind_username_xxx|$(cat /stackable/secrets/{volume_name}/user)|g\" /stackable/nifi/conf/login-identity-providers.xml"),
                         format!("sed -i \"s|xxx_ldap_bind_password_xxx|$(cat /stackable/secrets/{volume_name}/password)|g\" /stackable/nifi/conf/login-identity-providers.xml"),
+                        format!("sed -i \"s|xxx_ldap_bind_username_xxx|$(cat /stackable/secrets/{volume_name}/user)|g\" /stackable/nifi/conf/authorizers.xml"),
                         ]
                     );
                 }
@@ -512,19 +512,19 @@ fn get_ldap_login_identity_provider(ldap: &LdapAuthenticationProvider) -> String
     }
 }
 
-fn get_ldap_authorizer(_ldap: &LdapAuthenticationProvider, namespace: &str) -> String {
+fn get_ldap_authorizer(_ldap: &LdapAuthenticationProvider) -> String {
     formatdoc! {r#"
         <userGroupProvider>
             <identifier>file-user-group-provider</identifier>
             <class>org.apache.nifi.authorization.FileUserGroupProvider</class>
             <property name="Users File">./conf/users.xml</property>
-            <property name="Initial User Identity admin">cn=integrationtest,ou=users,dc=example,dc=org</property>
-            <property name="Initial User Identity other-nifis">CN=generated certificate for pod</property>
 
-            <!-- The following does not work for some reasons -->
-            <!-- <property name="Initial User Identity 0">CN=test-nifi-node-default-0.test-nifi-node-default.{namespace}.svc.cluster.local</property> -->
-            <!-- <property name="Initial User Identity 1">CN=test-nifi-node-default-1.test-nifi-node-default.{namespace}.svc.cluster.local</property> -->
-            <!-- <property name="Initial User Identity 2">CN=test-nifi-node-default-2.test-nifi-node-default.{namespace}.svc.cluster.local</property> -->
+            <!-- As we currently don't have authorization (including admin user) configurable we simply paste in the ldap bind user in here -->
+            <!-- In the future the whole authorization may be reworked to OPA -->
+            <property name="Initial User Identity admin">xxx_ldap_bind_username_xxx</property>
+
+            <!-- As the secret-operator provides the NiFi nodes with cert with a common name of "generated certificate for pod" we have to put that here -->
+            <property name="Initial User Identity other-nifis">CN=generated certificate for pod</property>
         </userGroupProvider>
 
         <accessPolicyProvider>
@@ -532,13 +532,13 @@ fn get_ldap_authorizer(_ldap: &LdapAuthenticationProvider, namespace: &str) -> S
             <class>org.apache.nifi.authorization.FileAccessPolicyProvider</class>
             <property name="User Group Provider">file-user-group-provider</property>
             <property name="Authorizations File">./conf/authorizations.xml</property>
-            <property name="Initial Admin Identity">cn=integrationtest,ou=users,dc=example,dc=org</property>
-            <property name="Node Identity other-nifis">CN=generated certificate for pod</property>
 
-            <!-- The following does not work for some reasons -->
-            <!-- <property name="Node Identity 0">CN=test-nifi-node-default-0.test-nifi-node-default.{namespace}.svc.cluster.local</property> -->
-            <!-- <property name="Node Identity 1">CN=test-nifi-node-default-1.test-nifi-node-default.{namespace}.svc.cluster.local</property> -->
-            <!-- <property name="Node Identity 2">CN=test-nifi-node-default-2.test-nifi-node-default.{namespace}.svc.cluster.local</property> -->
+            <!-- As we currently don't have authorization (including admin user) configurable we simply paste in the ldap bind user in here -->
+            <!-- In the future the whole authorization may be reworked to OPA -->
+            <property name="Initial Admin Identity">xxx_ldap_bind_username_xxx</property>
+
+            <!-- As the secret-operator provides the NiFi nodes with cert with a common name of "generated certificate for pod" we have to put that here -->
+            <property name="Node Identity other-nifis">CN=generated certificate for pod</property>
         </accessPolicyProvider>
 
         <authorizer>
