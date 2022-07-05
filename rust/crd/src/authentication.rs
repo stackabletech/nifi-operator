@@ -222,6 +222,13 @@ pub async fn get_auth_volumes(
                 AUTH_VOLUME_NAME.to_string(),
                 (AUTH_VOLUME_MOUNT_PATH.to_string(), admin_volume),
             );
+
+            commands.extend(vec![
+                "echo Replacing admin username and password in login-identity-provider.xml (if configured)".to_string(),
+                "sed -i \"s|xxx_singleuser_username_xxx|$(cat /stackable/adminuser/username)|g\" /stackable/nifi/conf/login-identity-providers.xml".to_string(),
+                "sed -i \"s|xxx_singleuser_password_xxx|$(cat /stackable/adminuser/password | java -jar /bin/stackable-bcrypt.jar)|g\" /stackable/nifi/conf/login-identity-providers.xml".to_string(),
+                ]
+            );
         }
         NifiAuthenticationMethod::AuthenticationClass(authentication_class_name) => {
             let authentication_class =
@@ -234,6 +241,27 @@ pub async fn get_auth_volumes(
                     })?;
 
             if let AuthenticationClassProvider::Ldap(ldap) = authentication_class.spec.provider {
+                if let Some(credentials) = ldap.bind_credentials {
+                    let volume_name = format!("{authentication_class_name}-bind-credentials");
+                    let secret_volume = VolumeBuilder::new(&volume_name)
+                        .ephemeral(
+                            SecretOperatorVolumeSourceBuilder::new(credentials.secret_class)
+                                .build(),
+                        )
+                        .build();
+
+                    volumes.insert(
+                        volume_name.clone(),
+                        (format!("/stackable/secrets/{volume_name}"), secret_volume),
+                    );
+
+                    commands.extend(vec![
+                        "echo Replacing ldap bind username and password in login-identity-provider.xml".to_string(),
+                        format!("sed -i \"s|xxx_ldap_bind_username_xxx|$(cat /stackable/secrets/{volume_name}/user)|g\" /stackable/nifi/conf/login-identity-providers.xml"),
+                        format!("sed -i \"s|xxx_ldap_bind_password_xxx|$(cat /stackable/secrets/{volume_name}/password)|g\" /stackable/nifi/conf/login-identity-providers.xml"),
+                        ]
+                    );
+                }
                 if let Some(Tls {
                     verification:
                         TlsVerification::Server(TlsServerVerification {
@@ -257,7 +285,7 @@ pub async fn get_auth_volumes(
                     );
 
                     commands.extend(vec![
-                        "echo Adding LDAP tls cert to global truststore to make things easier".to_string(),
+                        "echo Adding LDAP tls cert to global truststore".to_string(),
                         format!("keytool -importcert -file /stackable/certificates/{volume_name}/ca.crt -keystore /stackable/keystore/truststore.p12 -storetype pkcs12 -noprompt -alias ldap_ca_cert -storepass secret"),
                         ]
                     );
@@ -439,8 +467,8 @@ fn get_ldap_login_identity_provider(ldap: &LdapAuthenticationProvider) -> String
             <class>org.apache.nifi.ldap.LdapProvider</class>
             <property name="Authentication Strategy">{authentication_strategy}</property>
 
-            <property name="Manager DN">cn=admin,dc=example,dc=org</property>
-            <property name="Manager Password">admin</property>
+            <property name="Manager DN">xxx_ldap_bind_username_xxx</property>
+            <property name="Manager Password">xxx_ldap_bind_password_xxx</property>
 
             <property name="Referral Strategy">THROW</property>
             <property name="Connect Timeout">10 secs</property>
@@ -487,7 +515,7 @@ fn get_ldap_authorizer(_ldap: &LdapAuthenticationProvider, namespace: &str) -> S
             <class>org.apache.nifi.authorization.FileUserGroupProvider</class>
             <property name="Users File">./conf/users.xml</property>
             <property name="Initial User Identity admin">cn=integrationtest,ou=users,dc=example,dc=org</property>
-            <property name="Initial User Identity other nifis">CN=generated certificate for pod</property>
+            <property name="Initial User Identity other-nifis">CN=generated certificate for pod</property>
 
             <!-- The following does not work for some reasons -->
             <!-- <property name="Initial User Identity 0">CN=test-nifi-node-default-0.test-nifi-node-default.{namespace}.svc.cluster.local</property> -->
@@ -501,7 +529,7 @@ fn get_ldap_authorizer(_ldap: &LdapAuthenticationProvider, namespace: &str) -> S
             <property name="User Group Provider">file-user-group-provider</property>
             <property name="Authorizations File">./conf/authorizations.xml</property>
             <property name="Initial Admin Identity">cn=integrationtest,ou=users,dc=example,dc=org</property>
-            <property name="Node Identity other nifis">CN=generated certificate for pod</property>
+            <property name="Node Identity other-nifis">CN=generated certificate for pod</property>
 
             <!-- The following does not work for some reasons -->
             <!-- <property name="Node Identity 0">CN=test-nifi-node-default-0.test-nifi-node-default.{namespace}.svc.cluster.local</property> -->
