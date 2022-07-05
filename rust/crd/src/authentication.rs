@@ -492,10 +492,14 @@ fn get_ldap_login_identity_provider(ldap: &LdapAuthenticationProvider) -> String
             <property name="Authentication Expiration">7 days</property>
         </provider>
     "#,
-        authentication_strategy = if ldap.tls.is_some() {
-            "LDAPS"
+        authentication_strategy = if ldap.bind_credentials.is_some() {
+            if ldap.tls.is_some() {
+                "LDAPS"
+            } else {
+                "SIMPLE"
+            }
         } else {
-            "SIMPLE"
+            "ANONYMOUS"
         },
         protocol = if ldap.tls.is_some() {
             "ldaps"
