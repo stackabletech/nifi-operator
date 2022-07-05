@@ -3,12 +3,15 @@ use rand::distributions::Alphanumeric;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
-use stackable_operator::builder::ObjectMetaBuilder;
+use stackable_operator::builder::{
+    ObjectMetaBuilder, SecretOperatorVolumeSourceBuilder, VolumeBuilder,
+};
 use stackable_operator::client::Client;
 use stackable_operator::commons::authentication::{
     AuthenticationClass, AuthenticationClassProvider,
 };
 use stackable_operator::commons::ldap::LdapAuthenticationProvider;
+use stackable_operator::commons::tls::{CaCert, Tls, TlsServerVerification, TlsVerification};
 use stackable_operator::k8s_openapi::api::core::v1::{Secret, SecretVolumeSource, Volume};
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::schemars::{self, JsonSchema};
@@ -52,6 +55,10 @@ pub enum Error {
     #[snafu(display("Nifi doesn't support the AuthenticationClass provider {authentication_class_provider} from AuthenticationClass {authentication_class}"))]
     AuthenticationClassProviderNotSupported {
         authentication_class_provider: String,
+        authentication_class: ObjectRef<AuthenticationClass>,
+    },
+    #[snafu(display("Nifi doesn't support skipping the LDAP TLS verification of the AuthenticationClass {authentication_class}"))]
+    NoLdapTlsVerificationNotSupported {
         authentication_class: ObjectRef<AuthenticationClass>,
     },
 }
@@ -147,10 +154,22 @@ pub async fn get_auth_configs(
                         ),
                     })?;
 
-            match authentication_class.spec.provider {
+            match &authentication_class.spec.provider {
                 AuthenticationClassProvider::Ldap(ldap) => {
-                    login_identity_provider_xml.push_str(&get_ldap_login_identity_provider(&ldap));
-                    authorizers_xml.push_str(&get_ldap_authorizer(&ldap, current_namespace));
+                    if let Some(Tls {
+                        verification: TlsVerification::None {},
+                    }) = &ldap.tls
+                    {
+                        return NoLdapTlsVerificationNotSupportedSnafu {
+                            authentication_class: ObjectRef::<AuthenticationClass>::new(
+                                authentication_class_name,
+                            ),
+                        }
+                        .fail();
+                    }
+
+                    login_identity_provider_xml.push_str(&get_ldap_login_identity_provider(ldap));
+                    authorizers_xml.push_str(&get_ldap_authorizer(ldap, current_namespace));
                 }
                 _ => {
                     return AuthenticationClassProviderNotSupportedSnafu {
@@ -178,11 +197,13 @@ pub async fn get_auth_configs(
     Ok((authorizers_xml, login_identity_provider_xml))
 }
 
+/// Returns a BTreeMap of volumes to add and a list of extra commands for the init container
 pub async fn get_auth_volumes(
     client: &Client,
     method: &NifiAuthenticationMethod,
-) -> Result<BTreeMap<String, (String, Volume)>, Error> {
-    let mut result = BTreeMap::new();
+) -> Result<(BTreeMap<String, (String, Volume)>, Vec<String>), Error> {
+    let mut volumes = BTreeMap::new();
+    let mut commands = Vec::new();
 
     match method {
         NifiAuthenticationMethod::SingleUser {
@@ -197,13 +218,13 @@ pub async fn get_auth_volumes(
                 }),
                 ..Volume::default()
             };
-            result.insert(
+            volumes.insert(
                 AUTH_VOLUME_NAME.to_string(),
                 (AUTH_VOLUME_MOUNT_PATH.to_string(), admin_volume),
             );
         }
         NifiAuthenticationMethod::AuthenticationClass(authentication_class_name) => {
-            let _authentication_class =
+            let authentication_class =
                 AuthenticationClass::resolve(client, authentication_class_name)
                     .await
                     .context(AuthenticationClassRetrievalSnafu {
@@ -212,11 +233,40 @@ pub async fn get_auth_volumes(
                         ),
                     })?;
 
-            //TODO Add volumes
+            if let AuthenticationClassProvider::Ldap(ldap) = authentication_class.spec.provider {
+                if let Some(Tls {
+                    verification:
+                        TlsVerification::Server(TlsServerVerification {
+                            ca_cert: CaCert::SecretClass(secret_class_name),
+                        }),
+                }) = ldap.tls
+                {
+                    let volume_name = format!("{authentication_class_name}-tls-certificate");
+                    let secret_volume = VolumeBuilder::new(&volume_name)
+                        .ephemeral(
+                            SecretOperatorVolumeSourceBuilder::new(secret_class_name).build(),
+                        )
+                        .build();
+
+                    volumes.insert(
+                        volume_name.clone(),
+                        (
+                            format!("/stackable/certificates/{volume_name}"),
+                            secret_volume,
+                        ),
+                    );
+
+                    commands.extend(vec![
+                        "echo Adding LDAP tls cert to global truststore to make things easier".to_string(),
+                        format!("keytool -importcert -file /stackable/certificates/{volume_name}/ca.crt -keystore /stackable/keystore/truststore.p12 -storetype pkcs12 -noprompt -alias ldap_ca_cert -storepass secret"),
+                        ]
+                    );
+                }
+            }
         }
     }
 
-    Ok(result)
+    Ok((volumes, commands))
 }
 
 async fn check_or_generate_admin_credentials(
@@ -374,36 +424,60 @@ async fn check_or_generate_admin_credentials(
     }
 }
 
-fn get_ldap_login_identity_provider(_ldap: &LdapAuthenticationProvider) -> String {
+fn get_ldap_login_identity_provider(ldap: &LdapAuthenticationProvider) -> String {
+    let mut search_filter = ldap.search_filter.clone();
+
+    // If no search_filter is specified we will set a default filter that just searches for the user logging in using the specified uid field name
+    if search_filter.is_empty() {
+        search_filter
+            .push_str(format!("{uidField}={{0}}", uidField = ldap.ldap_field_names.uid).as_str());
+    }
+
     formatdoc! {r#"
         <provider>
             <identifier>login-identity-provider</identifier>
             <class>org.apache.nifi.ldap.LdapProvider</class>
-            <property name="Authentication Strategy">SIMPLE</property>
+            <property name="Authentication Strategy">{authentication_strategy}</property>
 
             <property name="Manager DN">cn=admin,dc=example,dc=org</property>
             <property name="Manager Password">admin</property>
 
+            <property name="Referral Strategy">THROW</property>
+            <property name="Connect Timeout">10 secs</property>
+            <property name="Read Timeout">10 secs</property>
+
+            <property name="Url">{protocol}://{hostname}:{port}</property>
+            <property name="User Search Base">{search_base}</property>
+            <property name="User Search Filter">{search_filter}</property>
+
+            <property name="TLS - Client Auth">NONE</property>
             <property name="TLS - Keystore">/stackable/keystore/keystore.p12</property>
             <property name="TLS - Keystore Password">secret</property>
             <property name="TLS - Keystore Type">PKCS12</property>
             <property name="TLS - Truststore">/stackable/keystore/truststore.p12</property>
             <property name="TLS - Truststore Password">secret</property>
             <property name="TLS - Truststore Type">PKCS12</property>
-            <property name="TLS - Client Auth">NONE</property>
-
-            <property name="Referral Strategy">THROW</property>
-            <property name="Connect Timeout">10 secs</property>
-            <property name="Read Timeout">10 secs</property>
-
-            <property name="Url">ldap://openldap.default.svc.cluster.local:1389</property>
-            <property name="User Search Base">ou=users,dc=example,dc=org</property>
-            <property name="User Search Filter">cn={{0}}</property>
+            <property name="TLS - Protocol">TLSv1.2</property>
+            <property name="TLS - Shutdown Gracefully">true</property>
 
             <property name="Identity Strategy">USE_DN</property>
-            <property name="Authentication Expiration">12 hours</property>
+            <property name="Authentication Expiration">7 days</property>
         </provider>
-    "#}
+    "#,
+        authentication_strategy = if ldap.tls.is_some() {
+            "LDAPS"
+        } else {
+            "SIMPLE"
+        },
+        protocol = if ldap.tls.is_some() {
+            "ldaps"
+        } else {
+            "ldap"
+        },
+        hostname = ldap.hostname,
+        port = ldap.port.unwrap_or_else(|| ldap.default_port()),
+        search_base = ldap.search_base,
+    }
 }
 
 fn get_ldap_authorizer(_ldap: &LdapAuthenticationProvider, namespace: &str) -> String {
@@ -413,9 +487,12 @@ fn get_ldap_authorizer(_ldap: &LdapAuthenticationProvider, namespace: &str) -> S
             <class>org.apache.nifi.authorization.FileUserGroupProvider</class>
             <property name="Users File">./conf/users.xml</property>
             <property name="Initial User Identity admin">cn=integrationtest,ou=users,dc=example,dc=org</property>
+            <property name="Initial User Identity other nifis">CN=generated certificate for pod</property>
+
+            <!-- The following does not work for some reasons -->
             <!-- <property name="Initial User Identity 0">CN=test-nifi-node-default-0.test-nifi-node-default.{namespace}.svc.cluster.local</property> -->
             <!-- <property name="Initial User Identity 1">CN=test-nifi-node-default-1.test-nifi-node-default.{namespace}.svc.cluster.local</property> -->
-            <property name="Initial User Identity 42">CN=generated certificate for pod</property>
+            <!-- <property name="Initial User Identity 2">CN=test-nifi-node-default-2.test-nifi-node-default.{namespace}.svc.cluster.local</property> -->
         </userGroupProvider>
 
         <accessPolicyProvider>
@@ -424,10 +501,12 @@ fn get_ldap_authorizer(_ldap: &LdapAuthenticationProvider, namespace: &str) -> S
             <property name="User Group Provider">file-user-group-provider</property>
             <property name="Authorizations File">./conf/authorizations.xml</property>
             <property name="Initial Admin Identity">cn=integrationtest,ou=users,dc=example,dc=org</property>
+            <property name="Node Identity other nifis">CN=generated certificate for pod</property>
 
+            <!-- The following does not work for some reasons -->
             <!-- <property name="Node Identity 0">CN=test-nifi-node-default-0.test-nifi-node-default.{namespace}.svc.cluster.local</property> -->
             <!-- <property name="Node Identity 1">CN=test-nifi-node-default-1.test-nifi-node-default.{namespace}.svc.cluster.local</property> -->
-            <property name="Node Identity 42">CN=generated certificate for pod</property>
+            <!-- <property name="Node Identity 2">CN=test-nifi-node-default-2.test-nifi-node-default.{namespace}.svc.cluster.local</property> -->
         </accessPolicyProvider>
 
         <authorizer>
