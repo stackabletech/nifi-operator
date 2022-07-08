@@ -386,7 +386,7 @@ async fn build_node_rolegroup_config_map(
         .clone()
         .with_context(|| ObjectHasNoNamespaceSnafu {})?;
 
-    let (authorizers_xml, login_identity_provider_xml) =
+    let (login_identity_provider_xml, authorizers_xml) =
         get_auth_configs(client, &nifi.spec.config.authentication, namespace)
             .await
             .context(MaterializeAuthConfigSnafu {})?;
@@ -434,8 +434,8 @@ async fn build_node_rolegroup_config_map(
             ),
         )
         .add_data(NIFI_STATE_MANAGEMENT_XML, build_state_management_xml())
-        .add_data("authorizers.xml", authorizers_xml)
         .add_data("login-identity-providers.xml", login_identity_provider_xml)
+        .add_data("authorizers.xml", authorizers_xml)
         .build()
         .with_context(|_| BuildRoleGroupConfigSnafu {
             rolegroup: rolegroup.clone(),

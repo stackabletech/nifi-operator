@@ -193,7 +193,7 @@ pub async fn get_auth_configs(
         </authorizers>
     "#});
 
-    Ok((authorizers_xml, login_identity_provider_xml))
+    Ok((login_identity_provider_xml, authorizers_xml))
 }
 
 /// Returns a BTreeMap of volumes to add and a list of extra commands for the init container
