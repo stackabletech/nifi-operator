@@ -144,7 +144,7 @@ Because of this the operator currently infers the authorization method to use fr
 
 === Single user
 For this authentication method the Single user authorization will be used.
-Basically the single is allowed to do anything.
+Basically the single user is allowed to do everything.
 
 === LDAP
 In the future retrieving groups from LDAP and providing policies via OPA is planned.
