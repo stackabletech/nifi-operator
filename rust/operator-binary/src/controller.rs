@@ -222,6 +222,11 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             // For more information see <https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#proxy_configuration>
             let proxy_hosts = get_proxy_hosts(client, &nifi, &updated_role_service).await?;
 
+            let (auth_volumes, additional_auth_args) =
+                get_auth_volumes(client, &nifi.spec.config.authentication.method)
+                    .await
+                    .context(MaterializeAuthConfigSnafu)?;
+
             let rg_configmap = build_node_rolegroup_config_map(
                 client,
                 &nifi,
@@ -235,16 +240,18 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             let rg_log_configmap = build_node_rolegroup_log_config_map(&nifi, &rolegroup)?;
 
             let rg_statefulset = build_node_rolegroup_statefulset(
-                client,
                 &nifi,
                 &rolegroup,
                 rolegroup_config,
                 role,
                 &resource_definition,
+                &auth_volumes,
+                &additional_auth_args,
             )
             .await?;
 
-            let reporting_task_job = build_reporting_task_job(client, &nifi, &rolegroup).await?;
+            let reporting_task_job =
+                build_reporting_task_job(&nifi, &rolegroup, &auth_volumes).await?;
 
             client
                 .apply_patch(FIELD_MANAGER_SCOPE, &rg_service, &rg_service)
@@ -537,12 +544,13 @@ fn resolve_resource_config_for_rolegroup(
 /// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the
 /// corresponding [`Service`] (from [`build_node_rolegroup_service`]).
 async fn build_node_rolegroup_statefulset(
-    client: &Client,
     nifi: &NifiCluster,
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
     config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     role: &Role<NifiConfig>,
     resource_definition: &Resources<NifiStorageConfig>,
+    auth_volumes: &BTreeMap<String, (String, Volume)>,
+    additional_auth_args: &[String],
 ) -> Result<StatefulSet> {
     tracing::debug!("Building statefulset");
     let zookeeper_host = "ZOOKEEPER_HOSTS";
@@ -645,11 +653,7 @@ async fn build_node_rolegroup_statefulset(
         format!("sed -i \"s|yyyyyy|${{{}}}|g\" /stackable/nifi/conf/state-management.xml",zookeeper_chroot)
     ];
 
-    let (auth_volumes, additional_args) =
-        get_auth_volumes(client, &nifi.spec.config.authentication.method)
-            .await
-            .context(MaterializeAuthConfigSnafu)?;
-    args.extend(additional_args);
+    args.extend_from_slice(additional_auth_args);
 
     let mut container_prepare = ContainerBuilder::new("prepare")
         .image(STACKABLE_TOOLS_IMAGE)
@@ -687,7 +691,7 @@ async fn build_node_rolegroup_statefulset(
         .add_volume_mount("sensitiveproperty", "/stackable/sensitiveproperty")
         .build();
 
-    for (name, (mount_path, _volume)) in &auth_volumes {
+    for (name, (mount_path, _volume)) in auth_volumes {
         container_prepare
             .volume_mounts
             .get_or_insert_with(Vec::default)
@@ -814,9 +818,11 @@ async fn build_node_rolegroup_statefulset(
         })
         .clone();
 
-    for (_name, (_mount_path, volume)) in auth_volumes {
-        pod_template_builder = pod_template_builder.add_volume(volume).clone();
-    }
+    auth_volumes
+        .iter()
+        .for_each(|(_name, (_mount_path, volume))| {
+            pod_template_builder.add_volume(volume.clone());
+        });
 
     let mut pod_template = pod_template_builder.build_template();
 
@@ -931,9 +937,9 @@ async fn build_node_rolegroup_statefulset(
 /// [`secret-operator`](https://github.com/stackabletech/secret-operator)
 ///
 async fn build_reporting_task_job(
-    client: &Client,
     nifi: &NifiCluster,
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
+    auth_volumes: &BTreeMap<String, (String, Volume)>,
 ) -> Result<Job> {
     let rolegroup_obj_name = rolegroup_ref.object_name();
     let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
@@ -971,11 +977,6 @@ async fn build_reporting_task_job(
     // The Volume for the secret operator key store certificates
     let mut volumes = vec![build_keystore_volume(KEYSTORE_VOLUME_NAME)];
 
-    // Volume and Volume mounts for the authentication secret
-    let (auth_volumes, _) = get_auth_volumes(client, &nifi.spec.config.authentication.method)
-        .await
-        .context(MaterializeAuthConfigSnafu)?;
-
     for (name, (mount_path, volume)) in auth_volumes {
         container
             .volume_mounts
@@ -985,7 +986,7 @@ async fn build_reporting_task_job(
                 name: name.to_string(),
                 ..VolumeMount::default()
             });
-        volumes.push(volume);
+        volumes.push(volume.clone());
     }
 
     let job_name = format!(
