@@ -270,36 +270,12 @@ dependencies = [
 
 [[package]]
 name = "darling"
-version = "0.13.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a01d95850c592940db9b8194bc39f4bc0e89dee5c4265e4b1807c34a9aba453c"
-dependencies = [
- "darling_core 0.13.4",
- "darling_macro 0.13.4",
-]
-
-[[package]]
-name = "darling"
 version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4529658bdda7fd6769b8614be250cdcfc3aeb0ee72fe66f9e41e5e5eb73eac02"
 dependencies = [
- "darling_core 0.14.1",
- "darling_macro 0.14.1",
-]
-
-[[package]]
-name = "darling_core"
-version = "0.13.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "859d65a907b6852c9361e3185c862aae7fafd2887876799fa55f5f99dc40d610"
-dependencies = [
- "fnv",
- "ident_case",
- "proc-macro2",
- "quote",
- "strsim",
- "syn",
+ "darling_core",
+ "darling_macro",
 ]
 
 [[package]]
@@ -318,22 +294,11 @@ dependencies = [
 
 [[package]]
 name = "darling_macro"
-version = "0.13.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c972679f83bdf9c42bd905396b6c3588a843a17f0f16dfcfa3e2c5d57441835"
-dependencies = [
- "darling_core 0.13.4",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "darling_macro"
 version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ddfc69c5bfcbd2fc09a0f38451d2daf0e372e367986a83906d1b0dbc88134fb5"
 dependencies = [
- "darling_core 0.14.1",
+ "darling_core",
  "quote",
  "syn",
 ]
@@ -850,9 +815,9 @@ dependencies = [
 
 [[package]]
 name = "k8s-openapi"
-version = "0.14.0"
+version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0489fc937cc7616a9abfa61bf39c250d7e32e1325ef028c8d9278dd24ea395b3"
+checksum = "d2ae2c04fcee6b01b04e3aadd56bb418932c8e0a9d8a93f48bc68c6bdcdb559d"
 dependencies = [
  "base64",
  "bytes",
@@ -865,9 +830,9 @@ dependencies = [
 
 [[package]]
 name = "kube"
-version = "0.71.0"
+version = "0.73.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "342744dfeb81fe186b84f485b33f12c6a15d3396987d933b06a566a3db52ca38"
+checksum = "f68b954ea9ad888de953fb1488bd8f377c4c78d82d4642efa5925189210b50b7"
 dependencies = [
  "k8s-openapi",
  "kube-client",
@@ -878,9 +843,9 @@ dependencies = [
 
 [[package]]
 name = "kube-client"
-version = "0.71.0"
+version = "0.73.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f69a504997799340408635d6e351afb8aab2c34ca3165e162f41b3b34a69a79"
+checksum = "9150dc7107d9acf4986088f284a0a6dddc5ae37ef1ffdf142f6811dc5998dd58"
 dependencies = [
  "base64",
  "bytes",
@@ -915,9 +880,9 @@ dependencies = [
 
 [[package]]
 name = "kube-core"
-version = "0.71.0"
+version = "0.73.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4a247487699941baaf93438d65b12d4e32450bea849d619d19ed394e8a4a645"
+checksum = "bc8c429676abe6a73b374438d5ca02caaf9ae7a635441253c589b779fa5d0622"
 dependencies = [
  "chrono",
  "form_urlencoded",
@@ -933,11 +898,11 @@ dependencies = [
 
 [[package]]
 name = "kube-derive"
-version = "0.71.0"
+version = "0.73.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "203f7c5acf9d0dfb0b08d44ec1d66ace3d1dfe0cdd82e65e274f3f96615d666c"
+checksum = "bfb405f0d39181acbfdc7c79e3fc095330c9b6465ab50aeb662d762e53b662f1"
 dependencies = [
- "darling 0.13.4",
+ "darling",
  "proc-macro2",
  "quote",
  "serde_json",
@@ -946,9 +911,9 @@ dependencies = [
 
 [[package]]
 name = "kube-runtime"
-version = "0.71.0"
+version = "0.73.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02ea50e6ed56578e1d1d02548901b12fe6d3edbf110269a396955e285d487973"
+checksum = "b6e9e9da456f0101b77f864a9da44866b9891ad4740db508b4b269343ebeb01d"
 dependencies = [
  "ahash",
  "backoff",
@@ -1487,9 +1452,9 @@ dependencies = [
 
 [[package]]
 name = "schemars"
-version = "0.8.8"
+version = "0.8.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6b5a3c80cea1ab61f4260238409510e814e38b4b563c06044edf91e7dc070e3"
+checksum = "1847b767a3d62d95cbf3d8a9f0e421cf57a0d8aa4f411d4b16525afb0284d4ed"
 dependencies = [
  "dyn-clone",
  "schemars_derive",
@@ -1499,9 +1464,9 @@ dependencies = [
 
 [[package]]
 name = "schemars_derive"
-version = "0.8.8"
+version = "0.8.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41ae4dce13e8614c46ac3c38ef1c0d668b101df6ac39817aebdaa26642ddae9b"
+checksum = "af4d7e1b012cb3d9129567661a63755ea4b8a7386d339dc945ae187e403c6743"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1589,9 +1554,9 @@ dependencies = [
 
 [[package]]
 name = "serde_derive_internals"
-version = "0.25.0"
+version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1dbab34ca63057a1f15280bdf3c39f2b1eb1b54c17e98360e511637aef7418c6"
+checksum = "85bf8229e7920a9f636479437026331ce11aa132b4dde37d121944a44d6e5f3c"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1723,8 +1688,8 @@ dependencies = [
 
 [[package]]
 name = "stackable-operator"
-version = "0.21.1"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.21.1#01b0aa2069580b9f2088a4409a63436f9917004b"
+version = "0.22.0"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.22.0#5543877169d27770578e634d0d734aa6126f838c"
 dependencies = [
  "backoff",
  "chrono",
@@ -1757,10 +1722,10 @@ dependencies = [
 
 [[package]]
 name = "stackable-operator-derive"
-version = "0.21.1"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.21.1#01b0aa2069580b9f2088a4409a63436f9917004b"
+version = "0.22.0"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.22.0#5543877169d27770578e634d0d734aa6126f838c"
 dependencies = [
- "darling 0.14.1",
+ "darling",
  "proc-macro2",
  "quote",
  "syn",
@@ -2028,9 +1993,9 @@ dependencies = [
 
 [[package]]
 name = "tower-http"
-version = "0.2.5"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aba3f3efabf7fb41fae8534fc20a817013dd1c12cb45441efb6c82e6556b4cd8"
+checksum = "3c530c8675c1dbf98facee631536fa116b5fb6382d7dd6dc1b118d970eafe3ba"
 dependencies = [
  "base64",
  "bitflags",
