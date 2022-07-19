@@ -196,13 +196,27 @@ pub async fn get_auth_configs(
     Ok((login_identity_provider_xml, authorizers_xml))
 }
 
-/// Returns a BTreeMap of volumes to add and a list of extra commands for the init container
+/// Returns
+/// - BTreeMap of volumes to add
+/// - A list of extra commands for the init container
+/// - The file which contains the admin username
+/// - The file which contains the admin password
 pub async fn get_auth_volumes(
     client: &Client,
     method: &NifiAuthenticationMethod,
-) -> Result<(BTreeMap<String, (String, Volume)>, Vec<String>), Error> {
+) -> Result<
+    (
+        BTreeMap<String, (String, Volume)>,
+        Vec<String>,
+        String,
+        String,
+    ),
+    Error,
+> {
     let mut volumes = BTreeMap::new();
     let mut commands = Vec::new();
+    let mut admin_username_file = String::new();
+    let mut admin_password_file = String::new();
 
     match method {
         NifiAuthenticationMethod::SingleUser {
@@ -221,11 +235,13 @@ pub async fn get_auth_volumes(
                 AUTH_VOLUME_NAME.to_string(),
                 (AUTH_VOLUME_MOUNT_PATH.to_string(), admin_volume),
             );
+            admin_username_file = format!("{AUTH_VOLUME_MOUNT_PATH}/username");
+            admin_password_file = format!("{AUTH_VOLUME_MOUNT_PATH}/password");
 
             commands.extend(vec![
                 "echo Replacing admin username and password in login-identity-provider.xml (if configured)".to_string(),
-                "sed -i \"s|xxx_singleuser_username_xxx|$(cat /stackable/adminuser/username)|g\" /stackable/nifi/conf/login-identity-providers.xml".to_string(),
-                "sed -i \"s|xxx_singleuser_password_xxx|$(cat /stackable/adminuser/password | java -jar /bin/stackable-bcrypt.jar)|g\" /stackable/nifi/conf/login-identity-providers.xml".to_string(),
+                format!("sed -i \"s|xxx_singleuser_username_xxx|$(cat {admin_username_file})|g\" /stackable/nifi/conf/login-identity-providers.xml"),
+                format!("sed -i \"s|xxx_singleuser_password_xxx|$(cat {admin_password_file} | java -jar /bin/stackable-bcrypt.jar)|g\" /stackable/nifi/conf/login-identity-providers.xml"),
                 ]
             );
         }
@@ -254,11 +270,14 @@ pub async fn get_auth_volumes(
                         (format!("/stackable/secrets/{volume_name}"), secret_volume),
                     );
 
+                    admin_username_file = format!("/stackable/secrets/{volume_name}/user");
+                    admin_password_file = format!("/stackable/secrets/{volume_name}/password");
+
                     commands.extend(vec![
                         "echo Replacing ldap bind username and password in login-identity-provider.xml".to_string(),
-                        format!("sed -i \"s|xxx_ldap_bind_username_xxx|$(cat /stackable/secrets/{volume_name}/user)|g\" /stackable/nifi/conf/login-identity-providers.xml"),
-                        format!("sed -i \"s|xxx_ldap_bind_password_xxx|$(cat /stackable/secrets/{volume_name}/password)|g\" /stackable/nifi/conf/login-identity-providers.xml"),
-                        format!("sed -i \"s|xxx_ldap_bind_username_xxx|$(cat /stackable/secrets/{volume_name}/user)|g\" /stackable/nifi/conf/authorizers.xml"),
+                        format!("sed -i \"s|xxx_ldap_bind_username_xxx|$(cat {admin_username_file})|g\" /stackable/nifi/conf/login-identity-providers.xml"),
+                        format!("sed -i \"s|xxx_ldap_bind_password_xxx|$(cat {admin_password_file})|g\" /stackable/nifi/conf/login-identity-providers.xml"),
+                        format!("sed -i \"s|xxx_ldap_bind_username_xxx|$(cat {admin_username_file})|g\" /stackable/nifi/conf/authorizers.xml"),
                         ]
                     );
                 }
@@ -294,7 +313,7 @@ pub async fn get_auth_volumes(
         }
     }
 
-    Ok((volumes, commands))
+    Ok((volumes, commands, admin_username_file, admin_password_file))
 }
 
 async fn check_or_generate_admin_credentials(

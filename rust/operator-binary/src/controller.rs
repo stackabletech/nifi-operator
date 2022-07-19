@@ -8,7 +8,7 @@ use crate::config::{
 use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_nifi_crd::{
-    authentication::{get_auth_configs, get_auth_volumes, AUTH_VOLUME_MOUNT_PATH},
+    authentication::{get_auth_configs, get_auth_volumes},
     NifiCluster, NifiConfig, NifiLogConfig, NifiRole, NifiStorageConfig, HTTPS_PORT,
     HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
 };
@@ -222,7 +222,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             // For more information see <https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#proxy_configuration>
             let proxy_hosts = get_proxy_hosts(client, &nifi, &updated_role_service).await?;
 
-            let (auth_volumes, additional_auth_args) =
+            let (auth_volumes, additional_auth_args, admin_username_file, admin_password_file) =
                 get_auth_volumes(client, &nifi.spec.config.authentication.method)
                     .await
                     .context(MaterializeAuthConfigSnafu)?;
@@ -250,8 +250,14 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             )
             .await?;
 
-            let reporting_task_job =
-                build_reporting_task_job(&nifi, &rolegroup, &auth_volumes).await?;
+            let reporting_task_job = build_reporting_task_job(
+                &nifi,
+                &rolegroup,
+                &auth_volumes,
+                &admin_username_file,
+                &admin_password_file,
+            )
+            .await?;
 
             client
                 .apply_patch(FIELD_MANAGER_SCOPE, &rg_service, &rg_service)
@@ -940,6 +946,8 @@ async fn build_reporting_task_job(
     nifi: &NifiCluster,
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
     auth_volumes: &BTreeMap<String, (String, Volume)>,
+    admin_username_file: &str,
+    admin_password_file: &str,
 ) -> Result<Job> {
     let rolegroup_obj_name = rolegroup_ref.object_name();
     let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
@@ -953,19 +961,23 @@ async fn build_reporting_task_job(
         port = HTTPS_PORT
     );
 
+    let args = vec![
+        "python/create_nifi_reporting_task.py".to_string(),
+        format!("-n {nifi_connect_url}"),
+        // In case of the username being simple (e.g. admin) just use it as is
+        // If the username is a bind dn (e.g. cn=integrationtest,ou=users,dc=example,dc=org) we have to extract the cn/dn/uid (in this case integrationtest)
+        format!(
+            "-u $(cat {admin_username_file} | grep -oP '((cn|dn|uid)=\\K[^,]+|.*)' | head -n 1)"
+        ),
+        format!("-p $(cat {admin_password_file})"),
+        format!("-v {product_version}"),
+        format!("-m {METRICS_PORT}"),
+        format!("-c {KEYSTORE_REPORTING_TASK_MOUNT}/ca.crt"),
+    ];
     let mut container = ContainerBuilder::new("create-reporting-task")
         .image(STACKABLE_TOOLS_IMAGE)
         .command(vec!["sh".to_string(), "-c".to_string()])
-        .args(vec![[
-            "python/create_nifi_reporting_task.py",
-            &format!("-n {}", nifi_connect_url),
-            &format!("-u $(cat {}/username)", AUTH_VOLUME_MOUNT_PATH),
-            &format!("-p $(cat {}/password)", AUTH_VOLUME_MOUNT_PATH),
-            &format!("-v {}", product_version),
-            &format!("-m {}", METRICS_PORT),
-            &format!("-c {}/ca.crt", KEYSTORE_REPORTING_TASK_MOUNT),
-        ]
-        .join(" ")])
+        .args(vec![args.join(" ")])
         // The VolumeMount for the secret operator key store certificates
         .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_REPORTING_TASK_MOUNT)
         .security_context(SecurityContext {
