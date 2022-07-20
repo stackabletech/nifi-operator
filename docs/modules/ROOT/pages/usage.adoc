@@ -165,8 +165,7 @@ The cluster definition also supports overriding configuration properties and env
 IMPORTANT: Do not override port numbers. This will lead to cluster malfunction.
 
 === Configuration Properties
-
-Currently, not supported for any file.
+You can override configuration properties in nifi.properties and bootstrap.conf by using configOverrides in your service configuration, as demonstrated in the xref:config_properties.adoc[configuration properties] docs.
 
 === Environment Variables
 
