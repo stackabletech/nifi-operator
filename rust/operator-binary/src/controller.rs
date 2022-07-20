@@ -34,11 +34,7 @@ use stackable_operator::{
         },
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
     },
-    kube::{
-        runtime::controller::{Action, Context},
-        runtime::reflector::ObjectRef,
-        ResourceExt,
-    },
+    kube::{runtime::controller::Action, runtime::reflector::ObjectRef, ResourceExt},
     labels::{role_group_selector_labels, role_selector_labels},
     logging::controller::ReconcilerError,
     product_config::{types::PropertyNameKind, ProductConfigManager},
@@ -165,9 +161,9 @@ impl ReconcilerError for Error {
     }
 }
 
-pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Context<Ctx>) -> Result<Action> {
+pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Action> {
     tracing::info!("Starting reconcile");
-    let client = &ctx.get_ref().client;
+    let client = &ctx.client;
     let nifi_product_version = nifi
         .product_version()
         .context(NifiVersionParseFailureSnafu)?;
@@ -184,7 +180,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Context<Ctx>) -> Result
         &nifi,
         nifi_product_version,
         nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?,
-        &ctx.get_ref().product_config,
+        &ctx.product_config,
     )
     .context(ProductConfigLoadFailedSnafu)?;
 
@@ -1182,6 +1178,6 @@ async fn get_proxy_hosts(
     Ok(proxy_setting.join(","))
 }
 
-pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {
+pub fn error_policy(_error: &Error, _ctx: Arc<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(10))
 }

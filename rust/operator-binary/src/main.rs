@@ -1,6 +1,8 @@
 mod config;
 mod controller;
 
+use std::sync::Arc;
+
 use clap::Parser;
 use futures::stream::StreamExt;
 use stackable_nifi_crd::NifiCluster;
@@ -10,11 +12,7 @@ use stackable_operator::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Service},
     },
-    kube::{
-        api::ListParams,
-        runtime::{controller::Context, Controller},
-        CustomResourceExt,
-    },
+    kube::{api::ListParams, runtime::Controller, CustomResourceExt},
     logging::controller::report_controller_reconciled,
 };
 
@@ -82,7 +80,7 @@ async fn main() -> anyhow::Result<()> {
             .run(
                 controller::reconcile_nifi,
                 controller::error_policy,
-                Context::new(controller::Ctx {
+                Arc::new(controller::Ctx {
                     client: client.clone(),
                     product_config,
                 }),
