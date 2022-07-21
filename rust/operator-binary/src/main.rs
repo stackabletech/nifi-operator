@@ -5,14 +5,22 @@ use std::sync::Arc;
 
 use clap::Parser;
 use futures::stream::StreamExt;
-use stackable_nifi_crd::NifiCluster;
+use stackable_nifi_crd::{
+    authentication::{NifiAuthenticationConfig, NifiAuthenticationMethod},
+    NifiCluster,
+};
 use stackable_operator::{
     cli::{Command, ProductOperatorRun},
+    commons::authentication::AuthenticationClass,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Service},
     },
-    kube::{api::ListParams, runtime::Controller, CustomResourceExt},
+    kube::{
+        api::ListParams,
+        runtime::{reflector::ObjectRef, Controller},
+        CustomResourceExt, ResourceExt,
+    },
     logging::controller::report_controller_reconciled,
 };
 
@@ -60,38 +68,70 @@ async fn main() -> anyhow::Result<()> {
                 stackable_operator::client::create_client(Some("nifi.stackable.tech".to_string()))
                     .await?;
 
-            Controller::new(
+            let nifi_controller = Controller::new(
                 watch_namespace.get_api::<NifiCluster>(&client),
                 ListParams::default(),
-            )
-            .owns(
-                watch_namespace.get_api::<Service>(&client),
-                ListParams::default(),
-            )
-            .owns(
-                watch_namespace.get_api::<StatefulSet>(&client),
-                ListParams::default(),
-            )
-            .owns(
-                watch_namespace.get_api::<ConfigMap>(&client),
-                ListParams::default(),
-            )
-            .shutdown_on_signal()
-            .run(
-                controller::reconcile_nifi,
-                controller::error_policy,
-                Arc::new(controller::Ctx {
-                    client: client.clone(),
-                    product_config,
-                }),
-            )
-            .map(|res| {
-                report_controller_reconciled(&client, "nificlusters.nifi.stackable.tech", &res)
-            })
-            .collect::<()>()
-            .await;
+            );
+
+            let nifi_store_1 = nifi_controller.store();
+
+            nifi_controller
+                .owns(
+                    watch_namespace.get_api::<Service>(&client),
+                    ListParams::default(),
+                )
+                .owns(
+                    watch_namespace.get_api::<StatefulSet>(&client),
+                    ListParams::default(),
+                )
+                .owns(
+                    watch_namespace.get_api::<ConfigMap>(&client),
+                    ListParams::default(),
+                )
+                .shutdown_on_signal()
+                .watches(
+                    watch_namespace.get_api::<AuthenticationClass>(&client),
+                    ListParams::default(),
+                    move |authentication_class| {
+                        nifi_store_1
+                            .state()
+                            .into_iter()
+                            .filter(move |nifi: &Arc<NifiCluster>| {
+                                references_authentication_class(
+                                    &nifi.spec.config.authentication,
+                                    &authentication_class,
+                                )
+                            })
+                            .map(|superset| ObjectRef::from_obj(&*superset))
+                    },
+                )
+                .run(
+                    controller::reconcile_nifi,
+                    controller::error_policy,
+                    Arc::new(controller::Ctx {
+                        client: client.clone(),
+                        product_config,
+                    }),
+                )
+                .map(|res| {
+                    report_controller_reconciled(&client, "nificlusters.nifi.stackable.tech", &res)
+                })
+                .collect::<()>()
+                .await;
         }
     }
 
     Ok(())
+}
+
+fn references_authentication_class(
+    authentication_config: &NifiAuthenticationConfig,
+    authentication_class: &AuthenticationClass,
+) -> bool {
+    match &authentication_config.method {
+        NifiAuthenticationMethod::AuthenticationClass(authentication_class_in_nifi) => {
+            authentication_class_in_nifi == &authentication_class.name()
+        }
+        _ => false,
+    }
 }
