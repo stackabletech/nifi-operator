@@ -89,3 +89,11 @@ rules:
       - nificlusters/status
     verbs:
       - patch
+  - apiGroups:
+      - authentication.stackable.tech
+    resources:
+      - authenticationclasses
+    verbs:
+      - get
+      - list
+      - watch

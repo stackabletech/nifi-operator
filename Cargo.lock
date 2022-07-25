@@ -742,6 +742,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "indoc"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05a0bd019339e5d968b37855180087b7b9d512c5046fbd244cf8c95687927d6e"
+
+[[package]]
 name = "instant"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1656,6 +1662,7 @@ dependencies = [
 name = "stackable-nifi-crd"
 version = "0.7.0-nightly"
 dependencies = [
+ "indoc",
  "rand",
  "serde",
  "serde_json",
@@ -1692,7 +1699,7 @@ dependencies = [
 [[package]]
 name = "stackable-operator"
 version = "0.22.0"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.22.0#5543877169d27770578e634d0d734aa6126f838c"
+source = "git+https://github.com/stackabletech/operator-rs.git?branch=main#5e87738d117c7ba87ba025f0a0c6c0cc1d171b41"
 dependencies = [
  "backoff",
  "chrono",
@@ -1726,7 +1733,7 @@ dependencies = [
 [[package]]
 name = "stackable-operator-derive"
 version = "0.22.0"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.22.0#5543877169d27770578e634d0d734aa6126f838c"
+source = "git+https://github.com/stackabletech/operator-rs.git?branch=main#5e87738d117c7ba87ba025f0a0c6c0cc1d171b41"
 dependencies = [
  "darling",
  "proc-macro2",

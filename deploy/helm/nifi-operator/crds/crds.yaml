@@ -37,7 +37,11 @@ spec:
                           oneOf:
                             - required:
                                 - singleUser
+                            - required:
+                                - authenticationClass
                           properties:
+                            authenticationClass:
+                              type: string
                             singleUser:
                               properties:
                                 adminCredentialsSecret:

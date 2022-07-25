@@ -489,11 +489,11 @@ pub fn build_nifi_properties(
     );
     properties.insert(
         "nifi.security.user.login.identity.provider".to_string(),
-        "single-user-provider".to_string(),
+        "login-identity-provider".to_string(),
     );
     properties.insert(
         "nifi.security.user.authorizer".to_string(),
-        "single-user-authorizer".to_string(),
+        "authorizer".to_string(),
     );
     properties.insert(
         "nifi.security.allow.anonymous.authentication".to_string(),
@@ -541,12 +541,8 @@ pub fn build_logback_xml(log_config: &NifiLogConfig) -> String {
         .replace("STACKABLEROOTLEVEL", &root_log_level.to_string())
 }
 
-pub fn build_authorizers_xml() -> String {
-    include_str!("../resources/authorizers.xml").to_string()
-}
-
 pub fn build_state_management_xml() -> String {
-    // The "xxx" Connect String is a placeholder and will be replaced via container
+    // The "xxxxxx" Connect String is a placeholder and will be replaced via container
     // command script
     format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
@@ -613,7 +609,7 @@ pub fn validated_product_config(
 }
 
 // TODO: Use crate like https://crates.io/crates/java-properties (currently does not work for Nifi
-//    because of escapes), to have save handling of escapes etc.
+// because of escapes), to have save handling of escapes etc.
 fn format_properties(properties: BTreeMap<String, String>) -> String {
     let mut result = String::new();
 

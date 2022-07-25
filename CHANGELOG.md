@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file.
   a single namespace to watch ([#223]).
 - Enable prometheus metrics via a `Job`. This is done via a python script that creates a ReportingTask via the NiFi REST API in the `tools` docker image ([#230]).
 - Monitoring scraping label prometheus.io/scrape: true ([#230]).
+- Add support for LDAP authentication ([#303])
 
 ### Changed
 
@@ -37,6 +38,7 @@ All notable changes to this project will be documented in this file.
 [#230]: https://github.com/stackabletech/nifi-operator/pull/230
 [#270]: https://github.com/stackabletech/nifi-operator/pull/270
 [#277]: https://github.com/stackabletech/nifi-operator/pull/277
+[#303]: https://github.com/stackabletech/nifi-operator/pull/303
 
 ## [0.5.0] - 2022-02-14
 
