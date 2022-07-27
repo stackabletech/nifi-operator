@@ -196,10 +196,10 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         .context(ApplyRoleServiceSnafu)?;
 
     let updated_role_service = client
-        .get(&nifi.name(), nifi.namespace().as_deref())
+        .get(&nifi.name_any(), nifi.namespace().as_deref())
         .await
         .with_context(|_| MissingServiceSnafu {
-            obj_ref: ObjectRef::new(&nifi.name()).within(namespace),
+            obj_ref: ObjectRef::new(&nifi.name_any()).within(namespace),
         })?;
 
     for (rolegroup_name, rolegroup_config) in nifi_node_config.iter() {
@@ -1003,7 +1003,7 @@ async fn build_reporting_task_job(
 
     let job_name = format!(
         "{}-create-reporting-task-{}",
-        nifi.name(),
+        nifi.name_any(),
         product_version.replace('.', "-")
     );
 

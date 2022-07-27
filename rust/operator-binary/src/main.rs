@@ -130,7 +130,7 @@ fn references_authentication_class(
 ) -> bool {
     match &authentication_config.method {
         NifiAuthenticationMethod::AuthenticationClass(authentication_class_in_nifi) => {
-            authentication_class_in_nifi == &authentication_class.name()
+            authentication_class_in_nifi == &authentication_class.name_any()
         }
         _ => false,
     }
