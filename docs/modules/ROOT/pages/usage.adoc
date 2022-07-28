@@ -153,16 +153,57 @@ The user specified in the LDAP bind will be the admin user which can log into th
 He is also able to create and modify groups and polices in the Webinterface.
 The changes made will be written to local files which are *not* persistent.
 
+== Updating NiFi
+
+Updating (or downgrading for that matter) the deployed version of NiFi is as simple as changing the version stated in the CRD.
+Continuing the example above, to change the deployed version from `1.16.3` to `1.16.2` you'd simply deploy the following CRD.
+
+[source,yaml]
+----
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: simple-nifi
+spec:
+  version: 1.16.2-stackable0.1.0 # <1>
+  zookeeperConfigMapName: simple-nifi-znode
+  config:
+    authentication:
+      method:
+        singleUser:
+          adminCredentialsSecret: nifi-admin-credentials-simple
+    sensitiveProperties:
+      keySecret: nifi-sensitive-property-key
+  nodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        config:
+          log:
+            rootLogLevel: INFO
+        replicas: 3
+----
+
+<1> Change the NiFi version here
+
+IMPORTANT: Due to a limitation in NiFi itself it is not possible to up- or downgrade a NiFi cluster in a rolling fashion.
+So any change to the NiFi version you make in this CRD will result in a full cluster restart with a short downtime.
+This does not affect the stackable image version, this can be changed in a rolling fashion, as long as the underlying NiFi version remains unchanged.
+
 == Monitoring
 
-The managed NiFi instances are automatically configured to export Prometheus metrics. See
+The managed NiFi instances are automatically configured to export Prometheus metrics.
+See
 xref:home:operators:monitoring.adoc[] for more details.
 
 == Configuration & Environment Overrides
 
 The cluster definition also supports overriding configuration properties and environment variables, either per role or per role group, where the more specific override (role group) has precedence over the less specific one (role).
 
-IMPORTANT: Do not override port numbers. This will lead to cluster malfunction.
+IMPORTANT: Do not override port numbers.
+This will lead to cluster malfunction.
 
 === Configuration Properties
 You can override configuration properties in nifi.properties and bootstrap.conf by using configOverrides in your service configuration, as demonstrated in the xref:config_properties.adoc[configuration properties] docs.

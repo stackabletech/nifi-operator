@@ -77,7 +77,7 @@ spec:
             rootLogLevel: INFO
           resources:
             memory:
-              limit: "1Gi"  # Option
+              limit: "2Gi"  # Option
             cpu:
               min: "2"  # Option
               max: "3" # Option

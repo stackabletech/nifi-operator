@@ -1,6 +1,5 @@
-pub mod authentication;
+use std::collections::BTreeMap;
 
-use crate::authentication::NifiAuthenticationConfig;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, Snafu};
 use stackable_operator::commons::resources::{
@@ -15,7 +14,10 @@ use stackable_operator::{
     role_utils::Role,
     schemars::{self, JsonSchema},
 };
-use std::collections::BTreeMap;
+
+use crate::authentication::NifiAuthenticationConfig;
+
+pub mod authentication;
 
 pub const APP_NAME: &str = "nifi";
 
@@ -138,7 +140,9 @@ pub enum NifiRole {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, Serialize)]
-pub struct NifiStatus {}
+pub struct NifiStatus {
+    pub deployed_version: Option<String>,
+}
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
