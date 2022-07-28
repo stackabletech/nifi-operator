@@ -7,9 +7,13 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Include chart name when installing with a custom release name ([#300], [#301]).
+- Orphaned resources are deleted ([#xxx])
 
 [#300]: https://github.com/stackabletech/nifi-operator/pull/300
+
 [#301]: https://github.com/stackabletech/nifi-operator/pull/301
+
+[#xxx]: https://github.com/stackabletech/nifi-operator/pull/xxx
 
 ## [0.6.0] - 2022-06-30
 

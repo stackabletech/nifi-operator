@@ -57,6 +57,9 @@ license-files = [
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
+private = [
+    "https://github.com//stackabletech"
+]
 
 [sources.allow-org]
 github = ["stackabletech"]
