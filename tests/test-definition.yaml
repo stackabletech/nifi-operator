@@ -10,7 +10,10 @@ dimensions:
     values:
       - 1.15.0-stackable0.4.0
       - 1.16.3-stackable0.1.0
-
+  - name: ldap-use-tls
+    values:
+      - "false"
+      - "true"
 tests:
   - name: smoke
     dimensions:
@@ -20,3 +23,8 @@ tests:
     dimensions:
       - nifi
       - zookeeper
+  - name: ldap
+    dimensions:
+      - nifi
+      - zookeeper
+      - ldap-use-tls
