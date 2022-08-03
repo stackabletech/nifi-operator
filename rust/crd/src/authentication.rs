@@ -239,7 +239,7 @@ pub async fn get_auth_volumes(
             admin_password_file = format!("{AUTH_VOLUME_MOUNT_PATH}/password");
 
             commands.extend(vec![
-                "echo Replacing admin username and password in login-identity-provider.xml (if configured)".to_string(),
+                "echo 'Replacing admin username and password in login-identity-provider.xml (if configured)'".to_string(),
                 format!("sed -i \"s|xxx_singleuser_username_xxx|$(cat {admin_username_file})|g\" /stackable/nifi/conf/login-identity-providers.xml"),
                 format!("sed -i \"s|xxx_singleuser_password_xxx|$(cat {admin_password_file} | java -jar /bin/stackable-bcrypt.jar)|g\" /stackable/nifi/conf/login-identity-providers.xml"),
                 ]
