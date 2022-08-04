@@ -1,9 +1,9 @@
 //! Ensures that `Pod`s are configured and running for each [`NifiCluster`]
-use crate::config;
-use crate::config::{
-    build_bootstrap_conf, build_logback_xml, build_nifi_properties, build_state_management_xml,
-    validated_product_config, NifiRepository, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES,
-    NIFI_STATE_MANAGEMENT_XML,
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+    time::Duration,
 };
 
 use rand::{distributions::Alphanumeric, Rng};
@@ -36,17 +36,11 @@ use stackable_operator::{
     product_config::{types::PropertyNameKind, ProductConfigManager},
     role_utils::RoleGroupRef,
 };
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-    time::Duration,
-};
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
 
 use stackable_nifi_crd::{
-    authentication::{get_auth_configs, get_auth_volumes, AUTH_VOLUME_MOUNT_PATH},
+    authentication::{get_auth_configs, get_auth_volumes},
     NifiCluster, NifiConfig, NifiLogConfig, NifiRole, NifiStorageConfig, HTTPS_PORT,
     HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
 };
@@ -54,9 +48,9 @@ use stackable_nifi_crd::{APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME};
 
 use crate::config;
 use crate::config::{
-    build_authorizers_xml, build_bootstrap_conf, build_logback_xml, build_nifi_properties,
-    build_state_management_xml, validated_product_config, NifiRepository, NIFI_BOOTSTRAP_CONF,
-    NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML,
+    build_bootstrap_conf, build_logback_xml, build_nifi_properties, build_state_management_xml,
+    validated_product_config, NifiRepository, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES,
+    NIFI_STATE_MANAGEMENT_XML,
 };
 
 const CONTROLLER_NAME: &str = "nifi-operator";
