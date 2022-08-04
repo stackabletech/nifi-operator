@@ -1,9 +1,9 @@
 //! Ensures that `Pod`s are configured and running for each [`NifiCluster`]
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-    time::Duration,
+use crate::config;
+use crate::config::{
+    build_bootstrap_conf, build_logback_xml, build_nifi_properties, build_state_management_xml,
+    validated_product_config, NifiRepository, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES,
+    NIFI_STATE_MANAGEMENT_XML,
 };
 
 use rand::{distributions::Alphanumeric, Rng};
@@ -36,11 +36,17 @@ use stackable_operator::{
     product_config::{types::PropertyNameKind, ProductConfigManager},
     role_utils::RoleGroupRef,
 };
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+    time::Duration,
+};
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
 
 use stackable_nifi_crd::{
-    authentication::{get_auth_volumes, AUTH_VOLUME_MOUNT_PATH},
+    authentication::{get_auth_configs, get_auth_volumes, AUTH_VOLUME_MOUNT_PATH},
     NifiCluster, NifiConfig, NifiLogConfig, NifiRole, NifiStorageConfig, HTTPS_PORT,
     HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
 };
@@ -244,6 +250,11 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             // For more information see <https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#proxy_configuration>
             let proxy_hosts = get_proxy_hosts(client, &nifi, &updated_role_service).await?;
 
+            let (auth_volumes, additional_auth_args, admin_username_file, admin_password_file) =
+                get_auth_volumes(client, &nifi.spec.config.authentication.method)
+                    .await
+                    .context(MaterializeAuthConfigSnafu)?;
+
             let rg_configmap = build_node_rolegroup_config_map(
                 client,
                 &nifi,
@@ -262,9 +273,19 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
                 rolegroup_config,
                 role,
                 &resource_definition,
-            )?;
+                &auth_volumes,
+                &additional_auth_args,
+            )
+            .await?;
 
-            let reporting_task_job = build_reporting_task_job(&nifi, &rolegroup)?;
+            let reporting_task_job = build_reporting_task_job(
+                &nifi,
+                &rolegroup,
+                &auth_volumes,
+                &admin_username_file,
+                &admin_password_file,
+            )
+            .await?;
 
             cluster_resources
                 .add(client, &rg_service)
@@ -411,6 +432,11 @@ async fn build_node_rolegroup_config_map(
         .clone()
         .with_context(|| ObjectHasNoNamespaceSnafu {})?;
 
+    let (login_identity_provider_xml, authorizers_xml) =
+        get_auth_configs(client, &nifi.spec.config.authentication, namespace)
+            .await
+            .context(MaterializeAuthConfigSnafu {})?;
+
     ConfigMapBuilder::new()
         .metadata(
             ObjectMetaBuilder::new()
@@ -455,17 +481,8 @@ async fn build_node_rolegroup_config_map(
             ),
         )
         .add_data(NIFI_STATE_MANAGEMENT_XML, build_state_management_xml())
-        .add_data(
-            "login-identity-providers.xml",
-            stackable_nifi_crd::authentication::get_login_identity_provider_xml(
-                client,
-                &nifi.spec.config.authentication,
-                namespace,
-            )
-            .await
-            .context(MaterializeAuthConfigSnafu {})?,
-        )
-        .add_data("authorizers.xml", build_authorizers_xml())
+        .add_data("login-identity-providers.xml", login_identity_provider_xml)
+        .add_data("authorizers.xml", authorizers_xml)
         .build()
         .with_context(|_| BuildRoleGroupConfigSnafu {
             rolegroup: rolegroup.clone(),
@@ -567,12 +584,14 @@ fn resolve_resource_config_for_rolegroup(
 ///
 /// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the
 /// corresponding [`Service`] (from [`build_node_rolegroup_service`]).
-fn build_node_rolegroup_statefulset(
+async fn build_node_rolegroup_statefulset(
     nifi: &NifiCluster,
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
     config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     role: &Role<NifiConfig>,
     resource_definition: &Resources<NifiStorageConfig>,
+    auth_volumes: &BTreeMap<String, (String, Volume)>,
+    additional_auth_args: &[String],
 ) -> Result<StatefulSet> {
     tracing::debug!("Building statefulset");
     let zookeeper_host = "ZOOKEEPER_HOSTS";
@@ -638,58 +657,61 @@ fn build_node_rolegroup_statefulset(
 
     let sensitive_key_secret = &nifi.spec.config.sensitive_properties.key_secret;
 
-    let auth_volumes = get_auth_volumes(&nifi.spec.config.authentication.method)
-        .context(MaterializeAuthConfigSnafu)?;
+    let mut args = vec![
+        "echo Storing password".to_string(),
+        format!("echo secret > {keystore_path}/password", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
+        "echo Cleaning up truststore - just in case".to_string(),
+        format!("rm -f {keystore_path}/truststore.p12", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
+        "echo Creating truststore".to_string(),
+        format!("keytool -importcert -file {keystore_path}/ca.crt -keystore {keystore_path}/truststore.p12 -storetype pkcs12 -noprompt -alias ca_cert -storepass secret", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
+        "echo Creating certificate chain".to_string(),
+        format!("cat {keystore_path}/ca.crt {keystore_path}/tls.crt > {keystore_path}/chain.crt", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
+        "echo Creating keystore".to_string(),
+        format!("openssl pkcs12 -export -in {keystore_path}/chain.crt -inkey {keystore_path}/tls.key -out {keystore_path}/keystore.p12 --passout file:{keystore_path}/password", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
+        "echo Cleaning up password".to_string(),
+        format!("rm -f {keystore_path}/password", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
+        "echo Replacing config directory".to_string(),
+        "cp /conf/* /stackable/nifi/conf".to_string(),
+        "ln -sf /stackable/logconfig/logback.xml /stackable/nifi/conf/logback.xml".to_string(),
+        "echo Replacing nifi.cluster.node.address in nifi.properties".to_string(),
+        format!("sed -i \"s/nifi.cluster.node.address=/nifi.cluster.node.address={}/g\" /stackable/nifi/conf/nifi.properties", node_address),
+        "echo Replacing nifi.web.https.host in nifi.properties".to_string(),
+        format!("sed -i \"s/nifi.web.https.host=0.0.0.0/nifi.web.https.host={}/g\" /stackable/nifi/conf/nifi.properties", node_address),
+        "echo Replacing nifi.sensitive.props.key in nifi.properties".to_string(),
+        "sed -i \"s|nifi.sensitive.props.key=|nifi.sensitive.props.key=$(cat /stackable/sensitiveproperty/nifiSensitivePropsKey)|g\" /stackable/nifi/conf/nifi.properties".to_string(),
+        "echo chowning data directory".to_string(),
+        "chown -R stackable:stackable /stackable/data".to_string(),
+        "echo chmodding data directory".to_string(),
+        "chmod -R a=,u=rwX /stackable/data".to_string(),
+        "echo chowning keystore directory".to_string(),
+        format!("chown -R stackable:stackable {keystore_path}", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
+        "echo chmodding keystore directory".to_string(),
+        format!("chmod -R a=,u=rwX {keystore_path}",keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
+        "echo Replacing 'nifi.zookeeper.connect.string=xxxxxx' in /stackable/nifi/conf/nifi.properties".to_string(),
+        format!("sed -i \"s|nifi.zookeeper.connect.string=xxxxxx|nifi.zookeeper.connect.string=${{{}}}|g\" /stackable/nifi/conf/nifi.properties", zookeeper_host),
+        "echo Replacing 'nifi.zookeeper.root.node=xxxxxx' in /stackable/nifi/conf/nifi.properties".to_string(),
+        format!("sed -i \"s|nifi.zookeeper.root.node=xxxxxx|nifi.zookeeper.root.node=${{{}}}|g\" /stackable/nifi/conf/nifi.properties", zookeeper_chroot),
+        "echo Replacing connect string 'xxxxxx' in /stackable/nifi/conf/state-management.xml".to_string(),
+        format!("sed -i \"s|xxxxxx|${{{}}}|g\" /stackable/nifi/conf/state-management.xml", zookeeper_host),
+        "echo Replacing root node 'yyyyyy' in /stackable/nifi/conf/state-management.xml".to_string(),
+        format!("sed -i \"s|yyyyyy|${{{}}}|g\" /stackable/nifi/conf/state-management.xml",zookeeper_chroot)
+    ];
 
-    let mut container_prepare = ContainerBuilder::new("prepare").with_context(|_| IllegalContainerNameSnafu {
-        container_name: APP_NAME.to_string(),
-    })?
+    args.extend_from_slice(additional_auth_args);
+
+    let mut container_prepare = ContainerBuilder::new("prepare")
+        .with_context(|_| IllegalContainerNameSnafu {
+            container_name: APP_NAME.to_string(),
+        })?
         .image(STACKABLE_TOOLS_IMAGE)
-        .command(vec!["/bin/bash".to_string(), "-c".to_string(), "-euo".to_string(), "pipefail".to_string()])
+        .command(vec![
+            "/bin/bash".to_string(),
+            "-c".to_string(),
+            "-euo".to_string(),
+            "pipefail".to_string(),
+        ])
         .add_env_vars(env_vars.clone())
-        .args(vec![[
-            "echo Storing password",
-            &format!("echo secret > {keystore_path}/password", keystore_path = KEYSTORE_NIFI_CONTAINER_MOUNT),
-            "echo Cleaning up truststore - just in case",
-            &format!("rm -f {keystore_path}/truststore.p12", keystore_path = KEYSTORE_NIFI_CONTAINER_MOUNT),
-            "echo Creating truststore",
-            &format!("keytool -importcert -file {keystore_path}/ca.crt -keystore {keystore_path}/truststore.p12 -storetype pkcs12 -noprompt -alias ca_cert -storepass secret", keystore_path = KEYSTORE_NIFI_CONTAINER_MOUNT),
-            "echo Creating certificate chain",
-            &format!("cat {keystore_path}/ca.crt {keystore_path}/tls.crt > {keystore_path}/chain.crt", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
-            "echo Creating keystore",
-            &format!("openssl pkcs12 -export -in {keystore_path}/chain.crt -inkey {keystore_path}/tls.key -out {keystore_path}/keystore.p12 --passout file:{keystore_path}/password", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
-            "echo Cleaning up password",
-            &format!("rm -f {keystore_path}/password", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
-            "echo Replacing config directory",
-            "cp /conf/* /stackable/nifi/conf",
-            "ln -sf /stackable/logconfig/logback.xml /stackable/nifi/conf/logback.xml",
-            "echo Replacing nifi.cluster.node.address in nifi.properties",
-            &format!("sed -i \"s/nifi.cluster.node.address=/nifi.cluster.node.address={}/g\" /stackable/nifi/conf/nifi.properties", node_address),
-            "echo Replacing nifi.web.https.host in nifi.properties",
-            &format!("sed -i \"s/nifi.web.https.host=0.0.0.0/nifi.web.https.host={}/g\" /stackable/nifi/conf/nifi.properties", node_address),
-            "echo Replacing nifi.sensitive.props.key in nifi.properties",
-            "sed -i \"s|nifi.sensitive.props.key=|nifi.sensitive.props.key=$(cat /stackable/sensitiveproperty/nifiSensitivePropsKey)|g\" /stackable/nifi/conf/nifi.properties",
-            "echo Replacing username and password in login-identity-provider.xml",
-            "sed -i \"s|xxx|$(cat /stackable/adminuser/username)|g\" /stackable/nifi/conf/login-identity-providers.xml",
-            "sed -i \"s|yyy|$(cat /stackable/adminuser/password | java -jar /bin/stackable-bcrypt.jar)|g\" /stackable/nifi/conf/login-identity-providers.xml",
-            "echo chowning data directory",
-            "chown -R stackable:stackable /stackable/data",
-            "echo chmodding data directory",
-            "chmod -R a=,u=rwX /stackable/data",
-            "echo chowning keystore directory",
-            &format!("chown -R stackable:stackable {keystore_path}", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
-            "echo chmodding keystore directory",
-            &format!("chmod -R a=,u=rwX {keystore_path}",keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
-            "echo Replacing 'nifi.zookeeper.connect.string=xxxxxx' in /stackable/nifi/conf/nifi.properties",
-            &format!("sed -i \"s|nifi.zookeeper.connect.string=xxxxxx|nifi.zookeeper.connect.string=${{{}}}|g\" /stackable/nifi/conf/nifi.properties", zookeeper_host),
-            "echo Replacing 'nifi.zookeeper.root.node=xxxxxx' in /stackable/nifi/conf/nifi.properties",
-            &format!("sed -i \"s|nifi.zookeeper.root.node=xxxxxx|nifi.zookeeper.root.node=${{{}}}|g\" /stackable/nifi/conf/nifi.properties", zookeeper_chroot),
-            "echo Replacing connect string 'xxxxxx' in /stackable/nifi/conf/state-management.xml",
-            &format!("sed -i \"s|xxxxxx|${{{}}}|g\" /stackable/nifi/conf/state-management.xml", zookeeper_host),
-            "echo Replacing root node 'yyyyyy' in /stackable/nifi/conf/state-management.xml",
-            &format!("sed -i \"s|yyyyyy|${{{}}}|g\" /stackable/nifi/conf/state-management.xml",zookeeper_chroot)
-        ]
-        .join(" && ")])
+        .args(vec![args.join(" && ")])
         .add_volume_mount(
             &NifiRepository::Flowfile.repository(),
             &NifiRepository::Flowfile.mount_path(),
@@ -705,7 +727,8 @@ fn build_node_rolegroup_statefulset(
         .add_volume_mount(
             &NifiRepository::Provenance.repository(),
             &NifiRepository::Provenance.mount_path(),
-        ).add_volume_mount(
+        )
+        .add_volume_mount(
             &NifiRepository::State.repository(),
             &NifiRepository::State.mount_path(),
         )
@@ -715,7 +738,7 @@ fn build_node_rolegroup_statefulset(
         .add_volume_mount("sensitiveproperty", "/stackable/sensitiveproperty")
         .build();
 
-    for (name, (mount_path, _volume)) in &auth_volumes {
+    for (name, (mount_path, _volume)) in auth_volumes {
         container_prepare
             .volume_mounts
             .get_or_insert_with(Vec::default)
@@ -843,9 +866,11 @@ fn build_node_rolegroup_statefulset(
         })
         .clone();
 
-    for (_name, (_mount_path, volume)) in auth_volumes {
-        pod_template_builder = pod_template_builder.add_volume(volume).clone();
-    }
+    auth_volumes
+        .iter()
+        .for_each(|(_name, (_mount_path, volume))| {
+            pod_template_builder.add_volume(volume.clone());
+        });
 
     let mut pod_template = pod_template_builder.build_template();
 
@@ -960,9 +985,12 @@ fn build_node_rolegroup_statefulset(
 /// as well as a public certificate provided by the Stackable
 /// [`secret-operator`](https://github.com/stackabletech/secret-operator)
 ///
-fn build_reporting_task_job(
+async fn build_reporting_task_job(
     nifi: &NifiCluster,
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
+    auth_volumes: &BTreeMap<String, (String, Volume)>,
+    admin_username_file: &str,
+    admin_password_file: &str,
 ) -> Result<Job> {
     let rolegroup_obj_name = rolegroup_ref.object_name();
     let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
@@ -976,22 +1004,26 @@ fn build_reporting_task_job(
         port = HTTPS_PORT
     );
 
+    let args = vec![
+        "python/create_nifi_reporting_task.py".to_string(),
+        format!("-n {nifi_connect_url}"),
+        // In case of the username being simple (e.g. admin) just use it as is
+        // If the username is a bind dn (e.g. cn=integrationtest,ou=users,dc=example,dc=org) we have to extract the cn/dn/uid (in this case integrationtest)
+        format!(
+            "-u $(cat {admin_username_file} | grep -oP '((cn|dn|uid)=\\K[^,]+|.*)' | head -n 1)"
+        ),
+        format!("-p $(cat {admin_password_file})"),
+        format!("-v {product_version}"),
+        format!("-m {METRICS_PORT}"),
+        format!("-c {KEYSTORE_REPORTING_TASK_MOUNT}/ca.crt"),
+    ];
     let mut container = ContainerBuilder::new("create-reporting-task")
         .with_context(|_| IllegalContainerNameSnafu {
             container_name: APP_NAME.to_string(),
         })?
         .image(STACKABLE_TOOLS_IMAGE)
         .command(vec!["sh".to_string(), "-c".to_string()])
-        .args(vec![[
-            "python/create_nifi_reporting_task.py",
-            &format!("-n {}", nifi_connect_url),
-            &format!("-u $(cat {}/username)", AUTH_VOLUME_MOUNT_PATH),
-            &format!("-p $(cat {}/password)", AUTH_VOLUME_MOUNT_PATH),
-            &format!("-v {}", product_version),
-            &format!("-m {}", METRICS_PORT),
-            &format!("-c {}/ca.crt", KEYSTORE_REPORTING_TASK_MOUNT),
-        ]
-        .join(" ")])
+        .args(vec![args.join(" ")])
         // The VolumeMount for the secret operator key store certificates
         .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_REPORTING_TASK_MOUNT)
         .security_context(SecurityContext {
@@ -1003,10 +1035,6 @@ fn build_reporting_task_job(
     // The Volume for the secret operator key store certificates
     let mut volumes = vec![build_keystore_volume(KEYSTORE_VOLUME_NAME)];
 
-    // Volume and Volume mounts for the authentication secret
-    let auth_volumes = get_auth_volumes(&nifi.spec.config.authentication.method)
-        .context(MaterializeAuthConfigSnafu)?;
-
     for (name, (mount_path, volume)) in auth_volumes {
         container
             .volume_mounts
@@ -1016,7 +1044,7 @@ fn build_reporting_task_job(
                 name: name.to_string(),
                 ..VolumeMount::default()
             });
-        volumes.push(volume);
+        volumes.push(volume.clone());
     }
 
     let job_name = format!(

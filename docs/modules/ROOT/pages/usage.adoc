@@ -73,6 +73,86 @@ spec:
     name: simple-zk
 ----
 
+== Authentication
+Every user has to authenticate themselves before using NiFI.
+There are multiple options to set up the authentication of users.
+
+=== Single user
+The default setting is to only provision a single user with administrative privileges.
+You need to specify the username and password of the user.
+Further users can not be added.
+
+=== LDAP
+NiFI supports authentication of users against an LDAP server.
+Have a look at https://github.com/stackabletech/nifi-operator/tree/main/tests/templates/kuttl/ldap[the LDAP test] and the general xref:commons-operator::authenticationclass.adoc[Stackable Authentication] documentation on how to set it up.
+In general, it requires you to specify a xref:commons-operator::authenticationclass.adoc[`AuthenticationClass`] which is used to authenticate the users.
+Here you have an example usage
+
+[source,yaml]
+----
+---
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: test-nifi
+spec:
+  config:
+    authentication:
+      method:
+        authenticationClass: ldap-without-tls
+---
+apiVersion: authentication.stackable.tech/v1alpha1
+kind: AuthenticationClass
+metadata:
+  name: ldap-without-tls
+spec:
+  provider:
+    ldap:
+      hostname: openldap.default.svc.cluster.local
+      searchBase: ou=users,dc=example,dc=org
+      bindCredentials:
+        secretClass: nifi-with-ldap-bind
+      port: 1389
+---
+apiVersion: secrets.stackable.tech/v1alpha1
+kind: SecretClass
+metadata:
+  name: nifi-with-ldap-bind
+spec:
+  backend:
+    k8sSearch:
+      searchNamespace:
+        pod: {}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nifi-with-ldap-bind
+  labels:
+    secrets.stackable.tech/class: nifi-with-ldap-bind
+stringData:
+  user: cn=integrationtest,ou=users,dc=example,dc=org
+  password: integrationtest
+----
+
+== Authorization
+NiFi supports multiple authorization methods documented https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#multi-tenant-authorization[here].
+The available authorization methods depend on the chosen authentication method.
+
+Authorization is not fully implemented by the stackable nifi-operator.
+Because of this the operator currently infers the authorization method to use from the configured authentication method.
+
+=== Single user
+For this authentication method the Single user authorization will be used.
+Basically the single user is allowed to do everything.
+
+=== LDAP
+In the future retrieving groups from LDAP and providing policies via OPA is planned.
+Currently we will use the `org.apache.nifi.authorization.FileUserGroupProvider` and `org.apache.nifi.authorization.FileAccessPolicyProvider`.
+The user specified in the LDAP bind will be the admin user which can log into the NiFi instance and create and modify other users.
+He is also able to create and modify groups and polices in the Webinterface.
+The changes made will be written to local files which are *not* persistent.
+
 == Monitoring
 
 The managed NiFi instances are automatically configured to export Prometheus metrics. See
