@@ -1,0 +1,25 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test-nifi-node-throwaway
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-nifi-node-throwaway-0
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-nifi-node-throwaway
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-nifi-node-throwaway-log
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-nifi-node-throwaway

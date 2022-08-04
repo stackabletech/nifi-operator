@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -7,7 +9,6 @@ use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::core::v1::{Secret, SecretVolumeSource, Volume};
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::schemars::{self, JsonSchema};
-use std::collections::BTreeMap;
 
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
@@ -134,7 +135,7 @@ async fn check_or_generate_admin_credentials(
     auto_generate: &bool,
 ) -> Result<bool, Error> {
     match client
-        .exists::<Secret>(secret_name, Some(secret_namespace))
+        .get_opt::<Secret>(secret_name, Some(secret_namespace))
         .await
         .with_context(|_| KubeSnafu {
             reason: format!(
@@ -142,7 +143,7 @@ async fn check_or_generate_admin_credentials(
                 secret_name, secret_namespace
             ),
         })? {
-        true => {
+        Some(_) => {
             // The secret exists, retrieve the content and check that all required keys are present
             // any missing keys will be filled with default or generated values
             let secret_content: Secret = client
@@ -236,7 +237,7 @@ async fn check_or_generate_admin_credentials(
                 Ok(false)
             }
         }
-        false => {
+        None => {
             if !auto_generate {
                 return Err(Error::AdminCredentials {
                     message: format!(

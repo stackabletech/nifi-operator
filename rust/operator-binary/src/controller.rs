@@ -163,6 +163,11 @@ pub enum Error {
     BoostrapConfig { source: crate::config::Error },
     #[snafu(display("failed to parse NiFi version"))]
     NifiVersionParseFailure { source: stackable_nifi_crd::Error },
+    #[snafu(display("illegal container name: [{container_name}]"))]
+    IllegalContainerName {
+        source: stackable_operator::error::Error,
+        container_name: String,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -300,7 +305,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
     // the cluster resources during the reconciliation
     // TODO: this doesn't cater for a graceful cluster shrink
     cluster_resources
-        .finalize(client)
+        .delete_orphaned_resources(client)
         .await
         .context(DeleteOrphanedResourcesSnafu)?;
 
@@ -573,7 +578,10 @@ fn build_node_rolegroup_statefulset(
     let zookeeper_host = "ZOOKEEPER_HOSTS";
     let zookeeper_chroot = "ZOOKEEPER_CHROOT";
 
-    let mut container_builder = ContainerBuilder::new(APP_NAME);
+    let mut container_builder =
+        ContainerBuilder::new(APP_NAME).with_context(|_| IllegalContainerNameSnafu {
+            container_name: APP_NAME.to_string(),
+        })?;
 
     // get env vars and env overrides
     let mut env_vars: Vec<EnvVar> = config
@@ -633,17 +641,19 @@ fn build_node_rolegroup_statefulset(
     let auth_volumes = get_auth_volumes(&nifi.spec.config.authentication.method)
         .context(MaterializeAuthConfigSnafu)?;
 
-    let mut container_prepare = ContainerBuilder::new("prepare")
+    let mut container_prepare = ContainerBuilder::new("prepare").with_context(|_| IllegalContainerNameSnafu {
+        container_name: APP_NAME.to_string(),
+    })?
         .image(STACKABLE_TOOLS_IMAGE)
         .command(vec!["/bin/bash".to_string(), "-c".to_string(), "-euo".to_string(), "pipefail".to_string()])
         .add_env_vars(env_vars.clone())
         .args(vec![[
             "echo Storing password",
-            &format!("echo secret > {keystore_path}/password", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
+            &format!("echo secret > {keystore_path}/password", keystore_path = KEYSTORE_NIFI_CONTAINER_MOUNT),
             "echo Cleaning up truststore - just in case",
-            &format!("rm -f {keystore_path}/truststore.p12", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
+            &format!("rm -f {keystore_path}/truststore.p12", keystore_path = KEYSTORE_NIFI_CONTAINER_MOUNT),
             "echo Creating truststore",
-            &format!("keytool -importcert -file {keystore_path}/ca.crt -keystore {keystore_path}/truststore.p12 -storetype pkcs12 -noprompt -alias ca_cert -storepass secret", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
+            &format!("keytool -importcert -file {keystore_path}/ca.crt -keystore {keystore_path}/truststore.p12 -storetype pkcs12 -noprompt -alias ca_cert -storepass secret", keystore_path = KEYSTORE_NIFI_CONTAINER_MOUNT),
             "echo Creating certificate chain",
             &format!("cat {keystore_path}/ca.crt {keystore_path}/tls.crt > {keystore_path}/chain.crt", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
             "echo Creating keystore",
@@ -967,6 +977,9 @@ fn build_reporting_task_job(
     );
 
     let mut container = ContainerBuilder::new("create-reporting-task")
+        .with_context(|_| IllegalContainerNameSnafu {
+            container_name: APP_NAME.to_string(),
+        })?
         .image(STACKABLE_TOOLS_IMAGE)
         .command(vec!["sh".to_string(), "-c".to_string()])
         .args(vec![[
@@ -1057,12 +1070,12 @@ async fn check_or_generate_sensitive_key(
     let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
 
     match client
-        .exists::<Secret>(&sensitive_config.key_secret, Some(namespace))
+        .get_opt::<Secret>(&sensitive_config.key_secret, Some(namespace))
         .await
         .with_context(|_| SensitiveKeySecretSnafu {})?
     {
-        true => Ok(false),
-        false => {
+        Some(_) => Ok(false),
+        None => {
             if !sensitive_config.auto_generate {
                 return Err(Error::SensitiveKeySecretMissing {
                     name: sensitive_config.key_secret.clone(),
