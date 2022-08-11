@@ -9,6 +9,9 @@ All notable changes to this project will be documented in this file.
 - Include chart name when installing with a custom release name ([#300], [#301]).
 - Orphaned resources are deleted ([#319])
 - Updated operator-rs to 0.24.0 ([#319])
+- Operator will not error out any more if admin credential need to be generated but `auto_generate` is not set.
+  Instead the pods are written but will stay in initializing state until the necessary secrets have been
+  created. ([#319])
 
 [#300]: https://github.com/stackabletech/nifi-operator/pull/300
 
