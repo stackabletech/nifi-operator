@@ -71,7 +71,7 @@ pub const SINGLEUSER_PASSWORD_KEY: &str = "password";
 pub const AUTH_VOLUME_NAME: &str = "adminuser";
 pub const AUTH_VOLUME_MOUNT_PATH: &str = "/stackable/adminuser";
 
-#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiAuthenticationConfig {
     pub method: NifiAuthenticationMethod,
@@ -79,7 +79,7 @@ pub struct NifiAuthenticationConfig {
     pub allow_anonymous_access: Option<bool>,
 }
 
-#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize, strum::Display)]
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Eq, Serialize, strum::Display)]
 #[serde(rename_all = "camelCase")]
 pub enum NifiAuthenticationMethod {
     #[serde(rename_all = "camelCase")]
