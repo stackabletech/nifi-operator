@@ -1,18 +1,13 @@
 //! Ensures that `Pod`s are configured and running for each [`NifiCluster`]
-use crate::config;
-use crate::config::{
-    build_bootstrap_conf, build_logback_xml, build_nifi_properties, build_state_management_xml,
-    validated_product_config, NifiRepository, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES,
-    NIFI_STATE_MANAGEMENT_XML,
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+    time::Duration,
 };
+
 use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_nifi_crd::{
-    authentication::{get_auth_configs, get_auth_volumes},
-    NifiCluster, NifiConfig, NifiLogConfig, NifiRole, NifiStorageConfig, HTTPS_PORT,
-    HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
-};
-use stackable_nifi_crd::{APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME};
 use stackable_operator::commons::resources::{NoRuntimeLimits, Resources};
 use stackable_operator::config::merge::Merge;
 use stackable_operator::k8s_openapi::api::apps::v1::StatefulSetUpdateStrategy;
@@ -20,6 +15,7 @@ use stackable_operator::role_utils::Role;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder},
     client::Client,
+    cluster_resources::ClusterResources,
     k8s_openapi::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
@@ -34,22 +30,30 @@ use stackable_operator::{
         },
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
     },
-    kube::{runtime::controller::Action, runtime::reflector::ObjectRef, ResourceExt},
+    kube::{runtime::controller::Action, runtime::reflector::ObjectRef, Resource, ResourceExt},
     labels::{role_group_selector_labels, role_selector_labels},
     logging::controller::ReconcilerError,
     product_config::{types::PropertyNameKind, ProductConfigManager},
     role_utils::RoleGroupRef,
 };
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-    time::Duration,
-};
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
 
-const FIELD_MANAGER_SCOPE: &str = "nificluster";
+use stackable_nifi_crd::{
+    authentication::{get_auth_configs, get_auth_volumes},
+    NifiCluster, NifiConfig, NifiLogConfig, NifiRole, NifiStorageConfig, HTTPS_PORT,
+    HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
+};
+use stackable_nifi_crd::{APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME};
+
+use crate::config;
+use crate::config::{
+    build_bootstrap_conf, build_logback_xml, build_nifi_properties, build_state_management_xml,
+    validated_product_config, NifiRepository, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES,
+    NIFI_STATE_MANAGEMENT_XML,
+};
+
+const CONTROLLER_NAME: &str = "nifi-operator";
 const STACKABLE_TOOLS_IMAGE: &str = "docker.stackable.tech/stackable/tools:0.2.0-stackable0";
 
 const KEYSTORE_VOLUME_NAME: &str = "keystore";
@@ -71,6 +75,14 @@ pub enum Error {
     ObjectHasNoSpec,
     #[snafu(display("object defines no namespace"))]
     ObjectHasNoNamespace,
+    #[snafu(display("failed to create cluster resources"))]
+    CreateClusterResources {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("failed to delete orphaned resources"))]
+    DeleteOrphanedResources {
+        source: stackable_operator::error::Error,
+    },
     #[snafu(display("failed to calculate global service name"))]
     GlobalServiceNameNotFound,
     #[snafu(display("failed to apply global Service"))]
@@ -151,6 +163,11 @@ pub enum Error {
     BoostrapConfig { source: crate::config::Error },
     #[snafu(display("failed to parse NiFi version"))]
     NifiVersionParseFailure { source: stackable_nifi_crd::Error },
+    #[snafu(display("illegal container name: [{container_name}]"))]
+    IllegalContainerName {
+        source: stackable_operator::error::Error,
+        container_name: String,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -184,17 +201,22 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
     )
     .context(ProductConfigLoadFailedSnafu)?;
 
+    let mut cluster_resources =
+        ClusterResources::new(APP_NAME, CONTROLLER_NAME, &nifi.object_ref(&()))
+            .context(CreateClusterResourcesSnafu)?;
+
     let nifi_node_config = validated_config
         .get(&NifiRole::Node.to_string())
         .map(Cow::Borrowed)
         .unwrap_or_default();
 
     let node_role_service = build_node_role_service(&nifi)?;
-    client
-        .apply_patch(FIELD_MANAGER_SCOPE, &node_role_service, &node_role_service)
+    cluster_resources
+        .add(client, &node_role_service)
         .await
         .context(ApplyRoleServiceSnafu)?;
 
+    // This is read back to obtain the hosts that we later need to fill in the proxy_hosts variable
     let updated_role_service = client
         .get(&nifi.name_any(), nifi.namespace().as_deref())
         .await
@@ -259,38 +281,33 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             )
             .await?;
 
-            client
-                .apply_patch(FIELD_MANAGER_SCOPE, &rg_service, &rg_service)
+            cluster_resources
+                .add(client, &rg_service)
                 .await
                 .with_context(|_| ApplyRoleGroupServiceSnafu {
                     rolegroup: rolegroup.clone(),
                 })?;
-            client
-                .apply_patch(FIELD_MANAGER_SCOPE, &rg_configmap, &rg_configmap)
+            cluster_resources
+                .add(client, &rg_configmap)
                 .await
                 .with_context(|_| ApplyRoleGroupConfigSnafu {
                     rolegroup: rolegroup.clone(),
                 })?;
-            client
-                .apply_patch(FIELD_MANAGER_SCOPE, &rg_log_configmap, &rg_log_configmap)
+            cluster_resources
+                .add(client, &rg_log_configmap)
                 .await
                 .with_context(|_| ApplyRoleGroupConfigSnafu {
                     rolegroup: rolegroup.clone(),
                 })?;
-
-            client
-                .apply_patch(FIELD_MANAGER_SCOPE, &rg_statefulset, &rg_statefulset)
+            cluster_resources
+                .add(client, &rg_statefulset)
                 .await
                 .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
                     rolegroup: rolegroup.clone(),
                 })?;
 
             client
-                .apply_patch(
-                    FIELD_MANAGER_SCOPE,
-                    &reporting_task_job,
-                    &reporting_task_job,
-                )
+                .apply_patch(CONTROLLER_NAME, &reporting_task_job, &reporting_task_job)
                 .await
                 .context(ApplyCreateReportingTaskJobSnafu)?;
             Ok(())
@@ -298,6 +315,14 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         .instrument(rg_span)
         .await?
     }
+
+    // Remove any orphaned resources that still exist in k8s, but have not been added to
+    // the cluster resources during the reconciliation
+    // TODO: this doesn't cater for a graceful cluster shrink
+    cluster_resources
+        .delete_orphaned_resources(client)
+        .await
+        .context(DeleteOrphanedResourcesSnafu)?;
 
     Ok(Action::await_change())
 }
@@ -320,6 +345,7 @@ pub fn build_node_role_service(nifi: &NifiCluster) -> Result<Service> {
                 nifi,
                 APP_NAME,
                 nifi.image_version().context(NifiVersionParseFailureSnafu)?,
+                CONTROLLER_NAME,
                 &role_name,
                 "global",
             )
@@ -368,6 +394,7 @@ fn build_node_rolegroup_log_config_map(
                     nifi,
                     APP_NAME,
                     nifi.image_version().context(NifiVersionParseFailureSnafu)?,
+                    CONTROLLER_NAME,
                     &rolegroup.role,
                     &rolegroup.role_group,
                 )
@@ -415,6 +442,7 @@ async fn build_node_rolegroup_config_map(
                     nifi,
                     APP_NAME,
                     nifi.image_version().context(NifiVersionParseFailureSnafu)?,
+                    CONTROLLER_NAME,
                     &rolegroup.role,
                     &rolegroup.role_group,
                 )
@@ -472,6 +500,7 @@ fn build_node_rolegroup_service(
                 nifi,
                 APP_NAME,
                 nifi.image_version().context(NifiVersionParseFailureSnafu)?,
+                CONTROLLER_NAME,
                 &rolegroup.role,
                 &rolegroup.role_group,
             )
@@ -562,7 +591,10 @@ async fn build_node_rolegroup_statefulset(
     let zookeeper_host = "ZOOKEEPER_HOSTS";
     let zookeeper_chroot = "ZOOKEEPER_CHROOT";
 
-    let mut container_builder = ContainerBuilder::new(APP_NAME);
+    let mut container_builder =
+        ContainerBuilder::new(APP_NAME).with_context(|_| IllegalContainerNameSnafu {
+            container_name: APP_NAME.to_string(),
+        })?;
 
     // get env vars and env overrides
     let mut env_vars: Vec<EnvVar> = config
@@ -662,6 +694,9 @@ async fn build_node_rolegroup_statefulset(
     args.extend_from_slice(additional_auth_args);
 
     let mut container_prepare = ContainerBuilder::new("prepare")
+        .with_context(|_| IllegalContainerNameSnafu {
+            container_name: APP_NAME.to_string(),
+        })?
         .image(STACKABLE_TOOLS_IMAGE)
         .command(vec![
             "/bin/bash".to_string(),
@@ -775,6 +810,7 @@ async fn build_node_rolegroup_statefulset(
                 nifi,
                 APP_NAME,
                 image_version,
+                CONTROLLER_NAME,
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
             )
@@ -874,6 +910,7 @@ async fn build_node_rolegroup_statefulset(
                 nifi,
                 APP_NAME,
                 image_version,
+                CONTROLLER_NAME,
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
             )
@@ -975,6 +1012,9 @@ async fn build_reporting_task_job(
         format!("-c {KEYSTORE_REPORTING_TASK_MOUNT}/ca.crt"),
     ];
     let mut container = ContainerBuilder::new("create-reporting-task")
+        .with_context(|_| IllegalContainerNameSnafu {
+            container_name: APP_NAME.to_string(),
+        })?
         .image(STACKABLE_TOOLS_IMAGE)
         .command(vec!["sh".to_string(), "-c".to_string()])
         .args(vec![args.join(" ")])
@@ -1052,12 +1092,12 @@ async fn check_or_generate_sensitive_key(
     let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
 
     match client
-        .exists::<Secret>(&sensitive_config.key_secret, Some(namespace))
+        .get_opt::<Secret>(&sensitive_config.key_secret, Some(namespace))
         .await
         .with_context(|_| SensitiveKeySecretSnafu {})?
     {
-        true => Ok(false),
-        false => {
+        Some(_) => Ok(false),
+        None => {
             if !sensitive_config.auto_generate {
                 return Err(Error::SensitiveKeySecretMissing {
                     name: sensitive_config.key_secret.clone(),

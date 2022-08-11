@@ -15,6 +15,10 @@ dimensions:
       - "false"
       - "true"
 tests:
+  - name: orphaned_resources
+    dimensions:
+      - nifi
+      - zookeeper
   - name: smoke
     dimensions:
       - nifi

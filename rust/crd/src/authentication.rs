@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use indoc::{formatdoc, indoc};
 use rand::distributions::Alphanumeric;
 use rand::Rng;
@@ -15,7 +17,6 @@ use stackable_operator::commons::tls::{CaCert, Tls, TlsServerVerification, TlsVe
 use stackable_operator::k8s_openapi::api::core::v1::{Secret, SecretVolumeSource, Volume};
 use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::schemars::{self, JsonSchema};
-use std::collections::BTreeMap;
 
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
@@ -322,8 +323,17 @@ async fn check_or_generate_admin_credentials(
     secret_namespace: &str,
     auto_generate: &bool,
 ) -> Result<bool, Error> {
+    // Return if auto_generate is not set
+    // if this means that secrets are missing / don't contain necessary data
+    // we'll let the pods fail during startup instead of aborting reconciliation
+    if !auto_generate {
+        return Ok(false);
+    }
+
+    // Anything beyond here is only reached when auto_generate is set, so we don't
+    // check that again
     match client
-        .exists::<Secret>(secret_name, Some(secret_namespace))
+        .get_opt::<Secret>(secret_name, Some(secret_namespace))
         .await
         .with_context(|_| KubeSnafu {
             reason: format!(
@@ -331,16 +341,8 @@ async fn check_or_generate_admin_credentials(
                 secret_name, secret_namespace
             ),
         })? {
-        true => {
-            // The secret exists, retrieve the content and check that all required keys are present
-            // any missing keys will be filled with default or generated values
-            let secret_content: Secret = client
-                .get::<Secret>(secret_name, Some(secret_namespace))
-                .await
-                .with_context(|_| MissingSecretSnafu {
-                    obj_ref: ObjectRef::new(secret_name).within(secret_namespace),
-                })?;
-
+        Some(secret_content) => {
+            // An existing secret was found, check if we need to generate anything in here
             let mut additional_data = None;
             let empty_map = BTreeMap::new();
 
@@ -388,17 +390,7 @@ async fn check_or_generate_admin_credentials(
 
             // Apply patch to secret if any additional data was needed and return
             if additional_data.is_some() {
-                // Check if we are allowed to auto generate and abort if not
-                if !auto_generate {
-                    return Err(Error::AdminCredentials {
-                        message: format!(
-                            "Admin credential secret [{}/{}] is missing keys: [{:?}]",
-                            secret_name,
-                            secret_namespace,
-                            additional_data.unwrap().keys()
-                        ),
-                    });
-                }
+                // Patch the secret with auto generated values
                 tracing::debug!(
                     "patching keys [{:?}] in secret [{}/{}]",
                     additional_data.clone().unwrap_or_default().keys(),
@@ -425,15 +417,8 @@ async fn check_or_generate_admin_credentials(
                 Ok(false)
             }
         }
-        false => {
-            if !auto_generate {
-                return Err(Error::AdminCredentials {
-                    message: format!(
-                        "Admin credential secret [{}/{}] does not exist.",
-                        secret_name, secret_namespace
-                    ),
-                });
-            }
+        None => {
+            // No existing secret, generate one
             tracing::info!("No existing admin credentials found, generating a random password.");
             let password: String = rand::thread_rng()
                 .sample_iter(&Alphanumeric)

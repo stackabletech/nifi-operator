@@ -3,3 +3,4 @@
 members = [
     "rust/crd", "rust/operator-binary"
 ]
+
