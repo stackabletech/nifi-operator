@@ -90,7 +90,7 @@ pub struct NifiSensitivePropertiesConfig {
     pub auto_generate: bool,
 }
 
-#[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Eq, Serialize)]
+#[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum NifiSensitiveKeyAlgorithm {
     #[strum(serialize = "NIFI_ARGON2_AES_GCM_128")]
@@ -117,7 +117,7 @@ impl Default for NifiSensitiveKeyAlgorithm {
     }
 }
 
-#[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Eq, Serialize)]
+#[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum StoreType {
     #[strum(serialize = "JKS")]
@@ -232,7 +232,7 @@ pub struct NifiLogConfig {
 
 impl Atomic for LogLevel {}
 
-#[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Eq, Serialize)]
+#[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 pub enum LogLevel {
     DEBUG,
     INFO,
@@ -241,7 +241,7 @@ pub enum LogLevel {
     FATAL,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Merge, JsonSchema, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Merge, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiStorageConfig {
     #[serde(default)]
