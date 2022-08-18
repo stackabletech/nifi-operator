@@ -28,7 +28,7 @@ echo "Installing Operators with Helm"
 helm install --wait commons-operator {{ helm.repo_name }}/commons-operator --version {{ versions.commons }}
 helm install --wait secret-operator {{ helm.repo_name }}/secret-operator --version {{ versions.secret }}
 helm install --wait zookeeper-operator {{ helm.repo_name }}/zookeeper-operator --version {{ versions.zookeeper }}
-helm install --wait kafka-operator {{ helm.repo_name }}/kafka-operator --version {{ versions.kafka }}
+helm install --wait nifi-operator {{ helm.repo_name }}/nifi-operator --version {{ versions.nifi }}
 # end::helm-install-operators[]
 ;;
 "stackablectl")
@@ -38,7 +38,7 @@ stackablectl operator install \
   commons={{ versions.commons }} \
   secret={{ versions.secret }} \
   zookeeper={{ versions.zookeeper }} \
-  kafka={{ versions.kafka }}
+  nifi={{ versions.nifi }}
 # end::stackablectl-install-operators[]
 ;;
 *)
@@ -52,9 +52,9 @@ echo "Installing ZooKeeper from zookeeper.yaml"
 kubectl apply -f zookeeper.yaml
 # end::install-zookeeper[]
 
-echo "Installing ZNode from kafka-znode.yaml"
+echo "Installing ZNode from nifi-znode.yaml"
 # tag::install-znode[]
-kubectl apply -f kafka-znode.yaml
+kubectl apply -f nifi-znode.yaml
 # end::install-znode[]
 
 sleep 5
@@ -64,49 +64,24 @@ echo "Awaiting ZooKeeper rollout finish"
 kubectl rollout status --watch statefulset/simple-zk-server-default
 # end::watch-zookeeper-rollout[]
 
-echo "Install KafkaCluster from kafka.yaml"
-# tag::install-kafka[]
-kubectl apply -f kafka.yaml
-# end::install-kafka[]
+echo "Install NiFiCluster from nifi.yaml"
+# tag::install-nifi[]
+kubectl apply -f nifi.yaml
+# end::install-nifi[]
 
 sleep 5
 
-echo "Awaiting Kafka rollout finish"
-# tag::watch-kafka-rollout[]
-kubectl rollout status --watch statefulset/simple-kafka-broker-default
-# end::watch-kafka-rollout[]
+echo "Awaiting NiFi rollout finish"
+# tag::watch-nifi-rollout[]
+# TODO: NiFi is on delete, the following command will not work
+kubectl rollout status --watch statefulset/simple-nifi-node-default
+# end::watch-nifi-rollout[]
 
-echo "Starting port-forwarding of port 9092"
+echo "Starting port-forwarding of port 8443"
 # tag::port-forwarding[]
-kubectl port-forward svc/simple-kafka 9092 2>&1 >/dev/null &
+kubectl port-forward svc/simple-nifi 8443 2>&1 >/dev/null &
 # end::port-forwarding[]
 PORT_FORWARD_PID=$!
 trap "kill $PORT_FORWARD_PID" EXIT
 
 sleep 5
-
-echo "Creating test data"
-# tag::kcat-create-data[]
-echo "some test data" > data
-# end::kcat-create-data[]
-
-echo "Writing test data"
-# tag::kcat-write-data[]
-kafkacat -b localhost:9092 -t test-data-topic -P data
-# end::kcat-write-data[]
-
-echo "Reading test data"
-# tag::kcat-read-data[]
-kafkacat -b localhost:9092 -t test-data-topic -C -e > read-data
-# end::kcat-read-data[]
-
-echo "Check contents"
-# tag::kcat-check-data[]
-cat read-data | grep "some test data"
-# end::kcat-check-data[]
-
-echo "Cleanup"
-# tag::kcat-cleanup-data[]
-rm data
-rm read-data
-# end::kcat-cleanup-data[]

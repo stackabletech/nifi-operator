@@ -64,16 +64,17 @@ echo "Awaiting ZooKeeper rollout finish"
 kubectl rollout status --watch statefulset/simple-zk-server-default
 # end::watch-zookeeper-rollout[]
 
-echo "Install NifiCluster from nifi.yaml"
+echo "Install NiFiCluster from nifi.yaml"
 # tag::install-nifi[]
 kubectl apply -f nifi.yaml
 # end::install-nifi[]
 
 sleep 5
 
-echo "Awaiting Nifi rollout finish"
+echo "Awaiting NiFi rollout finish"
 # tag::watch-nifi-rollout[]
-kubectl rollout status --watch statefulset/simple-nifi-broker-default
+# kubectl wait -l statefulset.kubernetes.io/simple-nifi-node-default--for=condition=ready pod --timeout=-1s
+kubectl rollout status --watch statefulset/simple-nifi-node-default
 # end::watch-nifi-rollout[]
 
 echo "Starting port-forwarding of port 8443"
@@ -82,3 +83,5 @@ kubectl port-forward svc/simple-nifi 8443 2>&1 >/dev/null &
 # end::port-forwarding[]
 PORT_FORWARD_PID=$!
 trap "kill $PORT_FORWARD_PID" EXIT
+
+sleep 5
