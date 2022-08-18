@@ -1,0 +1,87 @@
+= First steps
+
+After going through the xref:installation.adoc[] section and having installed all the operators, you will now deploy a NiFi cluster and the required dependencies. Afterwards you can <<_verify_that_it_works, verify that it works>> by querying the REST API.
+
+== Setup
+
+Two things need to be installed to create a NiFi cluster:
+
+* A ZooKeeper instance for internal use by NiFi
+* The NiFi cluster itself
+
+We will create them in this order, each one is created by applying a manifest file. The operators you just installed will then create the resources according to the manifest.
+
+=== ZooKeeper
+
+Create a file named `zookeeper.yaml` with the following content:
+
+[source,yaml]
+
+----
+include::example$code/zookeeper.yaml[]
+----
+
+and apply it:
+
+[source,bash]
+----
+include::example$code/getting-started.sh[tag=install-zookeeper]
+----
+
+Create a file `nifi-znode.yaml` with the following content:
+
+[source,bash]
+----
+include::example$code/nifi-znode.yaml[]
+----
+
+and apply it:
+
+[source,bash]
+----
+include::example$code/getting-started.sh[tag=install-znode]
+----
+
+=== NiFi
+
+Create a file named `nifi.yaml` with the following contents:
+
+[source,yaml]
+----
+include::example$code/nifi.yaml[]
+----
+
+and apply it:
+
+----
+include::example$code/getting-started.sh[tag=install-nifi]
+----
+
+This will create the actual NiFi instance.
+
+== Verify that it works
+
+First, make sure that all the Pods in the StatefulSets are ready:
+
+[source,bash]
+----
+kubectl get statefulset
+----
+
+The output should show all pods ready:
+
+----
+NAME                                 READY   AGE
+simple-nifi-node-default             2/2     5m
+simple-zk-server-default             3/3     7m
+----
+
+Then, create a port-forward for the NiFi node:
+
+----
+include::example$code/getting-started.sh[tag=port-forwarding]
+----
+
+== What's next
+
+Have a look at the xref:ROOT:usage.adoc[] page to find out more about the features of the NiFi Operator.
