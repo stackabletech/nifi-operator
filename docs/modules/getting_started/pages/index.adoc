@@ -9,7 +9,7 @@ You will need:
 * a Kubernetes cluster
 * kubectl
 * optional: Helm
-* curl
+* optional: curl and jq (for testing)
 
 == What's next
 
