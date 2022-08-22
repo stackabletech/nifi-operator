@@ -16,28 +16,27 @@ We will create them in this order, each one is created by applying a manifest fi
 Create a file named `zookeeper.yaml` with the following content:
 
 [source,yaml]
-
 ----
 include::example$code/zookeeper.yaml[]
 ----
 
 and apply it:
 
-[source,bash]
+[source]
 ----
 include::example$code/getting-started.sh[tag=install-zookeeper]
 ----
 
 Create a file `nifi-znode.yaml` with the following content:
 
-[source,bash]
+[source]
 ----
 include::example$code/nifi-znode.yaml[]
 ----
 
 and apply it:
 
-[source,bash]
+[source]
 ----
 include::example$code/getting-started.sh[tag=install-znode]
 ----
@@ -61,26 +60,74 @@ This will create the actual NiFi instance.
 
 == Verify that it works
 
-First, make sure that all the Pods in the StatefulSets are ready:
+The following steps should be put in a bash file called `nifi-tests.sh` or use the full script provided at the end if this section.
 
-[source,bash]
+First, make sure all pods are ready:
+
+[source]
+----
+include::example$code/test-nifi.sh[tag=wait-nifi-rollout]
+----
+
+Then make sure the StatefulSets are ready:
+
+[source]
 ----
 kubectl get statefulset
 ----
 
 The output should show all pods ready:
 
+[source]
 ----
 NAME                                 READY   AGE
 simple-nifi-node-default             2/2     5m
 simple-zk-server-default             3/3     7m
 ----
 
-Then, create a port-forward for the NiFi node:
+In order to test the NiFi cluster we use curl and jq. Since NiFi requires authentication, the log-in credentials are required to request a JWT to access to the REST API. Lets read the credentials from the deployed secret and store them into a variable:
 
+[source]
 ----
-include::example$code/getting-started.sh[tag=port-forwarding]
+include::example$code/test-nifi.sh[tag=get-nifi-credentials]
 ----
+
+Since we are accessing the cluster externally, and NiFi is a bit tricky in terms of allowing access from certain urls, a standard port-forward and access via localhost does not work. The following snippet retrieves the external node ip of one of the NiFi pods and the HTTPS port exposed in the NodePort service:
+
+[source]
+----
+include::example$code/test-nifi.sh[tag=get-nifi-host]
+----
+
+With that stored in another variable, we can access the NiFi REST API in order to retrieve a JWT, which is also stored in a variable for later access:
+
+[source]
+----
+include::example$code/test-nifi.sh[tag=get-nifi-token]
+----
+
+With the JWT ready, the NiFi REST API can be accessed properly. This is done in a loop because the NiFi cluster requires some time in order get fully ready. Leader election and synchronization may take some time. It basically checks that two nodes are successfully registered and connected:
+
+[source]
+----
+include::example$code/test-nifi.sh[tag=nifi-test-loop]
+----
+
+This script will loop some time until the NiFi cluster is fully ready. For completeness, here is the full bash script. Ignore the `#tag::` and `end::` comments, they are used as templates for this getting started guide:
+
+[source]
+----
+include::example$code/test-nifi.sh[]
+----
+
+Run this script via:
+
+[source]
+----
+include::example$code/getting-started.sh[tag=nifi-tests]
+----
+
+Congratulations, you successfully created and tested your first NiFi cluster.
 
 == What's next
 
