@@ -85,6 +85,8 @@ simple-nifi-node-default             2/2     5m
 simple-zk-server-default             3/3     7m
 ----
 
+=== Test the NiFi cluster
+
 In order to test the NiFi cluster we use curl and jq. Since NiFi requires authentication, the log-in credentials are required to request a JWT to access to the REST API. Lets read the credentials from the deployed secret and store them into a variable:
 
 [source]
@@ -113,7 +115,7 @@ With the JWT ready, the NiFi REST API can be accessed properly. This is done in 
 include::example$code/test-nifi.sh[tag=nifi-test-loop]
 ----
 
-This script will loop some time until the NiFi cluster is fully ready. For completeness, here is the full bash script. Ignore the `#tag::` and `end::` comments, they are used as templates for this getting started guide:
+This script will loop some time until the NiFi cluster is fully ready. For completeness, here is the full bash script. Ignore the `#tag::` and `#end::` comments, they are used as templates for this getting started guide:
 
 [source]
 ----
@@ -128,6 +130,51 @@ include::example$code/getting-started.sh[tag=nifi-tests]
 ----
 
 Congratulations, you successfully created and tested your first NiFi cluster.
+
+=== Access NiFi the web interface
+
+You can the connection settings for the NiFi cluster via script or stackablectl.
+
+==== Via kubectl and jq
+
+In order to access the NiFi web interface you can use the following script to extract the `<ip>:<port>` settings.
+
+[source]
+----
+kubectl get svc simple-nifi -o json | jq -r --argfile endpoints <(kubectl get endpoints simple-nifi -o json) --argfile nodes <(kubectl get nodes -o json) '($nodes.items[] | select(.metadata.name == $endpoints.subsets[].addresses[].nodeName) | .status.addresses | map(select(.type == "ExternalIP" or .type == "InternalIP")) | min_by(.type) | .address | tostring) + ":" + (.spec.ports[] | select(.name == "https") | .nodePort | tostring)'
+----
+
+which should return something like this. Just pick one of the `<ip>:<port>` settings representing one NiFi node:
+
+[source]
+----
+172.18.0.2:32595
+172.18.0.5:32595
+----
+
+==== stackablectl
+
+Alternatively, when using stackablectl you can use the service command to get a list of all available endpoints:
+
+[source]
+----
+stackablectl svc list
+----
+
+with should return something like this:
+
+----
+ PRODUCT    NAME         NAMESPACE  ENDPOINTS                       EXTRA INFOS
+
+ nifi       simple-nifi  default    https https://172.18.0.5:32595
+
+ zookeeper  simple-zk    default    zk    172.18.0.5:31377
+----
+
+Then connect to `https://<ip>:<port>/nifi` and you should the NiFi web interface.
+
+image::nifi-web-ui.png[]
+
 
 == What's next
 
