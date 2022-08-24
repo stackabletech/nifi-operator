@@ -6,7 +6,7 @@ After going through the xref:installation.adoc[] section and having installed al
 
 Two things need to be installed to create a NiFi cluster:
 
-* A ZooKeeper instance for internal use by NiFi
+* A ZooKeeper cluster for internal use by NiFi
 * The NiFi cluster itself
 
 We will create them in this order, each one is created by applying a manifest file. The operators you just installed will then create the resources according to the manifest.
@@ -22,28 +22,35 @@ include::example$code/zookeeper.yaml[]
 
 and apply it:
 
-[source]
+[source,bash]
 ----
 include::example$code/getting-started.sh[tag=install-zookeeper]
 ----
 
 Create a file `nifi-znode.yaml` with the following content:
 
-[source]
+[source,yaml]
 ----
 include::example$code/nifi-znode.yaml[]
 ----
 
 and apply it:
 
-[source]
+[source,bash]
 ----
 include::example$code/getting-started.sh[tag=install-znode]
 ----
 
 === NiFi
 
-Create a file named `nifi.yaml` with the following contents:
+The NiFi cluster requires authentication. In order to provide credentials, create a file named `nifi-admin-credentials.yaml` with the following content:
+
+[source,yaml]
+----
+include::example$code/nifi-admin-credentials.yaml[]
+----
+
+Create a file named `nifi.yaml` with the following content:
 
 [source,yaml]
 ----
@@ -56,7 +63,7 @@ and apply it:
 include::example$code/getting-started.sh[tag=install-nifi]
 ----
 
-This will create the actual NiFi instance.
+This will create the actual NiFi cluster.
 
 == Verify that it works
 
@@ -64,14 +71,14 @@ The following steps should be put in a bash file called `nifi-tests.sh` or use t
 
 First, make sure all pods are ready:
 
-[source]
+[source,bash]
 ----
 include::example$code/test-nifi.sh[tag=wait-nifi-rollout]
 ----
 
 Then make sure the StatefulSets are ready:
 
-[source]
+[source,bash]
 ----
 kubectl get statefulset
 ----
@@ -89,42 +96,42 @@ simple-zk-server-default             3/3     7m
 
 In order to test the NiFi cluster we use curl and jq. Since NiFi requires authentication, the log-in credentials are required to request a JWT to access to the REST API. Lets read the credentials from the deployed secret and store them into a variable:
 
-[source]
+[source,bash]
 ----
 include::example$code/test-nifi.sh[tag=get-nifi-credentials]
 ----
 
 Since we are accessing the cluster externally, and NiFi is a bit tricky in terms of allowing access from certain urls, a standard port-forward and access via localhost does not work. The following snippet retrieves the external node ip of one of the NiFi pods and the HTTPS port exposed in the NodePort service:
 
-[source]
+[source,bash]
 ----
 include::example$code/test-nifi.sh[tag=get-nifi-host]
 ----
 
 With that stored in another variable, we can access the NiFi REST API in order to retrieve a JWT, which is also stored in a variable for later access:
 
-[source]
+[source,bash]
 ----
 include::example$code/test-nifi.sh[tag=get-nifi-token]
 ----
 
 With the JWT ready, the NiFi REST API can be accessed properly. This is done in a loop because the NiFi cluster requires some time in order get fully ready. Leader election and synchronization may take some time. It basically checks that two nodes are successfully registered and connected:
 
-[source]
+[source,bash]
 ----
 include::example$code/test-nifi.sh[tag=nifi-test-loop]
 ----
 
 This script will loop some time until the NiFi cluster is fully ready. For completeness, here is the full bash script. Ignore the `#tag::` and `#end::` comments, they are used as templates for this getting started guide:
 
-[source]
+[source,bash]
 ----
 include::example$code/test-nifi.sh[]
 ----
 
 Run this script via:
 
-[source]
+[source,bash]
 ----
 include::example$code/getting-started.sh[tag=nifi-tests]
 ----
@@ -156,7 +163,7 @@ which should return something like this. Just pick one of the `<ip>:<port>` sett
 
 Alternatively, when using stackablectl you can use the service command to get a list of all available endpoints:
 
-[source]
+[source,bash]
 ----
 stackablectl svc list
 ----
@@ -171,10 +178,9 @@ which should return something like this:
  zookeeper  simple-zk    default    zk    172.18.0.5:31377
 ----
 
-Then connect to `https://<ip>:<port>/nifi` and you should see the NiFi web interface.
+Then connect to `https://<ip>:<port>/nifi` and you should see the NiFi web login. After providing the username `admin` and password `admin` you are redirected to the NiFi web interface.
 
 image::nifi-web-ui.png[]
-
 
 == What's next
 

@@ -64,6 +64,11 @@ echo "Awaiting ZooKeeper rollout finish"
 kubectl rollout status --watch statefulset/simple-zk-server-default
 # end::watch-zookeeper-rollout[]
 
+echo "Install the NiFi admin credentials from nifi-admin-credentials.yaml"
+# tag::install-nifi[]
+kubectl apply -f nifi-admin-credentials.yaml
+# end::install-nifi[]
+
 echo "Install NiFiCluster from nifi.yaml"
 # tag::install-nifi[]
 kubectl apply -f nifi.yaml

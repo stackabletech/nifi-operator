@@ -23,7 +23,7 @@ include::example$code/getting-started.sh[tag=stackablectl-install-operators]
 
 The tool will show
 
-[source,bash]
+[source]
 ----
 include::example$code/install-operator-output.txt[tag=stackablectl-install-operators-output]
 ----
@@ -50,4 +50,4 @@ Helm will deploy the operators in a Kubernetes Deployment and apply the CRDs for
 
 == What's next
 
-xref:first_steps.adoc[Set up a NiFi cluster] and its dependencies.
+xref:first_steps.adoc[Setting up a NiFi cluster] and its dependencies.

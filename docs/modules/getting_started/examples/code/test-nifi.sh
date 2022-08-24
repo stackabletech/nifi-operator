@@ -36,14 +36,14 @@ expected_nodes=2
 while [ $x -le 15 ]
 do
   echo -n "Checking if NiFi cluster is ready ... "
-  http_code=$(curl --insecure -s -o /dev/null -w "%{http_code}" --header "Authorization: $nifi_jwt_token" https://"$nifi_host"/nifi-api/controller/cluster)
+  http_code=$(curl --insecure -s -o /dev/null -w "%{http_code}" --header "Authorization: Bearer $nifi_jwt_token" https://"$nifi_host"/nifi-api/controller/cluster)
 
   if [ "$http_code" -ne "200" ]; then
     echo "not ready yet!"
   else
     echo "yes"
     echo -n "Checking if NiFi cluster has $expected_nodes nodes ... "
-    cluster_status=$(curl -s --insecure --header "Authorization: $nifi_jwt_token" https://"$nifi_host"/nifi-api/controller/cluster)
+    cluster_status=$(curl -s --insecure --header "Authorization: Bearer $nifi_jwt_token" https://"$nifi_host"/nifi-api/controller/cluster)
     nodes=$( echo "$cluster_status" | jq .cluster.nodes | jq 'length')
 
     if [ "$?" -eq 0 ] && [ "$nodes" -eq "$expected_nodes" ]; then
