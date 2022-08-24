@@ -149,13 +149,13 @@ Basically the single user is allowed to do everything.
 === LDAP
 In the future retrieving groups from LDAP and providing policies via OPA is planned.
 Currently we will use the `org.apache.nifi.authorization.FileUserGroupProvider` and `org.apache.nifi.authorization.FileAccessPolicyProvider`.
-The user specified in the LDAP bind will be the admin user which can log into the NiFi instance and create and modify other users.
+The user specified in the LDAP bind will be the admin user which can log into the NiFi cluster and create and modify other users.
 He is also able to create and modify groups and polices in the Webinterface.
 The changes made will be written to local files which are *not* persistent.
 
 == Monitoring
 
-The managed NiFi instances are automatically configured to export Prometheus metrics. See
+The managed NiFi cluster is automatically configured to export Prometheus metrics. See
 xref:home:operators:monitoring.adoc[] for more details.
 
 == Configuration & Environment Overrides
@@ -164,8 +164,29 @@ The cluster definition also supports overriding configuration properties and env
 
 IMPORTANT: Do not override port numbers. This will lead to cluster malfunction.
 
-=== Configuration Properties
-You can override configuration properties in nifi.properties and bootstrap.conf by using configOverrides in your service configuration, as demonstrated in the xref:config_properties.adoc[configuration properties] docs.
+=== Configuration Overrides
+
+Apache NiFi runtime configuration is stored in the files bootstrap.conf and nifi.properties.
+The configOverrides block allows you to add custom parameters to these files.
+A Full list of the available configuration options can be found in the official Apache NiFi documentation at https://nifi.apache.org/docs/nifi-docs/components/nifi-docs/html/administration-guide.html#system_properties.
+
+Overrides consist of a key, which must match the property name in the configuration file and a value. This allows arbitrary configuration properties to be added to Spark. In the example above a property aws.region is being explicitly set to 'eu-west-1', overriding the default value.
+
+WARNING: Please be aware that by overriding config settings in this section you have a very high risk of breaking things, because the product does not behave the way the Stackable Operator for Apache NiFi expects it to behave anymore.
+
+The following snippet shows an example of how this would look in the NifiCluster definition:
+
+[source,yaml]
+----
+        config:
+          sensitivePropertyKeySecret: nifi-sensitive-property-
+        configOverrides:
+          nifi.properties:
+            nifi.config.property: eu-west-1
+          bootstrap.conf:
+            boostrap.config.property: some_string
+        replicas: 2
+----
 
 === Environment Variables
 
