@@ -131,9 +131,9 @@ include::example$code/getting-started.sh[tag=nifi-tests]
 
 Congratulations, you successfully created and tested your first NiFi cluster.
 
-=== Access NiFi the web interface
+=== Access the NiFi web interface
 
-You can the connection settings for the NiFi cluster via script or stackablectl.
+You can inspect the connection settings for the NiFi cluster via script or stackablectl.
 
 ==== Via kubectl and jq
 
@@ -161,7 +161,7 @@ Alternatively, when using stackablectl you can use the service command to get a 
 stackablectl svc list
 ----
 
-with should return something like this:
+which should return something like this:
 
 ----
  PRODUCT    NAME         NAMESPACE  ENDPOINTS                       EXTRA INFOS
@@ -171,7 +171,7 @@ with should return something like this:
  zookeeper  simple-zk    default    zk    172.18.0.5:31377
 ----
 
-Then connect to `https://<ip>:<port>/nifi` and you should the NiFi web interface.
+Then connect to `https://<ip>:<port>/nifi` and you should see the NiFi web interface.
 
 image::nifi-web-ui.png[]
 
