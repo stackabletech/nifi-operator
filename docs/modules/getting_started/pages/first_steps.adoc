@@ -41,6 +41,8 @@ and apply it:
 include::example$code/getting-started.sh[tag=install-znode]
 ----
 
+The xref:zookeeper:ROOT:znode.adoc[ZNode] makes sure that the NiFi cluster will operate in its own seperated directory in ZooKeeper.
+
 === NiFi
 
 The NiFi cluster requires authentication. In order to provide credentials, create a file named `nifi-admin-credentials.yaml` with the following content:
@@ -100,7 +102,7 @@ Congratulations, you successfully created your first NiFi cluster.
 
 === Access the NiFi web interface
 
-You can retrieve the URL for the NiFi cluster web interface stackablectl or kubectl.
+You can retrieve the URL for the NiFi cluster web interface via stackablectl or kubectl.
 
 ==== stackablectl
 
@@ -127,7 +129,7 @@ image::nifi-web-ui.png[]
 
 ==== Via kubectl
 
-Extracting the IP and port via kubectl is cumbersome. We recommend using stackablectl. The following kubectl commands store their output for further use in a variable and write its content to stdout afterwards:
+Extracting the IP and port via kubectl is cumbersome. We recommend using stackablectl instead. The following kubectl commands store their output for further use in a variable and write its content to stdout afterwards. Make sure to run these commands in the same terminal:
 
 [source,bash]
 ----
@@ -148,7 +150,7 @@ Retrieve the IP of that node:
 include::example$code/getting-started.sh[tag=get-nifi-node-ip]
 ----
 
-which should output the internal ip of that node:
+which should output the internal IP of that node:
 
 [source]
 ----
@@ -169,14 +171,14 @@ which should output the NodePort:
 NodePort: 32595
 ----
 
-Now build the url:
+Now build the full URL:
 
 [source,bash]
 ----
 include::example$code/getting-started.sh[tag=get-nifi-service-port]
 ----
 
-which should output an url to connect to the NiFi web interface:
+which should output a URL to connect to the NiFi web interface:
 
 [source]
 ----
