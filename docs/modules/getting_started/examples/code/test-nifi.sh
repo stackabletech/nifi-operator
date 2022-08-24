@@ -3,16 +3,6 @@ set -euo pipefail
 
 nifi_host=$1
 
-echo "Awaiting NiFi rollout finish"
-# tag::wait-nifi-rollout[]
-kubectl wait -l statefulset.kubernetes.io/pod-name=simple-nifi-node-default-0 \
---for=condition=ready pod --timeout=-5s && \
-kubectl wait -l statefulset.kubernetes.io/pod-name=simple-nifi-node-default-1 \
---for=condition=ready pod --timeout=-5s
-# end::wait-nifi-rollout[]
-
-sleep 5
-
 # get user password
 echo "Getting NiFi credentials"
 nifi_username=$(kubectl get secret nifi-admin-credentials-simple -o jsonpath='{.data.username}' | base64 --decode)
@@ -49,7 +39,7 @@ do
   fi
 
   echo "Retrying in $retry_interval_seconds seconds..."
-  x=$(( $x + 1 ))
+  x=$(( x + 1 ))
   sleep "$retry_interval_seconds"
 done
 

@@ -76,6 +76,16 @@ kubectl apply -f nifi.yaml
 
 sleep 5
 
+echo "Awaiting NiFi rollout finish"
+# tag::wait-nifi-rollout[]
+kubectl wait -l statefulset.kubernetes.io/pod-name=simple-nifi-node-default-0 \
+--for=condition=ready pod --timeout=-5s && \
+kubectl wait -l statefulset.kubernetes.io/pod-name=simple-nifi-node-default-1 \
+--for=condition=ready pod --timeout=-5s
+# end::wait-nifi-rollout[]
+
+sleep 5
+
 echo "Get a single node where a NiFi pod is running"
 # tag::get-nifi-node-name[]
 nifi_node_name=( $(kubectl get endpoints simple-nifi --output=jsonpath='{.subsets[*].addresses[*].nodeName}') ) && echo "NodeName: $nifi_node_name"
@@ -93,9 +103,9 @@ nifi_service_port=$(kubectl get service -o jsonpath="{.items[?(@.metadata.name==
 
 echo "Create NiFi url"
 # tag::create_nifi_url[]
-nifi_url=$(echo "https://$nifi_node_ip:$nifi_service_port") && echo "NiFi web interface: $nifi_url"
+nifi_url="https://$nifi_node_ip:$nifi_service_port" && echo "NiFi web interface: $nifi_url"
 # end::create_nifi_url[]
 
 echo "Starting nifi tests"
 chmod +x ./test-nifi.sh
-./test-nifi.sh $nifi_url
+./test-nifi.sh "$nifi_url"

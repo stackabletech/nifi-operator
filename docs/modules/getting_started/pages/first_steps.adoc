@@ -79,7 +79,7 @@ First, make sure all pods are ready:
 
 [source,bash]
 ----
-include::example$code/test-nifi.sh[tag=wait-nifi-rollout]
+include::example$code/getting-started.sh[tag=wait-nifi-rollout]
 ----
 
 Then make sure the StatefulSets are ready:
