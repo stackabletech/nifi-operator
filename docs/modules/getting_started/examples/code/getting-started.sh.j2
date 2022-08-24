@@ -65,9 +65,9 @@ kubectl rollout status --watch statefulset/simple-zk-server-default
 # end::watch-zookeeper-rollout[]
 
 echo "Install the NiFi admin credentials from nifi-admin-credentials.yaml"
-# tag::install-nifi[]
+# tag::install-nifi-credentials[]
 kubectl apply -f nifi-admin-credentials.yaml
-# end::install-nifi[]
+# end::install-nifi-credentials[]
 
 echo "Install NiFiCluster from nifi.yaml"
 # tag::install-nifi[]
@@ -76,8 +76,26 @@ kubectl apply -f nifi.yaml
 
 sleep 5
 
+echo "Get a single node where a NiFi pod is running"
+# tag::get-nifi-node-name[]
+nifi_node_name=( $(kubectl get endpoints simple-nifi --output=jsonpath='{.subsets[*].addresses[*].nodeName}') ) && echo "NodeName: $nifi_node_name"
+# end::get-nifi-node-name[]
+
+echo "List $nifi_node_name node internal ip"
+# tag::get-nifi-node-ip[]
+nifi_node_ip=$(kubectl get nodes -o jsonpath="{.items[?(@.metadata.name==\"$nifi_node_name\")].status.addresses[?(@.type==\"InternalIP\")].address}") && echo "NodeIp: $nifi_node_ip"
+# end::get-nifi-node-ip[]
+
+echo "Get node port from service"
+# tag::get-nifi-service-port[]
+nifi_service_port=$(kubectl get service -o jsonpath="{.items[?(@.metadata.name==\"simple-nifi\")].spec.ports[?(@.name==\"https\")].nodePort}") && echo "NodePort: $nifi_service_port"
+# end::get-nifi-service-port[]
+
+echo "Create NiFi url"
+# tag::create_nifi_url[]
+nifi_url=$(echo "https://$nifi_node_ip:$nifi_service_port") && echo "NiFi web interface: $nifi_url"
+# end::create_nifi_url[]
+
 echo "Starting nifi tests"
-# tag::nifi-tests[]
 chmod +x ./test-nifi.sh
-./test-nifi.sh
-# end::nifi-tests[]
+./test-nifi.sh $nifi_url
