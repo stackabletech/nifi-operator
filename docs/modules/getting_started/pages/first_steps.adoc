@@ -41,7 +41,7 @@ and apply it:
 include::example$code/getting-started.sh[tag=install-znode]
 ----
 
-The xref:zookeeper:ROOT:znode.adoc[ZNode] makes sure that the NiFi cluster will operate in its own seperated directory in ZooKeeper.
+The xref:zookeeper:ROOT:znodes.adoc[ZNode] makes sure that the NiFi cluster will operate in its own seperated directory in ZooKeeper.
 
 === NiFi
 
