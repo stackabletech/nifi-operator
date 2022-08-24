@@ -9,7 +9,6 @@ You will need:
 * a Kubernetes cluster
 * kubectl
 * optional: Helm
-* optional: https://curl.se/[curl] and https://stedolan.github.io/jq/[jq] (for testing)
 
 == What's next
 
