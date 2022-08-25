@@ -79,31 +79,35 @@ sleep 5
 echo "Awaiting NiFi rollout finish"
 # tag::wait-nifi-rollout[]
 kubectl wait -l statefulset.kubernetes.io/pod-name=simple-nifi-node-default-0 \
---for=condition=ready pod --timeout=-5s && \
+--for=condition=ready pod --timeout=1200s && \
 kubectl wait -l statefulset.kubernetes.io/pod-name=simple-nifi-node-default-1 \
---for=condition=ready pod --timeout=-5s
+--for=condition=ready pod --timeout=1200s
 # end::wait-nifi-rollout[]
 
 sleep 5
 
 echo "Get a single node where a NiFi pod is running"
 # tag::get-nifi-node-name[]
-nifi_node_name=( $(kubectl get endpoints simple-nifi --output=jsonpath='{.subsets[*].addresses[*].nodeName}') ) && echo "NodeName: $nifi_node_name"
+nifi_node_name=$(kubectl get endpoints simple-nifi --output=jsonpath='{.subsets[0].addresses[0].nodeName}') && \
+echo "NodeName: $nifi_node_name"
 # end::get-nifi-node-name[]
 
 echo "List $nifi_node_name node internal ip"
 # tag::get-nifi-node-ip[]
-nifi_node_ip=$(kubectl get nodes -o jsonpath="{.items[?(@.metadata.name==\"$nifi_node_name\")].status.addresses[?(@.type==\"InternalIP\")].address}") && echo "NodeIp: $nifi_node_ip"
+nifi_node_ip=$(kubectl get nodes -o jsonpath="{.items[?(@.metadata.name==\"$nifi_node_name\")].status.addresses[?(@.type==\"InternalIP\")].address}") && \
+echo "NodeIp: $nifi_node_ip"
 # end::get-nifi-node-ip[]
 
 echo "Get node port from service"
 # tag::get-nifi-service-port[]
-nifi_service_port=$(kubectl get service -o jsonpath="{.items[?(@.metadata.name==\"simple-nifi\")].spec.ports[?(@.name==\"https\")].nodePort}") && echo "NodePort: $nifi_service_port"
+nifi_service_port=$(kubectl get service -o jsonpath="{.items[?(@.metadata.name==\"simple-nifi\")].spec.ports[?(@.name==\"https\")].nodePort}") && \
+echo "NodePort: $nifi_service_port"
 # end::get-nifi-service-port[]
 
 echo "Create NiFi url"
 # tag::create_nifi_url[]
-nifi_url="https://$nifi_node_ip:$nifi_service_port" && echo "NiFi web interface: $nifi_url"
+nifi_url="https://$nifi_node_ip:$nifi_service_port" && \
+echo "NiFi web interface: $nifi_url"
 # end::create_nifi_url[]
 
 echo "Starting nifi tests"
