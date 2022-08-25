@@ -79,9 +79,9 @@ sleep 5
 echo "Awaiting NiFi rollout finish"
 # tag::wait-nifi-rollout[]
 kubectl wait -l statefulset.kubernetes.io/pod-name=simple-nifi-node-default-0 \
---for=condition=ready pod --timeout=-5s && \
+--for=condition=ready pod --timeout=5s && \
 kubectl wait -l statefulset.kubernetes.io/pod-name=simple-nifi-node-default-1 \
---for=condition=ready pod --timeout=-5s
+--for=condition=ready pod --timeout=5s
 # end::wait-nifi-rollout[]
 
 sleep 5
