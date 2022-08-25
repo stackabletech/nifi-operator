@@ -70,7 +70,7 @@ pub struct NifiSpec {
     pub config: NifiGlobalConfig,
 }
 
-#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiGlobalConfig {
     /// A reference to a Secret containing username/password for the initial admin user
@@ -79,7 +79,7 @@ pub struct NifiGlobalConfig {
     pub sensitive_properties: NifiSensitivePropertiesConfig,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiSensitivePropertiesConfig {
     pub key_secret: String,
@@ -88,7 +88,7 @@ pub struct NifiSensitivePropertiesConfig {
     pub auto_generate: bool,
 }
 
-#[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[derive(strum::Display, Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum NifiSensitiveKeyAlgorithm {
     #[strum(serialize = "NIFI_ARGON2_AES_GCM_128")]
@@ -115,7 +115,7 @@ impl Default for NifiSensitiveKeyAlgorithm {
     }
 }
 
-#[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[derive(strum::Display, Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum StoreType {
     #[strum(serialize = "JKS")]
@@ -220,7 +220,7 @@ impl Configuration for NifiConfig {
     }
 }
 
-#[derive(Clone, Debug, Default, Merge, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Merge, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiLogConfig {
     pub root_log_level: Option<LogLevel>,
@@ -228,7 +228,7 @@ pub struct NifiLogConfig {
 
 impl Atomic for LogLevel {}
 
-#[derive(strum::Display, Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[derive(strum::Display, Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 pub enum LogLevel {
     DEBUG,
     INFO,

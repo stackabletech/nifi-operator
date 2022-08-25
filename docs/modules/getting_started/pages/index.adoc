@@ -1,0 +1,18 @@
+= Getting started
+
+This guide will get you started with Apache NiFi using the Stackable operator. It will guide you through the installation of the operator and its dependencies, setting up your first NiFi cluster.
+
+== Prerequisites
+
+You will need:
+
+* a Kubernetes cluster
+* kubectl
+* optional: Helm
+
+== What's next
+
+The guide is divided into the following steps:
+
+* xref:installation.adoc[Installing the Operators]
+* xref:first_steps.adoc[Setting up the NiFi cluster]

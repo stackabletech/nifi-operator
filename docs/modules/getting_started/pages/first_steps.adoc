@@ -1,0 +1,192 @@
+= First steps
+
+After going through the xref:installation.adoc[] section and having installed all the operators, you will now deploy a NiFi cluster and the required dependencies. Afterwards you can <<_verify_that_it_works, verify that it works>> by querying the REST API.
+
+== Setup
+
+Two things need to be installed to create a NiFi cluster:
+
+* A ZooKeeper cluster for internal use by NiFi
+* The NiFi cluster itself
+
+We will create them in this order, each one is created by applying a manifest file. The operators you just installed will then create the resources according to the manifest.
+
+=== ZooKeeper
+
+Create a file named `zookeeper.yaml` with the following content:
+
+[source,yaml]
+----
+include::example$code/zookeeper.yaml[]
+----
+
+and apply it:
+
+[source,bash]
+----
+include::example$code/getting-started.sh[tag=install-zookeeper]
+----
+
+Create a file `nifi-znode.yaml` with the following content:
+
+[source,yaml]
+----
+include::example$code/nifi-znode.yaml[]
+----
+
+and apply it:
+
+[source,bash]
+----
+include::example$code/getting-started.sh[tag=install-znode]
+----
+
+The xref:zookeeper:ROOT:znodes.adoc[ZNode] makes sure that the NiFi cluster will operate in its own separated directory in ZooKeeper.
+
+=== NiFi
+
+The NiFi cluster requires authentication. In order to provide credentials, create a file named `nifi-admin-credentials.yaml` with the following content:
+
+[source,yaml]
+----
+include::example$code/nifi-admin-credentials.yaml[]
+----
+
+and apply it:
+
+----
+include::example$code/getting-started.sh[tag=install-nifi-credentials]
+----
+
+Create a file named `nifi.yaml` with the following content:
+
+[source,yaml]
+----
+include::example$code/nifi.yaml[]
+----
+
+and apply it:
+
+----
+include::example$code/getting-started.sh[tag=install-nifi]
+----
+
+This will create the actual NiFi cluster.
+
+== Verify that it works
+
+First, make sure all pods are ready:
+
+[source,bash]
+----
+include::example$code/getting-started.sh[tag=wait-nifi-rollout]
+----
+
+Then make sure the StatefulSets are ready:
+
+[source,bash]
+----
+kubectl get statefulset
+----
+
+The output should show all pods ready:
+
+[source]
+----
+NAME                                 READY   AGE
+simple-nifi-node-default             2/2     5m
+simple-zk-server-default             3/3     7m
+----
+
+Congratulations, you successfully created your first NiFi cluster.
+
+=== Access the NiFi web interface
+
+You can retrieve the URL for the NiFi cluster web interface via stackablectl or kubectl.
+
+==== stackablectl
+
+Use the service command of stackablectl to get a list of all available endpoints:
+
+[source,bash]
+----
+stackablectl svc list
+----
+
+which should return something like this:
+
+----
+ PRODUCT    NAME         NAMESPACE  ENDPOINTS                       EXTRA INFOS
+
+ nifi       simple-nifi  default    https https://172.18.0.3:32595
+
+ zookeeper  simple-zk    default    zk    172.18.0.3:30173
+----
+
+Then connect to `https://172.18.0.3:32595/nifi` and you should see the NiFi web login. After providing the username `admin` and password `admin` you are redirected to the NiFi web interface.
+
+image::nifi-web-ui.png[]
+
+==== Via kubectl
+
+Extracting the IP and port via kubectl is cumbersome. We recommend using stackablectl instead. The following kubectl commands store their output for further use in a variable and write its content to stdout afterwards. Make sure to run these commands in the same terminal:
+
+[source,bash]
+----
+include::example$code/getting-started.sh[tag=get-nifi-node-name]
+----
+
+which should output a single node name where a NiFi pod is scheduled:
+
+[source]
+----
+NodeName: kind-worker
+----
+
+Retrieve the IP of that node:
+
+[source,bash]
+----
+include::example$code/getting-started.sh[tag=get-nifi-node-ip]
+----
+
+which should output the internal IP of that node:
+
+[source]
+----
+NodeIp: 172.18.0.3
+----
+
+Finally, retrieve the NodePort of the `simple-nifi` service:
+
+[source,bash]
+----
+include::example$code/getting-started.sh[tag=get-nifi-service-port]
+----
+
+which should output the NodePort:
+
+[source]
+----
+NodePort: 32595
+----
+
+Now build the full URL:
+
+[source,bash]
+----
+include::example$code/getting-started.sh[tag=create_nifi_url]
+----
+
+which should output a URL to connect to the NiFi web interface:
+
+[source]
+----
+NiFi web interface: https://172.18.0.3:32595
+----
+
+Then connect to `https://172.18.0.3:32595/nifi` and you should see the NiFi web login. After providing the username `admin` and password `admin` you are redirected to the NiFi web interface.
+
+== What's next
+
+Have a look at the xref:ROOT:usage.adoc[] page to find out more about the features of the NiFi Operator.
