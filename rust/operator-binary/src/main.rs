@@ -19,9 +19,10 @@ use stackable_operator::{
     kube::{
         api::ListParams,
         runtime::{reflector::ObjectRef, Controller},
-        CustomResourceExt, ResourceExt,
+        ResourceExt,
     },
     logging::controller::report_controller_reconciled,
+    CustomResourceExt,
 };
 
 mod built_info {
@@ -39,7 +40,7 @@ struct Opts {
 async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
-        Command::Crd => println!("{}", serde_yaml::to_string(&NifiCluster::crd())?),
+        Command::Crd => NifiCluster::print_yaml_schema()?,
         Command::Run(ProductOperatorRun {
             product_config,
             watch_namespace,
