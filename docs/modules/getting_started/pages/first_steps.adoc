@@ -175,7 +175,7 @@ Now build the full URL:
 
 [source,bash]
 ----
-include::example$code/getting-started.sh[tag=get-nifi-service-port]
+include::example$code/getting-started.sh[tag=create_nifi_url]
 ----
 
 which should output a URL to connect to the NiFi web interface:
