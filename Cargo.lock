@@ -1698,7 +1698,7 @@ dependencies = [
 
 [[package]]
 name = "stackable-nifi-crd"
-version = "0.7.0-nightly"
+version = "0.7.0"
 dependencies = [
  "indoc",
  "rand",
@@ -1713,7 +1713,7 @@ dependencies = [
 
 [[package]]
 name = "stackable-nifi-operator"
-version = "0.7.0-nightly"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "built",
