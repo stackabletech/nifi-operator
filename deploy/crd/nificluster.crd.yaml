@@ -23,12 +23,10 @@ spec:
           spec:
             properties:
               config:
-                description: Global Nifi config for e.g. authentication or sensitive
-                  properties
+                description: Global Nifi config for e.g. authentication or sensitive properties
                 properties:
                   authentication:
-                    description: A reference to a Secret containing username/password
-                      for the initial admin user
+                    description: A reference to a Secret containing username/password for the initial admin user
                     properties:
                       allowAnonymousAccess:
                         nullable: true
@@ -57,8 +55,7 @@ spec:
                     - method
                     type: object
                   sensitiveProperties:
-                    description: Configuration options for how NiFi encrypts sensitive
-                      properties on disk
+                    description: Configuration options for how NiFi encrypts sensitive properties on disk
                     properties:
                       algorithm:
                         enum:
@@ -270,41 +267,22 @@ spec:
                                     nullable: true
                                     type: string
                                   selectors:
-                                    description: A label selector is a label query
-                                      over a set of resources. The result of matchLabels
-                                      and matchExpressions are ANDed. An empty label
-                                      selector matches all objects. A null label selector
-                                      matches no objects.
+                                    description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
                                     nullable: true
                                     properties:
                                       matchExpressions:
-                                        description: matchExpressions is a list of
-                                          label selector requirements. The requirements
-                                          are ANDed.
+                                        description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
                                         items:
-                                          description: A label selector requirement
-                                            is a selector that contains values, a
-                                            key, and an operator that relates the
-                                            key and values.
+                                          description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
                                           properties:
                                             key:
-                                              description: key is the label key that
-                                                the selector applies to.
+                                              description: key is the label key that the selector applies to.
                                               type: string
                                             operator:
-                                              description: operator represents a key's
-                                                relationship to a set of values. Valid
-                                                operators are In, NotIn, Exists and
-                                                DoesNotExist.
+                                              description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
                                               type: string
                                             values:
-                                              description: values is an array of string
-                                                values. If the operator is In or NotIn,
-                                                the values array must be non-empty.
-                                                If the operator is Exists or DoesNotExist,
-                                                the values array must be empty. This
-                                                array is replaced during a strategic
-                                                merge patch.
+                                              description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
                                               items:
                                                 type: string
                                               type: array
@@ -316,12 +294,7 @@ spec:
                                       matchLabels:
                                         additionalProperties:
                                           type: string
-                                        description: matchLabels is a map of {key,value}
-                                          pairs. A single {key,value} in the matchLabels
-                                          map is equivalent to an element of matchExpressions,
-                                          whose key field is "key", the operator is
-                                          "In", and the values array contains only
-                                          "value". The requirements are ANDed.
+                                        description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                                         type: object
                                     type: object
                                   storageClass:
@@ -368,41 +341,22 @@ spec:
                                     nullable: true
                                     type: string
                                   selectors:
-                                    description: A label selector is a label query
-                                      over a set of resources. The result of matchLabels
-                                      and matchExpressions are ANDed. An empty label
-                                      selector matches all objects. A null label selector
-                                      matches no objects.
+                                    description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
                                     nullable: true
                                     properties:
                                       matchExpressions:
-                                        description: matchExpressions is a list of
-                                          label selector requirements. The requirements
-                                          are ANDed.
+                                        description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
                                         items:
-                                          description: A label selector requirement
-                                            is a selector that contains values, a
-                                            key, and an operator that relates the
-                                            key and values.
+                                          description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
                                           properties:
                                             key:
-                                              description: key is the label key that
-                                                the selector applies to.
+                                              description: key is the label key that the selector applies to.
                                               type: string
                                             operator:
-                                              description: operator represents a key's
-                                                relationship to a set of values. Valid
-                                                operators are In, NotIn, Exists and
-                                                DoesNotExist.
+                                              description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
                                               type: string
                                             values:
-                                              description: values is an array of string
-                                                values. If the operator is In or NotIn,
-                                                the values array must be non-empty.
-                                                If the operator is Exists or DoesNotExist,
-                                                the values array must be empty. This
-                                                array is replaced during a strategic
-                                                merge patch.
+                                              description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
                                               items:
                                                 type: string
                                               type: array
@@ -414,12 +368,7 @@ spec:
                                       matchLabels:
                                         additionalProperties:
                                           type: string
-                                        description: matchLabels is a map of {key,value}
-                                          pairs. A single {key,value} in the matchLabels
-                                          map is equivalent to an element of matchExpressions,
-                                          whose key field is "key", the operator is
-                                          "In", and the values array contains only
-                                          "value". The requirements are ANDed.
+                                        description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                                         type: object
                                     type: object
                                   storageClass:
@@ -466,41 +415,22 @@ spec:
                                     nullable: true
                                     type: string
                                   selectors:
-                                    description: A label selector is a label query
-                                      over a set of resources. The result of matchLabels
-                                      and matchExpressions are ANDed. An empty label
-                                      selector matches all objects. A null label selector
-                                      matches no objects.
+                                    description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
                                     nullable: true
                                     properties:
                                       matchExpressions:
-                                        description: matchExpressions is a list of
-                                          label selector requirements. The requirements
-                                          are ANDed.
+                                        description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
                                         items:
-                                          description: A label selector requirement
-                                            is a selector that contains values, a
-                                            key, and an operator that relates the
-                                            key and values.
+                                          description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
                                           properties:
                                             key:
-                                              description: key is the label key that
-                                                the selector applies to.
+                                              description: key is the label key that the selector applies to.
                                               type: string
                                             operator:
-                                              description: operator represents a key's
-                                                relationship to a set of values. Valid
-                                                operators are In, NotIn, Exists and
-                                                DoesNotExist.
+                                              description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
                                               type: string
                                             values:
-                                              description: values is an array of string
-                                                values. If the operator is In or NotIn,
-                                                the values array must be non-empty.
-                                                If the operator is Exists or DoesNotExist,
-                                                the values array must be empty. This
-                                                array is replaced during a strategic
-                                                merge patch.
+                                              description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
                                               items:
                                                 type: string
                                               type: array
@@ -512,12 +442,7 @@ spec:
                                       matchLabels:
                                         additionalProperties:
                                           type: string
-                                        description: matchLabels is a map of {key,value}
-                                          pairs. A single {key,value} in the matchLabels
-                                          map is equivalent to an element of matchExpressions,
-                                          whose key field is "key", the operator is
-                                          "In", and the values array contains only
-                                          "value". The requirements are ANDed.
+                                        description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                                         type: object
                                     type: object
                                   storageClass:
@@ -564,41 +489,22 @@ spec:
                                     nullable: true
                                     type: string
                                   selectors:
-                                    description: A label selector is a label query
-                                      over a set of resources. The result of matchLabels
-                                      and matchExpressions are ANDed. An empty label
-                                      selector matches all objects. A null label selector
-                                      matches no objects.
+                                    description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
                                     nullable: true
                                     properties:
                                       matchExpressions:
-                                        description: matchExpressions is a list of
-                                          label selector requirements. The requirements
-                                          are ANDed.
+                                        description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
                                         items:
-                                          description: A label selector requirement
-                                            is a selector that contains values, a
-                                            key, and an operator that relates the
-                                            key and values.
+                                          description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
                                           properties:
                                             key:
-                                              description: key is the label key that
-                                                the selector applies to.
+                                              description: key is the label key that the selector applies to.
                                               type: string
                                             operator:
-                                              description: operator represents a key's
-                                                relationship to a set of values. Valid
-                                                operators are In, NotIn, Exists and
-                                                DoesNotExist.
+                                              description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
                                               type: string
                                             values:
-                                              description: values is an array of string
-                                                values. If the operator is In or NotIn,
-                                                the values array must be non-empty.
-                                                If the operator is Exists or DoesNotExist,
-                                                the values array must be empty. This
-                                                array is replaced during a strategic
-                                                merge patch.
+                                              description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
                                               items:
                                                 type: string
                                               type: array
@@ -610,12 +516,7 @@ spec:
                                       matchLabels:
                                         additionalProperties:
                                           type: string
-                                        description: matchLabels is a map of {key,value}
-                                          pairs. A single {key,value} in the matchLabels
-                                          map is equivalent to an element of matchExpressions,
-                                          whose key field is "key", the operator is
-                                          "In", and the values array contains only
-                                          "value". The requirements are ANDed.
+                                        description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                                         type: object
                                     type: object
                                   storageClass:
@@ -662,41 +563,22 @@ spec:
                                     nullable: true
                                     type: string
                                   selectors:
-                                    description: A label selector is a label query
-                                      over a set of resources. The result of matchLabels
-                                      and matchExpressions are ANDed. An empty label
-                                      selector matches all objects. A null label selector
-                                      matches no objects.
+                                    description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
                                     nullable: true
                                     properties:
                                       matchExpressions:
-                                        description: matchExpressions is a list of
-                                          label selector requirements. The requirements
-                                          are ANDed.
+                                        description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
                                         items:
-                                          description: A label selector requirement
-                                            is a selector that contains values, a
-                                            key, and an operator that relates the
-                                            key and values.
+                                          description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
                                           properties:
                                             key:
-                                              description: key is the label key that
-                                                the selector applies to.
+                                              description: key is the label key that the selector applies to.
                                               type: string
                                             operator:
-                                              description: operator represents a key's
-                                                relationship to a set of values. Valid
-                                                operators are In, NotIn, Exists and
-                                                DoesNotExist.
+                                              description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
                                               type: string
                                             values:
-                                              description: values is an array of string
-                                                values. If the operator is In or NotIn,
-                                                the values array must be non-empty.
-                                                If the operator is Exists or DoesNotExist,
-                                                the values array must be empty. This
-                                                array is replaced during a strategic
-                                                merge patch.
+                                              description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
                                               items:
                                                 type: string
                                               type: array
@@ -708,12 +590,7 @@ spec:
                                       matchLabels:
                                         additionalProperties:
                                           type: string
-                                        description: matchLabels is a map of {key,value}
-                                          pairs. A single {key,value} in the matchLabels
-                                          map is equivalent to an element of matchExpressions,
-                                          whose key field is "key", the operator is
-                                          "In", and the values array contains only
-                                          "value". The requirements are ANDed.
+                                        description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                                         type: object
                                     type: object
                                   storageClass:
@@ -920,44 +797,22 @@ spec:
                                           nullable: true
                                           type: string
                                         selectors:
-                                          description: A label selector is a label
-                                            query over a set of resources. The result
-                                            of matchLabels and matchExpressions are
-                                            ANDed. An empty label selector matches
-                                            all objects. A null label selector matches
-                                            no objects.
+                                          description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
                                           nullable: true
                                           properties:
                                             matchExpressions:
-                                              description: matchExpressions is a list
-                                                of label selector requirements. The
-                                                requirements are ANDed.
+                                              description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
                                               items:
-                                                description: A label selector requirement
-                                                  is a selector that contains values,
-                                                  a key, and an operator that relates
-                                                  the key and values.
+                                                description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
                                                 properties:
                                                   key:
-                                                    description: key is the label
-                                                      key that the selector applies
-                                                      to.
+                                                    description: key is the label key that the selector applies to.
                                                     type: string
                                                   operator:
-                                                    description: operator represents
-                                                      a key's relationship to a set
-                                                      of values. Valid operators are
-                                                      In, NotIn, Exists and DoesNotExist.
+                                                    description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
                                                     type: string
                                                   values:
-                                                    description: values is an array
-                                                      of string values. If the operator
-                                                      is In or NotIn, the values array
-                                                      must be non-empty. If the operator
-                                                      is Exists or DoesNotExist, the
-                                                      values array must be empty.
-                                                      This array is replaced during
-                                                      a strategic merge patch.
+                                                    description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
                                                     items:
                                                       type: string
                                                     type: array
@@ -969,14 +824,7 @@ spec:
                                             matchLabels:
                                               additionalProperties:
                                                 type: string
-                                              description: matchLabels is a map of
-                                                {key,value} pairs. A single {key,value}
-                                                in the matchLabels map is equivalent
-                                                to an element of matchExpressions,
-                                                whose key field is "key", the operator
-                                                is "In", and the values array contains
-                                                only "value". The requirements are
-                                                ANDed.
+                                              description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                                               type: object
                                           type: object
                                         storageClass:
@@ -1023,44 +871,22 @@ spec:
                                           nullable: true
                                           type: string
                                         selectors:
-                                          description: A label selector is a label
-                                            query over a set of resources. The result
-                                            of matchLabels and matchExpressions are
-                                            ANDed. An empty label selector matches
-                                            all objects. A null label selector matches
-                                            no objects.
+                                          description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
                                           nullable: true
                                           properties:
                                             matchExpressions:
-                                              description: matchExpressions is a list
-                                                of label selector requirements. The
-                                                requirements are ANDed.
+                                              description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
                                               items:
-                                                description: A label selector requirement
-                                                  is a selector that contains values,
-                                                  a key, and an operator that relates
-                                                  the key and values.
+                                                description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
                                                 properties:
                                                   key:
-                                                    description: key is the label
-                                                      key that the selector applies
-                                                      to.
+                                                    description: key is the label key that the selector applies to.
                                                     type: string
                                                   operator:
-                                                    description: operator represents
-                                                      a key's relationship to a set
-                                                      of values. Valid operators are
-                                                      In, NotIn, Exists and DoesNotExist.
+                                                    description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
                                                     type: string
                                                   values:
-                                                    description: values is an array
-                                                      of string values. If the operator
-                                                      is In or NotIn, the values array
-                                                      must be non-empty. If the operator
-                                                      is Exists or DoesNotExist, the
-                                                      values array must be empty.
-                                                      This array is replaced during
-                                                      a strategic merge patch.
+                                                    description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
                                                     items:
                                                       type: string
                                                     type: array
@@ -1072,14 +898,7 @@ spec:
                                             matchLabels:
                                               additionalProperties:
                                                 type: string
-                                              description: matchLabels is a map of
-                                                {key,value} pairs. A single {key,value}
-                                                in the matchLabels map is equivalent
-                                                to an element of matchExpressions,
-                                                whose key field is "key", the operator
-                                                is "In", and the values array contains
-                                                only "value". The requirements are
-                                                ANDed.
+                                              description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                                               type: object
                                           type: object
                                         storageClass:
@@ -1126,44 +945,22 @@ spec:
                                           nullable: true
                                           type: string
                                         selectors:
-                                          description: A label selector is a label
-                                            query over a set of resources. The result
-                                            of matchLabels and matchExpressions are
-                                            ANDed. An empty label selector matches
-                                            all objects. A null label selector matches
-                                            no objects.
+                                          description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
                                           nullable: true
                                           properties:
                                             matchExpressions:
-                                              description: matchExpressions is a list
-                                                of label selector requirements. The
-                                                requirements are ANDed.
+                                              description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
                                               items:
-                                                description: A label selector requirement
-                                                  is a selector that contains values,
-                                                  a key, and an operator that relates
-                                                  the key and values.
+                                                description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
                                                 properties:
                                                   key:
-                                                    description: key is the label
-                                                      key that the selector applies
-                                                      to.
+                                                    description: key is the label key that the selector applies to.
                                                     type: string
                                                   operator:
-                                                    description: operator represents
-                                                      a key's relationship to a set
-                                                      of values. Valid operators are
-                                                      In, NotIn, Exists and DoesNotExist.
+                                                    description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
                                                     type: string
                                                   values:
-                                                    description: values is an array
-                                                      of string values. If the operator
-                                                      is In or NotIn, the values array
-                                                      must be non-empty. If the operator
-                                                      is Exists or DoesNotExist, the
-                                                      values array must be empty.
-                                                      This array is replaced during
-                                                      a strategic merge patch.
+                                                    description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
                                                     items:
                                                       type: string
                                                     type: array
@@ -1175,14 +972,7 @@ spec:
                                             matchLabels:
                                               additionalProperties:
                                                 type: string
-                                              description: matchLabels is a map of
-                                                {key,value} pairs. A single {key,value}
-                                                in the matchLabels map is equivalent
-                                                to an element of matchExpressions,
-                                                whose key field is "key", the operator
-                                                is "In", and the values array contains
-                                                only "value". The requirements are
-                                                ANDed.
+                                              description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                                               type: object
                                           type: object
                                         storageClass:
@@ -1229,44 +1019,22 @@ spec:
                                           nullable: true
                                           type: string
                                         selectors:
-                                          description: A label selector is a label
-                                            query over a set of resources. The result
-                                            of matchLabels and matchExpressions are
-                                            ANDed. An empty label selector matches
-                                            all objects. A null label selector matches
-                                            no objects.
+                                          description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
                                           nullable: true
                                           properties:
                                             matchExpressions:
-                                              description: matchExpressions is a list
-                                                of label selector requirements. The
-                                                requirements are ANDed.
+                                              description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
                                               items:
-                                                description: A label selector requirement
-                                                  is a selector that contains values,
-                                                  a key, and an operator that relates
-                                                  the key and values.
+                                                description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
                                                 properties:
                                                   key:
-                                                    description: key is the label
-                                                      key that the selector applies
-                                                      to.
+                                                    description: key is the label key that the selector applies to.
                                                     type: string
                                                   operator:
-                                                    description: operator represents
-                                                      a key's relationship to a set
-                                                      of values. Valid operators are
-                                                      In, NotIn, Exists and DoesNotExist.
+                                                    description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
                                                     type: string
                                                   values:
-                                                    description: values is an array
-                                                      of string values. If the operator
-                                                      is In or NotIn, the values array
-                                                      must be non-empty. If the operator
-                                                      is Exists or DoesNotExist, the
-                                                      values array must be empty.
-                                                      This array is replaced during
-                                                      a strategic merge patch.
+                                                    description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
                                                     items:
                                                       type: string
                                                     type: array
@@ -1278,14 +1046,7 @@ spec:
                                             matchLabels:
                                               additionalProperties:
                                                 type: string
-                                              description: matchLabels is a map of
-                                                {key,value} pairs. A single {key,value}
-                                                in the matchLabels map is equivalent
-                                                to an element of matchExpressions,
-                                                whose key field is "key", the operator
-                                                is "In", and the values array contains
-                                                only "value". The requirements are
-                                                ANDed.
+                                              description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                                               type: object
                                           type: object
                                         storageClass:
@@ -1332,44 +1093,22 @@ spec:
                                           nullable: true
                                           type: string
                                         selectors:
-                                          description: A label selector is a label
-                                            query over a set of resources. The result
-                                            of matchLabels and matchExpressions are
-                                            ANDed. An empty label selector matches
-                                            all objects. A null label selector matches
-                                            no objects.
+                                          description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
                                           nullable: true
                                           properties:
                                             matchExpressions:
-                                              description: matchExpressions is a list
-                                                of label selector requirements. The
-                                                requirements are ANDed.
+                                              description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
                                               items:
-                                                description: A label selector requirement
-                                                  is a selector that contains values,
-                                                  a key, and an operator that relates
-                                                  the key and values.
+                                                description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
                                                 properties:
                                                   key:
-                                                    description: key is the label
-                                                      key that the selector applies
-                                                      to.
+                                                    description: key is the label key that the selector applies to.
                                                     type: string
                                                   operator:
-                                                    description: operator represents
-                                                      a key's relationship to a set
-                                                      of values. Valid operators are
-                                                      In, NotIn, Exists and DoesNotExist.
+                                                    description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
                                                     type: string
                                                   values:
-                                                    description: values is an array
-                                                      of string values. If the operator
-                                                      is In or NotIn, the values array
-                                                      must be non-empty. If the operator
-                                                      is Exists or DoesNotExist, the
-                                                      values array must be empty.
-                                                      This array is replaced during
-                                                      a strategic merge patch.
+                                                    description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
                                                     items:
                                                       type: string
                                                     type: array
@@ -1381,14 +1120,7 @@ spec:
                                             matchLabels:
                                               additionalProperties:
                                                 type: string
-                                              description: matchLabels is a map of
-                                                {key,value} pairs. A single {key,value}
-                                                in the matchLabels map is equivalent
-                                                to an element of matchExpressions,
-                                                whose key field is "key", the operator
-                                                is "In", and the values array contains
-                                                only "value". The requirements are
-                                                ANDed.
+                                              description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                                               type: object
                                           type: object
                                         storageClass:
@@ -1416,36 +1148,22 @@ spec:
                           nullable: true
                           type: integer
                         selector:
-                          description: A label selector is a label query over a set
-                            of resources. The result of matchLabels and matchExpressions
-                            are ANDed. An empty label selector matches all objects.
-                            A null label selector matches no objects.
+                          description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
                           nullable: true
                           properties:
                             matchExpressions:
-                              description: matchExpressions is a list of label selector
-                                requirements. The requirements are ANDed.
+                              description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
                               items:
-                                description: A label selector requirement is a selector
-                                  that contains values, a key, and an operator that
-                                  relates the key and values.
+                                description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
                                 properties:
                                   key:
-                                    description: key is the label key that the selector
-                                      applies to.
+                                    description: key is the label key that the selector applies to.
                                     type: string
                                   operator:
-                                    description: operator represents a key's relationship
-                                      to a set of values. Valid operators are In,
-                                      NotIn, Exists and DoesNotExist.
+                                    description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
                                     type: string
                                   values:
-                                    description: values is an array of string values.
-                                      If the operator is In or NotIn, the values array
-                                      must be non-empty. If the operator is Exists
-                                      or DoesNotExist, the values array must be empty.
-                                      This array is replaced during a strategic merge
-                                      patch.
+                                    description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
                                     items:
                                       type: string
                                     type: array
@@ -1457,11 +1175,7 @@ spec:
                             matchLabels:
                               additionalProperties:
                                 type: string
-                              description: matchLabels is a map of {key,value} pairs.
-                                A single {key,value} in the matchLabels map is equivalent
-                                to an element of matchExpressions, whose key field
-                                is "key", the operator is "In", and the values array
-                                contains only "value". The requirements are ANDed.
+                              description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                               type: object
                           type: object
                       type: object
@@ -1470,8 +1184,7 @@ spec:
                 - roleGroups
                 type: object
               stopped:
-                description: Emergency stop button, if `true` then all pods are stopped
-                  without affecting configuration (as setting `replicas` to `0` would)
+                description: Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)
                 nullable: true
                 type: boolean
               version:
