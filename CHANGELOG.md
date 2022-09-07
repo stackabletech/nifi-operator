@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ## [0.7.0] - 2022-09-06
 
+### Added
+
+- Add support for LDAP authentication ([#303], [#318])
+
 ### Changed
 
 - Include chart name when installing with a custom release name ([#300], [#301]).
@@ -17,6 +21,8 @@ All notable changes to this project will be documented in this file.
 
 [#300]: https://github.com/stackabletech/nifi-operator/pull/300
 [#301]: https://github.com/stackabletech/nifi-operator/pull/301
+[#303]: https://github.com/stackabletech/nifi-operator/pull/303
+[#318]: https://github.com/stackabletech/nifi-operator/pull/318
 [#319]: https://github.com/stackabletech/nifi-operator/pull/319
 [#328]: https://github.com/stackabletech/nifi-operator/pull/328
 
@@ -29,7 +35,6 @@ All notable changes to this project will be documented in this file.
   a single namespace to watch ([#223]).
 - Enable prometheus metrics via a `Job`. This is done via a python script that creates a ReportingTask via the NiFi REST API in the `tools` docker image ([#230]).
 - Monitoring scraping label prometheus.io/scrape: true ([#230]).
-- Add support for LDAP authentication ([#303], [#318])
 
 ### Changed
 
@@ -47,8 +52,6 @@ All notable changes to this project will be documented in this file.
 [#230]: https://github.com/stackabletech/nifi-operator/pull/230
 [#270]: https://github.com/stackabletech/nifi-operator/pull/270
 [#277]: https://github.com/stackabletech/nifi-operator/pull/277
-[#303]: https://github.com/stackabletech/nifi-operator/pull/303
-[#318]: https://github.com/stackabletech/nifi-operator/pull/318
 
 ## [0.5.0] - 2022-02-14
 
