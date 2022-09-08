@@ -40,7 +40,7 @@ spec:
 ----
 <1> Name of the Nifi cluster.
 <2> Version of the Apache Nifi container image to use. This contains the Nifi version (`1.16.3`) as well as Stackable image version (`stackable0.1.0`). For a list of available versions please check our https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%2Fnifi%2Ftags[image registry].
-<3> A reference to a `ZNode` resource. This resource must exist and cannot be reused across Nifi clusters. For details on how to create `ZNode` resources see https://docs.stackable.tech/zookeeper/stable/znodes.html[this page].
+<3> A reference to a `ZNode` resource. This resource must exist and cannot be reused across Nifi clusters. For details on how to create `ZNode` resources see xref:zookeeper::znodes.adoc[this page].
 <4> Administator credentials for logging into the Nifi web interface. This is the name of a `Secret` resource with two fields: `username` and `password`. This `Secret` must exist but it's entries can be populated by the operator when `autoGenerate` is `true`.
 
 == Authentication
