@@ -4,7 +4,7 @@
 
 Apache Nifi requires Apache ZooKeeper to run. This page assumes you already installed the Stackable operators for both of these products.
 
-For details regarding the https://github.com/stackabletech/zookeeper-operator[Stackable Operator for Apache ZooKeeper] see the https://docs.stackable.tech/zookeeper/stable/index.html[documentation].
+For details regarding the https://github.com/stackabletech/zookeeper-operator[Stackable Operator for Apache ZooKeeper] see the xref:zookeeper::index.adoc[documentation].
 
 == Create an Apache Nifi cluster
 
