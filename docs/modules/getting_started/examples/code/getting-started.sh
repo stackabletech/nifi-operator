@@ -25,20 +25,20 @@ helm repo add stackable-dev https://repo.stackable.tech/repository/helm-dev/
 # end::helm-add-repo[]
 echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
-helm install --wait commons-operator stackable-dev/commons-operator --version 0.3.0-nightly
+helm install --wait commons-operator stackable-dev/commons-operator --version 0.4.0-nightly
 helm install --wait secret-operator stackable-dev/secret-operator --version 0.6.0-nightly
-helm install --wait zookeeper-operator stackable-dev/zookeeper-operator --version 0.11.0-nightly
-helm install --wait nifi-operator stackable-dev/nifi-operator --version 0.7.0-nightly
+helm install --wait zookeeper-operator stackable-dev/zookeeper-operator --version 0.12.0-nightly
+helm install --wait nifi-operator stackable-dev/nifi-operator --version 0.8.0-nightly
 # end::helm-install-operators[]
 ;;
 "stackablectl")
 echo "installing Operators with stackablectl"
 # tag::stackablectl-install-operators[]
 stackablectl operator install \
-  commons=0.3.0-nightly \
+  commons=0.4.0-nightly \
   secret=0.6.0-nightly \
-  zookeeper=0.11.0-nightly \
-  nifi=0.7.0-nightly
+  zookeeper=0.12.0-nightly \
+  nifi=0.8.0-nightly
 # end::stackablectl-install-operators[]
 ;;
 *)
@@ -47,14 +47,35 @@ exit 1
 ;;
 esac
 
-echo "Installing ZooKeeper from zookeeper.yaml"
+echo "Installing ZooKeeper"
 # tag::install-zookeeper[]
-kubectl apply -f zookeeper.yaml
+kubectl apply -f - <<EOF
+---
+apiVersion: zookeeper.stackable.tech/v1alpha1
+kind: ZookeeperCluster
+metadata:
+  name: simple-zk
+spec:
+  version: 3.8.0-stackable0.7.1
+  servers:
+    roleGroups:
+      default:
+        replicas: 3
+EOF
 # end::install-zookeeper[]
 
-echo "Installing ZNode from nifi-znode.yaml"
+echo "Crate a ZNode"
 # tag::install-znode[]
-kubectl apply -f nifi-znode.yaml
+kubectl apply -f - <<EOF
+---
+apiVersion: zookeeper.stackable.tech/v1alpha1
+kind: ZookeeperZnode
+metadata:
+  name: simple-nifi-znode
+spec:
+  clusterRef:
+    name: simple-zk
+EOF
 # end::install-znode[]
 
 sleep 5
@@ -64,14 +85,45 @@ echo "Awaiting ZooKeeper rollout finish"
 kubectl rollout status --watch statefulset/simple-zk-server-default
 # end::watch-zookeeper-rollout[]
 
-echo "Install the NiFi admin credentials from nifi-admin-credentials.yaml"
+echo "Create NiFi admin credentials"
 # tag::install-nifi-credentials[]
-kubectl apply -f nifi-admin-credentials.yaml
+kubectl apply -f - <<EOF
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nifi-admin-credentials-simple
+stringData:
+  username: admin
+  password: admin
+EOF
 # end::install-nifi-credentials[]
 
-echo "Install NiFiCluster from nifi.yaml"
+echo "Create a NiFi instance"
 # tag::install-nifi[]
-kubectl apply -f nifi.yaml
+kubectl apply -f - <<EOF
+---
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: simple-nifi
+spec:
+  version: 1.16.3-stackable0.1.0
+  zookeeperConfigMapName: simple-nifi-znode
+  config:
+    authentication:
+      method:
+        singleUser:
+          adminCredentialsSecret: nifi-admin-credentials-simple
+          autoGenerate: true
+    sensitiveProperties:
+      keySecret: nifi-sensitive-property-key
+      autoGenerate: true
+  nodes:
+    roleGroups:
+      default:
+        replicas: 2
+EOF
 # end::install-nifi[]
 
 sleep 5
