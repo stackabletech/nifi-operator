@@ -140,10 +140,8 @@ The following snippet shows how to disable workflow file backups in the NifiClus
 
 [source,yaml]
 ----
-config:
-    sensitivePropertyKeySecret: nifi-sensitive-property-
 configOverrides:
-    nifi.properties:
+  nifi.properties:
     nifi.flow.configuration.archive.enabled: false
 ----
 
