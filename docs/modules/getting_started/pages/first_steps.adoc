@@ -33,12 +33,14 @@ The xref:zookeeper:ROOT:znodes.adoc[ZNode] makes sure that the NiFi cluster will
 
 The NiFi cluster requires authentication. Create a set of credentials for this purpose:
 
+[source,bash]
 ----
 include::example$code/getting-started.sh[tag=install-nifi-credentials]
 ----
 
 Finally create a Nifi instance:
 
+[source,bash]
 ----
 include::example$code/getting-started.sh[tag=install-nifi]
 ----
