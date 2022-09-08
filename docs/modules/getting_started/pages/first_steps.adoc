@@ -11,30 +11,16 @@ Two things need to be installed to create a NiFi cluster:
 
 We will create them in this order, each one is created by applying a manifest file. The operators you just installed will then create the resources according to the manifest.
 
-=== ZooKeeper
+=== Apache ZooKeeper
 
-Create a file named `zookeeper.yaml` with the following content:
-
-[source,yaml]
-----
-include::example$code/zookeeper.yaml[]
-----
-
-and apply it:
+To create a ZooKeeper instace run the following command:
 
 [source,bash]
 ----
 include::example$code/getting-started.sh[tag=install-zookeeper]
 ----
 
-Create a file `nifi-znode.yaml` with the following content:
-
-[source,yaml]
-----
-include::example$code/nifi-znode.yaml[]
-----
-
-and apply it:
+Create a Znode object:
 
 [source,bash]
 ----
@@ -43,35 +29,19 @@ include::example$code/getting-started.sh[tag=install-znode]
 
 The xref:zookeeper:ROOT:znodes.adoc[ZNode] makes sure that the NiFi cluster will operate in its own separated directory in ZooKeeper.
 
-=== NiFi
+=== Apache NiFi
 
-The NiFi cluster requires authentication. In order to provide credentials, create a file named `nifi-admin-credentials.yaml` with the following content:
-
-[source,yaml]
-----
-include::example$code/nifi-admin-credentials.yaml[]
-----
-
-and apply it:
+The NiFi cluster requires authentication. Create a set of credentials for this purpose:
 
 ----
 include::example$code/getting-started.sh[tag=install-nifi-credentials]
 ----
 
-Create a file named `nifi.yaml` with the following content:
-
-[source,yaml]
-----
-include::example$code/nifi.yaml[]
-----
-
-and apply it:
+Finally create a Nifi instance:
 
 ----
 include::example$code/getting-started.sh[tag=install-nifi]
 ----
-
-This will create the actual NiFi cluster.
 
 == Verify that it works
 
@@ -98,7 +68,7 @@ simple-nifi-node-default             2/2     5m
 simple-zk-server-default             3/3     7m
 ----
 
-Congratulations, you successfully created your first NiFi cluster.
+Congratulations! You successfully created your first NiFi cluster!
 
 === Access the NiFi web interface
 

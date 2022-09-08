@@ -14,21 +14,22 @@ There are two ways to install Stackable Operators:
 
 The stackablectl command line tool is the recommended way to interact with operators and dependencies. Follow the xref:stackablectl::installation.adoc[installation steps] for your platform if you choose to work with stackablectl.
 
-After you have installed stackablectl, run the following command to install all operators necessary for NiFi:
+After you have installed `stackablectl` and have a Kubernetes cluster up and
+running, run the following command to install all operators necessary for NiFi:
 
 [source,bash]
 ----
 include::example$code/getting-started.sh[tag=stackablectl-install-operators]
 ----
 
-The tool will show
+The output should contain the following lines
 
 [source]
 ----
 include::example$code/install-operator-output.txt[tag=stackablectl-install-operators-output]
 ----
 
-TIP: Consult the xref:stackablectl::quickstart.adoc[] to learn more about how to use stackablectl.
+TIP: Consult the xref:stackablectl::quickstart.adoc[] to learn more about how to use `stackablectl`.
 
 === Helm
 
