@@ -54,6 +54,12 @@ spec:
           volumeMounts:
             - name: tls
               mountPath: /tls
+          startupProbe:
+            tcpSocket:
+              port: 1389
+          readinessProbe:
+            tcpSocket:
+              port: 1389
       volumes:
         - name: tls
           csi:

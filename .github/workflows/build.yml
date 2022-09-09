@@ -33,6 +33,10 @@ jobs:
     env:
       RUSTC_BOOTSTRAP: 1
     steps:
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install protobuf-compiler
       - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
         with:
           submodules: recursive
@@ -61,7 +65,7 @@ jobs:
       - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
         with:
           submodules: recursive
-      - uses: actions/setup-python@c4e89fac7e8767b327bbad6cb4d859eda999cf08 # tag=v4
+      - uses: actions/setup-python@b55428b1882923874294fa556849718a1d7f2ca5 # tag=v4
       - name: Install requirements for version tool
         run: pip install -r python/requirements.txt
       - id: prerelease
@@ -158,6 +162,10 @@ jobs:
     name: Run Clippy
     runs-on: ubuntu-latest
     steps:
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install protobuf-compiler
       - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
         with:
           submodules: recursive
@@ -188,6 +196,10 @@ jobs:
     name: Run RustDoc
     runs-on: ubuntu-latest
     steps:
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install protobuf-compiler
       - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
         with:
           submodules: recursive
@@ -214,6 +226,10 @@ jobs:
       - run_rustdoc
     runs-on: ubuntu-latest
     steps:
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install protobuf-compiler
       - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
         with:
           submodules: recursive
@@ -248,6 +264,10 @@ jobs:
       - run_rustdoc
     runs-on: ubuntu-latest
     steps:
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install protobuf-compiler
       - name: Checkout
         uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
         with:
@@ -272,7 +292,7 @@ jobs:
         run: git diff --exit-code
       - name: Git Diff showed uncommitted changes
         if: ${{ failure() }}
-        uses: actions/github-script@7a5c598405937d486b0331594b5da2b14db670da # tag=v6
+        uses: actions/github-script@d50f485531ba88479582bc2da03ff424389af5c1 # tag=v6
         with:
           script: |
             core.setFailed('Committed charts were not up to date, please regenerate and re-commit!')
@@ -312,11 +332,15 @@ jobs:
       REPO: ${{ needs.select_repo.outputs.repository }}
     if: needs.select_repo.outputs.repository != 'skip'
     steps:
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install protobuf-compiler
       - name: Checkout
         uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
         with:
           submodules: recursive
-      - uses: actions/setup-python@c4e89fac7e8767b327bbad6cb4d859eda999cf08 # tag=v4
+      - uses: actions/setup-python@b55428b1882923874294fa556849718a1d7f2ca5 # tag=v4
         if: ${{ github.event_name == 'pull_request' }}
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
         with:

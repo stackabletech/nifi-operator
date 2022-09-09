@@ -91,26 +91,3 @@ config:
 This is the actual NiFi configuration element.
 At the moment only a very limited set of options is supported, but you can expect these to grow quickly over time.
 Anything that is not mentioned here can be configured via configOverrides. This does not include properties for XML files like `state-management.xml`.
-
-=== Configuration Overrides
-Apache NiFi runtime configuration is stored in the files bootstrap.conf and nifi.properties.
-The configOverrides block allows you to add custom parameters to these files.
-A Full list of the available configuration options can be found in the official Apache NiFi documentation at https://nifi.apache.org/docs/nifi-docs/components/nifi-docs/html/administration-guide.html#system_properties.
-
-Overrides consist of a key, which must match the property name in the configuration file and a value. This allows arbitrary configuration properties to be added to Spark. In the example above a property aws.region is being explicitly set to 'eu-west-1', overriding the default value.
-
-WARNING: Please be aware that by overriding config settings in this section you have a very high risk of breaking things, because the product does not behave the way the Stackable Operator for Apache NiFi expects it to behave any more.
-
-The following snippet shows an example of how this would look in the NifiCluster definition:
-
-[source,yaml]
-----
-        config:
-          sensitivePropertyKeySecret: nifi-sensitive-property-
-        configOverrides:
-          nifi.properties:
-            nifi.config.property: eu-west-1
-          bootstrap.conf:
-            boostrap.config.property: some_string
-        replicas: 2
-----
