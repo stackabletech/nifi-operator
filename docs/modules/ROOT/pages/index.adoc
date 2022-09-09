@@ -9,10 +9,3 @@ WARNING: This operator only works with images from the https://repo.stackable.te
 The Stackable Operator for Apache NiFi currently supports the following versions of NiFi:
 
 include::partial$supported-versions.adoc[]
-
-== Docker
-
-[source]
-----
-docker pull docker.stackable.tech/stackable/nifi:<version>
-----
