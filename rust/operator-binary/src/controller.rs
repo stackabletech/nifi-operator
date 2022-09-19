@@ -208,8 +208,10 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
     check_or_generate_sensitive_key(client, &nifi).await?;
 
     // Handle full restarts for a version change
-    let version_change = if let Some(deployed_version) =
-        &nifi.status.clone().unwrap_or_default().deployed_version
+    let version_change = if let Some(deployed_version) = nifi
+        .status
+        .as_ref()
+        .and_then(|status| status.deployed_version.as_ref())
     {
         if deployed_version != nifi_product_version {
             // Check if statefulsets are already scaled to zero, if not - requeue
@@ -238,7 +240,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             // Sum current ready replicas for all statefulsets
             let current_replicas = deployed_statefulsets
                 .iter()
-                .filter_map(|statefulset| statefulset.status.clone())
+                .filter_map(|statefulset| statefulset.status.as_ref())
                 .map(|status| status.replicas)
                 .sum::<i32>();
 
