@@ -1,9 +1,1 @@
 ---
-apiVersion: kuttl.dev/v1beta1
-kind: TestStep
-commands:
-  - script: kubectl cp -n $NAMESPACE ./test_nifi_metrics.py  test-nifi-updated-0:/tmp
-  - script: kubectl cp -n $NAMESPACE ./test_nifi.py  test-nifi-updated-0:/tmp
-  - script: kubectl cp -n $NAMESPACE ./cacert.pem  test-nifi-updated-0:/tmp
-  - script: kubectl cp -n $NAMESPACE ./requirements.txt test-nifi-updated-0:/tmp
-  - script: kubectl exec -n $NAMESPACE test-nifi-updated-0 -- pip install --user -r /tmp/requirements.txt
