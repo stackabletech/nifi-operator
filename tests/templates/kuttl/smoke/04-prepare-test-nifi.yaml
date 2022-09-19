@@ -5,5 +5,3 @@ commands:
   - script: kubectl cp -n $NAMESPACE ./test_nifi_metrics.py  test-nifi-0:/tmp
   - script: kubectl cp -n $NAMESPACE ./test_nifi.py  test-nifi-0:/tmp
   - script: kubectl cp -n $NAMESPACE ./cacert.pem  test-nifi-0:/tmp
-  - script: kubectl cp -n $NAMESPACE ./requirements.txt test-nifi-0:/tmp
-  - script: kubectl exec -n $NAMESPACE test-nifi-0 -- pip install --user -r /tmp/requirements.txt
