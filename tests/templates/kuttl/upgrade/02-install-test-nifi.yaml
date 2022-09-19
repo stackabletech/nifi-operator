@@ -1,0 +1,22 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test-nifi
+  labels:
+    app: test-nifi
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-nifi
+  template:
+    metadata:
+      labels:
+        app: test-nifi
+    spec:
+      containers:
+        - name: test-nifi
+          image: python:3.10-slim
+          stdin: true
+          tty: true
