@@ -233,7 +233,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             // Sum target replicas for all statefulsets
             let target_replicas = deployed_statefulsets
                 .iter()
-                .filter_map(|statefulset| statefulset.spec.clone())
+                .filter_map(|statefulset| statefulset.spec.as_ref())
                 .filter_map(|spec| spec.replicas)
                 .sum::<i32>();
 
