@@ -1,8 +1,6 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-metadata:
-  name: scale-up-nifi
 timeout: 1200
 ---
 apiVersion: apps/v1
