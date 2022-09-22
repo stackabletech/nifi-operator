@@ -2,6 +2,7 @@
 import argparse
 import requests
 import time
+import urllib3
 
 if __name__ == '__main__':
     # Construct an argument parser
@@ -23,6 +24,9 @@ if __name__ == '__main__':
     timeout = int(args["timeout"])
 
     url = "http://test-nifi-node-default-0.test-nifi-node-default." + namespace + ".svc.cluster.local:" + port + "/metrics"
+
+    # shut up warnings
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     # wait for 'timeout' seconds
     t_end = time.time() + timeout

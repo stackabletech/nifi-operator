@@ -2,6 +2,7 @@
 import argparse
 import json
 import requests
+import urllib3
 
 
 def get_token(username, password, namespace):
@@ -35,6 +36,9 @@ if __name__ == '__main__':
     all_args.add_argument("-n", "--namespace", required=True,
                           help="Namespace the test is running in")
     args = vars(all_args.parse_args())
+
+    # shut up warnings
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     token = get_token(args['user'], args['password'], args['namespace'])
 
