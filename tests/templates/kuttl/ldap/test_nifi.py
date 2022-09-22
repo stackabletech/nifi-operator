@@ -49,8 +49,8 @@ if __name__ == '__main__':
 
     nodes = cluster_data['cluster']['nodes']
 
-    if len(nodes) != 3:
-        print("Cluster should have 3 nodes at this stage, but has: ", len(nodes))
+    if len(nodes) != 2:
+        print("Cluster should have 2 nodes at this stage, but has: ", len(nodes))
         exit(-1)
 
     for node in nodes:

@@ -1,8 +1,6 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-metadata:
-  name: install-nifi
 timeout: 1200
 ---
 apiVersion: apps/v1
@@ -10,5 +8,5 @@ kind: StatefulSet
 metadata:
   name: test-nifi-node-default
 status:
-  readyReplicas: 3
-  replicas: 3
+  readyReplicas: 2
+  replicas: 2

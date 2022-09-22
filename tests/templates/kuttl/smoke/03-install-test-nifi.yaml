@@ -18,5 +18,4 @@ spec:
       containers:
         - name: test-nifi
           image: docker.stackable.tech/stackable/testing-tools:0.1.0-stackable0.1.0
-          stdin: true
-          tty: true
+          command: ["sleep", "infinity"]
