@@ -1,4 +1,5 @@
 //! Ensures that `Pod`s are configured and running for each [`NifiCluster`]
+use std::ops::Deref;
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap},
@@ -31,6 +32,7 @@ use stackable_operator::{
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
     },
     kube::{runtime::controller::Action, runtime::reflector::ObjectRef, Resource, ResourceExt},
+    labels,
     labels::{role_group_selector_labels, role_selector_labels},
     logging::controller::ReconcilerError,
     product_config::{types::PropertyNameKind, ProductConfigManager},
@@ -41,7 +43,7 @@ use tracing::Instrument;
 
 use stackable_nifi_crd::{
     authentication::{get_auth_configs, get_auth_volumes},
-    NifiCluster, NifiConfig, NifiLogConfig, NifiRole, NifiStorageConfig, HTTPS_PORT,
+    NifiCluster, NifiConfig, NifiLogConfig, NifiRole, NifiStatus, NifiStorageConfig, HTTPS_PORT,
     HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
 };
 use stackable_nifi_crd::{APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME};
@@ -89,6 +91,11 @@ pub enum Error {
     ApplyRoleService {
         source: stackable_operator::error::Error,
     },
+    #[snafu(display("failed to update status"))]
+    StatusUpdate {
+        source: stackable_operator::error::Error,
+    },
+
     #[snafu(display("failed to check sensitive property key secret"))]
     SensitiveKeySecret {
         source: stackable_operator::error::Error,
@@ -178,6 +185,13 @@ impl ReconcilerError for Error {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum VersionChangeState {
+    BeginChange,
+    Stopped,
+    NoChange,
+}
+
 pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Action> {
     tracing::info!("Starting reconcile");
     let client = &ctx.client;
@@ -192,6 +206,72 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
 
     tracing::info!("Checking for sensitive key configuration");
     check_or_generate_sensitive_key(client, &nifi).await?;
+
+    // Handle full restarts for a version change
+    let version_change = if let Some(deployed_version) = nifi
+        .status
+        .as_ref()
+        .and_then(|status| status.deployed_version.as_ref())
+    {
+        if deployed_version != nifi_product_version {
+            // Check if statefulsets are already scaled to zero, if not - requeue
+            let selector = LabelSelector {
+                match_expressions: None,
+                match_labels: Some(labels::role_selector_labels(
+                    nifi.deref(),
+                    APP_NAME,
+                    &NifiRole::Node.to_string(),
+                )),
+            };
+
+            // Retrieve the deployed statefulsets to check on the current status of the restart
+            let deployed_statefulsets = client
+                .list_with_label_selector::<StatefulSet>(Some(namespace), &selector)
+                .await
+                .context(ApplyRoleServiceSnafu)?;
+
+            // Sum target replicas for all statefulsets
+            let target_replicas = deployed_statefulsets
+                .iter()
+                .filter_map(|statefulset| statefulset.spec.as_ref())
+                .filter_map(|spec| spec.replicas)
+                .sum::<i32>();
+
+            // Sum current ready replicas for all statefulsets
+            let current_replicas = deployed_statefulsets
+                .iter()
+                .filter_map(|statefulset| statefulset.status.as_ref())
+                .map(|status| status.replicas)
+                .sum::<i32>();
+
+            // If statefulsets have already been scaled to zero, but have remaining replicas
+            // we requeue to wait until a full stop has been performed.
+            if target_replicas == 0 && current_replicas > 0 {
+                tracing::info!("Cluster is performing a full restart at the moment and still shutting down, remaining replicas: [{}] - requeueing to wait for shutdown to finish", current_replicas);
+                return Ok(Action::await_change());
+            }
+
+            // Otherwise we either still need to scale the statefulsets to 0 or all replicas have
+            // been stopped and we can restart the cluster.
+            // Both actions will be taken in the regular reconciliation, so we can simply continue
+            // here
+            if target_replicas > 0 {
+                tracing::info!("Version change detected, we'll need to scale down the cluster for a full restart.");
+                VersionChangeState::BeginChange
+            } else {
+                tracing::info!("Cluster has been stopped for a restart, will scale back up.");
+                VersionChangeState::Stopped
+            }
+        } else {
+            // No version change detected, propagate this to the reconciliation
+            VersionChangeState::NoChange
+        }
+    } else {
+        // No deployed version set in status, this is probably the first reconciliation ever
+        // for this cluster, so just let it progress normally
+        tracing::debug!("No deployed version found for this cluster, this is probably the first start, continue reconciliation");
+        VersionChangeState::NoChange
+    };
 
     let validated_config = validated_product_config(
         &nifi,
@@ -269,6 +349,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
                 &resource_definition,
                 &auth_volumes,
                 &additional_auth_args,
+                &version_change,
             )
             .await?;
 
@@ -318,11 +399,28 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
 
     // Remove any orphaned resources that still exist in k8s, but have not been added to
     // the cluster resources during the reconciliation
-    // TODO: this doesn't cater for a graceful cluster shrink
+    // TODO: this doesn't cater for a graceful cluster shrink, for that we'd need to predict
+    //  the resources that will be removed and run a disconnect/offload job for those
+    //  see https://github.com/stackabletech/nifi-operator/issues/314
     cluster_resources
         .delete_orphaned_resources(client)
         .await
         .context(DeleteOrphanedResourcesSnafu)?;
+
+    // Update the deployed product version in the status after everything has been deployed, unless
+    // we are still in the process of updating
+    if version_change != VersionChangeState::BeginChange {
+        client
+            .apply_patch_status(
+                CONTROLLER_NAME,
+                nifi.deref(),
+                &NifiStatus {
+                    deployed_version: Some(nifi_product_version.to_string()),
+                },
+            )
+            .await
+            .with_context(|_| StatusUpdateSnafu {})?;
+    }
 
     Ok(Action::await_change())
 }
@@ -578,6 +676,7 @@ fn resolve_resource_config_for_rolegroup(
 ///
 /// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the
 /// corresponding [`Service`] (from [`build_node_rolegroup_service`]).
+#[allow(clippy::too_many_arguments)]
 async fn build_node_rolegroup_statefulset(
     nifi: &NifiCluster,
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
@@ -586,6 +685,7 @@ async fn build_node_rolegroup_statefulset(
     resource_definition: &Resources<NifiStorageConfig>,
     auth_volumes: &BTreeMap<String, (String, Volume)>,
     additional_auth_args: &[String],
+    version_change_state: &VersionChangeState,
 ) -> Result<StatefulSet> {
     tracing::debug!("Building statefulset");
     let zookeeper_host = "ZOOKEEPER_HOSTS";
@@ -917,7 +1017,9 @@ async fn build_node_rolegroup_statefulset(
             .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("Parallel".to_string()),
-            replicas: if nifi.spec.stopped.unwrap_or(false) {
+            replicas: if nifi.spec.stopped.unwrap_or(false)
+                || version_change_state == &VersionChangeState::BeginChange
+            {
                 Some(0)
             } else {
                 rolegroup.and_then(|rg| rg.replicas).map(i32::from)

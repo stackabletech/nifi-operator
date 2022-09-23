@@ -1202,6 +1202,10 @@ spec:
               type: object
             status:
               nullable: true
+              properties:
+                deployed_version:
+                  nullable: true
+                  type: string
               type: object
           required:
             - spec

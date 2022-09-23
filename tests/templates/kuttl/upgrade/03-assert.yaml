@@ -1,0 +1,8 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 300
+commands:
+  - script: kubectl exec -n $NAMESPACE test-nifi-0 -- python /tmp/test_nifi.py -u admin -p supersecretpassword -n $NAMESPACE
+  - script: kubectl exec -n $NAMESPACE test-nifi-0 -- python /tmp/test_nifi_metrics.py -n $NAMESPACE
+  - script: kubectl exec -n $NAMESPACE test-nifi-0 -- sh -c "python /tmp/flow.py -e https://test-nifi-node-default-0.test-nifi-node-default.$NAMESPACE.svc.cluster.local:8443 run -t /tmp/generate-and-log-flowfiles.xml > /tmp/old_input"

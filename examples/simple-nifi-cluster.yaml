@@ -37,7 +37,7 @@ kind: NifiCluster
 metadata:
   name: simple-nifi
 spec:
-  version: 1.16.3-stackable0.1.0
+  version: 1.15.0-stackable0.1.0
   zookeeperConfigMapName: simple-nifi-znode
   config:
     authentication:
@@ -77,7 +77,7 @@ spec:
             rootLogLevel: INFO
           resources:
             memory:
-              limit: "1Gi"  # Option
+              limit: "2Gi"  # Option
             cpu:
               min: "2"  # Option
               max: "3" # Option
