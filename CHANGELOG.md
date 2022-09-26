@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Support for in-place Nifi cluster upgrades ([#323])
+
+[#323]: https://github.com/stackabletech/nifi-operator/pull/323
+
 ## [0.7.0] - 2022-09-06
 
 ### Added
