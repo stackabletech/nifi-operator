@@ -157,7 +157,7 @@ impl NifiConfig {
     pub fn default_resources() -> Resources<NifiStorageConfig, NoRuntimeLimits> {
         Resources {
             memory: MemoryLimits {
-                limit: Some(Quantity("1Gi".to_string())),
+                limit: Some(Quantity("512Mi".to_string())),
                 runtime_limits: NoRuntimeLimits {},
             },
             cpu: CpuLimits {

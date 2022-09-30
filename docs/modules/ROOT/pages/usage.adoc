@@ -265,7 +265,7 @@ nodes:
             min: "500m"
             max: "4"
           memory:
-            limit: '1Gi'
+            limit: '512Mi'
           storage:
             flowfile_repo:
               capacity: 2Gi
