@@ -64,7 +64,7 @@ spec:
 EOF
 # end::install-zookeeper[]
 
-echo "Crate a ZNode"
+echo "Create a ZNode"
 # tag::install-znode[]
 kubectl apply -f - <<EOF
 ---
@@ -108,7 +108,7 @@ kind: NifiCluster
 metadata:
   name: simple-nifi
 spec:
-  version: 1.16.3-stackable0.1.0
+  version: 1.18.0-stackable0.1.0
   zookeeperConfigMapName: simple-nifi-znode
   config:
     authentication:

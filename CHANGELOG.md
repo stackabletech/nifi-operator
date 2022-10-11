@@ -8,9 +8,11 @@ All notable changes to this project will be documented in this file.
 
 - Support for in-place Nifi cluster upgrades ([#323])
 - Added default resource requests (memory and cpu) for Nifi pods ([#353])
+- Added support for NiFi version 1.18.0 ([#xxx])
 
 [#323]: https://github.com/stackabletech/nifi-operator/pull/323
 [#353]: https://github.com/stackabletech/nifi-operator/pull/353
+[#xxx]: https://github.com/stackabletech/nifi-operator/pull/xxx
 
 ## [0.7.0] - 2022-09-06
 
