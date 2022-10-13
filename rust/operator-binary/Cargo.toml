@@ -10,7 +10,7 @@ version = "0.8.0-nightly"
 
 [dependencies]
 anyhow = "1.0"
-clap = "3.2"
+clap = "4.0"
 fnv = "1.0"
 futures = { version = "0.3", features = ["compat"] }
 pin-project = "1.0"
