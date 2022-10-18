@@ -6,6 +6,7 @@ license = "OSL-3.0"
 name = "stackable-nifi-crd"
 repository = "https://github.com/stackabletech/nifi-operator"
 version = "0.8.0-nightly"
+publish = false
 
 [dependencies]
 indoc = "1.0.7"
