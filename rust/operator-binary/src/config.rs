@@ -4,6 +4,7 @@ use stackable_nifi_crd::{
     HTTPS_PORT, PROTOCOL_PORT,
 };
 use stackable_operator::commons::resources::Resources;
+use stackable_operator::k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use stackable_operator::memory::{to_java_heap_value, BinaryMultiple};
 use stackable_operator::product_config::types::PropertyNameKind;
 use stackable_operator::product_config::ProductConfigManager;
@@ -12,6 +13,7 @@ use stackable_operator::product_config_utils::{
     ValidatedRoleConfigByPropertyKind,
 };
 use stackable_operator::role_utils::Role;
+use std::ops::Mul;
 use std::{
     collections::{BTreeMap, HashMap},
     fmt::Write,
@@ -21,6 +23,12 @@ use strum::{Display, EnumIter};
 pub const NIFI_BOOTSTRAP_CONF: &str = "bootstrap.conf";
 pub const NIFI_PROPERTIES: &str = "nifi.properties";
 pub const NIFI_STATE_MANAGEMENT_XML: &str = "state-management.xml";
+
+// Keep some overhead for NiFi volumes, since cleanup is an asynchronous process that can stall active jobs
+const STORAGE_PROVENANCE_UTILIZATION_FACTOR: f64 = 0.9;
+const STORAGE_FLOW_ARCHIVE_UTILIZATION_FACTOR: f64 = 0.9;
+// Content archive only counts _old_ data, so we want to allow some space for active data as well
+const STORAGE_CONTENT_ARCHIVE_UTILIZATION_FACTOR: f64 = 0.5;
 
 #[derive(Debug, Display, EnumIter)]
 pub enum NifiRepository {
@@ -59,7 +67,7 @@ pub enum Error {
 
 /// Create the NiFi bootstrap.conf
 pub fn build_bootstrap_conf(
-    resource_config: Resources<NifiStorageConfig>,
+    resource_config: &Resources<NifiStorageConfig>,
     overrides: BTreeMap<String, String>,
 ) -> Result<String, Error> {
     let mut bootstrap = BTreeMap::new();
@@ -80,9 +88,9 @@ pub fn build_bootstrap_conf(
     java_args.push("-Dorg.apache.jasper.compiler.disablejsr199=true".to_string());
 
     // Read memory limits from config
-    if let Some(heap_size_definition) = resource_config.memory.limit {
+    if let Some(heap_size_definition) = &resource_config.memory.limit {
         tracing::debug!("Read {:?} from crd as memory limit", heap_size_definition);
-        let heap_size = to_java_heap_value(&heap_size_definition, 0.8, BinaryMultiple::Mebi)
+        let heap_size = to_java_heap_value(heap_size_definition, 0.8, BinaryMultiple::Mebi)
             .context(InvalidProductConfigSnafu)?;
         tracing::debug!(
             "Converted {:?} to {}m for java heap config",
@@ -135,9 +143,46 @@ pub fn build_bootstrap_conf(
     Ok(format_properties(bootstrap))
 }
 
+struct StorageQuantity {
+    mebibytes: f64,
+}
+
+impl StorageQuantity {
+    fn from_k8s(quantity: &Quantity) -> Self {
+        let start_of_unit = quantity.0.find(|chr: char| chr.is_alphabetic());
+        let unit = start_of_unit.map_or("", |i| &quantity.0[i..]);
+        let unit_factor = match unit {
+            "Mi" => 1.0,
+            "Gi" => 1024.0,
+            _ => todo!(),
+        };
+        let amount = start_of_unit
+            .map_or(quantity.0.as_ref(), |i| &quantity.0[..i])
+            .parse::<f64>()
+            .unwrap()
+            * unit_factor;
+        Self { mebibytes: amount }
+    }
+
+    fn to_nifi(&self) -> String {
+        format!("{}MB", self.mebibytes)
+    }
+}
+
+impl Mul<f64> for StorageQuantity {
+    type Output = Self;
+
+    fn mul(self, rhs: f64) -> Self::Output {
+        Self {
+            mebibytes: self.mebibytes * rhs,
+        }
+    }
+}
+
 /// Create the NiFi nifi.properties
 pub fn build_nifi_properties(
     spec: &NifiSpec,
+    resource_config: &Resources<NifiStorageConfig>,
     proxy_hosts: &str,
     overrides: BTreeMap<String, String>,
 ) -> String {
@@ -157,12 +202,15 @@ pub fn build_nifi_properties(
     );
     properties.insert(
         "nifi.flow.configuration.archive.max.time".to_string(),
-        "30 days".to_string(),
+        "".to_string(),
     );
-    properties.insert(
-        "nifi.flow.configuration.archive.max.storage".to_string(),
-        "500 MB".to_string(),
-    );
+    if let Some(capacity) = resource_config.storage.flowfile_repo.capacity.as_ref() {
+        properties.insert(
+            "nifi.flow.configuration.archive.max.storage".to_string(),
+            (StorageQuantity::from_k8s(capacity) * STORAGE_FLOW_ARCHIVE_UTILIZATION_FACTOR)
+                .to_nifi(),
+        );
+    }
     properties.insert(
         "nifi.flow.configuration.archive.max.count".to_string(),
         "".to_string(),
@@ -298,11 +346,11 @@ pub fn build_nifi_properties(
     );
     properties.insert(
         "nifi.content.repository.archive.max.retention.period".to_string(),
-        "7 days".to_string(),
+        "".to_string(),
     );
     properties.insert(
         "nifi.content.repository.archive.max.usage.percentage".to_string(),
-        "50%".to_string(),
+        format!("{}%", STORAGE_CONTENT_ARCHIVE_UTILIZATION_FACTOR * 100.0),
     );
     properties.insert(
         "nifi.content.repository.archive.enabled".to_string(),
@@ -330,12 +378,14 @@ pub fn build_nifi_properties(
     );
     properties.insert(
         "nifi.provenance.repository.max.storage.time".to_string(),
-        "30 days".to_string(),
+        "".to_string(),
     );
-    properties.insert(
-        "nifi.provenance.repository.max.storage.size".to_string(),
-        "10 GB".to_string(),
-    );
+    if let Some(capacity) = resource_config.storage.provenance_repo.capacity.as_ref() {
+        properties.insert(
+            "nifi.provenance.repository.max.storage.size".to_string(),
+            (StorageQuantity::from_k8s(capacity) * STORAGE_PROVENANCE_UTILIZATION_FACTOR).to_nifi(),
+        );
+    }
     properties.insert(
         "nifi.provenance.repository.rollover.time".to_string(),
         "10 mins".to_string(),

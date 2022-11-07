@@ -549,7 +549,7 @@ async fn build_node_rolegroup_config_map(
         .add_data(
             NIFI_BOOTSTRAP_CONF,
             build_bootstrap_conf(
-                resource_definition.clone(),
+                resource_definition,
                 config
                     .get(&PropertyNameKind::File(NIFI_BOOTSTRAP_CONF.to_string()))
                     .with_context(|| ProductConfigKindNotSpecifiedSnafu {
@@ -563,6 +563,7 @@ async fn build_node_rolegroup_config_map(
             NIFI_PROPERTIES,
             build_nifi_properties(
                 &nifi.spec,
+                resource_definition,
                 proxy_hosts,
                 config
                     .get(&PropertyNameKind::File(NIFI_PROPERTIES.to_string()))
