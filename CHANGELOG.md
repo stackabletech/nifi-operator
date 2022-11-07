@@ -10,9 +10,15 @@ All notable changes to this project will be documented in this file.
 - Added default resource requests (memory and cpu) for Nifi pods ([#353])
 - Added support for NiFi version 1.18.0 ([#360])
 
+### Changed
+
+- Updated operator-rs to 0.26.0 ([#371])
+- NiFi repository sizes are now adjusted based on declared PVC sizes ([#371])
+
 [#323]: https://github.com/stackabletech/nifi-operator/pull/323
 [#353]: https://github.com/stackabletech/nifi-operator/pull/353
 [#360]: https://github.com/stackabletech/nifi-operator/pull/360
+[#371]: https://github.com/stackabletech/nifi-operator/pull/371
 
 ## [0.7.0] - 2022-09-06
 
