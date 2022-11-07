@@ -4,7 +4,6 @@ use stackable_nifi_crd::{
     HTTPS_PORT, PROTOCOL_PORT,
 };
 use stackable_operator::commons::resources::Resources;
-use stackable_operator::k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use stackable_operator::memory::{to_java_heap_value, BinaryMultiple};
 use stackable_operator::product_config::types::PropertyNameKind;
 use stackable_operator::product_config::ProductConfigManager;
@@ -13,12 +12,13 @@ use stackable_operator::product_config_utils::{
     ValidatedRoleConfigByPropertyKind,
 };
 use stackable_operator::role_utils::Role;
-use std::ops::Mul;
 use std::{
     collections::{BTreeMap, HashMap},
     fmt::Write,
 };
 use strum::{Display, EnumIter};
+
+use crate::storage_quantity::StorageQuantity;
 
 pub const NIFI_BOOTSTRAP_CONF: &str = "bootstrap.conf";
 pub const NIFI_PROPERTIES: &str = "nifi.properties";
@@ -141,42 +141,6 @@ pub fn build_bootstrap_conf(
     bootstrap.extend(overrides);
 
     Ok(format_properties(bootstrap))
-}
-
-struct StorageQuantity {
-    mebibytes: f64,
-}
-
-impl StorageQuantity {
-    fn from_k8s(quantity: &Quantity) -> Self {
-        let start_of_unit = quantity.0.find(|chr: char| chr.is_alphabetic());
-        let unit = start_of_unit.map_or("", |i| &quantity.0[i..]);
-        let unit_factor = match unit {
-            "Mi" => 1.0,
-            "Gi" => 1024.0,
-            _ => todo!(),
-        };
-        let amount = start_of_unit
-            .map_or(quantity.0.as_ref(), |i| &quantity.0[..i])
-            .parse::<f64>()
-            .unwrap()
-            * unit_factor;
-        Self { mebibytes: amount }
-    }
-
-    fn to_nifi(&self) -> String {
-        format!("{}MB", self.mebibytes)
-    }
-}
-
-impl Mul<f64> for StorageQuantity {
-    type Output = Self;
-
-    fn mul(self, rhs: f64) -> Self::Output {
-        Self {
-            mebibytes: self.mebibytes * rhs,
-        }
-    }
 }
 
 /// Create the NiFi nifi.properties
