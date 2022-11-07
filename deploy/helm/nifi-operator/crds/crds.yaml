@@ -230,8 +230,6 @@ spec:
                             storage:
                               properties:
                                 contentRepo:
-                                  default:
-                                    capacity: null
                                   properties:
                                     capacity:
                                       description: |-
@@ -304,8 +302,6 @@ spec:
                                       type: string
                                   type: object
                                 databaseRepo:
-                                  default:
-                                    capacity: null
                                   properties:
                                     capacity:
                                       description: |-
@@ -378,8 +374,6 @@ spec:
                                       type: string
                                   type: object
                                 flowfileRepo:
-                                  default:
-                                    capacity: null
                                   properties:
                                     capacity:
                                       description: |-
@@ -452,8 +446,6 @@ spec:
                                       type: string
                                   type: object
                                 provenanceRepo:
-                                  default:
-                                    capacity: null
                                   properties:
                                     capacity:
                                       description: |-
@@ -526,8 +518,6 @@ spec:
                                       type: string
                                   type: object
                                 stateRepo:
-                                  default:
-                                    capacity: null
                                   properties:
                                     capacity:
                                       description: |-
@@ -599,6 +589,12 @@ spec:
                                       nullable: true
                                       type: string
                                   type: object
+                              required:
+                                - contentRepo
+                                - databaseRepo
+                                - flowfileRepo
+                                - provenanceRepo
+                                - stateRepo
                               type: object
                           type: object
                       type: object
@@ -760,8 +756,6 @@ spec:
                                   storage:
                                     properties:
                                       contentRepo:
-                                        default:
-                                          capacity: null
                                         properties:
                                           capacity:
                                             description: |-
@@ -834,8 +828,6 @@ spec:
                                             type: string
                                         type: object
                                       databaseRepo:
-                                        default:
-                                          capacity: null
                                         properties:
                                           capacity:
                                             description: |-
@@ -908,8 +900,6 @@ spec:
                                             type: string
                                         type: object
                                       flowfileRepo:
-                                        default:
-                                          capacity: null
                                         properties:
                                           capacity:
                                             description: |-
@@ -982,8 +972,6 @@ spec:
                                             type: string
                                         type: object
                                       provenanceRepo:
-                                        default:
-                                          capacity: null
                                         properties:
                                           capacity:
                                             description: |-
@@ -1056,8 +1044,6 @@ spec:
                                             type: string
                                         type: object
                                       stateRepo:
-                                        default:
-                                          capacity: null
                                         properties:
                                           capacity:
                                             description: |-
@@ -1129,6 +1115,12 @@ spec:
                                             nullable: true
                                             type: string
                                         type: object
+                                    required:
+                                      - contentRepo
+                                      - databaseRepo
+                                      - flowfileRepo
+                                      - provenanceRepo
+                                      - stateRepo
                                     type: object
                                 type: object
                             type: object

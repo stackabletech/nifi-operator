@@ -3,8 +3,10 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, Snafu};
 use stackable_operator::commons::resources::{
-    CpuLimits, MemoryLimits, NoRuntimeLimits, PvcConfig, Resources,
+    CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment, PvcConfig,
+    PvcConfigFragment, ResourcesFragment,
 };
+use stackable_operator::config::fragment::Fragment;
 use stackable_operator::config::merge::{Atomic, Merge};
 use stackable_operator::k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use stackable_operator::role_utils::RoleGroupRef;
@@ -148,44 +150,44 @@ pub struct NifiStatus {
 #[serde(rename_all = "camelCase")]
 pub struct NifiConfig {
     pub log: Option<NifiLogConfig>,
-    pub resources: Option<Resources<NifiStorageConfig, NoRuntimeLimits>>,
+    pub resources: Option<ResourcesFragment<NifiStorageConfig, NoRuntimeLimits>>,
 }
 
 impl NifiConfig {
     pub const NIFI_SENSITIVE_PROPS_KEY: &'static str = "NIFI_SENSITIVE_PROPS_KEY";
 
-    pub fn default_resources() -> Resources<NifiStorageConfig, NoRuntimeLimits> {
-        Resources {
-            memory: MemoryLimits {
+    pub fn default_resources() -> ResourcesFragment<NifiStorageConfig, NoRuntimeLimits> {
+        ResourcesFragment {
+            memory: MemoryLimitsFragment {
                 limit: Some(Quantity("2Gi".to_string())),
-                runtime_limits: NoRuntimeLimits {},
+                runtime_limits: NoRuntimeLimitsFragment {},
             },
-            cpu: CpuLimits {
+            cpu: CpuLimitsFragment {
                 min: Some(Quantity("500m".to_string())),
                 max: Some(Quantity("4".to_string())),
             },
-            storage: NifiStorageConfig {
-                flowfile_repo: PvcConfig {
+            storage: NifiStorageConfigFragment {
+                flowfile_repo: PvcConfigFragment {
                     capacity: Some(Quantity("2Gi".to_string())),
                     storage_class: None,
                     selectors: None,
                 },
-                provenance_repo: PvcConfig {
+                provenance_repo: PvcConfigFragment {
                     capacity: Some(Quantity("2Gi".to_string())),
                     storage_class: None,
                     selectors: None,
                 },
-                database_repo: PvcConfig {
+                database_repo: PvcConfigFragment {
                     capacity: Some(Quantity("2Gi".to_string())),
                     storage_class: None,
                     selectors: None,
                 },
-                content_repo: PvcConfig {
+                content_repo: PvcConfigFragment {
                     capacity: Some(Quantity("2Gi".to_string())),
                     storage_class: None,
                     selectors: None,
                 },
-                state_repo: PvcConfig {
+                state_repo: PvcConfigFragment {
                     capacity: Some(Quantity("2Gi".to_string())),
                     storage_class: None,
                     selectors: None,
@@ -241,8 +243,20 @@ pub enum LogLevel {
     FATAL,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Merge, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
+#[fragment_attrs(
+    derive(
+        Clone,
+        Debug,
+        Default,
+        Deserialize,
+        Merge,
+        JsonSchema,
+        PartialEq,
+        Serialize
+    ),
+    serde(rename_all = "camelCase")
+)]
 pub struct NifiStorageConfig {
     #[serde(default)]
     pub flowfile_repo: PvcConfig,

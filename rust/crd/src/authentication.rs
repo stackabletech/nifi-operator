@@ -333,7 +333,7 @@ async fn check_or_generate_admin_credentials(
     // Anything beyond here is only reached when auto_generate is set, so we don't
     // check that again
     match client
-        .get_opt::<Secret>(secret_name, Some(secret_namespace))
+        .get_opt::<Secret>(secret_name, secret_namespace)
         .await
         .with_context(|_| KubeSnafu {
             reason: format!(
