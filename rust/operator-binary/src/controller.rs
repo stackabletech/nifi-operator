@@ -168,6 +168,11 @@ pub enum Error {
     NoRoleServiceFqdn,
     #[snafu(display("Bootstrap configuration error"))]
     BoostrapConfig { source: crate::config::Error },
+    #[snafu(display("failed to prepare NiFi configuration for rolegroup {rolegroup}"))]
+    BuildProductConfig {
+        source: crate::config::Error,
+        rolegroup: RoleGroupRef<NifiCluster>,
+    },
     #[snafu(display("failed to parse NiFi version"))]
     NifiVersionParseFailure { source: stackable_nifi_crd::Error },
     #[snafu(display("illegal container name: [{container_name}]"))]
@@ -571,7 +576,10 @@ async fn build_node_rolegroup_config_map(
                         kind: NIFI_PROPERTIES.to_string(),
                     })?
                     .clone(),
-            ),
+            )
+            .with_context(|_| BuildProductConfigSnafu {
+                rolegroup: rolegroup.clone(),
+            })?,
         )
         .add_data(NIFI_STATE_MANAGEMENT_XML, build_state_management_xml())
         .add_data("login-identity-providers.xml", login_identity_provider_xml)

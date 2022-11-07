@@ -18,7 +18,7 @@ use std::{
 };
 use strum::{Display, EnumIter};
 
-use crate::storage_quantity::StorageQuantity;
+use crate::storage_quantity::{self, StorageQuantity};
 
 pub const NIFI_BOOTSTRAP_CONF: &str = "bootstrap.conf";
 pub const NIFI_PROPERTIES: &str = "nifi.properties";
@@ -62,6 +62,11 @@ pub enum Error {
     #[snafu(display("Failed to transform product configs"))]
     ProductConfigTransform {
         source: stackable_operator::product_config_utils::ConfigError,
+    },
+    #[snafu(display("failed to calculate storage quota for {repo} repository"))]
+    CalculateStorageQuota {
+        source: storage_quantity::FromK8sError,
+        repo: NifiRepository,
     },
 }
 
@@ -149,7 +154,7 @@ pub fn build_nifi_properties(
     resource_config: &Resources<NifiStorageConfig>,
     proxy_hosts: &str,
     overrides: BTreeMap<String, String>,
-) -> String {
+) -> Result<String, Error> {
     let mut properties = BTreeMap::new();
     // Core Properties
     properties.insert(
@@ -171,7 +176,9 @@ pub fn build_nifi_properties(
     if let Some(capacity) = resource_config.storage.flowfile_repo.capacity.as_ref() {
         properties.insert(
             "nifi.flow.configuration.archive.max.storage".to_string(),
-            (StorageQuantity::from_k8s(capacity) * STORAGE_FLOW_ARCHIVE_UTILIZATION_FACTOR)
+            (StorageQuantity::from_k8s(capacity).context(CalculateStorageQuotaSnafu {
+                repo: NifiRepository::Flowfile,
+            })? * STORAGE_FLOW_ARCHIVE_UTILIZATION_FACTOR)
                 .to_nifi(),
         );
     }
@@ -347,7 +354,10 @@ pub fn build_nifi_properties(
     if let Some(capacity) = resource_config.storage.provenance_repo.capacity.as_ref() {
         properties.insert(
             "nifi.provenance.repository.max.storage.size".to_string(),
-            (StorageQuantity::from_k8s(capacity) * STORAGE_PROVENANCE_UTILIZATION_FACTOR).to_nifi(),
+            (StorageQuantity::from_k8s(capacity).context(CalculateStorageQuotaSnafu {
+                repo: NifiRepository::Provenance,
+            })? * STORAGE_PROVENANCE_UTILIZATION_FACTOR)
+                .to_nifi(),
         );
     }
     properties.insert(
@@ -546,7 +556,7 @@ pub fn build_nifi_properties(
     // override with config overrides
     properties.extend(overrides);
 
-    format_properties(properties)
+    Ok(format_properties(properties))
 }
 
 pub fn build_logback_xml(log_config: &NifiLogConfig) -> String {
