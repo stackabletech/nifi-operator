@@ -19,26 +19,26 @@ fi
 
 case "$1" in
 "helm")
-echo "Adding 'stackable-dev' Helm Chart repository"
+echo "Adding 'stackable-stable' Helm Chart repository"
 # tag::helm-add-repo[]
-helm repo add stackable-dev https://repo.stackable.tech/repository/helm-dev/
+helm repo add stackable-stable https://repo.stackable.tech/repository/helm-stable/
 # end::helm-add-repo[]
 echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
-helm install --wait commons-operator stackable-dev/commons-operator --version 0.4.0-nightly
-helm install --wait secret-operator stackable-dev/secret-operator --version 0.6.0-nightly
-helm install --wait zookeeper-operator stackable-dev/zookeeper-operator --version 0.12.0-nightly
-helm install --wait nifi-operator stackable-dev/nifi-operator --version 0.8.0-nightly
+helm install --wait commons-operator stackable-stable/commons-operator --version 0.4.0
+helm install --wait secret-operator stackable-stable/secret-operator --version 0.6.0
+helm install --wait zookeeper-operator stackable-stable/zookeeper-operator --version 0.12.0
+helm install --wait nifi-operator stackable-stable/nifi-operator --version 0.8.0
 # end::helm-install-operators[]
 ;;
 "stackablectl")
 echo "installing Operators with stackablectl"
 # tag::stackablectl-install-operators[]
 stackablectl operator install \
-  commons=0.4.0-nightly \
-  secret=0.6.0-nightly \
-  zookeeper=0.12.0-nightly \
-  nifi=0.8.0-nightly
+  commons=0.4.0 \
+  secret=0.6.0 \
+  zookeeper=0.12.0 \
+  nifi=0.8.0
 # end::stackablectl-install-operators[]
 ;;
 *)
