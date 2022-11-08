@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.8.0] - 2022-11-08
+
 ### Added
 
 - Support for in-place Nifi cluster upgrades ([#323])
