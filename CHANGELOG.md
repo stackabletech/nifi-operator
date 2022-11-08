@@ -12,7 +12,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Updated operator-rs to 0.26.0 ([#371])
+- Updated operator-rs to 0.26.1 ([#371])
 - NiFi repository sizes are now adjusted based on declared PVC sizes ([#371])
 
 [#323]: https://github.com/stackabletech/nifi-operator/pull/323

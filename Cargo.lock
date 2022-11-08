@@ -1715,8 +1715,8 @@ dependencies = [
 
 [[package]]
 name = "stackable-operator"
-version = "0.26.0"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feature/expose-memory-quantity#10415cf003a5673def6569bd1744dbd243187a47"
+version = "0.26.1"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.26.1#32a89f2800b13b51e9dcf6d85f0187d9d536a909"
 dependencies = [
  "chrono",
  "clap",
@@ -1749,8 +1749,8 @@ dependencies = [
 
 [[package]]
 name = "stackable-operator-derive"
-version = "0.26.0"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feature/expose-memory-quantity#10415cf003a5673def6569bd1744dbd243187a47"
+version = "0.26.1"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.26.1#32a89f2800b13b51e9dcf6d85f0187d9d536a909"
 dependencies = [
  "darling",
  "proc-macro2",
