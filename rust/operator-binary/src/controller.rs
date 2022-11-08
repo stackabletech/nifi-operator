@@ -9,7 +9,8 @@ use std::{
 
 use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::commons::resources::{NoRuntimeLimits, Resources};
+use stackable_operator::commons::resources::{NoRuntimeLimits, Resources, ResourcesFragment};
+use stackable_operator::config::fragment;
 use stackable_operator::config::merge::Merge;
 use stackable_operator::k8s_openapi::api::apps::v1::StatefulSetUpdateStrategy;
 use stackable_operator::role_utils::Role;
@@ -168,12 +169,22 @@ pub enum Error {
     NoRoleServiceFqdn,
     #[snafu(display("Bootstrap configuration error"))]
     BoostrapConfig { source: crate::config::Error },
+    #[snafu(display("failed to prepare NiFi configuration for rolegroup {rolegroup}"))]
+    BuildProductConfig {
+        source: crate::config::Error,
+        rolegroup: RoleGroupRef<NifiCluster>,
+    },
     #[snafu(display("failed to parse NiFi version"))]
     NifiVersionParseFailure { source: stackable_nifi_crd::Error },
     #[snafu(display("illegal container name: [{container_name}]"))]
     IllegalContainerName {
         source: stackable_operator::error::Error,
         container_name: String,
+    },
+    #[snafu(display("failed to validate resources for {rolegroup}"))]
+    ResourceValidation {
+        source: fragment::ValidationError,
+        rolegroup: RoleGroupRef<NifiCluster>,
     },
 }
 
@@ -226,7 +237,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
 
             // Retrieve the deployed statefulsets to check on the current status of the restart
             let deployed_statefulsets = client
-                .list_with_label_selector::<StatefulSet>(Some(namespace), &selector)
+                .list_with_label_selector::<StatefulSet>(namespace, &selector)
                 .await
                 .context(ApplyRoleServiceSnafu)?;
 
@@ -298,7 +309,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
 
     // This is read back to obtain the hosts that we later need to fill in the proxy_hosts variable
     let updated_role_service = client
-        .get(&nifi.name_any(), nifi.namespace().as_deref())
+        .get::<Service>(&nifi.name_any(), namespace)
         .await
         .with_context(|_| MissingServiceSnafu {
             obj_ref: ObjectRef::new(&nifi.name_any()).within(namespace),
@@ -549,7 +560,7 @@ async fn build_node_rolegroup_config_map(
         .add_data(
             NIFI_BOOTSTRAP_CONF,
             build_bootstrap_conf(
-                resource_definition.clone(),
+                resource_definition,
                 config
                     .get(&PropertyNameKind::File(NIFI_BOOTSTRAP_CONF.to_string()))
                     .with_context(|| ProductConfigKindNotSpecifiedSnafu {
@@ -563,6 +574,7 @@ async fn build_node_rolegroup_config_map(
             NIFI_PROPERTIES,
             build_nifi_properties(
                 &nifi.spec,
+                resource_definition,
                 proxy_hosts,
                 config
                     .get(&PropertyNameKind::File(NIFI_PROPERTIES.to_string()))
@@ -570,7 +582,10 @@ async fn build_node_rolegroup_config_map(
                         kind: NIFI_PROPERTIES.to_string(),
                     })?
                     .clone(),
-            ),
+            )
+            .with_context(|_| BuildProductConfigSnafu {
+                rolegroup: rolegroup.clone(),
+            })?,
         )
         .add_data(NIFI_STATE_MANAGEMENT_XML, build_state_management_xml())
         .add_data("login-identity-providers.xml", login_identity_provider_xml)
@@ -642,7 +657,7 @@ fn resolve_resource_config_for_rolegroup(
     let conf_defaults = NifiConfig::default_resources();
 
     // Retrieve global role resource config
-    let mut conf_role: Resources<NifiStorageConfig, NoRuntimeLimits> = nifi
+    let mut conf_role: ResourcesFragment<NifiStorageConfig, NoRuntimeLimits> = nifi
         .spec
         .nodes
         .as_ref()
@@ -654,7 +669,7 @@ fn resolve_resource_config_for_rolegroup(
         .unwrap_or_default();
 
     // Retrieve rolegroup specific resource config
-    let mut conf_rolegroup: Resources<NifiStorageConfig, NoRuntimeLimits> = role
+    let mut conf_rolegroup: ResourcesFragment<NifiStorageConfig, NoRuntimeLimits> = role
         .role_groups
         .get(&rolegroup_ref.role_group)
         .and_then(|rg| rg.config.config.resources.clone())
@@ -669,7 +684,9 @@ fn resolve_resource_config_for_rolegroup(
     conf_rolegroup.merge(&conf_role);
 
     tracing::debug!("Merged resource config: {:?}", conf_rolegroup);
-    Ok(conf_rolegroup)
+    fragment::validate(conf_rolegroup).with_context(|_| ResourceValidationSnafu {
+        rolegroup: rolegroup_ref.clone(),
+    })
 }
 
 /// The rolegroup [`StatefulSet`] runs the rolegroup, as configured by the administrator.
@@ -1194,7 +1211,7 @@ async fn check_or_generate_sensitive_key(
     let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
 
     match client
-        .get_opt::<Secret>(&sensitive_config.key_secret, Some(namespace))
+        .get_opt::<Secret>(&sensitive_config.key_secret, namespace)
         .await
         .with_context(|_| SensitiveKeySecretSnafu {})?
     {
@@ -1309,7 +1326,7 @@ async fn get_proxy_hosts(
     let external_port = external_node_port(nifi_service)?;
 
     let cluster_nodes = client
-        .list_with_label_selector::<Node>(None, &selector)
+        .list_with_label_selector::<Node>(&(), &selector)
         .await
         .with_context(|_| MissingNodesSnafu {
             obj_ref: ObjectRef::from_obj(nifi),
@@ -1341,6 +1358,6 @@ async fn get_proxy_hosts(
     Ok(proxy_setting.join(","))
 }
 
-pub fn error_policy(_error: &Error, _ctx: Arc<Ctx>) -> Action {
+pub fn error_policy(_obj: Arc<NifiCluster>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(10))
 }

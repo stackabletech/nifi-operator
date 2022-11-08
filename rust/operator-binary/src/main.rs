@@ -91,7 +91,7 @@ async fn main() -> anyhow::Result<()> {
                 )
                 .shutdown_on_signal()
                 .watches(
-                    watch_namespace.get_api::<AuthenticationClass>(&client),
+                    client.get_api::<AuthenticationClass>(&()),
                     ListParams::default(),
                     move |authentication_class| {
                         nifi_store_1
