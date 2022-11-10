@@ -258,15 +258,15 @@ pub enum LogLevel {
     serde(rename_all = "camelCase")
 )]
 pub struct NifiStorageConfig {
-    #[serde(default)]
+    #[fragment_attrs(serde(default))]
     pub flowfile_repo: PvcConfig,
-    #[serde(default)]
+    #[fragment_attrs(serde(default))]
     pub provenance_repo: PvcConfig,
-    #[serde(default)]
+    #[fragment_attrs(serde(default))]
     pub database_repo: PvcConfig,
-    #[serde(default)]
+    #[fragment_attrs(serde(default))]
     pub content_repo: PvcConfig,
-    #[serde(default)]
+    #[fragment_attrs(serde(default))]
     pub state_repo: PvcConfig,
 }
 
