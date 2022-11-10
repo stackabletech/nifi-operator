@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Updated stackable image versions ([#376])
+
+[#376]: https://github.com/stackabletech/nifi-operator/pull/376
+
 ## [0.8.0] - 2022-11-08
 
 ### Added
