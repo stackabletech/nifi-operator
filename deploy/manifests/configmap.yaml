@@ -13,4 +13,4 @@ metadata:
   labels:
     app.kubernetes.io/name: nifi-operator
     app.kubernetes.io/instance: nifi-operator
-    app.kubernetes.io/version: "0.8.0"
+    app.kubernetes.io/version: "0.8.1"
