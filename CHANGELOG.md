@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Fixed a regression that made PVC configs mandatory in some cases ([#375]).
+
+[#375]: https://github.com/stackabletech/nifi-operator/pull/375
+
 ## [0.8.0] - 2022-11-08
 
 ### Added
