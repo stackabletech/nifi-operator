@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.8.1] - 2022-11-10
+
 ### Changed
 
 - Fixed a regression that made PVC configs mandatory in some cases ([#375]).
