@@ -17,7 +17,7 @@ kind: NifiCluster
 metadata:
   name: simple-nifi # <1>
 spec:
-  version: 1.16.3-stackable0.1.0 # <2>
+  version: 1.18.0-stackable0.2.0 # <2>
   zookeeperConfigMapName: simple-nifi-znode # <3>
   config:
     authentication:
@@ -39,7 +39,7 @@ spec:
         replicas: 3
 ----
 <1> Name of the Nifi cluster.
-<2> Version of the Apache Nifi container image to use. This contains the Nifi version (`1.16.3`) as well as Stackable image version (`stackable0.1.0`). For a list of available versions please check our https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%2Fnifi%2Ftags[image registry].
+<2> Version of the Apache Nifi container image to use. This contains the Nifi version (`1.18.0`) as well as Stackable image version (`stackable0.2.0`). For a list of available versions please check our https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%2Fnifi%2Ftags[image registry].
 <3> A reference to a `ZNode` resource. This resource must exist and cannot be reused across Nifi clusters. For details on how to create `ZNode` resources see xref:zookeeper::znodes.adoc[this page].
 <4> Administator credentials for logging into the Nifi web interface. This is the name of a `Secret` resource with two fields: `username` and `password`. This `Secret` must exist but it's entries can be populated by the operator when `autoGenerate` is `true`.
 
@@ -120,7 +120,7 @@ The operator uses the https://nifi.apache.org/docs/nifi-docs/html/administration
 == Updating NiFi
 
 Updating (or downgrading for that matter) the deployed version of NiFi is as simple as changing the version stated in the CRD.
-Continuing the example above, to change the deployed version from `1.16.3` to `1.16.2` you'd simply deploy the following CRD.
+Continuing the example above, to change the deployed version from `1.18.0` to `1.16.3` you'd simply deploy the following CRD.
 
 [source,yaml]
 ----
@@ -129,7 +129,7 @@ kind: NifiCluster
 metadata:
   name: simple-nifi
 spec:
-  version: 1.16.2-stackable0.1.0 # <1>
+  version: 1.16.3-stackable0.2.0 # <1>
   zookeeperConfigMapName: simple-nifi-znode
   config:
     authentication:
