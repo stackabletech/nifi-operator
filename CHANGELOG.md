@@ -9,8 +9,10 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Fixed a regression that made PVC configs mandatory in some cases ([#375]).
+- Updated stackable image versions ([#376])
 
 [#375]: https://github.com/stackabletech/nifi-operator/pull/375
+[#376]: https://github.com/stackabletech/nifi-operator/pull/376
 
 ## [0.8.0] - 2022-11-08
 

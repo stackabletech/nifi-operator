@@ -56,7 +56,7 @@ kind: ZookeeperCluster
 metadata:
   name: simple-zk
 spec:
-  version: 3.8.0-stackable0.7.1
+  version: 3.8.0-stackable0.8.0
   servers:
     roleGroups:
       default:
@@ -108,7 +108,7 @@ kind: NifiCluster
 metadata:
   name: simple-nifi
 spec:
-  version: 1.18.0-stackable0.1.0
+  version: 1.18.0-stackable0.2.0
   zookeeperConfigMapName: simple-nifi-znode
   config:
     authentication:
