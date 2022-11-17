@@ -68,8 +68,7 @@ async fn main() -> anyhow::Result<()> {
             ])?;
 
             let client =
-                stackable_operator::client::create_client(Some(OPERATOR_NAME.to_string()))
-                    .await?;
+                stackable_operator::client::create_client(Some(OPERATOR_NAME.to_string())).await?;
 
             let nifi_controller = Controller::new(
                 watch_namespace.get_api::<NifiCluster>(&client),
@@ -117,7 +116,11 @@ async fn main() -> anyhow::Result<()> {
                     }),
                 )
                 .map(|res| {
-                    report_controller_reconciled(&client, &format!("{CONTROLLER_NAME}.{OPERATOR_NAME}"), &res)
+                    report_controller_reconciled(
+                        &client,
+                        &format!("{CONTROLLER_NAME}.{OPERATOR_NAME}"),
+                        &res,
+                    )
                 })
                 .collect::<()>()
                 .await;
