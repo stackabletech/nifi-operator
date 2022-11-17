@@ -57,10 +57,10 @@ use crate::config::{
     NIFI_STATE_MANAGEMENT_XML,
 };
 
-const OPERATOR_NAME: &str = "nifi.stackable.tech";
-const CONTROLLER_NAME: &str = "nificluster";
-const STACKABLE_TOOLS_IMAGE: &str = "docker.stackable.tech/stackable/tools:0.2.0-stackable0.4.0";
+pub const OPERATOR_NAME: &str = "nifi.stackable.tech";
+pub const CONTROLLER_NAME: &str = "nificluster";
 
+const STACKABLE_TOOLS_IMAGE: &str = "docker.stackable.tech/stackable/tools:0.2.0-stackable0.4.0";
 const KEYSTORE_VOLUME_NAME: &str = "keystore";
 const KEYSTORE_NIFI_CONTAINER_MOUNT: &str = "/stackable/keystore";
 const KEYSTORE_REPORTING_TASK_MOUNT: &str = "/stackable/cert";

@@ -1,6 +1,8 @@
 mod config;
 mod controller;
 
+use crate::controller::{CONTROLLER_NAME, OPERATOR_NAME};
+
 use std::sync::Arc;
 
 use clap::Parser;
@@ -66,7 +68,7 @@ async fn main() -> anyhow::Result<()> {
             ])?;
 
             let client =
-                stackable_operator::client::create_client(Some("nifi.stackable.tech".to_string()))
+                stackable_operator::client::create_client(Some(OPERATOR_NAME.to_string()))
                     .await?;
 
             let nifi_controller = Controller::new(
@@ -115,7 +117,7 @@ async fn main() -> anyhow::Result<()> {
                     }),
                 )
                 .map(|res| {
-                    report_controller_reconciled(&client, "nificlusters.nifi.stackable.tech", &res)
+                    report_controller_reconciled(&client, &format!("{CONTROLLER_NAME}.{OPERATOR_NAME}"), &res)
                 })
                 .collect::<()>()
                 .await;
