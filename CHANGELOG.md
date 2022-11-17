@@ -6,9 +6,9 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Updated operator-rs to 0.27.0 ([#xxx])
+- Updated operator-rs to 0.27.0 ([#382])
 
-[#xxx]: https://github.com/stackabletech/nifi-operator/pull/xxx
+[#382]: https://github.com/stackabletech/nifi-operator/pull/382
 
 ## [0.8.1] - 2022-11-10
 
