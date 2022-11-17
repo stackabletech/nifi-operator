@@ -51,6 +51,7 @@ if __name__ == '__main__':
         cluster_data = json.loads(cluster.content.decode('utf-8'))
     else:
         print("Failed to get cluster data: ", cluster.status_code, " - ", cluster.content)
+        exit(-1)
 
     nodes = cluster_data['cluster']['nodes']
 
