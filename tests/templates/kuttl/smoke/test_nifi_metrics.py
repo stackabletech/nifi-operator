@@ -40,7 +40,7 @@ if __name__ == '__main__':
                 time.sleep(timeout)
         except ConnectionError as ex:
             # NewConnectionError is expected until metrics are available
-            if not isinstance(ex.reason, NewConnectionError):
+            if not isinstance(ex, NewConnectionError):
                 print(f"Failed to connect to [{url}]:\n {str(ex)}")
             time.sleep(10)
 
