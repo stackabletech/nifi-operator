@@ -1,6 +1,8 @@
 mod config;
 mod controller;
 
+use crate::controller::CONTROLLER_NAME;
+
 use std::sync::Arc;
 
 use clap::Parser;
@@ -24,6 +26,8 @@ use stackable_operator::{
     logging::controller::report_controller_reconciled,
     CustomResourceExt,
 };
+
+const OPERATOR_NAME: &str = "nifi.stackable.tech";
 
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
@@ -66,8 +70,7 @@ async fn main() -> anyhow::Result<()> {
             ])?;
 
             let client =
-                stackable_operator::client::create_client(Some("nifi.stackable.tech".to_string()))
-                    .await?;
+                stackable_operator::client::create_client(Some(OPERATOR_NAME.to_string())).await?;
 
             let nifi_controller = Controller::new(
                 watch_namespace.get_api::<NifiCluster>(&client),
@@ -115,7 +118,11 @@ async fn main() -> anyhow::Result<()> {
                     }),
                 )
                 .map(|res| {
-                    report_controller_reconciled(&client, "nificlusters.nifi.stackable.tech", &res)
+                    report_controller_reconciled(
+                        &client,
+                        &format!("{CONTROLLER_NAME}.{OPERATOR_NAME}"),
+                        &res,
+                    )
                 })
                 .collect::<()>()
                 .await;

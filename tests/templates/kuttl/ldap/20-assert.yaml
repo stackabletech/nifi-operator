@@ -3,4 +3,4 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 timeout: 300
 commands:
-  - script: kubectl exec -n $NAMESPACE test-nifi-0 -- python /tmp/test_nifi.py -u integrationtest -p integrationtest -n $NAMESPACE
+  - script: kubectl exec -n $NAMESPACE test-nifi-0 -- python /tmp/test_nifi.py -u integrationtest -p integrationtest -n $NAMESPACE -c 2

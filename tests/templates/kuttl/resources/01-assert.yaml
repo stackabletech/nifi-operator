@@ -23,19 +23,3 @@ spec:
           memory: 2Gi
         requests:
           memory: 2Gi
----
-apiVersion: kuttl.dev/v1beta1
-kind: TestAssert
-metadata:
-  name: check-jvm-heap-args
-timeout: 600
-commands:
-  - script: kubectl get cm -n $NAMESPACE test-nifi-node-default -o yaml | grep -E 'java.arg..=-Xmx1638m' | xargs test ! -z
----
-apiVersion: kuttl.dev/v1beta1
-kind: TestAssert
-metadata:
-  name: check-jvm-heap-args
-timeout: 600
-commands:
-  - script: kubectl get cm -n $NAMESPACE test-nifi-node-default -o yaml | grep -E 'java.arg..=-Xms1638m' | xargs test ! -z

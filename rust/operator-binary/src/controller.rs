@@ -1,4 +1,5 @@
 //! Ensures that `Pod`s are configured and running for each [`NifiCluster`]
+
 use std::ops::Deref;
 use std::{
     borrow::Cow,
@@ -13,6 +14,7 @@ use stackable_operator::commons::resources::{NoRuntimeLimits, Resources, Resourc
 use stackable_operator::config::fragment;
 use stackable_operator::config::merge::Merge;
 use stackable_operator::k8s_openapi::api::apps::v1::StatefulSetUpdateStrategy;
+use stackable_operator::labels::ObjectLabels;
 use stackable_operator::role_utils::Role;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder},
@@ -49,16 +51,16 @@ use stackable_nifi_crd::{
 };
 use stackable_nifi_crd::{APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME};
 
-use crate::config;
 use crate::config::{
     build_bootstrap_conf, build_logback_xml, build_nifi_properties, build_state_management_xml,
     validated_product_config, NifiRepository, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES,
     NIFI_STATE_MANAGEMENT_XML,
 };
+use crate::{config, OPERATOR_NAME};
 
-const CONTROLLER_NAME: &str = "nifi-operator";
+pub const CONTROLLER_NAME: &str = "nificluster";
+
 const STACKABLE_TOOLS_IMAGE: &str = "docker.stackable.tech/stackable/tools:0.2.0-stackable0.4.0";
-
 const KEYSTORE_VOLUME_NAME: &str = "keystore";
 const KEYSTORE_NIFI_CONTAINER_MOUNT: &str = "/stackable/keystore";
 const KEYSTORE_REPORTING_TASK_MOUNT: &str = "/stackable/cert";
@@ -292,9 +294,13 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
     )
     .context(ProductConfigLoadFailedSnafu)?;
 
-    let mut cluster_resources =
-        ClusterResources::new(APP_NAME, CONTROLLER_NAME, &nifi.object_ref(&()))
-            .context(CreateClusterResourcesSnafu)?;
+    let mut cluster_resources = ClusterResources::new(
+        APP_NAME,
+        OPERATOR_NAME,
+        CONTROLLER_NAME,
+        &nifi.object_ref(&()),
+    )
+    .context(CreateClusterResourcesSnafu)?;
 
     let nifi_node_config = validated_config
         .get(&NifiRole::Node.to_string())
@@ -450,14 +456,12 @@ pub fn build_node_role_service(nifi: &NifiCluster) -> Result<Service> {
             .name(&role_svc_name)
             .ownerreference_from_resource(nifi, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(
+            .with_recommended_labels(build_recommended_labels(
                 nifi,
-                APP_NAME,
                 nifi.image_version().context(NifiVersionParseFailureSnafu)?,
-                CONTROLLER_NAME,
                 &role_name,
                 "global",
-            )
+            ))
             .build(),
         spec: Some(ServiceSpec {
             ports: Some(vec![ServicePort {
@@ -499,14 +503,12 @@ fn build_node_rolegroup_log_config_map(
                 .name(rolegroup.object_name() + "-log")
                 .ownerreference_from_resource(nifi, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_recommended_labels(
+                .with_recommended_labels(build_recommended_labels(
                     nifi,
-                    APP_NAME,
                     nifi.image_version().context(NifiVersionParseFailureSnafu)?,
-                    CONTROLLER_NAME,
                     &rolegroup.role,
                     &rolegroup.role_group,
-                )
+                ))
                 .build(),
         )
         .add_data(
@@ -547,14 +549,12 @@ async fn build_node_rolegroup_config_map(
                 .name(rolegroup.object_name())
                 .ownerreference_from_resource(nifi, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_recommended_labels(
+                .with_recommended_labels(build_recommended_labels(
                     nifi,
-                    APP_NAME,
                     nifi.image_version().context(NifiVersionParseFailureSnafu)?,
-                    CONTROLLER_NAME,
                     &rolegroup.role,
                     &rolegroup.role_group,
-                )
+                ))
                 .build(),
         )
         .add_data(
@@ -609,14 +609,12 @@ fn build_node_rolegroup_service(
             .name(&rolegroup.object_name())
             .ownerreference_from_resource(nifi, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(
+            .with_recommended_labels(build_recommended_labels(
                 nifi,
-                APP_NAME,
                 nifi.image_version().context(NifiVersionParseFailureSnafu)?,
-                CONTROLLER_NAME,
                 &rolegroup.role,
                 &rolegroup.role_group,
-            )
+            ))
             .with_label("prometheus.io/scrape", "true")
             .build(),
         spec: Some(ServiceSpec {
@@ -923,14 +921,12 @@ async fn build_node_rolegroup_statefulset(
 
     let mut pod_template_builder = PodBuilder::new()
         .metadata_builder(|m| {
-            m.with_recommended_labels(
+            m.with_recommended_labels(build_recommended_labels(
                 nifi,
-                APP_NAME,
                 image_version,
-                CONTROLLER_NAME,
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
-            )
+            ))
         })
         .add_init_container(container_prepare)
         .add_container(container_nifi)
@@ -1023,14 +1019,12 @@ async fn build_node_rolegroup_statefulset(
             .name(&rolegroup_ref.object_name())
             .ownerreference_from_resource(nifi, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(
+            .with_recommended_labels(build_recommended_labels(
                 nifi,
-                APP_NAME,
                 image_version,
-                CONTROLLER_NAME,
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
-            )
+            ))
             .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("Parallel".to_string()),
@@ -1360,4 +1354,21 @@ async fn get_proxy_hosts(
 
 pub fn error_policy(_obj: Arc<NifiCluster>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(10))
+}
+
+fn build_recommended_labels<'a>(
+    owner: &'a NifiCluster,
+    app_version: &'a str,
+    role: &'a str,
+    role_group: &'a str,
+) -> ObjectLabels<'a, NifiCluster> {
+    ObjectLabels {
+        owner,
+        app_name: APP_NAME,
+        app_version,
+        operator_name: OPERATOR_NAME,
+        controller_name: CONTROLLER_NAME,
+        role,
+        role_group,
+    }
 }
