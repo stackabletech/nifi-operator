@@ -2,7 +2,8 @@
 import argparse
 import requests
 import time
-import urllib3
+from requests.exceptions import ConnectionError
+from urllib3.exceptions import NewConnectionError
 
 if __name__ == '__main__':
     # Construct an argument parser
@@ -23,10 +24,7 @@ if __name__ == '__main__':
     port = args["port"]
     timeout = int(args["timeout"])
 
-    url = "http://test-nifi-node-default-0.test-nifi-node-default." + namespace + ".svc.cluster.local:" + port + "/metrics"
-
-    # shut up warnings
-    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    url = f"http://test-nifi-node-default-0.test-nifi-node-default.{namespace}.svc.cluster.local:{port}/metrics"
 
     # wait for 'timeout' seconds
     t_end = time.time() + timeout
@@ -40,8 +38,10 @@ if __name__ == '__main__':
             else:
                 print(f"Could not find metric [{metric_name}] in response:\n {response.text}")
                 time.sleep(timeout)
-        except Exception as ex:
-            print(f"Failed to connect to [{url}]:\n {str(ex)}")
+        except ConnectionError as ex:
+            # NewConnectionError is expected until metrics are available
+            if not isinstance(ex.reason, NewConnectionError):
+                print(f"Failed to connect to [{url}]:\n {str(ex)}")
             time.sleep(10)
 
     exit(-1)
