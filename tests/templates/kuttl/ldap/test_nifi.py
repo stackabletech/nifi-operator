@@ -35,6 +35,8 @@ if __name__ == '__main__':
                           help="Password for the user")
     all_args.add_argument("-n", "--namespace", required=True,
                           help="Namespace the test is running in")
+    all_args.add_argument("-c", "--count", required=True,
+                          help="The expected number of Nodes")
     args = vars(all_args.parse_args())
 
     # disable warnings as we have specified non-verified https connections
@@ -43,6 +45,7 @@ if __name__ == '__main__':
     host = f"https://test-nifi-node-default-1.test-nifi-node-default.{args['namespace']}.svc.cluster.local:8443"
     token = get_token(host, args['user'], args['password'])
     headers = {'Authorization': token}
+    node_count = int(args['count'])
 
     x = 0
     while x < 15:
@@ -53,8 +56,8 @@ if __name__ == '__main__':
         else:
             cluster_data = json.loads(cluster.content.decode('utf-8'))
             nodes = cluster_data['cluster']['nodes']
-            if len(nodes) != 2:
-                print(f"Cluster should have 2 nodes at this stage, but has: {len(nodes)}")
+            if len(nodes) != node_count:
+                print(f"Cluster should have {node_count} nodes at this stage, but has: {len(nodes)}")
             else:
                 connected = True
                 for node in nodes:

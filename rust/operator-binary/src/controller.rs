@@ -1,4 +1,5 @@
 //! Ensures that `Pod`s are configured and running for each [`NifiCluster`]
+
 use std::ops::Deref;
 use std::{
     borrow::Cow,
@@ -50,14 +51,13 @@ use stackable_nifi_crd::{
 };
 use stackable_nifi_crd::{APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME};
 
-use crate::config;
 use crate::config::{
     build_bootstrap_conf, build_logback_xml, build_nifi_properties, build_state_management_xml,
     validated_product_config, NifiRepository, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES,
     NIFI_STATE_MANAGEMENT_XML,
 };
+use crate::{config, OPERATOR_NAME};
 
-pub const OPERATOR_NAME: &str = "nifi.stackable.tech";
 pub const CONTROLLER_NAME: &str = "nificluster";
 
 const STACKABLE_TOOLS_IMAGE: &str = "docker.stackable.tech/stackable/tools:0.2.0-stackable0.4.0";
@@ -456,15 +456,12 @@ pub fn build_node_role_service(nifi: &NifiCluster) -> Result<Service> {
             .name(&role_svc_name)
             .ownerreference_from_resource(nifi, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(ObjectLabels {
-                owner: nifi,
-                app_name: APP_NAME,
-                app_version: nifi.image_version().context(NifiVersionParseFailureSnafu)?,
-                operator_name: OPERATOR_NAME,
-                controller_name: CONTROLLER_NAME,
-                role: &role_name,
-                role_group: "global",
-            })
+            .with_recommended_labels(build_recommended_labels(
+                nifi,
+                nifi.image_version().context(NifiVersionParseFailureSnafu)?,
+                &role_name,
+                "global",
+            ))
             .build(),
         spec: Some(ServiceSpec {
             ports: Some(vec![ServicePort {
@@ -506,15 +503,12 @@ fn build_node_rolegroup_log_config_map(
                 .name(rolegroup.object_name() + "-log")
                 .ownerreference_from_resource(nifi, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_recommended_labels(ObjectLabels {
-                    owner: nifi,
-                    app_name: APP_NAME,
-                    app_version: nifi.image_version().context(NifiVersionParseFailureSnafu)?,
-                    operator_name: OPERATOR_NAME,
-                    controller_name: CONTROLLER_NAME,
-                    role: &rolegroup.role,
-                    role_group: &rolegroup.role_group,
-                })
+                .with_recommended_labels(build_recommended_labels(
+                    nifi,
+                    nifi.image_version().context(NifiVersionParseFailureSnafu)?,
+                    &rolegroup.role,
+                    &rolegroup.role_group,
+                ))
                 .build(),
         )
         .add_data(
@@ -555,15 +549,12 @@ async fn build_node_rolegroup_config_map(
                 .name(rolegroup.object_name())
                 .ownerreference_from_resource(nifi, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_recommended_labels(ObjectLabels {
-                    owner: nifi,
-                    app_name: APP_NAME,
-                    app_version: nifi.image_version().context(NifiVersionParseFailureSnafu)?,
-                    operator_name: OPERATOR_NAME,
-                    controller_name: CONTROLLER_NAME,
-                    role: &rolegroup.role,
-                    role_group: &rolegroup.role_group,
-                })
+                .with_recommended_labels(build_recommended_labels(
+                    nifi,
+                    nifi.image_version().context(NifiVersionParseFailureSnafu)?,
+                    &rolegroup.role,
+                    &rolegroup.role_group,
+                ))
                 .build(),
         )
         .add_data(
@@ -618,15 +609,12 @@ fn build_node_rolegroup_service(
             .name(&rolegroup.object_name())
             .ownerreference_from_resource(nifi, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(ObjectLabels {
-                owner: nifi,
-                app_name: APP_NAME,
-                app_version: nifi.image_version().context(NifiVersionParseFailureSnafu)?,
-                operator_name: OPERATOR_NAME,
-                controller_name: CONTROLLER_NAME,
-                role: &rolegroup.role,
-                role_group: &rolegroup.role_group,
-            })
+            .with_recommended_labels(build_recommended_labels(
+                nifi,
+                nifi.image_version().context(NifiVersionParseFailureSnafu)?,
+                &rolegroup.role,
+                &rolegroup.role_group,
+            ))
             .with_label("prometheus.io/scrape", "true")
             .build(),
         spec: Some(ServiceSpec {
@@ -933,15 +921,12 @@ async fn build_node_rolegroup_statefulset(
 
     let mut pod_template_builder = PodBuilder::new()
         .metadata_builder(|m| {
-            m.with_recommended_labels(ObjectLabels {
-                owner: nifi,
-                app_name: APP_NAME,
-                app_version: image_version,
-                operator_name: OPERATOR_NAME,
-                controller_name: CONTROLLER_NAME,
-                role: &rolegroup_ref.role,
-                role_group: &rolegroup_ref.role_group,
-            })
+            m.with_recommended_labels(build_recommended_labels(
+                nifi,
+                image_version,
+                &rolegroup_ref.role,
+                &rolegroup_ref.role_group,
+            ))
         })
         .add_init_container(container_prepare)
         .add_container(container_nifi)
@@ -1034,15 +1019,12 @@ async fn build_node_rolegroup_statefulset(
             .name(&rolegroup_ref.object_name())
             .ownerreference_from_resource(nifi, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(ObjectLabels {
-                owner: nifi,
-                app_name: APP_NAME,
-                app_version: image_version,
-                operator_name: OPERATOR_NAME,
-                controller_name: CONTROLLER_NAME,
-                role: &rolegroup_ref.role,
-                role_group: &rolegroup_ref.role_group,
-            })
+            .with_recommended_labels(build_recommended_labels(
+                nifi,
+                image_version,
+                &rolegroup_ref.role,
+                &rolegroup_ref.role_group,
+            ))
             .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("Parallel".to_string()),
@@ -1372,4 +1354,21 @@ async fn get_proxy_hosts(
 
 pub fn error_policy(_obj: Arc<NifiCluster>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(10))
+}
+
+fn build_recommended_labels<'a>(
+    owner: &'a NifiCluster,
+    app_version: &'a str,
+    role: &'a str,
+    role_group: &'a str,
+) -> ObjectLabels<'a, NifiCluster> {
+    ObjectLabels {
+        owner,
+        app_name: APP_NAME,
+        app_version,
+        operator_name: OPERATOR_NAME,
+        controller_name: CONTROLLER_NAME,
+        role,
+        role_group,
+    }
 }

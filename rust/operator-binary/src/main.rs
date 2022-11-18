@@ -1,7 +1,7 @@
 mod config;
 mod controller;
 
-use crate::controller::{CONTROLLER_NAME, OPERATOR_NAME};
+use crate::controller::CONTROLLER_NAME;
 
 use std::sync::Arc;
 
@@ -26,6 +26,8 @@ use stackable_operator::{
     logging::controller::report_controller_reconciled,
     CustomResourceExt,
 };
+
+const OPERATOR_NAME: &str = "nifi.stackable.tech";
 
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
