@@ -65,7 +65,7 @@ if __name__ == '__main__':
                     print("Test succeeded!")
                     exit(0)
             print("Retrying...")
-        x = x+1
+        x = x + 1
         sleep(10)
 
     print("Test failed")
