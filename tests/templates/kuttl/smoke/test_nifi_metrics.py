@@ -3,7 +3,6 @@ import argparse
 import requests
 import time
 from requests.exceptions import ConnectionError
-from urllib3.exceptions import NewConnectionError
 
 if __name__ == '__main__':
     # Construct an argument parser
@@ -38,7 +37,7 @@ if __name__ == '__main__':
             else:
                 print(f"Could not find metric [{metric_name}] in response:\n {response.text}")
                 time.sleep(timeout)
-        except ConnectionError as ex:
+        except ConnectionError as _:
             # NewConnectionError is expected until metrics are available
             time.sleep(10)
 
