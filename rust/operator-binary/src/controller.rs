@@ -1,28 +1,31 @@
 //! Ensures that `Pod`s are configured and running for each [`NifiCluster`]
-
-use std::ops::Deref;
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-    time::Duration,
+use crate::config::{
+    build_bootstrap_conf, build_logback_xml, build_nifi_properties, build_state_management_xml,
+    validated_product_config, NifiRepository, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES,
+    NIFI_STATE_MANAGEMENT_XML,
 };
+use crate::{config, OPERATOR_NAME};
 
 use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::commons::resources::{NoRuntimeLimits, Resources, ResourcesFragment};
-use stackable_operator::config::fragment;
-use stackable_operator::config::merge::Merge;
-use stackable_operator::k8s_openapi::api::apps::v1::StatefulSetUpdateStrategy;
-use stackable_operator::labels::ObjectLabels;
-use stackable_operator::role_utils::Role;
+use stackable_nifi_crd::{
+    authentication::{get_auth_configs, get_auth_volumes},
+    NifiCluster, NifiConfig, NifiLogConfig, NifiRole, NifiStatus, NifiStorageConfig, APP_NAME,
+    BALANCE_PORT, BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME,
+    PROTOCOL_PORT, PROTOCOL_PORT_NAME,
+};
 use stackable_operator::{
-    builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder},
+    builder::{
+        ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
+        PodSecurityContextBuilder,
+    },
     client::Client,
     cluster_resources::ClusterResources,
+    commons::resources::{NoRuntimeLimits, Resources, ResourcesFragment},
+    config::{fragment, merge::Merge},
     k8s_openapi::{
         api::{
-            apps::v1::{StatefulSet, StatefulSetSpec},
+            apps::v1::{StatefulSet, StatefulSetSpec, StatefulSetUpdateStrategy},
             batch::v1::{Job, JobSpec},
             core::v1::{
                 Affinity, CSIVolumeSource, ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource,
@@ -35,28 +38,20 @@ use stackable_operator::{
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
     },
     kube::{runtime::controller::Action, runtime::reflector::ObjectRef, Resource, ResourceExt},
-    labels,
-    labels::{role_group_selector_labels, role_selector_labels},
+    labels::{self, role_group_selector_labels, role_selector_labels, ObjectLabels},
     logging::controller::ReconcilerError,
     product_config::{types::PropertyNameKind, ProductConfigManager},
-    role_utils::RoleGroupRef,
+    role_utils::{Role, RoleGroupRef},
+};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+    ops::Deref,
+    sync::Arc,
+    time::Duration,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
-
-use stackable_nifi_crd::{
-    authentication::{get_auth_configs, get_auth_volumes},
-    NifiCluster, NifiConfig, NifiLogConfig, NifiRole, NifiStatus, NifiStorageConfig, HTTPS_PORT,
-    HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
-};
-use stackable_nifi_crd::{APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME};
-
-use crate::config::{
-    build_bootstrap_conf, build_logback_xml, build_nifi_properties, build_state_management_xml,
-    validated_product_config, NifiRepository, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES,
-    NIFI_STATE_MANAGEMENT_XML,
-};
-use crate::{config, OPERATOR_NAME};
 
 pub const CONTROLLER_NAME: &str = "nificluster";
 
@@ -788,14 +783,6 @@ async fn build_node_rolegroup_statefulset(
         format!("sed -i \"s/nifi.web.https.host=0.0.0.0/nifi.web.https.host={}/g\" /stackable/nifi/conf/nifi.properties", node_address),
         "echo Replacing nifi.sensitive.props.key in nifi.properties".to_string(),
         "sed -i \"s|nifi.sensitive.props.key=|nifi.sensitive.props.key=$(cat /stackable/sensitiveproperty/nifiSensitivePropsKey)|g\" /stackable/nifi/conf/nifi.properties".to_string(),
-        "echo chowning data directory".to_string(),
-        "chown -R stackable:stackable /stackable/data".to_string(),
-        "echo chmodding data directory".to_string(),
-        "chmod -R a=,u=rwX /stackable/data".to_string(),
-        "echo chowning keystore directory".to_string(),
-        format!("chown -R stackable:stackable {keystore_path}", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
-        "echo chmodding keystore directory".to_string(),
-        format!("chmod -R a=,u=rwX {keystore_path}",keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
         "echo Replacing 'nifi.zookeeper.connect.string=xxxxxx' in /stackable/nifi/conf/nifi.properties".to_string(),
         format!("sed -i \"s|nifi.zookeeper.connect.string=xxxxxx|nifi.zookeeper.connect.string=${{{}}}|g\" /stackable/nifi/conf/nifi.properties", zookeeper_host),
         "echo Replacing 'nifi.zookeeper.root.node=xxxxxx' in /stackable/nifi/conf/nifi.properties".to_string(),
@@ -858,11 +845,6 @@ async fn build_node_rolegroup_statefulset(
             });
     }
 
-    container_prepare
-        .security_context
-        .get_or_insert_with(SecurityContext::default)
-        .run_as_user = Some(0);
-
     let mut container_nifi = container_builder
         .image(image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
@@ -919,7 +901,7 @@ async fn build_node_rolegroup_statefulset(
 
     container_nifi.resources = Some(resource_definition.clone().into());
 
-    let mut pod_template_builder = PodBuilder::new()
+    let mut pod_template = PodBuilder::new()
         .metadata_builder(|m| {
             m.with_recommended_labels(build_recommended_labels(
                 nifi,
@@ -971,15 +953,20 @@ async fn build_node_rolegroup_statefulset(
             name: "activeconf".to_string(),
             ..Volume::default()
         })
-        .clone();
-
-    auth_volumes
-        .iter()
-        .for_each(|(_name, (_mount_path, volume))| {
-            pod_template_builder.add_volume(volume.clone());
-        });
-
-    let mut pod_template = pod_template_builder.build_template();
+        .add_volumes(
+            auth_volumes
+                .iter()
+                .map(|(_name, (_mount_path, volume))| volume.clone())
+                .collect::<Vec<Volume>>(),
+        )
+        .security_context(
+            PodSecurityContextBuilder::new()
+                .run_as_user(1000)
+                .run_as_group(1000)
+                .fs_group(1000) // Needed for secret-operator
+                .build(),
+        )
+        .build_template();
 
     let mut labels = BTreeMap::new();
     labels.insert(
