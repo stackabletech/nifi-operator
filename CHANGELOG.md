@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Updated operator-rs to 0.27.1 ([#382])
-- Do not run init container as root anymore and avoid chmod and chown ([#382])
+- Do not run init container as root anymore and avoid chmod and chown ([#390])
 
 [#382]: https://github.com/stackabletech/nifi-operator/pull/382
 [#390]: https://github.com/stackabletech/nifi-operator/pull/390
