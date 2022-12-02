@@ -17,7 +17,7 @@ use stackable_nifi_crd::{
 use stackable_operator::{
     builder::{
         ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
-        PodSecurityContextBuilder,
+        PodSecurityContextBuilder, SecurityContextBuilder,
     },
     client::Client,
     cluster_resources::ClusterResources,
@@ -30,9 +30,9 @@ use stackable_operator::{
             core::v1::{
                 Affinity, CSIVolumeSource, ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource,
                 EmptyDirVolumeSource, EnvVar, EnvVarSource, Node, NodeAddress, ObjectFieldSelector,
-                PodAffinityTerm, PodAntiAffinity, PodSpec, PodTemplateSpec, Probe, Secret,
-                SecretVolumeSource, SecurityContext, Service, ServicePort, ServiceSpec,
-                TCPSocketAction, Volume, VolumeMount,
+                PodAffinityTerm, PodAntiAffinity, PodSecurityContext, PodSpec, PodTemplateSpec,
+                Probe, Secret, SecretVolumeSource, SecurityContext, Service, ServicePort,
+                ServiceSpec, TCPSocketAction, Volume, VolumeMount,
             },
         },
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
@@ -1120,10 +1120,6 @@ async fn build_reporting_task_job(
         .args(vec![args.join(" ")])
         // The VolumeMount for the secret operator key store certificates
         .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_REPORTING_TASK_MOUNT)
-        .security_context(SecurityContext {
-            run_as_user: Some(0),
-            ..SecurityContext::default()
-        })
         .build();
 
     // The Volume for the secret operator key store certificates
@@ -1161,6 +1157,12 @@ async fn build_reporting_task_job(
             // (e.g. because the NiFi cluster is not ready yet).
             restart_policy: Some("OnFailure".to_string()),
             volumes: Some(volumes),
+            security_context: Some(PodSecurityContext {
+                run_as_user: Some(1000),
+                run_as_group: Some(1000),
+                fs_group: Some(1000),
+                ..PodSecurityContext::default()
+            }),
             ..Default::default()
         }),
     };
