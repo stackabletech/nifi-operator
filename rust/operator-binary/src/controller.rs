@@ -17,7 +17,7 @@ use stackable_nifi_crd::{
 use stackable_operator::{
     builder::{
         ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
-        PodSecurityContextBuilder, SecurityContextBuilder,
+        PodSecurityContextBuilder,
     },
     client::Client,
     cluster_resources::ClusterResources,
@@ -31,8 +31,8 @@ use stackable_operator::{
                 Affinity, CSIVolumeSource, ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource,
                 EmptyDirVolumeSource, EnvVar, EnvVarSource, Node, NodeAddress, ObjectFieldSelector,
                 PodAffinityTerm, PodAntiAffinity, PodSecurityContext, PodSpec, PodTemplateSpec,
-                Probe, Secret, SecretVolumeSource, SecurityContext, Service, ServicePort,
-                ServiceSpec, TCPSocketAction, Volume, VolumeMount,
+                Probe, Secret, SecretVolumeSource, Service, ServicePort, ServiceSpec,
+                TCPSocketAction, Volume, VolumeMount,
             },
         },
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
