@@ -963,7 +963,7 @@ async fn build_node_rolegroup_statefulset(
             PodSecurityContextBuilder::new()
                 .run_as_user(1000)
                 .run_as_group(1000)
-                .fs_group(1000) // Needed for secret-operator
+                .fs_group(1000)
                 .build(),
         )
         .build_template();
