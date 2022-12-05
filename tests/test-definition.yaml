@@ -6,6 +6,9 @@ dimensions:
       - 3.6.3-stackable0.8.0
       - 3.7.0-stackable0.8.0
       - 3.8.0-stackable0.8.0
+  - name: zookeeper-latest
+    values:
+      - 3.8.0-stackable0.8.0
   - name: nifi
     values:
       - 1.15.3-stackable0.2.0
@@ -27,11 +30,11 @@ tests:
     dimensions:
       - nifi_old
       - nifi_new
-      - zookeeper
+      - zookeeper-latest
   - name: orphaned_resources
     dimensions:
       - nifi
-      - zookeeper
+      - zookeeper-latest
   - name: smoke
     dimensions:
       - nifi
@@ -39,9 +42,9 @@ tests:
   - name: resources
     dimensions:
       - nifi
-      - zookeeper
+      - zookeeper-latest
   - name: ldap
     dimensions:
       - nifi
-      - zookeeper
+      - zookeeper-latest
       - ldap-use-tls

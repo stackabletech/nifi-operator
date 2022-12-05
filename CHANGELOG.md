@@ -7,14 +7,16 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Updated operator-rs to 0.27.1 ([#382])
+- Do not run init container as root anymore and avoid chmod and chown ([#390])
 
 [#382]: https://github.com/stackabletech/nifi-operator/pull/382
+[#390]: https://github.com/stackabletech/nifi-operator/pull/390
 
 ## [0.8.1] - 2022-11-10
 
 ### Changed
 
-- Fixed a regression that made PVC configs mandatory in some cases ([#375]).
+- Fixed a regression that made PVC configs mandatory in some cases ([#375])
 - Updated stackable image versions ([#376])
 
 [#375]: https://github.com/stackabletech/nifi-operator/pull/375

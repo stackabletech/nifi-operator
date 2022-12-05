@@ -4,13 +4,15 @@ kind: ZookeeperCluster
 metadata:
   name: test-zk
 spec:
+  image:
+    productVersion: "{{ test_scenario['values']['zookeeper-latest'].split('-stackable')[0] }}"
+    stackableVersion: "{{ test_scenario['values']['zookeeper-latest'].split('-stackable')[1] }}"
   servers:
     roleGroups:
       default:
         replicas: 1
         config:
           myidOffset: 10
-  version: {{ test_scenario['values']['zookeeper'] }}
   stopped: false
 ---
 apiVersion: zookeeper.stackable.tech/v1alpha1
