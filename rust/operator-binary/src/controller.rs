@@ -21,7 +21,10 @@ use stackable_operator::{
     },
     client::Client,
     cluster_resources::ClusterResources,
-    commons::resources::{NoRuntimeLimits, Resources, ResourcesFragment},
+    commons::{
+        product_image_selection::ResolvedProductImage,
+        resources::{NoRuntimeLimits, Resources, ResourcesFragment},
+    },
     config::{fragment, merge::Merge},
     k8s_openapi::{
         api::{
@@ -38,7 +41,7 @@ use stackable_operator::{
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
     },
     kube::{runtime::controller::Action, runtime::reflector::ObjectRef, Resource, ResourceExt},
-    labels::{self, role_group_selector_labels, role_selector_labels, ObjectLabels},
+    labels::{role_group_selector_labels, role_selector_labels, ObjectLabels},
     logging::controller::ReconcilerError,
     product_config::{types::PropertyNameKind, ProductConfigManager},
     role_utils::{Role, RoleGroupRef},
@@ -59,6 +62,8 @@ const STACKABLE_TOOLS_IMAGE: &str = "docker.stackable.tech/stackable/tools:0.2.0
 const KEYSTORE_VOLUME_NAME: &str = "keystore";
 const KEYSTORE_NIFI_CONTAINER_MOUNT: &str = "/stackable/keystore";
 const KEYSTORE_REPORTING_TASK_MOUNT: &str = "/stackable/cert";
+
+const DOCKER_IMAGE_BASE_NAME: &str = "nifi";
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -134,13 +139,6 @@ pub enum Error {
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::error::Error,
     },
-    #[snafu(display("Failed to get ZooKeeper connection string from config map {obj_ref}",))]
-    GetZookeeperConnStringConfigMap {
-        source: stackable_operator::error::Error,
-        obj_ref: ObjectRef<ConfigMap>,
-    },
-    #[snafu(display("Failed to get ZooKeeper connection string from config map {obj_ref}",))]
-    MissingZookeeperConnString { obj_ref: ObjectRef<ConfigMap> },
     #[snafu(display("Failed to load Product Config"))]
     ProductConfigLoadFailed { source: config::Error },
     #[snafu(display("Failed to find information about file [{}] in product config", kind))]
@@ -171,8 +169,6 @@ pub enum Error {
         source: crate::config::Error,
         rolegroup: RoleGroupRef<NifiCluster>,
     },
-    #[snafu(display("failed to parse NiFi version"))]
-    NifiVersionParseFailure { source: stackable_nifi_crd::Error },
     #[snafu(display("illegal container name: [{container_name}]"))]
     IllegalContainerName {
         source: stackable_operator::error::Error,
@@ -203,14 +199,14 @@ pub enum VersionChangeState {
 pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Action> {
     tracing::info!("Starting reconcile");
     let client = &ctx.client;
-    let nifi_product_version = nifi
-        .product_version()
-        .context(NifiVersionParseFailureSnafu)?;
     let namespace = &nifi
         .metadata
         .namespace
         .clone()
         .with_context(|| ObjectHasNoNamespaceSnafu {})?;
+
+    let resolved_product_image: ResolvedProductImage =
+        nifi.spec.image.resolve(DOCKER_IMAGE_BASE_NAME);
 
     tracing::info!("Checking for sensitive key configuration");
     check_or_generate_sensitive_key(client, &nifi).await?;
@@ -221,11 +217,11 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         .as_ref()
         .and_then(|status| status.deployed_version.as_ref())
     {
-        if deployed_version != nifi_product_version {
+        if deployed_version != &resolved_product_image.product_version {
             // Check if statefulsets are already scaled to zero, if not - requeue
             let selector = LabelSelector {
                 match_expressions: None,
-                match_labels: Some(labels::role_selector_labels(
+                match_labels: Some(role_selector_labels(
                     nifi.deref(),
                     APP_NAME,
                     &NifiRole::Node.to_string(),
@@ -283,7 +279,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
 
     let validated_config = validated_product_config(
         &nifi,
-        nifi_product_version,
+        &resolved_product_image.product_version,
         nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?,
         &ctx.product_config,
     )
@@ -302,7 +298,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         .map(Cow::Borrowed)
         .unwrap_or_default();
 
-    let node_role_service = build_node_role_service(&nifi)?;
+    let node_role_service = build_node_role_service(&nifi, &resolved_product_image)?;
     cluster_resources
         .add(client, &node_role_service)
         .await
@@ -322,7 +318,8 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             let rolegroup = nifi.node_rolegroup_ref(rolegroup_name);
 
             tracing::debug!("Processing rolegroup {}", rolegroup);
-            let rg_service = build_node_rolegroup_service(&nifi, &rolegroup)?;
+            let rg_service =
+                build_node_rolegroup_service(&nifi, &resolved_product_image, &rolegroup)?;
 
             let role = nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?;
 
@@ -342,8 +339,9 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
                     .context(MaterializeAuthConfigSnafu)?;
 
             let rg_configmap = build_node_rolegroup_config_map(
-                client,
                 &nifi,
+                &resolved_product_image,
+                client,
                 &rolegroup,
                 rolegroup_config,
                 &proxy_hosts,
@@ -351,10 +349,12 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             )
             .await?;
 
-            let rg_log_configmap = build_node_rolegroup_log_config_map(&nifi, &rolegroup)?;
+            let rg_log_configmap =
+                build_node_rolegroup_log_config_map(&nifi, &resolved_product_image, &rolegroup)?;
 
             let rg_statefulset = build_node_rolegroup_statefulset(
                 &nifi,
+                &resolved_product_image,
                 &rolegroup,
                 rolegroup_config,
                 role,
@@ -367,6 +367,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
 
             let reporting_task_job = build_reporting_task_job(
                 &nifi,
+                &resolved_product_image,
                 &rolegroup,
                 &auth_volumes,
                 &admin_username_file,
@@ -427,7 +428,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
                 CONTROLLER_NAME,
                 nifi.deref(),
                 &NifiStatus {
-                    deployed_version: Some(nifi_product_version.to_string()),
+                    deployed_version: Some(resolved_product_image.product_version),
                 },
             )
             .await
@@ -439,7 +440,10 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
 
 /// The node-role service is the primary endpoint that should be used by clients that do not
 /// perform internal load balancing including targets outside of the cluster.
-pub fn build_node_role_service(nifi: &NifiCluster) -> Result<Service> {
+pub fn build_node_role_service(
+    nifi: &NifiCluster,
+    resolved_product_image: &ResolvedProductImage,
+) -> Result<Service> {
     let role_name = NifiRole::Node.to_string();
 
     let role_svc_name = nifi
@@ -453,7 +457,7 @@ pub fn build_node_role_service(nifi: &NifiCluster) -> Result<Service> {
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
                 nifi,
-                nifi.image_version().context(NifiVersionParseFailureSnafu)?,
+                &resolved_product_image.app_version_label,
                 &role_name,
                 "global",
             ))
@@ -489,6 +493,7 @@ fn get_log_config(nifi: &NifiCluster, rolegroup: &RoleGroupRef<NifiCluster>) -> 
 
 fn build_node_rolegroup_log_config_map(
     nifi: &NifiCluster,
+    resolved_product_image: &ResolvedProductImage,
     rolegroup: &RoleGroupRef<NifiCluster>,
 ) -> Result<ConfigMap> {
     ConfigMapBuilder::new()
@@ -500,7 +505,7 @@ fn build_node_rolegroup_log_config_map(
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
                 .with_recommended_labels(build_recommended_labels(
                     nifi,
-                    nifi.image_version().context(NifiVersionParseFailureSnafu)?,
+                    &resolved_product_image.app_version_label,
                     &rolegroup.role,
                     &rolegroup.role_group,
                 ))
@@ -518,8 +523,9 @@ fn build_node_rolegroup_log_config_map(
 
 /// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the administrator
 async fn build_node_rolegroup_config_map(
-    client: &Client,
     nifi: &NifiCluster,
+    resolved_product_image: &ResolvedProductImage,
+    client: &Client,
     rolegroup: &RoleGroupRef<NifiCluster>,
     config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     proxy_hosts: &str,
@@ -546,7 +552,7 @@ async fn build_node_rolegroup_config_map(
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
                 .with_recommended_labels(build_recommended_labels(
                     nifi,
-                    nifi.image_version().context(NifiVersionParseFailureSnafu)?,
+                    &resolved_product_image.app_version_label,
                     &rolegroup.role,
                     &rolegroup.role_group,
                 ))
@@ -596,6 +602,7 @@ async fn build_node_rolegroup_config_map(
 /// This is mostly useful for internal communication between peers, or for clients that perform client-side load balancing.
 fn build_node_rolegroup_service(
     nifi: &NifiCluster,
+    resolved_product_image: &ResolvedProductImage,
     rolegroup: &RoleGroupRef<NifiCluster>,
 ) -> Result<Service> {
     Ok(Service {
@@ -606,7 +613,7 @@ fn build_node_rolegroup_service(
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
                 nifi,
-                nifi.image_version().context(NifiVersionParseFailureSnafu)?,
+                &resolved_product_image.app_version_label,
                 &rolegroup.role,
                 &rolegroup.role_group,
             ))
@@ -689,6 +696,7 @@ fn resolve_resource_config_for_rolegroup(
 #[allow(clippy::too_many_arguments)]
 async fn build_node_rolegroup_statefulset(
     nifi: &NifiCluster,
+    resolved_product_image: &ResolvedProductImage,
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
     config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     role: &Role<NifiConfig>,
@@ -744,9 +752,6 @@ async fn build_node_rolegroup_statefulset(
     ));
 
     let rolegroup = role.role_groups.get(&rolegroup_ref.role_group);
-
-    let image_version = nifi.image_version().context(NifiVersionParseFailureSnafu)?;
-    let image = format!("docker.stackable.tech/stackable/nifi:{}", image_version);
 
     let node_address = format!(
         "$POD_NAME.{}-node-{}.{}.svc.cluster.local",
@@ -846,7 +851,7 @@ async fn build_node_rolegroup_statefulset(
     }
 
     let mut container_nifi = container_builder
-        .image(image)
+        .image_from_product_image(resolved_product_image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
         .args(vec![["bin/nifi.sh run"].join(" && ")])
         .add_env_vars(env_vars)
@@ -905,11 +910,12 @@ async fn build_node_rolegroup_statefulset(
         .metadata_builder(|m| {
             m.with_recommended_labels(build_recommended_labels(
                 nifi,
-                image_version,
+                &resolved_product_image.app_version_label,
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
             ))
         })
+        .image_pull_secrets_from_product_image(resolved_product_image)
         .add_init_container(container_prepare)
         .add_container(container_nifi)
         // One volume for the NiFi configuration. A script will later on edit (e.g. nodename)
@@ -1008,7 +1014,7 @@ async fn build_node_rolegroup_statefulset(
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
                 nifi,
-                image_version,
+                &resolved_product_image.app_version_label,
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
             ))
@@ -1081,6 +1087,7 @@ async fn build_node_rolegroup_statefulset(
 ///
 async fn build_reporting_task_job(
     nifi: &NifiCluster,
+    resolved_product_image: &ResolvedProductImage,
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
     auth_volumes: &BTreeMap<String, (String, Volume)>,
     admin_username_file: &str,
@@ -1088,9 +1095,7 @@ async fn build_reporting_task_job(
 ) -> Result<Job> {
     let rolegroup_obj_name = rolegroup_ref.object_name();
     let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
-    let product_version = nifi
-        .product_version()
-        .context(NifiVersionParseFailureSnafu)?;
+    let product_version = &resolved_product_image.product_version;
     let nifi_connect_url = format!(
         "https://{rolegroup}-0.{rolegroup}.{namespace}.svc.cluster.local:{port}/nifi-api",
         rolegroup = rolegroup_obj_name,

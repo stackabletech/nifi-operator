@@ -1,25 +1,28 @@
-use std::collections::BTreeMap;
-
-use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, Snafu};
-use stackable_operator::commons::resources::{
-    CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment, PvcConfig,
-    PvcConfigFragment, ResourcesFragment,
-};
-use stackable_operator::config::fragment::Fragment;
-use stackable_operator::config::merge::{Atomic, Merge};
-use stackable_operator::k8s_openapi::apimachinery::pkg::api::resource::Quantity;
-use stackable_operator::role_utils::RoleGroupRef;
-use stackable_operator::{
-    kube::{runtime::reflector::ObjectRef, CustomResource},
-    product_config_utils::{ConfigError, Configuration},
-    role_utils::Role,
-    schemars::{self, JsonSchema},
-};
+pub mod authentication;
 
 use crate::authentication::NifiAuthenticationConfig;
 
-pub mod authentication;
+use serde::{Deserialize, Serialize};
+use snafu::{OptionExt, Snafu};
+use stackable_operator::{
+    commons::{
+        product_image_selection::ProductImage,
+        resources::{
+            CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
+            PvcConfig, PvcConfigFragment, ResourcesFragment,
+        },
+    },
+    config::{
+        fragment::Fragment,
+        merge::{Atomic, Merge},
+    },
+    k8s_openapi::apimachinery::pkg::api::resource::Quantity,
+    kube::{runtime::reflector::ObjectRef, CustomResource},
+    product_config_utils::{ConfigError, Configuration},
+    role_utils::{Role, RoleGroupRef},
+    schemars::{self, JsonSchema},
+};
+use std::collections::BTreeMap;
 
 pub const APP_NAME: &str = "nifi";
 
@@ -34,12 +37,8 @@ pub const METRICS_PORT: u16 = 8081;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("could not parse product version from image: [{image_version}]. Expected format e.g. [1.15.0-stackable0.1.0]"))]
-    NifiProductVersion { image_version: String },
     #[snafu(display("object has no namespace associated"))]
     NoNamespace,
-    #[snafu(display("object defines no version"))]
-    ObjectHasNoVersion,
 }
 
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -62,9 +61,8 @@ pub struct NifiSpec {
     /// Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stopped: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    /// The required NiFi image version
-    pub version: Option<String>,
+    /// The NiFi image to use
+    pub image: ProductImage,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     /// Available NiFi roles
     pub nodes: Option<Role<NifiConfig>>,
@@ -317,25 +315,6 @@ impl NifiCluster {
                     pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
                 })
             }))
-    }
-
-    /// Returns the provided docker image e.g. 1.15.0-stackable0
-    pub fn image_version(&self) -> Result<&str, Error> {
-        self.spec
-            .version
-            .as_deref()
-            .context(ObjectHasNoVersionSnafu)
-    }
-
-    /// Returns our semver representation for product config e.g. 1.15.0
-    pub fn product_version(&self) -> Result<&str, Error> {
-        let image_version = self.image_version()?;
-        image_version
-            .split('-')
-            .next()
-            .with_context(|| NifiProductVersionSnafu {
-                image_version: image_version.to_string(),
-            })
     }
 }
 
