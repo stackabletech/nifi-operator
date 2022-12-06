@@ -10,7 +10,9 @@ kind: NifiCluster
 metadata:
   name: simple-nifi
 spec:
-  version: 1.18.0-stackable0.2.0
+  image:
+    productVersion: 1.18.0
+    stackableVersion: 0.2.0
   zookeeperConfigMapName: simple-nifi-znode
   authenticationConfig:
     method:
@@ -31,7 +33,9 @@ spec:
             rootLogLevel: INFO
         replicas: 3
 ----
+
 === Node Configuration
+
 [source,yaml]
 ----
  nodes:
@@ -51,6 +55,7 @@ It is possible to define multiple groups of nodes, each with its own distinct co
  - replicas: How many pods to roll out for this group
 
 === Authentication
+
 [source,yaml]
 ----
   authenticationConfig:
@@ -64,15 +69,18 @@ It is possible to define multiple groups of nodes, each with its own distinct co
 All authentication related parameters are configured in the authenticationConfig element.
 
 ==== Authentication Method
+
 Currently, the only supported authentication method is "SingleUser", which allows the definition of one admin user which can then access the cluster.
 Specification of these users credentials happens via referring to a Secret in Kubernetes, this secret will need to contain at least the two keys `username` and `password`.
 Extra keys may be present, but will be ignored by the operator.
 
 ==== Anonymous Access
+
 NiFi can be configured to allow anonymous access to the web UI, this is turned off by default, but can be enabled via the parameter `allowAnonymousAccess`.
 This setting is independent of the configured authentication method and will override anything specified for the authentication provider.
 
 === ZooKeeper Connection
+
 [source,yaml]
 ----
   zookeeperConfigMapName: simple-nifi-znode
@@ -81,6 +89,7 @@ NiFi in cluster mode requires a ZooKeeper ensemble for state management and lead
 Configuration happens via a ConfigMap, which needs to contain two keys called `ZOOKEEPER_HOSTS` with the value being the ZooKeeper connection string and `ZOOKEEPER_CHROOT` with the value being the ZooKeeper chroot. This ConfigMap typically is created by a ZookeeperZnode of the https://github.com/stackabletech/zookeeper-operator[ZooKeeper Operator].
 
 === NiFi Configuration
+
 [source,yaml]
 ----
 config:
