@@ -8,9 +8,11 @@ All notable changes to this project will be documented in this file.
 
 - Updated operator-rs to 0.27.1 ([#382])
 - Do not run init container as root anymore and avoid chmod and chown ([#390])
+- [BREAKING] Use Product image selection instead of version. `spec.version` has been replaced by `spec.image` ([#394])
 
 [#382]: https://github.com/stackabletech/nifi-operator/pull/382
 [#390]: https://github.com/stackabletech/nifi-operator/pull/390
+[#394]: https://github.com/stackabletech/nifi-operator/pull/394
 
 ## [0.8.1] - 2022-11-10
 
