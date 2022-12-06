@@ -29,7 +29,9 @@ kind: NifiCluster
 metadata:
   name: test-nifi
 spec:
-  version: {{ test_scenario['values']['nifi'] }}
+  image:
+    productVersion: "{{ test_scenario['values']['nifi'].split('-stackable')[0] }}"
+    stackableVersion: "{{ test_scenario['values']['nifi'].split('-stackable')[1] }}"
   zookeeperConfigMapName: nifi-with-ldap-znode
   config:
     authentication:
@@ -44,9 +46,6 @@ spec:
   nodes:
     roleGroups:
       default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
         config:
           log:
             rootLogLevel: INFO
