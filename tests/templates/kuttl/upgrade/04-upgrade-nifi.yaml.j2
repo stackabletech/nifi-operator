@@ -4,7 +4,9 @@ kind: NifiCluster
 metadata:
   name: test-nifi
 spec:
-  version: {{ test_scenario['values']['nifi_new'] }}
+  image:
+    productVersion: "{{ test_scenario['values']['nifi_new'].split('-stackable')[0] }}"
+    stackableVersion: "{{ test_scenario['values']['nifi_new'].split('-stackable')[1] }}"
   zookeeperConfigMapName: test-nifi-znode
   config:
     authentication:
