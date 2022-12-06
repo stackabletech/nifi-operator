@@ -55,7 +55,6 @@ pub enum Error {
         schemars = "stackable_operator::schemars"
     )
 )]
-#[kube()]
 #[serde(rename_all = "camelCase")]
 pub struct NifiSpec {
     /// Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)
