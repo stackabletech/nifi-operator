@@ -804,6 +804,8 @@ async fn build_node_rolegroup_statefulset(
         .with_context(|_| IllegalContainerNameSnafu {
             container_name: APP_NAME.to_string(),
         })?
+        // TODO: replace with NiFi image
+        //.image_from_product_image(resolved_product_image)
         .image(STACKABLE_TOOLS_IMAGE)
         .command(vec![
             "/bin/bash".to_string(),
@@ -1120,6 +1122,8 @@ async fn build_reporting_task_job(
         .with_context(|_| IllegalContainerNameSnafu {
             container_name: APP_NAME.to_string(),
         })?
+        // TODO: replace with NiFi image
+        //.image_from_product_image(resolved_product_image)
         .image(STACKABLE_TOOLS_IMAGE)
         .command(vec!["sh".to_string(), "-c".to_string()])
         .args(vec![args.join(" ")])
@@ -1157,6 +1161,7 @@ async fn build_reporting_task_job(
         ),
         spec: Some(PodSpec {
             containers: vec![container],
+            image_pull_secrets: resolved_product_image.pull_secrets.clone(),
             // We use "OnFailure" here instead of "Never" to avoid spawning pods and pods. We just
             // restart the existing pod in case the script fails
             // (e.g. because the NiFi cluster is not ready yet).
@@ -1168,6 +1173,7 @@ async fn build_reporting_task_job(
                 fs_group: Some(1000),
                 ..PodSecurityContext::default()
             }),
+
             ..Default::default()
         }),
     };
