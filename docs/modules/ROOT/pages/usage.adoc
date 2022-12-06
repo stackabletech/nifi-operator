@@ -41,18 +41,21 @@ spec:
 <1> Name of the Nifi cluster.
 <2> Version of the Apache Nifi container image to use. This contains the Nifi version (`1.18.0`) as well as Stackable image version (`stackable0.2.0`). For a list of available versions please check our https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%2Fnifi%2Ftags[image registry].
 <3> A reference to a `ZNode` resource. This resource must exist and cannot be reused across Nifi clusters. For details on how to create `ZNode` resources see xref:zookeeper::znodes.adoc[this page].
-<4> Administator credentials for logging into the Nifi web interface. This is the name of a `Secret` resource with two fields: `username` and `password`. This `Secret` must exist but it's entries can be populated by the operator when `autoGenerate` is `true`.
+<4> Administrator credentials for logging into the Nifi web interface. This is the name of a `Secret` resource with two fields: `username` and `password`. This `Secret` must exist but it's entries can be populated by the operator when `autoGenerate` is `true`.
 
 == Authentication
+
 Every user has to authenticate themselves before using NiFI.
 There are multiple options to set up the authentication of users.
 
 === Single user
+
 The default setting is to only provision a single user with administrative privileges.
 You need to specify the username and password of the user.
 Further users can not be added.
 
 === LDAP
+
 NiFI supports authentication of users against an LDAP server.
 Have a look at https://github.com/stackabletech/nifi-operator/tree/main/tests/templates/kuttl/ldap[the LDAP test] and the general xref:commons-operator::authenticationclass.adoc[Stackable Authentication] documentation on how to set it up.
 In general, it requires you to specify a xref:commons-operator::authenticationclass.adoc[`AuthenticationClass`] which is used to authenticate the users.
@@ -106,15 +109,18 @@ stringData:
 ----
 
 == Authorization
+
 NiFi supports multiple authorization methods documented https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#multi-tenant-authorization[here].
 The available authorization methods depend on the chosen authentication method.
 
 Authorization is not fully implemented by the Stackable Operator for Apache Nifi.
 
 === Single user
-With this authorization methid, a single user has administrator capabilites.
+
+With this authorization method, a single user has administrator capabilities.
 
 === LDAP
+
 The operator uses the https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#fileusergroupprovider[`FileUserGroupProvider`] and https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#fileaccesspolicyprovider[FileAccessPolicyProvider] to bind the LDAP user to the Nifi administrator group. This user is then able to create and modify groups and polices in the web interface. These changes local to the `Pod` running Nifi and are *not* persistent.
 
 == Updating NiFi
@@ -129,7 +135,9 @@ kind: NifiCluster
 metadata:
   name: simple-nifi
 spec:
-  version: 1.16.3-stackable0.2.0 # <1>
+  image:
+    productVersion: 1.16.3 # <1>
+    stackableVersion: 0.2.0 # <2>
   zookeeperConfigMapName: simple-nifi-znode
   config:
     authentication:
@@ -151,6 +159,7 @@ spec:
 ----
 
 <1> Change the NiFi version here
+<2> Change the stackable image version here
 
 IMPORTANT: Due to a limitation in NiFi itself it is not possible to up- or downgrade a NiFi cluster in a rolling fashion.
 So any change to the NiFi version you make in this CRD will result in a full cluster restart with a short downtime.
