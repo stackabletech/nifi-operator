@@ -19,7 +19,7 @@ metadata:
 spec:
   image:
     productVersion: 1.18.0 # <2>
-    stackableVersion: 0.2.0
+    stackableVersion: 0.3.0
   zookeeperConfigMapName: simple-nifi-znode # <3>
   config:
     authentication:
@@ -139,7 +139,7 @@ metadata:
 spec:
   image:
     productVersion: 1.16.3 # <1>
-    stackableVersion: 0.2.0 # <2>
+    stackableVersion: 0.3.0 # <2>
   zookeeperConfigMapName: simple-nifi-znode
   config:
     authentication:
