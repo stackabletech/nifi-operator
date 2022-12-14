@@ -58,7 +58,6 @@ use tracing::Instrument;
 
 pub const CONTROLLER_NAME: &str = "nificluster";
 
-const STACKABLE_TOOLS_IMAGE: &str = "docker.stackable.tech/stackable/tools:0.2.0-stackable0.4.0";
 const KEYSTORE_VOLUME_NAME: &str = "keystore";
 const KEYSTORE_NIFI_CONTAINER_MOUNT: &str = "/stackable/keystore";
 const KEYSTORE_REPORTING_TASK_MOUNT: &str = "/stackable/cert";
@@ -66,7 +65,7 @@ const KEYSTORE_REPORTING_TASK_MOUNT: &str = "/stackable/cert";
 const DOCKER_IMAGE_BASE_NAME: &str = "nifi";
 
 pub struct Ctx {
-    pub client: stackable_operator::client::Client,
+    pub client: Client,
     pub product_config: ProductConfigManager,
 }
 
@@ -804,9 +803,7 @@ async fn build_node_rolegroup_statefulset(
         .with_context(|_| IllegalContainerNameSnafu {
             container_name: APP_NAME.to_string(),
         })?
-        // TODO: replace with NiFi image
-        //.image_from_product_image(resolved_product_image)
-        .image(STACKABLE_TOOLS_IMAGE)
+        .image_from_product_image(resolved_product_image)
         .command(vec![
             "/bin/bash".to_string(),
             "-c".to_string(),
@@ -1106,7 +1103,7 @@ async fn build_reporting_task_job(
     );
 
     let args = vec![
-        "python/create_nifi_reporting_task.py".to_string(),
+        "/stackable/python/create_nifi_reporting_task.py".to_string(),
         format!("-n {nifi_connect_url}"),
         // In case of the username being simple (e.g. admin) just use it as is
         // If the username is a bind dn (e.g. cn=integrationtest,ou=users,dc=example,dc=org) we have to extract the cn/dn/uid (in this case integrationtest)
@@ -1122,9 +1119,7 @@ async fn build_reporting_task_job(
         .with_context(|_| IllegalContainerNameSnafu {
             container_name: APP_NAME.to_string(),
         })?
-        // TODO: replace with NiFi image
-        //.image_from_product_image(resolved_product_image)
-        .image(STACKABLE_TOOLS_IMAGE)
+        .image_from_product_image(resolved_product_image)
         .command(vec!["sh".to_string(), "-c".to_string()])
         .args(vec![args.join(" ")])
         // The VolumeMount for the secret operator key store certificates

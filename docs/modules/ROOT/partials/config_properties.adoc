@@ -12,7 +12,7 @@ metadata:
 spec:
   image:
     productVersion: 1.18.0
-    stackableVersion: 0.2.0
+    stackableVersion: 0.3.0
   zookeeperConfigMapName: simple-nifi-znode
   authenticationConfig:
     method:
