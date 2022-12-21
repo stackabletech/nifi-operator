@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+
 - Fixed the RoleGroup `selector`. It was not used before. ([#401])
 - Updated operator-rs to 0.27.1 ([#382])
 - Do not run init container as root anymore and avoid chmod and chown ([#390])
