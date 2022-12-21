@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Fixed the RoleGroup `selector`. It was not used before. ([#401])
-- Updated operator-rs to 0.27.1 ([#382])
+- Updated operator-rs to 0.30.1 ([#382], [#401])
 - Do not run init container as root anymore and avoid chmod and chown ([#390])
 - [BREAKING] Use Product image selection instead of version. `spec.version` has been replaced by `spec.image` ([#394])
 - [BREAKING]: Removed tools image (reporting task job and init container) and replaced with NiFi product image. This means the latest stackable version has to be used in the product image selection ([#397])
