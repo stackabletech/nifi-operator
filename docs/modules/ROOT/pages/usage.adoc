@@ -60,7 +60,7 @@ Additional users can not be added.
 === LDAP
 
 NiFi supports xref:home:concepts:authentication.adoc[authentication] of users against an LDAP server. This requires setting up an xref:home:concepts:authentication.adoc#authenticationclass[AuthenticationClass] for the LDAP server.
-The AuthenticationClass is then referenced in the NifiCluster resource like so:
+The AuthenticationClass is then referenced in the NifiCluster resource as follows:
 
 [source,yaml]
 ----
