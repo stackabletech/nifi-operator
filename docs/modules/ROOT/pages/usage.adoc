@@ -54,61 +54,31 @@ There are multiple options to set up the authentication of users.
 
 The default setting is to only provision a single user with administrative privileges.
 You need to specify the username and password of the user.
-Further users can not be added.
+Additional users can not be added.
 
+[#authentication-ldap]
 === LDAP
 
-NiFI supports authentication of users against an LDAP server.
-Have a look at https://github.com/stackabletech/nifi-operator/tree/main/tests/templates/kuttl/ldap[the LDAP test] and the general xref:commons-operator::authenticationclass.adoc[Stackable Authentication] documentation on how to set it up.
-In general, it requires you to specify a xref:commons-operator::authenticationclass.adoc[`AuthenticationClass`] which is used to authenticate the users.
-Here you have an example usage
+NiFi supports xref:home:concepts:authentication.adoc[authentication] of users against an LDAP server. This requires setting up an xref:home:concepts:authentication.adoc#authenticationclass[AuthenticationClass] for the LDAP server.
+The AuthenticationClass is then referenced in the NifiCluster resource like so:
 
 [source,yaml]
 ----
----
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
 metadata:
   name: test-nifi
 spec:
+  [...]
   config:
     authentication:
       method:
-        authenticationClass: ldap-without-tls
----
-apiVersion: authentication.stackable.tech/v1alpha1
-kind: AuthenticationClass
-metadata:
-  name: ldap-without-tls
-spec:
-  provider:
-    ldap:
-      hostname: openldap.default.svc.cluster.local
-      searchBase: ou=users,dc=example,dc=org
-      bindCredentials:
-        secretClass: nifi-with-ldap-bind
-      port: 1389
----
-apiVersion: secrets.stackable.tech/v1alpha1
-kind: SecretClass
-metadata:
-  name: nifi-with-ldap-bind
-spec:
-  backend:
-    k8sSearch:
-      searchNamespace:
-        pod: {}
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: nifi-with-ldap-bind
-  labels:
-    secrets.stackable.tech/class: nifi-with-ldap-bind
-stringData:
-  user: cn=integrationtest,ou=users,dc=example,dc=org
-  password: integrationtest
+        authenticationClass: ldap # <1>
 ----
+
+<1> The reference to an AuthenticationClass called `ldap`
+
+You can follow the xref:home:tutorials:authentication_with_openldap.adoc[] tutorial to learn how to set up an AuthenticationClass for an LDAP server, as well as consulting the xref:home:reference:authenticationclass.adoc[] reference.
 
 == Authorization
 
@@ -121,6 +91,7 @@ Authorization is not fully implemented by the Stackable Operator for Apache Nifi
 
 With this authorization method, a single user has administrator capabilities.
 
+[#authorization-ldap]
 === LDAP
 
 The operator uses the https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#fileusergroupprovider[`FileUserGroupProvider`] and https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#fileaccesspolicyprovider[FileAccessPolicyProvider] to bind the LDAP user to the Nifi administrator group. This user is then able to create and modify groups and polices in the web interface. These changes local to the `Pod` running Nifi and are *not* persistent.
