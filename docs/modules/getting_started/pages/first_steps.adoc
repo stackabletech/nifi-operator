@@ -13,7 +13,7 @@ We will create them in this order, each one is created by applying a manifest fi
 
 === Apache ZooKeeper
 
-To create a ZooKeeper instace run the following command:
+To create a ZooKeeper instance run the following command:
 
 [source,bash]
 ----
@@ -38,7 +38,7 @@ The NiFi cluster requires authentication. Create a set of credentials for this p
 include::example$code/getting-started.sh[tag=install-nifi-credentials]
 ----
 
-Finally create a Nifi instance:
+Finally create a NiFi instance:
 
 [source,bash]
 ----
@@ -74,11 +74,11 @@ Congratulations! You successfully created your first NiFi cluster!
 
 === Access the NiFi web interface
 
-You can retrieve the URL for the NiFi cluster web interface via stackablectl or kubectl.
+You can retrieve the URL for the NiFi cluster web interface via `stackablectl` or `kubectl`.
 
 ==== stackablectl
 
-Use the service command of stackablectl to get a list of all available endpoints:
+Use the service command of `stackablectl` to get a list of all available endpoints:
 
 [source,bash]
 ----
@@ -101,7 +101,7 @@ image::nifi-web-ui.png[]
 
 ==== Via kubectl
 
-Extracting the IP and port via kubectl is cumbersome. We recommend using stackablectl instead. The following kubectl commands store their output for further use in a variable and write its content to stdout afterwards. Make sure to run these commands in the same terminal:
+Extracting the IP and port via `kubectl` is cumbersome. We recommend using `stackablectl` instead. The following `kubectl` commands store their output for further use in a variable and write its content to stdout afterwards. Make sure to run these commands in the same terminal:
 
 [source,bash]
 ----
