@@ -8,8 +8,8 @@ use crate::{config, OPERATOR_NAME};
 
 use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_nifi_crd::authentication::ResolvedAuthenticationMethod;
 use stackable_nifi_crd::{
-    authentication::{get_auth_configs, get_auth_volumes},
     NifiCluster, NifiConfig, NifiLogConfig, NifiRole, NifiStatus, NifiStorageConfig, APP_NAME,
     BALANCE_PORT, BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME,
     PROTOCOL_PORT, PROTOCOL_PORT_NAME,
@@ -33,9 +33,9 @@ use stackable_operator::{
             core::v1::{
                 Affinity, CSIVolumeSource, ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource,
                 EmptyDirVolumeSource, EnvVar, EnvVarSource, Node, NodeAddress, ObjectFieldSelector,
-                PodAffinityTerm, PodAntiAffinity, PodSecurityContext, PodSpec, PodTemplateSpec,
+                PodAffinityTerm, PodAntiAffinity, PodSecurityContext, PodSpec,
                 Probe, Secret, SecretVolumeSource, Service, ServicePort, ServiceSpec,
-                TCPSocketAction, Volume, VolumeMount,
+                TCPSocketAction, Volume,
             },
         },
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
@@ -311,6 +311,15 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             obj_ref: ObjectRef::new(&nifi.name_any()).within(namespace),
         })?;
 
+    let namespace = &nifi
+        .metadata
+        .namespace
+        .clone()
+        .with_context(|| ObjectHasNoNamespaceSnafu {})?;
+
+    let resolved_auth_conf = nifi.spec.config.authentication.method.resolve(client, namespace).await
+    .context(MaterializeAuthConfigSnafu)?;
+
     for (rolegroup_name, rolegroup_config) in nifi_node_config.iter() {
         let rg_span = tracing::info_span!("rolegroup_span", rolegroup = rolegroup_name.as_str());
         async {
@@ -332,15 +341,12 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             // For more information see <https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#proxy_configuration>
             let proxy_hosts = get_proxy_hosts(client, &nifi, &updated_role_service).await?;
 
-            let (auth_volumes, additional_auth_args, admin_username_file, admin_password_file) =
-                get_auth_volumes(client, &nifi.spec.config.authentication.method)
-                    .await
-                    .context(MaterializeAuthConfigSnafu)?;
-
+            let (login_provider_xml, authorizers_xml) = resolved_auth_conf.get_auth_config();
             let rg_configmap = build_node_rolegroup_config_map(
                 &nifi,
                 &resolved_product_image,
-                client,
+                login_provider_xml,
+                authorizers_xml,
                 &rolegroup,
                 rolegroup_config,
                 &proxy_hosts,
@@ -358,8 +364,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
                 rolegroup_config,
                 role,
                 &resource_definition,
-                &auth_volumes,
-                &additional_auth_args,
+                &resolved_auth_conf,
                 &version_change,
             )
             .await?;
@@ -368,9 +373,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
                 &nifi,
                 &resolved_product_image,
                 &rolegroup,
-                &auth_volumes,
-                &admin_username_file,
-                &admin_password_file,
+                &resolved_auth_conf,
             )
             .await?;
 
@@ -524,24 +527,14 @@ fn build_node_rolegroup_log_config_map(
 async fn build_node_rolegroup_config_map(
     nifi: &NifiCluster,
     resolved_product_image: &ResolvedProductImage,
-    client: &Client,
+    login_identity_provider_xml: String,
+    authorizers_xml: String,
     rolegroup: &RoleGroupRef<NifiCluster>,
     config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     proxy_hosts: &str,
     resource_definition: &Resources<NifiStorageConfig>,
 ) -> Result<ConfigMap> {
     tracing::debug!("building rolegroup configmaps");
-    let namespace = &nifi
-        .metadata
-        .namespace
-        .clone()
-        .with_context(|| ObjectHasNoNamespaceSnafu {})?;
-
-    let (login_identity_provider_xml, authorizers_xml) =
-        get_auth_configs(client, &nifi.spec.config.authentication, namespace)
-            .await
-            .context(MaterializeAuthConfigSnafu {})?;
-
     ConfigMapBuilder::new()
         .metadata(
             ObjectMetaBuilder::new()
@@ -700,8 +693,7 @@ async fn build_node_rolegroup_statefulset(
     config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     role: &Role<NifiConfig>,
     resource_definition: &Resources<NifiStorageConfig>,
-    auth_volumes: &BTreeMap<String, (String, Volume)>,
-    additional_auth_args: &[String],
+    resolved_auth_conf: &ResolvedAuthenticationMethod,
     version_change_state: &VersionChangeState,
 ) -> Result<StatefulSet> {
     tracing::debug!("Building statefulset");
@@ -797,12 +789,13 @@ async fn build_node_rolegroup_statefulset(
         format!("sed -i \"s|yyyyyy|${{{}}}|g\" /stackable/nifi/conf/state-management.xml",zookeeper_chroot)
     ];
 
-    args.extend_from_slice(additional_auth_args);
+    args.extend_from_slice(resolved_auth_conf.get_additional_container_args().as_slice());
 
     let mut container_prepare = ContainerBuilder::new("prepare")
-        .with_context(|_| IllegalContainerNameSnafu {
-            container_name: APP_NAME.to_string(),
-        })?
+    .with_context(|_| IllegalContainerNameSnafu {
+        container_name: APP_NAME.to_string(),
+    })?;
+    container_prepare
         .image_from_product_image(resolved_product_image)
         .command(vec![
             "/bin/bash".to_string(),
@@ -835,21 +828,9 @@ async fn build_node_rolegroup_statefulset(
         .add_volume_mount("conf", "/conf")
         .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_NIFI_CONTAINER_MOUNT)
         .add_volume_mount("activeconf", "/stackable/nifi/conf")
-        .add_volume_mount("sensitiveproperty", "/stackable/sensitiveproperty")
-        .build();
+        .add_volume_mount("sensitiveproperty", "/stackable/sensitiveproperty");
 
-    for (name, (mount_path, _volume)) in auth_volumes {
-        container_prepare
-            .volume_mounts
-            .get_or_insert_with(Vec::default)
-            .push(VolumeMount {
-                mount_path: mount_path.to_string(),
-                name: name.to_string(),
-                ..VolumeMount::default()
-            });
-    }
-
-    let mut container_nifi = container_builder
+    let container_nifi = container_builder
         .image_from_product_image(resolved_product_image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
         .args(vec![["bin/nifi.sh run"].join(" && ")])
@@ -881,31 +862,32 @@ async fn build_node_rolegroup_statefulset(
         .add_container_port(PROTOCOL_PORT_NAME, PROTOCOL_PORT.into())
         .add_container_port(BALANCE_PORT_NAME, BALANCE_PORT.into())
         .add_container_port(METRICS_PORT_NAME, METRICS_PORT.into())
-        .build();
+        .liveness_probe(Probe {
+            initial_delay_seconds: Some(10),
+            period_seconds: Some(10),
+            tcp_socket: Some(TCPSocketAction {
+                port: IntOrString::String(HTTPS_PORT_NAME.to_string()),
+                ..TCPSocketAction::default()
+            }),
+            ..Probe::default()
+        })
+        .startup_probe(Probe {
+            initial_delay_seconds: Some(10),
+            period_seconds: Some(10),
+            failure_threshold: Some(20 * 6),
+            tcp_socket: Some(TCPSocketAction {
+                port: IntOrString::String(HTTPS_PORT_NAME.to_string()),
+                ..TCPSocketAction::default()
+            }),
+            ..Probe::default()
+        })
+        .resources(resource_definition.clone().into());
 
-    container_nifi.liveness_probe = Some(Probe {
-        initial_delay_seconds: Some(10),
-        period_seconds: Some(10),
-        tcp_socket: Some(TCPSocketAction {
-            port: IntOrString::String(HTTPS_PORT_NAME.to_string()),
-            ..TCPSocketAction::default()
-        }),
-        ..Probe::default()
-    });
-    container_nifi.startup_probe = Some(Probe {
-        initial_delay_seconds: Some(10),
-        period_seconds: Some(10),
-        failure_threshold: Some(20 * 6),
-        tcp_socket: Some(TCPSocketAction {
-            port: IntOrString::String(HTTPS_PORT_NAME.to_string()),
-            ..TCPSocketAction::default()
-        }),
-        ..Probe::default()
-    });
+    let mut pb = PodBuilder::new();
 
-    container_nifi.resources = Some(resource_definition.clone().into());
+    resolved_auth_conf.add_volumes_and_mounts(&mut pb, vec![&mut container_prepare, container_nifi]);
 
-    let mut pod_template = PodBuilder::new()
+    let mut pod_template = pb
         .metadata_builder(|m| {
             m.with_recommended_labels(build_recommended_labels(
                 nifi,
@@ -915,8 +897,8 @@ async fn build_node_rolegroup_statefulset(
             ))
         })
         .image_pull_secrets_from_product_image(resolved_product_image)
-        .add_init_container(container_prepare)
-        .add_container(container_nifi)
+        .add_init_container(container_prepare.build())
+        .add_container(container_nifi.build())
         .node_selector_opt(rolegroup.and_then(|rg| rg.selector.clone()))
         // One volume for the NiFi configuration. A script will later on edit (e.g. nodename)
         // and copy the whole content to the <NIFI_HOME>/conf folder.
@@ -959,12 +941,6 @@ async fn build_node_rolegroup_statefulset(
             name: "activeconf".to_string(),
             ..Volume::default()
         })
-        .add_volumes(
-            auth_volumes
-                .iter()
-                .map(|(_name, (_mount_path, volume))| volume.clone())
-                .collect::<Vec<Volume>>(),
-        )
         .security_context(
             PodSecurityContextBuilder::new()
                 .run_as_user(1000)
@@ -1089,9 +1065,7 @@ async fn build_reporting_task_job(
     nifi: &NifiCluster,
     resolved_product_image: &ResolvedProductImage,
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
-    auth_volumes: &BTreeMap<String, (String, Volume)>,
-    admin_username_file: &str,
-    admin_password_file: &str,
+    resolved_auth_conf: &ResolvedAuthenticationMethod,
 ) -> Result<Job> {
     let rolegroup_obj_name = rolegroup_ref.object_name();
     let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
@@ -1102,6 +1076,8 @@ async fn build_reporting_task_job(
         namespace = namespace,
         port = HTTPS_PORT
     );
+
+    let (admin_username_file, admin_password_file) = resolved_auth_conf.get_user_and_password_file_paths();
 
     let args = vec![
         "/stackable/python/create_nifi_reporting_task.py".to_string(),
@@ -1116,31 +1092,16 @@ async fn build_reporting_task_job(
         format!("-m {METRICS_PORT}"),
         format!("-c {KEYSTORE_REPORTING_TASK_MOUNT}/ca.crt"),
     ];
-    let mut container = ContainerBuilder::new("create-reporting-task")
-        .with_context(|_| IllegalContainerNameSnafu {
-            container_name: APP_NAME.to_string(),
-        })?
+    let mut cb = ContainerBuilder::new("create-reporting-task")
+    .with_context(|_| IllegalContainerNameSnafu {
+        container_name: APP_NAME.to_string(),
+    })?;
+    cb
         .image_from_product_image(resolved_product_image)
         .command(vec!["sh".to_string(), "-c".to_string()])
         .args(vec![args.join(" ")])
         // The VolumeMount for the secret operator key store certificates
-        .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_REPORTING_TASK_MOUNT)
-        .build();
-
-    // The Volume for the secret operator key store certificates
-    let mut volumes = vec![build_keystore_volume(KEYSTORE_VOLUME_NAME)];
-
-    for (name, (mount_path, volume)) in auth_volumes {
-        container
-            .volume_mounts
-            .get_or_insert_with(Vec::default)
-            .push(VolumeMount {
-                mount_path: mount_path.to_string(),
-                name: name.to_string(),
-                ..VolumeMount::default()
-            });
-        volumes.push(volume.clone());
-    }
+        .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_REPORTING_TASK_MOUNT);
 
     let job_name = format!(
         "{}-create-reporting-task-{}",
@@ -1148,31 +1109,29 @@ async fn build_reporting_task_job(
         product_version.replace('.', "-")
     );
 
-    let pod = PodTemplateSpec {
-        metadata: Some(
-            ObjectMetaBuilder::new()
+    let mut pd = PodBuilder::new();
+
+    resolved_auth_conf.add_volumes_and_mounts(&mut pd, vec![&mut cb]);
+
+    let mut pod = pd.metadata(
+        ObjectMetaBuilder::new()
                 .name(job_name.clone())
                 .namespace_opt(nifi.namespace())
-                .build(),
-        ),
-        spec: Some(PodSpec {
-            containers: vec![container],
-            image_pull_secrets: resolved_product_image.pull_secrets.clone(),
-            // We use "OnFailure" here instead of "Never" to avoid spawning pods and pods. We just
-            // restart the existing pod in case the script fails
-            // (e.g. because the NiFi cluster is not ready yet).
-            restart_policy: Some("OnFailure".to_string()),
-            volumes: Some(volumes),
-            security_context: Some(PodSecurityContext {
-                run_as_user: Some(1000),
-                run_as_group: Some(1000),
-                fs_group: Some(1000),
-                ..PodSecurityContext::default()
-            }),
+                .build()
+    )
+    .image_pull_secrets_from_product_image(resolved_product_image)
+    .security_context(PodSecurityContext {
+        run_as_user: Some(1000),
+        run_as_group: Some(1000),
+        fs_group: Some(1000),
+        ..PodSecurityContext::default()
+    })
+    .add_container(cb.build())
+    .add_volume(build_keystore_volume(KEYSTORE_VOLUME_NAME))
+    .build_template();
 
-            ..Default::default()
-        }),
-    };
+    let spec = pod.spec.as_mut().unwrap();
+    spec.restart_policy = Some("OnFailure".to_owned());
 
     let job = Job {
         metadata: ObjectMetaBuilder::new()

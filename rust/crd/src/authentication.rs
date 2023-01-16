@@ -6,7 +6,8 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use stackable_operator::builder::{
-    ObjectMetaBuilder, SecretOperatorVolumeSourceBuilder, VolumeBuilder,
+    ContainerBuilder, ObjectMetaBuilder, PodBuilder, SecretOperatorVolumeSourceBuilder,
+    VolumeBuilder,
 };
 use stackable_operator::client::Client;
 use stackable_operator::commons::authentication::{
@@ -91,110 +92,205 @@ pub enum NifiAuthenticationMethod {
     AuthenticationClass(String),
 }
 
-impl NifiAuthenticationConfig {
-    pub fn allow_anonymous(&self) -> bool {
-        self.allow_anonymous_access.unwrap_or(false)
-    }
-}
-
-/// Returns login_identity_provider.xml and authorizers.xml
-pub async fn get_auth_configs(
-    client: &Client,
-    config: &NifiAuthenticationConfig,
-    current_namespace: &str,
-) -> Result<(String, String), Error> {
-    let mut login_identity_provider_xml = indoc! {r#"
-        <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-        <loginIdentityProviders>
-    "#}
-    .to_string();
-    let mut authorizers_xml = indoc! {r#"
-        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <authorizers>
-    "#}
-    .to_string();
-
-    match &config.method {
-        NifiAuthenticationMethod::SingleUser {
-            admin_credentials_secret,
-            auto_generate,
-        } => {
-            // Check if the referenced secret exists and contains all necessary keys, otherwise
-            // generate random password and default user
-            check_or_generate_admin_credentials(
-                client,
+impl NifiAuthenticationMethod {
+    /// If we're doing SingleUser, ensure that the credentials exist.
+    /// If we're doing an AuthenticationClass, resolve LDAP and ensure that TLS verification is active
+    pub async fn resolve(
+        &self,
+        client: &Client,
+        secret_namespace: &str,
+    ) -> Result<ResolvedAuthenticationMethod, Error> {
+        match &self {
+            NifiAuthenticationMethod::SingleUser {
                 admin_credentials_secret,
-                current_namespace,
                 auto_generate,
-            )
-            .await?;
-
-            login_identity_provider_xml.push_str(indoc! {r#"
-                <provider>
-                    <identifier>login-identity-provider</identifier>
-                    <class>org.apache.nifi.authentication.single.user.SingleUserLoginIdentityProvider</class>
-                    <property name="Username">xxx_singleuser_username_xxx</property>
-                    <property name="Password">xxx_singleuser_password_xxx</property>
-                </provider>
-            "#});
-
-            authorizers_xml.push_str(indoc! {r#"
-                <authorizer>
-                    <identifier>authorizer</identifier>
-                    <class>org.apache.nifi.authorization.single.user.SingleUserAuthorizer</class>
-                </authorizer>
-            "#});
-        }
-        NifiAuthenticationMethod::AuthenticationClass(authentication_class_name) => {
-            let authentication_class =
-                AuthenticationClass::resolve(client, authentication_class_name)
+            } => {
+                // Check if the referenced secret exists and contains all necessary keys, otherwise
+                // generate random password and default user
+                check_or_generate_admin_credentials(
+                    client,
+                    admin_credentials_secret,
+                    secret_namespace,
+                    auto_generate,
+                )
+                .await?;
+                Ok(ResolvedAuthenticationMethod::SingleUser(
+                    admin_credentials_secret.to_owned(),
+                ))
+            }
+            NifiAuthenticationMethod::AuthenticationClass(auth_class_name) => {
+                let auth_class = AuthenticationClass::resolve(client, auth_class_name)
                     .await
                     .context(AuthenticationClassRetrievalSnafu {
                         authentication_class: ObjectRef::<AuthenticationClass>::new(
-                            authentication_class_name,
+                            auth_class_name,
                         ),
                     })?;
-
-            match &authentication_class.spec.provider {
-                AuthenticationClassProvider::Ldap(ldap) => {
-                    if let Some(Tls {
-                        verification: TlsVerification::None {},
-                    }) = &ldap.tls
-                    {
-                        return NoLdapTlsVerificationNotSupportedSnafu {
+                match auth_class.spec.provider {
+                    AuthenticationClassProvider::Ldap(ldap) => {
+                        if ldap.use_tls() && !ldap.use_tls_verification() {
+                            return NoLdapTlsVerificationNotSupportedSnafu {
+                                authentication_class: ObjectRef::<AuthenticationClass>::new(
+                                    auth_class_name,
+                                ),
+                            }
+                            .fail();
+                        }
+                        Ok(ResolvedAuthenticationMethod::Ldap(ldap))
+                    }
+                    _ => {
+                        return AuthenticationClassProviderNotSupportedSnafu {
+                            authentication_class_provider: auth_class.spec.provider.to_string(),
                             authentication_class: ObjectRef::<AuthenticationClass>::new(
-                                authentication_class_name,
+                                auth_class_name,
                             ),
                         }
-                        .fail();
+                        .fail()
                     }
-                    login_identity_provider_xml.push_str(&get_ldap_login_identity_provider(ldap));
-                    authorizers_xml.push_str(&get_ldap_authorizer(ldap));
-                }
-                _ => {
-                    return AuthenticationClassProviderNotSupportedSnafu {
-                        authentication_class_provider: authentication_class
-                            .spec
-                            .provider
-                            .to_string(),
-                        authentication_class: ObjectRef::<AuthenticationClass>::new(
-                            authentication_class_name,
-                        ),
-                    }
-                    .fail()
                 }
             }
         }
     }
+}
 
-    login_identity_provider_xml.push_str(indoc! {r#"
-        </loginIdentityProviders>
-    "#});
-    authorizers_xml.push_str(indoc! {r#"
-        </authorizers>
-    "#});
+pub enum ResolvedAuthenticationMethod {
+    SingleUser(String), // admin credentials secret
+    Ldap(LdapAuthenticationProvider),
+}
 
-    Ok((login_identity_provider_xml, authorizers_xml))
+impl ResolvedAuthenticationMethod {
+    pub fn get_auth_config(&self) -> (String, String) {
+        let mut login_identity_provider_xml = indoc! {r#"
+            <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+            <loginIdentityProviders>
+        "#}
+        .to_string();
+        let mut authorizers_xml = indoc! {r#"
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <authorizers>
+        "#}
+        .to_string();
+
+        match &self {
+            Self::SingleUser(_) => {
+                login_identity_provider_xml.push_str(indoc! {r#"
+                    <provider>
+                        <identifier>login-identity-provider</identifier>
+                        <class>org.apache.nifi.authentication.single.user.SingleUserLoginIdentityProvider</class>
+                        <property name="Username">xxx_singleuser_username_xxx</property>
+                        <property name="Password">xxx_singleuser_password_xxx</property>
+                    </provider>
+                "#});
+
+                authorizers_xml.push_str(indoc! {r#"
+                    <authorizer>
+                        <identifier>authorizer</identifier>
+                        <class>org.apache.nifi.authorization.single.user.SingleUserAuthorizer</class>
+                    </authorizer>
+                "#});
+            }
+            Self::Ldap(ldap) => {
+                login_identity_provider_xml.push_str(&get_ldap_login_identity_provider(ldap));
+                authorizers_xml.push_str(&get_ldap_authorizer(ldap));
+            }
+        }
+
+        login_identity_provider_xml.push_str(indoc! {r#"
+            </loginIdentityProviders>
+        "#});
+        authorizers_xml.push_str(indoc! {r#"
+            </authorizers>
+        "#});
+
+        (login_identity_provider_xml, authorizers_xml)
+    }
+
+    pub fn get_user_and_password_file_paths(&self) -> (String, String) {
+        let mut admin_username_file = String::new();
+        let mut admin_password_file = String::new();
+        match &self {
+            ResolvedAuthenticationMethod::SingleUser(_) => {
+                admin_username_file = format!("{AUTH_VOLUME_MOUNT_PATH}/username");
+                admin_password_file = format!("{AUTH_VOLUME_MOUNT_PATH}/password");
+            },
+            ResolvedAuthenticationMethod::Ldap(ldap) => {
+                if let Some((user_path, password_path)) = ldap.bind_credentials_mount_paths() {
+                    admin_username_file = user_path.to_owned();
+                    admin_password_file = password_path.to_owned();
+                }
+            },
+        }
+        (admin_username_file, admin_password_file)
+    }
+
+    pub fn get_additional_container_args(&self) -> Vec<String> {
+        let mut commands = Vec::new();
+        match &self {
+            Self::SingleUser(_) => {
+                let (admin_username_file, admin_password_file) = self.get_user_and_password_file_paths();
+                commands.extend(vec![
+                "echo 'Replacing admin username and password in login-identity-provider.xml (if configured)'".to_string(),
+                format!("sed -i \"s|xxx_singleuser_username_xxx|$(cat {admin_username_file})|g\" /stackable/nifi/conf/login-identity-providers.xml"),
+                format!("sed -i \"s|xxx_singleuser_password_xxx|$(cat {admin_password_file} | java -jar /bin/stackable-bcrypt.jar)|g\" /stackable/nifi/conf/login-identity-providers.xml"),
+                ]
+            );
+            }
+            Self::Ldap(ldap) => {
+                if let Some((username_path, password_path)) = ldap.bind_credentials_mount_paths() {
+                    commands.extend(vec![
+                    "echo Replacing ldap bind username and password in login-identity-provider.xml".to_string(),
+                    format!("sed -i \"s|xxx_ldap_bind_username_xxx|$(cat {username_path})|g\" /stackable/nifi/conf/login-identity-providers.xml"),
+                    format!("sed -i \"s|xxx_ldap_bind_password_xxx|$(cat {password_path})|g\" /stackable/nifi/conf/login-identity-providers.xml"),
+                    format!("sed -i \"s|xxx_ldap_bind_username_xxx|$(cat {username_path})|g\" /stackable/nifi/conf/authorizers.xml"),
+                    ]
+                );
+                }
+                if let Some(ca_path) = ldap.tls_ca_cert_mount_path() {
+                    commands.extend(vec![
+                    "echo Adding LDAP tls cert to global truststore".to_string(),
+                    format!("keytool -importcert -file {ca_path} -keystore /stackable/keystore/truststore.p12 -storetype pkcs12 -noprompt -alias ldap_ca_cert -storepass secret"),
+                    ]
+                );
+                }
+            }
+        }
+        commands
+    }
+
+    /// Returns
+    /// - A list of extra commands for the init container
+    pub fn add_volumes_and_mounts(
+        &self,
+        pod_builder: &mut PodBuilder,
+        container_builders: Vec<&mut ContainerBuilder>,
+    ) {
+
+        match &self {
+            Self::SingleUser(admin_credentials_secret) => {
+                let admin_volume = Volume {
+                    name: AUTH_VOLUME_NAME.to_string(),
+                    secret: Some(SecretVolumeSource {
+                        secret_name: Some(admin_credentials_secret.to_string()),
+                        ..SecretVolumeSource::default()
+                    }),
+                    ..Volume::default()
+                };
+                pod_builder.add_volume(admin_volume);
+                for cb in container_builders {
+                    cb.add_volume_mount(AUTH_VOLUME_NAME, AUTH_VOLUME_MOUNT_PATH);
+                }
+            }
+            Self::Ldap(ldap) => {
+                ldap.add_volumes_and_mounts(pod_builder, container_builders);
+            }
+        }
+    }
+}
+
+impl NifiAuthenticationConfig {
+    pub fn allow_anonymous(&self) -> bool {
+        self.allow_anonymous_access.unwrap_or(false)
+    }
 }
 
 /// Returns
