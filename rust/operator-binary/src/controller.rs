@@ -346,12 +346,10 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             // For more information see <https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#proxy_configuration>
             let proxy_hosts = get_proxy_hosts(client, &nifi, &updated_role_service).await?;
 
-            let (login_provider_xml, authorizers_xml) = resolved_auth_conf.get_auth_config();
             let rg_configmap = build_node_rolegroup_config_map(
                 &nifi,
                 &resolved_product_image,
-                login_provider_xml,
-                authorizers_xml,
+                &resolved_auth_conf,
                 &rolegroup,
                 rolegroup_config,
                 &proxy_hosts,
@@ -532,14 +530,16 @@ fn build_node_rolegroup_log_config_map(
 async fn build_node_rolegroup_config_map(
     nifi: &NifiCluster,
     resolved_product_image: &ResolvedProductImage,
-    login_identity_provider_xml: String,
-    authorizers_xml: String,
+    resolved_auth_conf: &ResolvedAuthenticationMethod,
     rolegroup: &RoleGroupRef<NifiCluster>,
     config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     proxy_hosts: &str,
     resource_definition: &Resources<NifiStorageConfig>,
 ) -> Result<ConfigMap> {
     tracing::debug!("building rolegroup configmaps");
+
+    let (login_identity_provider_xml, authorizers_xml) = resolved_auth_conf.get_auth_config();
+
     ConfigMapBuilder::new()
         .metadata(
             ObjectMetaBuilder::new()

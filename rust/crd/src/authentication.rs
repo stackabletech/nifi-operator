@@ -129,24 +129,23 @@ impl NifiAuthenticationMethod {
                 match auth_class.spec.provider {
                     AuthenticationClassProvider::Ldap(ldap) => {
                         if ldap.use_tls() && !ldap.use_tls_verification() {
-                            return NoLdapTlsVerificationNotSupportedSnafu {
+                            NoLdapTlsVerificationNotSupportedSnafu {
                                 authentication_class: ObjectRef::<AuthenticationClass>::new(
                                     auth_class_name,
                                 ),
                             }
-                            .fail();
+                            .fail()
+                        } else {
+                            Ok(ResolvedAuthenticationMethod::Ldap(Box::new(ldap)))
                         }
-                        Ok(ResolvedAuthenticationMethod::Ldap(ldap))
                     }
-                    _ => {
-                        return AuthenticationClassProviderNotSupportedSnafu {
-                            authentication_class_provider: auth_class.spec.provider.to_string(),
-                            authentication_class: ObjectRef::<AuthenticationClass>::new(
-                                auth_class_name,
-                            ),
-                        }
-                        .fail()
+                    _ => AuthenticationClassProviderNotSupportedSnafu {
+                        authentication_class_provider: auth_class.spec.provider.to_string(),
+                        authentication_class: ObjectRef::<AuthenticationClass>::new(
+                            auth_class_name,
+                        ),
                     }
+                    .fail(),
                 }
             }
         }
@@ -155,7 +154,7 @@ impl NifiAuthenticationMethod {
 
 pub enum ResolvedAuthenticationMethod {
     SingleUser(String), // admin credentials secret
-    Ldap(LdapAuthenticationProvider),
+    Ldap(Box<LdapAuthenticationProvider>),
 }
 
 impl ResolvedAuthenticationMethod {
@@ -215,8 +214,8 @@ impl ResolvedAuthenticationMethod {
             }
             ResolvedAuthenticationMethod::Ldap(ldap) => {
                 if let Some((user_path, password_path)) = ldap.bind_credentials_mount_paths() {
-                    admin_username_file = user_path.to_owned();
-                    admin_password_file = password_path.to_owned();
+                    admin_username_file = user_path;
+                    admin_password_file = password_path;
                 }
             }
         }
