@@ -212,13 +212,13 @@ impl ResolvedAuthenticationMethod {
             ResolvedAuthenticationMethod::SingleUser(_) => {
                 admin_username_file = format!("{AUTH_VOLUME_MOUNT_PATH}/username");
                 admin_password_file = format!("{AUTH_VOLUME_MOUNT_PATH}/password");
-            },
+            }
             ResolvedAuthenticationMethod::Ldap(ldap) => {
                 if let Some((user_path, password_path)) = ldap.bind_credentials_mount_paths() {
                     admin_username_file = user_path.to_owned();
                     admin_password_file = password_path.to_owned();
                 }
-            },
+            }
         }
         (admin_username_file, admin_password_file)
     }
@@ -227,7 +227,8 @@ impl ResolvedAuthenticationMethod {
         let mut commands = Vec::new();
         match &self {
             Self::SingleUser(_) => {
-                let (admin_username_file, admin_password_file) = self.get_user_and_password_file_paths();
+                let (admin_username_file, admin_password_file) =
+                    self.get_user_and_password_file_paths();
                 commands.extend(vec![
                 "echo 'Replacing admin username and password in login-identity-provider.xml (if configured)'".to_string(),
                 format!("sed -i \"s|xxx_singleuser_username_xxx|$(cat {admin_username_file})|g\" /stackable/nifi/conf/login-identity-providers.xml"),
@@ -264,7 +265,6 @@ impl ResolvedAuthenticationMethod {
         pod_builder: &mut PodBuilder,
         container_builders: Vec<&mut ContainerBuilder>,
     ) {
-
         match &self {
             Self::SingleUser(admin_credentials_secret) => {
                 let admin_volume = Volume {

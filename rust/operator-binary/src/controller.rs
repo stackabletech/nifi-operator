@@ -33,9 +33,8 @@ use stackable_operator::{
             core::v1::{
                 Affinity, CSIVolumeSource, ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource,
                 EmptyDirVolumeSource, EnvVar, EnvVarSource, Node, NodeAddress, ObjectFieldSelector,
-                PodAffinityTerm, PodAntiAffinity, PodSecurityContext, PodSpec,
-                Probe, Secret, SecretVolumeSource, Service, ServicePort, ServiceSpec,
-                TCPSocketAction, Volume,
+                PodAffinityTerm, PodAntiAffinity, PodSecurityContext, PodSpec, Probe, Secret,
+                SecretVolumeSource, Service, ServicePort, ServiceSpec, TCPSocketAction, Volume,
             },
         },
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
@@ -317,8 +316,14 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         .clone()
         .with_context(|| ObjectHasNoNamespaceSnafu {})?;
 
-    let resolved_auth_conf = nifi.spec.config.authentication.method.resolve(client, namespace).await
-    .context(MaterializeAuthConfigSnafu)?;
+    let resolved_auth_conf = nifi
+        .spec
+        .config
+        .authentication
+        .method
+        .resolve(client, namespace)
+        .await
+        .context(MaterializeAuthConfigSnafu)?;
 
     for (rolegroup_name, rolegroup_config) in nifi_node_config.iter() {
         let rg_span = tracing::info_span!("rolegroup_span", rolegroup = rolegroup_name.as_str());
@@ -789,12 +794,16 @@ async fn build_node_rolegroup_statefulset(
         format!("sed -i \"s|yyyyyy|${{{}}}|g\" /stackable/nifi/conf/state-management.xml",zookeeper_chroot)
     ];
 
-    args.extend_from_slice(resolved_auth_conf.get_additional_container_args().as_slice());
+    args.extend_from_slice(
+        resolved_auth_conf
+            .get_additional_container_args()
+            .as_slice(),
+    );
 
-    let mut container_prepare = ContainerBuilder::new("prepare")
-    .with_context(|_| IllegalContainerNameSnafu {
-        container_name: APP_NAME.to_string(),
-    })?;
+    let mut container_prepare =
+        ContainerBuilder::new("prepare").with_context(|_| IllegalContainerNameSnafu {
+            container_name: APP_NAME.to_string(),
+        })?;
     container_prepare
         .image_from_product_image(resolved_product_image)
         .command(vec![
@@ -885,7 +894,8 @@ async fn build_node_rolegroup_statefulset(
 
     let mut pb = PodBuilder::new();
 
-    resolved_auth_conf.add_volumes_and_mounts(&mut pb, vec![&mut container_prepare, container_nifi]);
+    resolved_auth_conf
+        .add_volumes_and_mounts(&mut pb, vec![&mut container_prepare, container_nifi]);
 
     let mut pod_template = pb
         .metadata_builder(|m| {
@@ -1077,7 +1087,8 @@ async fn build_reporting_task_job(
         port = HTTPS_PORT
     );
 
-    let (admin_username_file, admin_password_file) = resolved_auth_conf.get_user_and_password_file_paths();
+    let (admin_username_file, admin_password_file) =
+        resolved_auth_conf.get_user_and_password_file_paths();
 
     let args = vec![
         "/stackable/python/create_nifi_reporting_task.py".to_string(),
@@ -1092,12 +1103,12 @@ async fn build_reporting_task_job(
         format!("-m {METRICS_PORT}"),
         format!("-c {KEYSTORE_REPORTING_TASK_MOUNT}/ca.crt"),
     ];
-    let mut cb = ContainerBuilder::new("create-reporting-task")
-    .with_context(|_| IllegalContainerNameSnafu {
-        container_name: APP_NAME.to_string(),
+    let mut cb = ContainerBuilder::new("create-reporting-task").with_context(|_| {
+        IllegalContainerNameSnafu {
+            container_name: APP_NAME.to_string(),
+        }
     })?;
-    cb
-        .image_from_product_image(resolved_product_image)
+    cb.image_from_product_image(resolved_product_image)
         .command(vec!["sh".to_string(), "-c".to_string()])
         .args(vec![args.join(" ")])
         // The VolumeMount for the secret operator key store certificates
@@ -1113,22 +1124,23 @@ async fn build_reporting_task_job(
 
     resolved_auth_conf.add_volumes_and_mounts(&mut pd, vec![&mut cb]);
 
-    let mut pod = pd.metadata(
-        ObjectMetaBuilder::new()
+    let mut pod = pd
+        .metadata(
+            ObjectMetaBuilder::new()
                 .name(job_name.clone())
                 .namespace_opt(nifi.namespace())
-                .build()
-    )
-    .image_pull_secrets_from_product_image(resolved_product_image)
-    .security_context(PodSecurityContext {
-        run_as_user: Some(1000),
-        run_as_group: Some(1000),
-        fs_group: Some(1000),
-        ..PodSecurityContext::default()
-    })
-    .add_container(cb.build())
-    .add_volume(build_keystore_volume(KEYSTORE_VOLUME_NAME))
-    .build_template();
+                .build(),
+        )
+        .image_pull_secrets_from_product_image(resolved_product_image)
+        .security_context(PodSecurityContext {
+            run_as_user: Some(1000),
+            run_as_group: Some(1000),
+            fs_group: Some(1000),
+            ..PodSecurityContext::default()
+        })
+        .add_container(cb.build())
+        .add_volume(build_keystore_volume(KEYSTORE_VOLUME_NAME))
+        .build_template();
 
     let spec = pod.spec.as_mut().unwrap();
     spec.restart_policy = Some("OnFailure".to_owned());
