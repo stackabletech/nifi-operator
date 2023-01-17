@@ -310,11 +310,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             obj_ref: ObjectRef::new(&nifi.name_any()).within(namespace),
         })?;
 
-    let namespace = &nifi
-        .metadata
-        .namespace
-        .clone()
-        .with_context(|| ObjectHasNoNamespaceSnafu {})?;
+    let namespace = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
 
     let resolved_auth_conf = nifi
         .spec
