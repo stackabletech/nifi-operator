@@ -1139,6 +1139,8 @@ async fn build_reporting_task_job(
         .add_volume(build_keystore_volume(KEYSTORE_VOLUME_NAME))
         .build_template();
 
+    // The PodBuilder doesn't support setting the restart policy yet, so we have to set it like this
+    // Feature request: https://github.com/stackabletech/operator-rs/issues/538
     let spec = pod.spec.as_mut().unwrap();
     spec.restart_policy = Some("OnFailure".to_owned());
 
