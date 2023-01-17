@@ -1242,12 +1242,12 @@ fn external_node_port(nifi_service: &Service) -> Result<i32> {
 
 fn build_keystore_volume(name: &str) -> Volume {
     VolumeBuilder::new(name)
-    .csi(CSIVolumeSource {
-        driver: "secrets.stackable.tech".to_string(),
-        volume_attributes: Some(get_stackable_secret_volume_attributes()),
-        ..CSIVolumeSource::default()
-    })
-    .build()
+        .csi(CSIVolumeSource {
+            driver: "secrets.stackable.tech".to_string(),
+            volume_attributes: Some(get_stackable_secret_volume_attributes()),
+            ..CSIVolumeSource::default()
+        })
+        .build()
 }
 /// Used for the `ZOOKEEPER_HOSTS` and `ZOOKEEPER_CHROOT` env vars.
 fn zookeeper_env_var(name: &str, configmap_name: &str) -> EnvVar {
