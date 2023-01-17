@@ -14,6 +14,7 @@ use stackable_nifi_crd::{
     BALANCE_PORT, BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME,
     PROTOCOL_PORT, PROTOCOL_PORT_NAME,
 };
+use stackable_operator::builder::VolumeBuilder;
 use stackable_operator::{
     builder::{
         ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
@@ -1240,15 +1241,13 @@ fn external_node_port(nifi_service: &Service) -> Result<i32> {
 }
 
 fn build_keystore_volume(name: &str) -> Volume {
-    Volume {
-        name: name.to_string(),
-        csi: Some(CSIVolumeSource {
-            driver: "secrets.stackable.tech".to_string(),
-            volume_attributes: Some(get_stackable_secret_volume_attributes()),
-            ..CSIVolumeSource::default()
-        }),
-        ..Volume::default()
-    }
+    VolumeBuilder::new(name)
+    .csi(CSIVolumeSource {
+        driver: "secrets.stackable.tech".to_string(),
+        volume_attributes: Some(get_stackable_secret_volume_attributes()),
+        ..CSIVolumeSource::default()
+    })
+    .build()
 }
 /// Used for the `ZOOKEEPER_HOSTS` and `ZOOKEEPER_CHROOT` env vars.
 fn zookeeper_env_var(name: &str, configmap_name: &str) -> EnvVar {
