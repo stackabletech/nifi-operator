@@ -6,17 +6,19 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Fixed the RoleGroup `selector`. It was not used before. ([#401])
-- Updated operator-rs to 0.30.1 ([#382], [#401])
+- Updated operator-rs to 0.31.0 ([#382], [#401], [#408])
 - Do not run init container as root anymore and avoid chmod and chown ([#390])
 - [BREAKING] Use Product image selection instead of version. `spec.version` has been replaced by `spec.image` ([#394])
 - [BREAKING]: Removed tools image (reporting task job and init container) and replaced with NiFi product image. This means the latest stackable version has to be used in the product image selection ([#397])
+- Fixed the RoleGroup `selector`. It was not used before. ([#401])
+- Refactoring of authentication handling ([#408])
 
-[#401]: https://github.com/stackabletech/nifi-operator/pull/401
 [#382]: https://github.com/stackabletech/nifi-operator/pull/382
 [#390]: https://github.com/stackabletech/nifi-operator/pull/390
 [#394]: https://github.com/stackabletech/nifi-operator/pull/394
 [#397]: https://github.com/stackabletech/nifi-operator/pull/397
+[#401]: https://github.com/stackabletech/nifi-operator/pull/401
+[#408]: https://github.com/stackabletech/nifi-operator/pull/408
 
 ## [0.8.1] - 2022-11-10
 
