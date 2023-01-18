@@ -29,11 +29,11 @@ spec:
     authentication:
       method:
         singleUser:
-          adminCredentialsSecret: nifi-admin-credentials-simple # <4>
+          adminCredentialsSecret: nifi-admin-credentials-simple # <1>
           autoGenerate: true
 ----
 
-<4> Administrator credentials for logging into the Nifi web interface. This is the name of a `Secret` resource with two fields: `username` and `password`. This `Secret` must exist but it's entries can be populated by the operator when `autoGenerate` is `true`.
+<1> Administrator credentials for logging into the Nifi web interface. This is the name of a `Secret` resource with two fields: `username` and `password`. This `Secret` must exist but it's entries can be populated by the operator when `autoGenerate` is `true`.
 
 Additional users can not be added.
 

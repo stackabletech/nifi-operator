@@ -1,0 +1,61 @@
+
+= Resource configuration
+
+== Volume storage
+
+By default, a Nifi cluster will create five different persistent volume claims for flow files, provenance, database, content and state folders. These PVCs will request `2Gi`. It is recommended that you configure these volume requests according to your needs.
+
+Storage requests can be configured at role or group level, for one or more of the persistent volumes as follows:
+
+[source,yaml]
+----
+nodes:
+  roleGroups:
+    default:
+      config:
+        resources:
+          storage:
+            flowfile_repo:
+              capacity: 12Gi
+            provenance_repo:
+              capacity: 12Gi
+            database_repo:
+              capacity: 12Gi
+            content_repo:
+              capacity: 12Gi
+            state_repo:
+              capacity: 12Gi
+----
+
+In the above example, all nodes in the default group will request `12Gi` of storage the various folders.
+
+== Resource Requests
+
+include::home:concepts:stackable_resource_requests.adoc[]
+
+If no resource requests are configured explicitly, the Nifi operator uses the following defaults:
+
+[source,yaml]
+----
+nodes:
+  roleGroups:
+    default:
+      config:
+        resources:
+          cpu:
+            min: "500m"
+            max: "4"
+          memory:
+            limit: '2Gi'
+          storage:
+            flowfile_repo:
+              capacity: 2Gi
+            provenance_repo:
+              capacity: 2Gi
+            database_repo:
+              capacity: 2Gi
+            content_repo:
+              capacity: 2Gi
+            state_repo:
+              capacity: 2Gi
+----
