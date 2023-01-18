@@ -1,0 +1,41 @@
+= Updating NiFi
+
+Updating (or downgrading for that matter) the deployed version of NiFi is as simple as changing the version stated in the CRD.
+Continuing the example above, to change the deployed version from `1.18.0` to `1.16.3` you'd simply deploy the following CRD.
+
+[source,yaml]
+----
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: simple-nifi
+spec:
+  image:
+    productVersion: 1.16.3 # <1>
+    stackableVersion: 0.3.0 # <2>
+  zookeeperConfigMapName: simple-nifi-znode
+  config:
+    authentication:
+      method:
+        singleUser:
+          adminCredentialsSecret: nifi-admin-credentials-simple
+    sensitiveProperties:
+      keySecret: nifi-sensitive-property-key
+  nodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        config:
+          log:
+            rootLogLevel: INFO
+        replicas: 3
+----
+
+<1> Change the NiFi version here
+<2> Change the stackable image version here
+
+IMPORTANT: Due to a limitation in NiFi itself it is not possible to up- or downgrade a NiFi cluster in a rolling fashion.
+So any change to the NiFi version you make in this CRD will result in a full cluster restart with a short downtime.
+This does not affect the stackable image version, this can be changed in a rolling fashion, as long as the underlying NiFi version remains unchanged.

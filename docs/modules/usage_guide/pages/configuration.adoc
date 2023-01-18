@@ -1,0 +1,117 @@
+== Configuration & Environment Overrides
+
+The cluster definition also supports overriding configuration properties and environment variables, either per role or per role group, where the more specific override (role group) has precedence over the less specific one (role).
+
+IMPORTANT: Do not override port numbers.
+This will lead to cluster malfunction.
+
+=== Configuration Overrides
+
+Apache NiFi runtime configuration is stored in the files bootstrap.conf and nifi.properties.
+The `configOverrides` block enables you to customize parameters in these files.
+The complete list of the configuration options can be found in the  https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#system_properties[Apache NiFi documentation].
+
+Overrides are key, value pairs defined under a Nifi configuration file such as `bootstrap.conf` or `nifi.properties`. They must match the names values as expected by NiFi. In the example below, a property `nifi.flow.configuration.archive.enabled` is being explicitly set to 'false', overriding the default value.
+
+The following snippet shows how to disable workflow file backups in the NifiCluster definition:
+
+[source,yaml]
+----
+configOverrides:
+  nifi.properties:
+    nifi.flow.configuration.archive.enabled: false
+----
+
+WARNING: Please be aware that by overriding config settings in this section you have a very high risk of breaking things, because the product does not behave the way the Stackable Operator for Apache NiFi expects it to behave anymore.
+
+=== Environment Variables
+
+Environment variables can be (over)written by adding the `envOverrides` property.
+
+For example per role group:
+
+[source,yaml]
+----
+nodes:
+  roleGroups:
+    default:
+      config: {}
+      replicas: 1
+      envOverrides:
+        MY_ENV_VAR: "MY_VALUE"
+----
+
+or per role:
+
+[source,yaml]
+----
+nodes:
+  envOverrides:
+    MY_ENV_VAR: "MY_VALUE"
+  roleGroups:
+    default:
+      config: {}
+      replicas: 1
+----
+
+=== Volume storage
+
+By default, a Nifi cluster will create five different persistent volume claims for flow files, provenance, database, content and state folders. These PVCs will request `2Gi`. It is recommended that you configure these volume requests according to your needs.
+
+Storage requests can be configured at role or group level, for one or more of the persistent volumes as follows:
+
+[source,yaml]
+----
+nodes:
+  roleGroups:
+    default:
+      config:
+        resources:
+          storage:
+            flowfile_repo:
+              capacity: 12Gi
+            provenance_repo:
+              capacity: 12Gi
+            database_repo:
+              capacity: 12Gi
+            content_repo:
+              capacity: 12Gi
+            state_repo:
+              capacity: 12Gi
+----
+
+In the above example, all nodes in the default group will request `12Gi` of storage the various folders.
+
+=== Resource Requests
+
+// The "nightly" version is needed because the "include" directive searches for
+// files in the "stable" version by default.
+// TODO: remove the "nightly" version after the next platform release (current: 22.09)
+include::nightly@home:concepts:stackable_resource_requests.adoc[]
+
+If no resource requests are configured explicitly, the Nifi operator uses the following defaults:
+
+[source,yaml]
+----
+nodes:
+  roleGroups:
+    default:
+      config:
+        resources:
+          cpu:
+            min: "500m"
+            max: "4"
+          memory:
+            limit: '2Gi'
+          storage:
+            flowfile_repo:
+              capacity: 2Gi
+            provenance_repo:
+              capacity: 2Gi
+            database_repo:
+              capacity: 2Gi
+            content_repo:
+              capacity: 2Gi
+            state_repo:
+              capacity: 2Gi
+----
