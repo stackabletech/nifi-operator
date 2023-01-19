@@ -1,0 +1,78 @@
+= Security
+
+== Authentication
+
+Every user has to authenticate themselves before using NiFI.
+There are multiple options to set up the authentication of users.
+
+=== Single user
+
+The default setting is to only provision a single user with administrative privileges.
+You need to specify the username and password of the user.
+
+[source,yaml]
+----
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nifi-admin-credentials-simple
+stringData:
+  username: admin
+  password: admin
+----
+
+[source,yaml]
+----
+spec:
+  [...]
+  config:
+    authentication:
+      method:
+        singleUser:
+          adminCredentialsSecret: nifi-admin-credentials-simple # <1>
+          autoGenerate: true
+----
+
+<1> Administrator credentials for logging into the NiFi web interface. This is the name of a `Secret` resource with two fields: `username` and `password`. This `Secret` must exist but it's entries can be populated by the operator when `autoGenerate` is `true`.
+
+Additional users can not be added.
+
+[#authentication-ldap]
+=== LDAP
+
+NiFi supports xref:nightly@home:concepts:authentication.adoc[authentication] of users against an LDAP server. This requires setting up an xref:nightly@home:concepts:authentication.adoc#authenticationclass[AuthenticationClass] for the LDAP server.
+The AuthenticationClass is then referenced in the NifiCluster resource as follows:
+
+[source,yaml]
+----
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: test-nifi
+spec:
+  [...]
+  config:
+    authentication:
+      method:
+        authenticationClass: ldap # <1>
+----
+
+<1> The reference to an AuthenticationClass called `ldap`
+
+You can follow the xref:nightly@home:tutorials:authentication_with_openldap.adoc[] tutorial to learn how to set up an AuthenticationClass for an LDAP server, as well as consulting the xref:nightly@home:reference:authenticationclass.adoc[] reference.
+
+== Authorization
+
+NiFi supports multiple authorization methods documented https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#multi-tenant-authorization[here].
+The available authorization methods depend on the chosen authentication method.
+
+Authorization is not fully implemented by the Stackable Operator for Apache NiFi.
+
+=== Single user
+
+With this authorization method, a single user has administrator capabilities.
+
+[#authorization-ldap]
+=== LDAP
+
+The operator uses the https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#fileusergroupprovider[`FileUserGroupProvider`] and https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#fileaccesspolicyprovider[FileAccessPolicyProvider] to bind the LDAP user to the NiFi administrator group. This user is then able to create and modify groups and polices in the web interface. These changes local to the `Pod` running NiFi and are *not* persistent.

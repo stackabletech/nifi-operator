@@ -1,3 +1,2 @@
 * xref:dependencies.adoc[]
 * xref:configuration.adoc[]
-* xref:usage.adoc[]

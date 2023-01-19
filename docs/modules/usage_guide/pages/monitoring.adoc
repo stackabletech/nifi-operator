@@ -1,0 +1,4 @@
+= Monitoring
+
+The managed NiFi cluster is automatically configured to export Prometheus metrics. See
+xref:home:operators:monitoring.adoc[] for more details.

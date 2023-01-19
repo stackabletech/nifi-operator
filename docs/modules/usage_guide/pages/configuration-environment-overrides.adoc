@@ -1,0 +1,55 @@
+= Configuration & Environment Overrides
+
+The cluster definition also supports overriding configuration properties and environment variables, either per role or per role group, where the more specific override (role group) has precedence over the less specific one (role).
+
+IMPORTANT: Do not override port numbers.
+This will lead to cluster malfunction.
+
+== Configuration Overrides
+
+Apache NiFi runtime configuration is stored in the files bootstrap.conf and nifi.properties.
+The `configOverrides` block enables you to customize parameters in these files.
+The complete list of the configuration options can be found in the  https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#system_properties[Apache NiFi documentation].
+
+Overrides are key, value pairs defined under a NiFi configuration file such as `bootstrap.conf` or `nifi.properties`. They must match the names values as expected by NiFi. In the example below, a property `nifi.flow.configuration.archive.enabled` is being explicitly set to 'false', overriding the default value.
+
+The following snippet shows how to disable workflow file backups in the NifiCluster definition:
+
+[source,yaml]
+----
+configOverrides:
+  nifi.properties:
+    nifi.flow.configuration.archive.enabled: false
+----
+
+WARNING: Please be aware that by overriding config settings in this section you have a very high risk of breaking things, because the product does not behave the way the Stackable Operator for Apache NiFi expects it to behave anymore.
+
+== Environment Variables
+
+Environment variables can be (over)written by adding the `envOverrides` property.
+
+For example per role group:
+
+[source,yaml]
+----
+nodes:
+  roleGroups:
+    default:
+      config: {}
+      replicas: 1
+      envOverrides:
+        MY_ENV_VAR: "MY_VALUE"
+----
+
+or per role:
+
+[source,yaml]
+----
+nodes:
+  envOverrides:
+    MY_ENV_VAR: "MY_VALUE"
+  roleGroups:
+    default:
+      config: {}
+      replicas: 1
+----
