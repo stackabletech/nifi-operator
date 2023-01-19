@@ -66,7 +66,7 @@ You can follow the xref:nightly@home:tutorials:authentication_with_openldap.adoc
 NiFi supports multiple authorization methods documented https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#multi-tenant-authorization[here].
 The available authorization methods depend on the chosen authentication method.
 
-Authorization is not fully implemented by the Stackable Operator for Apache Nifi.
+Authorization is not fully implemented by the Stackable Operator for Apache NiFi.
 
 === Single user
 
@@ -75,4 +75,4 @@ With this authorization method, a single user has administrator capabilities.
 [#authorization-ldap]
 === LDAP
 
-The operator uses the https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#fileusergroupprovider[`FileUserGroupProvider`] and https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#fileaccesspolicyprovider[FileAccessPolicyProvider] to bind the LDAP user to the Nifi administrator group. This user is then able to create and modify groups and polices in the web interface. These changes local to the `Pod` running Nifi and are *not* persistent.
+The operator uses the https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#fileusergroupprovider[`FileUserGroupProvider`] and https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#fileaccesspolicyprovider[FileAccessPolicyProvider] to bind the LDAP user to the NiFi administrator group. This user is then able to create and modify groups and polices in the web interface. These changes local to the `Pod` running NiFi and are *not* persistent.
