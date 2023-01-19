@@ -3,3 +3,4 @@
 ** xref:resource-configuration.adoc[]
 ** xref:monitoring.adoc[]
 ** xref:configuration-environment-overrides.adoc[]
+** xref:updating.adoc[]

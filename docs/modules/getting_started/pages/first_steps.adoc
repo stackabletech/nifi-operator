@@ -161,4 +161,4 @@ Then connect to `https://172.18.0.3:32595/nifi` and you should see the NiFi web 
 
 == What's next
 
-Have a look at the xref:ROOT:usage.adoc[] page to find out more about the features of the NiFi Operator.
+Have a look at the xref:usage_guide:index.adoc[] page to find out more about the features of the NiFi Operator.
