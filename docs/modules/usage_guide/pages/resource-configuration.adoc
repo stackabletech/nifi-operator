@@ -3,7 +3,7 @@
 
 == Volume storage
 
-By default, a Nifi cluster will create five different persistent volume claims for flow files, provenance, database, content and state folders. These PVCs will request `2Gi`. It is recommended that you configure these volume requests according to your needs.
+By default, a NiFi cluster will create five different persistent volume claims for flow files, provenance, database, content and state folders. These PVCs will request `2Gi`. It is recommended that you configure these volume requests according to your needs.
 
 Storage requests can be configured at role or group level, for one or more of the persistent volumes as follows:
 
