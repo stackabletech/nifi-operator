@@ -33,7 +33,7 @@ In the above example, all nodes in the default group will request `12Gi` of stor
 
 include::home:concepts:stackable_resource_requests.adoc[]
 
-If no resource requests are configured explicitly, the Nifi operator uses the following defaults:
+If no resource requests are configured explicitly, the NiFi operator uses the following defaults:
 
 [source,yaml]
 ----
