@@ -11,7 +11,7 @@ Apache NiFi runtime configuration is stored in the files bootstrap.conf and nifi
 The `configOverrides` block enables you to customize parameters in these files.
 The complete list of the configuration options can be found in the  https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#system_properties[Apache NiFi documentation].
 
-Overrides are key, value pairs defined under a Nifi configuration file such as `bootstrap.conf` or `nifi.properties`. They must match the names values as expected by NiFi. In the example below, a property `nifi.flow.configuration.archive.enabled` is being explicitly set to 'false', overriding the default value.
+Overrides are key, value pairs defined under a NiFi configuration file such as `bootstrap.conf` or `nifi.properties`. They must match the names values as expected by NiFi. In the example below, a property `nifi.flow.configuration.archive.enabled` is being explicitly set to 'false', overriding the default value.
 
 The following snippet shows how to disable workflow file backups in the NifiCluster definition:
 
