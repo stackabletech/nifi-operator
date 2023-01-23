@@ -40,7 +40,7 @@ Additional users can not be added.
 [#authentication-ldap]
 === LDAP
 
-NiFi supports xref:nightly@home:concepts:authentication.adoc[authentication] of users against an LDAP server. This requires setting up an xref:nightly@home:concepts:authentication.adoc#authenticationclass[AuthenticationClass] for the LDAP server.
+NiFi supports xref:home:concepts:authentication.adoc[authentication] of users against an LDAP server. This requires setting up an xref:home:concepts:authentication.adoc#authenticationclass[AuthenticationClass] for the LDAP server.
 The AuthenticationClass is then referenced in the NifiCluster resource as follows:
 
 [source,yaml]
@@ -59,7 +59,7 @@ spec:
 
 <1> The reference to an AuthenticationClass called `ldap`
 
-You can follow the xref:nightly@home:tutorials:authentication_with_openldap.adoc[] tutorial to learn how to set up an AuthenticationClass for an LDAP server, as well as consulting the xref:nightly@home:reference:authenticationclass.adoc[] reference.
+You can follow the xref:home:tutorials:authentication_with_openldap.adoc[] tutorial to learn how to set up an AuthenticationClass for an LDAP server, as well as consulting the xref:home:reference:authenticationclass.adoc[] reference.
 
 == Authorization
 

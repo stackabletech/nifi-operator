@@ -5,7 +5,7 @@ edition = "2021"
 license = "OSL-3.0"
 name = "stackable-nifi-crd"
 repository = "https://github.com/stackabletech/nifi-operator"
-version = "0.9.0-nightly"
+version = "23.1.0"
 publish = false
 
 [dependencies]
