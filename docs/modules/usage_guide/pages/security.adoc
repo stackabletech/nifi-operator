@@ -25,7 +25,7 @@ stringData:
 ----
 spec:
   [...]
-  config:
+  clusterConfig:
     authentication:
       method:
         singleUser:
@@ -51,7 +51,7 @@ metadata:
   name: test-nifi
 spec:
   [...]
-  config:
+  clusterConfig:
     authentication:
       method:
         authenticationClass: ldap # <1>
