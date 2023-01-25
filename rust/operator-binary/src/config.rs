@@ -1,17 +1,18 @@
 use snafu::{ResultExt, Snafu};
 use stackable_nifi_crd::{
-    LogLevel, NifiCluster, NifiConfig, NifiLogConfig, NifiRole, NifiSpec, NifiStorageConfig,
+    NifiCluster, NifiConfigFragment, NifiLogConfig, NifiRole, NifiSpec, NifiStorageConfig,
     HTTPS_PORT, PROTOCOL_PORT,
 };
-use stackable_operator::commons::resources::Resources;
-use stackable_operator::memory::{to_java_heap_value, BinaryMultiple, MemoryQuantity};
-use stackable_operator::product_config::types::PropertyNameKind;
-use stackable_operator::product_config::ProductConfigManager;
-use stackable_operator::product_config_utils::{
-    transform_all_roles_to_config, validate_all_roles_and_groups_config,
-    ValidatedRoleConfigByPropertyKind,
+use stackable_operator::{
+    commons::resources::Resources,
+    memory::{to_java_heap_value, BinaryMultiple, MemoryQuantity},
+    product_config::{types::PropertyNameKind, ProductConfigManager},
+    product_config_utils::{
+        transform_all_roles_to_config, validate_all_roles_and_groups_config,
+        ValidatedRoleConfigByPropertyKind,
+    },
+    role_utils::Role,
 };
-use stackable_operator::role_utils::Role;
 use std::{
     collections::{BTreeMap, HashMap},
     fmt::Write,
@@ -474,7 +475,7 @@ pub fn build_nifi_properties(
     );
 
     let algorithm = &spec
-        .config
+        .cluster_config
         .sensitive_properties
         .algorithm
         .clone()
@@ -521,7 +522,10 @@ pub fn build_nifi_properties(
     );
     properties.insert(
         "nifi.security.allow.anonymous.authentication".to_string(),
-        spec.config.authentication.allow_anonymous().to_string(),
+        spec.cluster_config
+            .authentication
+            .allow_anonymous()
+            .to_string(),
     );
     properties.insert(
         "nifi.cluster.protocol.is.secure".to_string(),
@@ -560,9 +564,10 @@ pub fn build_nifi_properties(
 }
 
 pub fn build_logback_xml(log_config: &NifiLogConfig) -> String {
-    let root_log_level = log_config.root_log_level.clone().unwrap_or(LogLevel::INFO);
-    include_str!("../resources/logback.xml")
-        .replace("STACKABLEROOTLEVEL", &root_log_level.to_string())
+    include_str!("../resources/logback.xml").replace(
+        "STACKABLEROOTLEVEL",
+        log_config.root_log_level.to_string().as_str(),
+    )
 }
 
 pub fn build_state_management_xml() -> String {
@@ -608,7 +613,7 @@ pub fn build_state_management_xml() -> String {
 pub fn validated_product_config(
     resource: &NifiCluster,
     version: &str,
-    role: &Role<NifiConfig>,
+    role: &Role<NifiConfigFragment>,
     product_config: &ProductConfigManager,
 ) -> Result<ValidatedRoleConfigByPropertyKind, Error> {
     let mut roles = HashMap::new();

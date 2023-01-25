@@ -102,7 +102,7 @@ async fn main() -> anyhow::Result<()> {
                             .into_iter()
                             .filter(move |nifi: &Arc<NifiCluster>| {
                                 references_authentication_class(
-                                    &nifi.spec.config.authentication,
+                                    &nifi.spec.cluster_config.authentication,
                                     &authentication_class,
                                 )
                             })

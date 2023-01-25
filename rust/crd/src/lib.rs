@@ -3,17 +3,18 @@ pub mod authentication;
 use crate::authentication::NifiAuthenticationConfig;
 
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
-            PvcConfig, PvcConfigFragment, ResourcesFragment,
+            PvcConfig, PvcConfigFragment, Resources, ResourcesFragment,
         },
     },
     config::{
         fragment::Fragment,
+        fragment::{self, ValidationError},
         merge::{Atomic, Merge},
     },
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
@@ -39,6 +40,12 @@ pub const METRICS_PORT: u16 = 8081;
 pub enum Error {
     #[snafu(display("object has no namespace associated"))]
     NoNamespace,
+    #[snafu(display("the NiFi role [{role}] is missing from spec"))]
+    MissingNifiRole { role: String },
+    #[snafu(display("the NiFi node role group [{role_group}] is missing from spec"))]
+    MissingNifiRoleGroup { role_group: String },
+    #[snafu(display("fragment validation failure"))]
+    FragmentValidationFailure { source: ValidationError },
 }
 
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -57,27 +64,27 @@ pub enum Error {
 )]
 #[serde(rename_all = "camelCase")]
 pub struct NifiSpec {
+    /// The NiFi image to use
+    pub image: ProductImage,
+    /// Global Nifi config for e.g. authentication or sensitive properties
+    pub cluster_config: NifiClusterConfig,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Available NiFi roles
+    pub nodes: Option<Role<NifiConfigFragment>>,
     /// Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stopped: Option<bool>,
-    /// The NiFi image to use
-    pub image: ProductImage,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    /// Available NiFi roles
-    pub nodes: Option<Role<NifiConfig>>,
-    /// The reference to the ZooKeeper cluster
-    pub zookeeper_config_map_name: String,
-    /// Global Nifi config for e.g. authentication or sensitive properties
-    pub config: NifiGlobalConfig,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct NifiGlobalConfig {
+pub struct NifiClusterConfig {
     /// A reference to a Secret containing username/password for the initial admin user
     pub authentication: NifiAuthenticationConfig,
     /// Configuration options for how NiFi encrypts sensitive properties on disk
     pub sensitive_properties: NifiSensitivePropertiesConfig,
+    /// The reference to the ZooKeeper cluster
+    pub zookeeper_config_map_name: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -143,58 +150,75 @@ pub struct NifiStatus {
     pub deployed_version: Option<String>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
+#[fragment_attrs(
+    derive(
+        Clone,
+        Debug,
+        Default,
+        Deserialize,
+        Merge,
+        JsonSchema,
+        PartialEq,
+        Serialize
+    ),
+    serde(rename_all = "camelCase")
+)]
 pub struct NifiConfig {
-    pub log: Option<NifiLogConfig>,
-    pub resources: Option<ResourcesFragment<NifiStorageConfig, NoRuntimeLimits>>,
+    #[fragment_attrs(serde(default))]
+    pub log: NifiLogConfig,
+    #[fragment_attrs(serde(default))]
+    pub resources: Resources<NifiStorageConfig, NoRuntimeLimits>,
 }
 
 impl NifiConfig {
     pub const NIFI_SENSITIVE_PROPS_KEY: &'static str = "NIFI_SENSITIVE_PROPS_KEY";
 
-    pub fn default_resources() -> ResourcesFragment<NifiStorageConfig, NoRuntimeLimits> {
-        ResourcesFragment {
-            memory: MemoryLimitsFragment {
-                limit: Some(Quantity("2Gi".to_string())),
-                runtime_limits: NoRuntimeLimitsFragment {},
-            },
-            cpu: CpuLimitsFragment {
-                min: Some(Quantity("500m".to_string())),
-                max: Some(Quantity("4".to_string())),
-            },
-            storage: NifiStorageConfigFragment {
-                flowfile_repo: PvcConfigFragment {
-                    capacity: Some(Quantity("2Gi".to_string())),
-                    storage_class: None,
-                    selectors: None,
+    pub fn default_config() -> NifiConfigFragment {
+        NifiConfigFragment {
+            log: Some(NifiLogConfig::default()),
+            resources: ResourcesFragment {
+                memory: MemoryLimitsFragment {
+                    limit: Some(Quantity("2Gi".to_string())),
+                    runtime_limits: NoRuntimeLimitsFragment {},
                 },
-                provenance_repo: PvcConfigFragment {
-                    capacity: Some(Quantity("2Gi".to_string())),
-                    storage_class: None,
-                    selectors: None,
+                cpu: CpuLimitsFragment {
+                    min: Some(Quantity("500m".to_string())),
+                    max: Some(Quantity("4".to_string())),
                 },
-                database_repo: PvcConfigFragment {
-                    capacity: Some(Quantity("2Gi".to_string())),
-                    storage_class: None,
-                    selectors: None,
-                },
-                content_repo: PvcConfigFragment {
-                    capacity: Some(Quantity("2Gi".to_string())),
-                    storage_class: None,
-                    selectors: None,
-                },
-                state_repo: PvcConfigFragment {
-                    capacity: Some(Quantity("2Gi".to_string())),
-                    storage_class: None,
-                    selectors: None,
+                storage: NifiStorageConfigFragment {
+                    flowfile_repo: PvcConfigFragment {
+                        capacity: Some(Quantity("2Gi".to_string())),
+                        storage_class: None,
+                        selectors: None,
+                    },
+                    provenance_repo: PvcConfigFragment {
+                        capacity: Some(Quantity("2Gi".to_string())),
+                        storage_class: None,
+                        selectors: None,
+                    },
+                    database_repo: PvcConfigFragment {
+                        capacity: Some(Quantity("2Gi".to_string())),
+                        storage_class: None,
+                        selectors: None,
+                    },
+                    content_repo: PvcConfigFragment {
+                        capacity: Some(Quantity("2Gi".to_string())),
+                        storage_class: None,
+                        selectors: None,
+                    },
+                    state_repo: PvcConfigFragment {
+                        capacity: Some(Quantity("2Gi".to_string())),
+                        storage_class: None,
+                        selectors: None,
+                    },
                 },
             },
         }
     }
 }
 
-impl Configuration for NifiConfig {
+impl Configuration for NifiConfigFragment {
     type Configurable = NifiCluster;
 
     fn compute_env(
@@ -223,13 +247,19 @@ impl Configuration for NifiConfig {
     }
 }
 
-#[derive(Clone, Debug, Default, Merge, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiLogConfig {
-    pub root_log_level: Option<LogLevel>,
+    pub root_log_level: LogLevel,
 }
 
-impl Atomic for LogLevel {}
+impl Atomic for NifiLogConfig {}
+
+impl Default for LogLevel {
+    fn default() -> Self {
+        Self::INFO
+    }
+}
 
 #[derive(strum::Display, Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 pub enum LogLevel {
@@ -314,6 +344,37 @@ impl NifiCluster {
                     pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
                 })
             }))
+    }
+
+    /// Retrieve and merge resource configs for role and role groups
+    pub fn merged_config(&self, role: &NifiRole, role_group: &str) -> Result<NifiConfig, Error> {
+        // Initialize the result with all default values as baseline
+        let conf_defaults = NifiConfig::default_config();
+
+        let role = self.spec.nodes.as_ref().context(MissingNifiRoleSnafu {
+            role: role.to_string(),
+        })?;
+
+        // Retrieve role resource config
+        let mut conf_role = role.config.config.to_owned();
+
+        // Retrieve rolegroup specific resource config
+        let mut conf_rolegroup = role
+            .role_groups
+            .get(role_group)
+            .map(|rg| rg.config.config.clone())
+            .unwrap_or_default();
+
+        // Merge more specific configs into default config
+        // Hierarchy is:
+        // 1. RoleGroup
+        // 2. Role
+        // 3. Default
+        conf_role.merge(&conf_defaults);
+        conf_rolegroup.merge(&conf_role);
+
+        tracing::debug!("Merged config: {:?}", conf_rolegroup);
+        fragment::validate(conf_rolegroup).context(FragmentValidationFailureSnafu)
     }
 }
 
