@@ -24,7 +24,7 @@ spec:
           properties:
             spec:
               properties:
-                config:
+                clusterConfig:
                   description: Global Nifi config for e.g. authentication or sensitive properties
                   properties:
                     authentication:
@@ -79,9 +79,13 @@ spec:
                       required:
                         - keySecret
                       type: object
+                    zookeeperConfigMapName:
+                      description: The reference to the ZooKeeper cluster
+                      type: string
                   required:
                     - authentication
                     - sensitiveProperties
+                    - zookeeperConfigMapName
                   type: object
                 image:
                   anyOf:
@@ -148,11 +152,29 @@ spec:
                                 - WARN
                                 - ERROR
                                 - FATAL
-                              nullable: true
                               type: string
+                          required:
+                            - rootLogLevel
                           type: object
                         resources:
-                          nullable: true
+                          default:
+                            memory:
+                              limit: null
+                              runtimeLimits: {}
+                            cpu:
+                              min: null
+                              max: null
+                            storage:
+                              flowfileRepo:
+                                capacity: null
+                              provenanceRepo:
+                                capacity: null
+                              databaseRepo:
+                                capacity: null
+                              contentRepo:
+                                capacity: null
+                              stateRepo:
+                                capacity: null
                           properties:
                             cpu:
                               default:
@@ -430,11 +452,29 @@ spec:
                                       - WARN
                                       - ERROR
                                       - FATAL
-                                    nullable: true
                                     type: string
+                                required:
+                                  - rootLogLevel
                                 type: object
                               resources:
-                                nullable: true
+                                default:
+                                  memory:
+                                    limit: null
+                                    runtimeLimits: {}
+                                  cpu:
+                                    min: null
+                                    max: null
+                                  storage:
+                                    flowfileRepo:
+                                      capacity: null
+                                    provenanceRepo:
+                                      capacity: null
+                                    databaseRepo:
+                                      capacity: null
+                                    contentRepo:
+                                      capacity: null
+                                    stateRepo:
+                                      capacity: null
                                 properties:
                                   cpu:
                                     default:
@@ -736,13 +776,9 @@ spec:
                   description: Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)
                   nullable: true
                   type: boolean
-                zookeeperConfigMapName:
-                  description: The reference to the ZooKeeper cluster
-                  type: string
               required:
-                - config
+                - clusterConfig
                 - image
-                - zookeeperConfigMapName
               type: object
             status:
               nullable: true
