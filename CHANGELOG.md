@@ -12,6 +12,8 @@ All notable changes to this project will be documented in this file.
 - [BREAKING]: Removed tools image (reporting task job and init container) and replaced with NiFi product image. This means the latest stackable version has to be used in the product image selection ([#397])
 - Fixed the RoleGroup `selector`. It was not used before. ([#401])
 - Refactoring of authentication handling ([#408])
+- [BREAKING]: Renamed global `config` to `clusterConfig` ([#417])
+- [BREAKING]: Moved `zookeeper_configmap_name` to `clusterConfig` ([#417])
 
 [#382]: https://github.com/stackabletech/nifi-operator/pull/382
 [#390]: https://github.com/stackabletech/nifi-operator/pull/390
@@ -19,6 +21,7 @@ All notable changes to this project will be documented in this file.
 [#397]: https://github.com/stackabletech/nifi-operator/pull/397
 [#401]: https://github.com/stackabletech/nifi-operator/pull/401
 [#408]: https://github.com/stackabletech/nifi-operator/pull/408
+[#417]: https://github.com/stackabletech/nifi-operator/pull/417
 
 ## [0.8.1] - 2022-11-10
 
