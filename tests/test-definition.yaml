@@ -48,3 +48,7 @@ tests:
       - nifi
       - zookeeper-latest
       - ldap-use-tls
+  - name: logging
+    dimensions:
+      - nifi
+      - zookeeper-latest

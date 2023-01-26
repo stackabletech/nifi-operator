@@ -1,0 +1,22 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nifi-test-runner
+  labels:
+    app: nifi-test-runner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nifi-test-runner
+  template:
+    metadata:
+      labels:
+        app: nifi-test-runner
+    spec:
+      containers:
+        - name: nifi-test-runner
+          image: docker.stackable.tech/stackable/testing-tools:0.1.0-stackable0.1.0
+          stdin: true
+          tty: true
