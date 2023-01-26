@@ -142,19 +142,81 @@ spec:
                     config:
                       default: {}
                       properties:
-                        log:
-                          nullable: true
+                        logging:
+                          default:
+                            enableVectorAgent: null
+                            containers: {}
                           properties:
-                            rootLogLevel:
-                              enum:
-                                - DEBUG
-                                - INFO
-                                - WARN
-                                - ERROR
-                                - FATAL
-                              type: string
-                          required:
-                            - rootLogLevel
+                            containers:
+                              additionalProperties:
+                                anyOf:
+                                  - required:
+                                      - custom
+                                  - {}
+                                description: Fragment derived from `ContainerLogConfigChoice`
+                                properties:
+                                  console:
+                                    nullable: true
+                                    properties:
+                                      level:
+                                        description: Log levels
+                                        enum:
+                                          - TRACE
+                                          - DEBUG
+                                          - INFO
+                                          - WARN
+                                          - ERROR
+                                          - FATAL
+                                          - NONE
+                                        nullable: true
+                                        type: string
+                                    type: object
+                                  custom:
+                                    description: Custom log configuration provided in a ConfigMap
+                                    properties:
+                                      configMap:
+                                        nullable: true
+                                        type: string
+                                    type: object
+                                  file:
+                                    nullable: true
+                                    properties:
+                                      level:
+                                        description: Log levels
+                                        enum:
+                                          - TRACE
+                                          - DEBUG
+                                          - INFO
+                                          - WARN
+                                          - ERROR
+                                          - FATAL
+                                          - NONE
+                                        nullable: true
+                                        type: string
+                                    type: object
+                                  loggers:
+                                    additionalProperties:
+                                      properties:
+                                        level:
+                                          description: Log levels
+                                          enum:
+                                            - TRACE
+                                            - DEBUG
+                                            - INFO
+                                            - WARN
+                                            - ERROR
+                                            - FATAL
+                                            - NONE
+                                          nullable: true
+                                          type: string
+                                      type: object
+                                    default: {}
+                                    type: object
+                                type: object
+                              type: object
+                            enableVectorAgent:
+                              nullable: true
+                              type: boolean
                           type: object
                         resources:
                           default:
@@ -442,19 +504,81 @@ spec:
                           config:
                             default: {}
                             properties:
-                              log:
-                                nullable: true
+                              logging:
+                                default:
+                                  enableVectorAgent: null
+                                  containers: {}
                                 properties:
-                                  rootLogLevel:
-                                    enum:
-                                      - DEBUG
-                                      - INFO
-                                      - WARN
-                                      - ERROR
-                                      - FATAL
-                                    type: string
-                                required:
-                                  - rootLogLevel
+                                  containers:
+                                    additionalProperties:
+                                      anyOf:
+                                        - required:
+                                            - custom
+                                        - {}
+                                      description: Fragment derived from `ContainerLogConfigChoice`
+                                      properties:
+                                        console:
+                                          nullable: true
+                                          properties:
+                                            level:
+                                              description: Log levels
+                                              enum:
+                                                - TRACE
+                                                - DEBUG
+                                                - INFO
+                                                - WARN
+                                                - ERROR
+                                                - FATAL
+                                                - NONE
+                                              nullable: true
+                                              type: string
+                                          type: object
+                                        custom:
+                                          description: Custom log configuration provided in a ConfigMap
+                                          properties:
+                                            configMap:
+                                              nullable: true
+                                              type: string
+                                          type: object
+                                        file:
+                                          nullable: true
+                                          properties:
+                                            level:
+                                              description: Log levels
+                                              enum:
+                                                - TRACE
+                                                - DEBUG
+                                                - INFO
+                                                - WARN
+                                                - ERROR
+                                                - FATAL
+                                                - NONE
+                                              nullable: true
+                                              type: string
+                                          type: object
+                                        loggers:
+                                          additionalProperties:
+                                            properties:
+                                              level:
+                                                description: Log levels
+                                                enum:
+                                                  - TRACE
+                                                  - DEBUG
+                                                  - INFO
+                                                  - WARN
+                                                  - ERROR
+                                                  - FATAL
+                                                  - NONE
+                                                nullable: true
+                                                type: string
+                                            type: object
+                                          default: {}
+                                          type: object
+                                      type: object
+                                    type: object
+                                  enableVectorAgent:
+                                    nullable: true
+                                    type: boolean
                                 type: object
                               resources:
                                 default:
