@@ -20,10 +20,39 @@ metadata:
   name: nifi-log-config
 data:
   logback.xml: |
-    log4j.rootLogger=INFO, FILE
-    log4j.appender.FILE=org.apache.log4j.FileAppender
-    log4j.appender.FILE.File=/stackable/log/nifi/nifi.log4j.xml
-    log4j.appender.FILE.layout=org.apache.log4j.xml.XMLLayout
+    <configuration>
+      <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+          <pattern>%date %level [%thread] %logger{40} %msg%n</pattern>
+        </encoder>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+          <level>INFO</level>
+        </filter>
+      </appender>
+
+      <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <File>/stackable/log/nifi/nifi.log4j.xml</File>
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+          <layout class="ch.qos.logback.classic.log4j.XMLLayout" />
+        </encoder>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+          <level>INFO</level>
+        </filter>
+        <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+          <minIndex>1</minIndex>
+          <maxIndex>1</maxIndex>
+          <FileNamePattern>/stackable/log/nifi/nifi.log4j.xml.%i</FileNamePattern>
+        </rollingPolicy>
+        <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+          <MaxFileSize>5MB</MaxFileSize>
+        </triggeringPolicy>
+      </appender>
+
+      <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="FILE" />
+      </root>
+    </configuration>
 ---
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
@@ -40,6 +69,7 @@ spec:
           adminCredentialsSecret: nifi-admin-credentials-simple
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
+    vectorAggregatorConfigMapName: nifi-vector-aggregator-discovery
     zookeeperConfigMapName: test-nifi-znode
   nodes:
     roleGroups:
