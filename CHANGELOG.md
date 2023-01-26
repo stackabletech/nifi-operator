@@ -4,9 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added 
+### Added
 
-- Enabled logging and log aggregation (#[418])
+- Enabled logging and log aggregation ([#418])
 
 ### Changed
 
