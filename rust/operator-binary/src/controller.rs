@@ -8,25 +8,20 @@ use crate::{config, OPERATOR_NAME};
 
 use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_nifi_crd::authentication::ResolvedAuthenticationMethod;
 use stackable_nifi_crd::{
-    NifiCluster, NifiConfig, NifiLogConfig, NifiRole, NifiStatus, NifiStorageConfig, APP_NAME,
-    BALANCE_PORT, BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME,
-    PROTOCOL_PORT, PROTOCOL_PORT_NAME,
+    authentication::ResolvedAuthenticationMethod, NifiCluster, NifiConfig, NifiConfigFragment,
+    NifiLogConfig, NifiRole, NifiStatus, APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, HTTPS_PORT,
+    HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
 };
-use stackable_operator::builder::VolumeBuilder;
 use stackable_operator::{
     builder::{
         ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
-        PodSecurityContextBuilder,
+        PodSecurityContextBuilder, VolumeBuilder,
     },
     client::Client,
     cluster_resources::ClusterResources,
-    commons::{
-        product_image_selection::ResolvedProductImage,
-        resources::{NoRuntimeLimits, Resources, ResourcesFragment},
-    },
-    config::{fragment, merge::Merge},
+    commons::product_image_selection::ResolvedProductImage,
+    config::fragment,
     k8s_openapi::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec, StatefulSetUpdateStrategy},
@@ -178,6 +173,8 @@ pub enum Error {
         source: fragment::ValidationError,
         rolegroup: RoleGroupRef<NifiCluster>,
     },
+    #[snafu(display("failed to resolve and merge config for role and role group"))]
+    FailedToResolveConfig { source: stackable_nifi_crd::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -315,7 +312,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
 
     let resolved_auth_conf = nifi
         .spec
-        .config
+        .cluster_config
         .authentication
         .method
         .resolve(client, namespace)
@@ -328,13 +325,15 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             let rolegroup = nifi.node_rolegroup_ref(rolegroup_name);
 
             tracing::debug!("Processing rolegroup {}", rolegroup);
+
+            let merged_config = nifi
+                .merged_config(&NifiRole::Node, rolegroup_name)
+                .context(FailedToResolveConfigSnafu)?;
+
             let rg_service =
                 build_node_rolegroup_service(&nifi, &resolved_product_image, &rolegroup)?;
 
             let role = nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?;
-
-            let resource_definition =
-                resolve_resource_config_for_rolegroup(&nifi, &rolegroup, role)?;
 
             // This is due to the fact that users might access NiFi via these addresses, if they try to
             // connect from an external machine (not inside the k8s overlay network).
@@ -349,8 +348,8 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
                 &resolved_auth_conf,
                 &rolegroup,
                 rolegroup_config,
+                &merged_config,
                 &proxy_hosts,
-                &resource_definition,
             )
             .await?;
 
@@ -361,9 +360,9 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
                 &nifi,
                 &resolved_product_image,
                 &rolegroup,
-                rolegroup_config,
                 role,
-                &resource_definition,
+                rolegroup_config,
+                &merged_config,
                 &resolved_auth_conf,
                 &version_change,
             )
@@ -529,9 +528,9 @@ async fn build_node_rolegroup_config_map(
     resolved_product_image: &ResolvedProductImage,
     resolved_auth_conf: &ResolvedAuthenticationMethod,
     rolegroup: &RoleGroupRef<NifiCluster>,
-    config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    merged_config: &NifiConfig,
     proxy_hosts: &str,
-    resource_definition: &Resources<NifiStorageConfig>,
 ) -> Result<ConfigMap> {
     tracing::debug!("building rolegroup configmaps");
 
@@ -555,8 +554,8 @@ async fn build_node_rolegroup_config_map(
         .add_data(
             NIFI_BOOTSTRAP_CONF,
             build_bootstrap_conf(
-                resource_definition,
-                config
+                &merged_config.resources,
+                rolegroup_config
                     .get(&PropertyNameKind::File(NIFI_BOOTSTRAP_CONF.to_string()))
                     .with_context(|| ProductConfigKindNotSpecifiedSnafu {
                         kind: NIFI_BOOTSTRAP_CONF.to_string(),
@@ -569,9 +568,9 @@ async fn build_node_rolegroup_config_map(
             NIFI_PROPERTIES,
             build_nifi_properties(
                 &nifi.spec,
-                resource_definition,
+                &merged_config.resources,
                 proxy_hosts,
-                config
+                rolegroup_config
                     .get(&PropertyNameKind::File(NIFI_PROPERTIES.to_string()))
                     .with_context(|| ProductConfigKindNotSpecifiedSnafu {
                         kind: NIFI_PROPERTIES.to_string(),
@@ -642,47 +641,6 @@ fn build_node_rolegroup_service(
     })
 }
 
-fn resolve_resource_config_for_rolegroup(
-    nifi: &NifiCluster,
-    rolegroup_ref: &RoleGroupRef<NifiCluster>,
-    role: &Role<NifiConfig>,
-) -> Result<Resources<NifiStorageConfig, NoRuntimeLimits>> {
-    // Initialize the result with all default values as baseline
-    let conf_defaults = NifiConfig::default_resources();
-
-    // Retrieve global role resource config
-    let mut conf_role: ResourcesFragment<NifiStorageConfig, NoRuntimeLimits> = nifi
-        .spec
-        .nodes
-        .as_ref()
-        .with_context(|| NoNodesDefinedSnafu {})?
-        .config
-        .config
-        .resources
-        .clone()
-        .unwrap_or_default();
-
-    // Retrieve rolegroup specific resource config
-    let mut conf_rolegroup: ResourcesFragment<NifiStorageConfig, NoRuntimeLimits> = role
-        .role_groups
-        .get(&rolegroup_ref.role_group)
-        .and_then(|rg| rg.config.config.resources.clone())
-        .unwrap_or_default();
-
-    // Merge more specific configs into default config
-    // Hierarchy is:
-    // 1. RoleGroup
-    // 2. Role
-    // 3. Default
-    conf_role.merge(&conf_defaults);
-    conf_rolegroup.merge(&conf_role);
-
-    tracing::debug!("Merged resource config: {:?}", conf_rolegroup);
-    fragment::validate(conf_rolegroup).with_context(|_| ResourceValidationSnafu {
-        rolegroup: rolegroup_ref.clone(),
-    })
-}
-
 /// The rolegroup [`StatefulSet`] runs the rolegroup, as configured by the administrator.
 ///
 /// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the
@@ -692,9 +650,9 @@ async fn build_node_rolegroup_statefulset(
     nifi: &NifiCluster,
     resolved_product_image: &ResolvedProductImage,
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
-    config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
-    role: &Role<NifiConfig>,
-    resource_definition: &Resources<NifiStorageConfig>,
+    role: &Role<NifiConfigFragment>,
+    rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    merged_config: &NifiConfig,
     resolved_auth_conf: &ResolvedAuthenticationMethod,
     version_change_state: &VersionChangeState,
 ) -> Result<StatefulSet> {
@@ -708,7 +666,7 @@ async fn build_node_rolegroup_statefulset(
         })?;
 
     // get env vars and env overrides
-    let mut env_vars: Vec<EnvVar> = config
+    let mut env_vars: Vec<EnvVar> = rolegroup_config
         .get(&PropertyNameKind::Env)
         .with_context(|| ProductConfigKindNotSpecifiedSnafu {
             kind: "ENV".to_string(),
@@ -736,12 +694,12 @@ async fn build_node_rolegroup_statefulset(
 
     env_vars.push(zookeeper_env_var(
         zookeeper_host,
-        &nifi.spec.zookeeper_config_map_name,
+        &nifi.spec.cluster_config.zookeeper_config_map_name,
     ));
 
     env_vars.push(zookeeper_env_var(
         zookeeper_chroot,
-        &nifi.spec.zookeeper_config_map_name,
+        &nifi.spec.cluster_config.zookeeper_config_map_name,
     ));
 
     let rolegroup = role.role_groups.get(&rolegroup_ref.role_group);
@@ -757,7 +715,7 @@ async fn build_node_rolegroup_statefulset(
             .with_context(|| ObjectHasNoNamespaceSnafu {})?
     );
 
-    let sensitive_key_secret = &nifi.spec.config.sensitive_properties.key_secret;
+    let sensitive_key_secret = &nifi.spec.cluster_config.sensitive_properties.key_secret;
 
     let mut args = vec![
         "echo Storing password".to_string(),
@@ -887,7 +845,7 @@ async fn build_node_rolegroup_statefulset(
             }),
             ..Probe::default()
         })
-        .resources(resource_definition.clone().into());
+        .resources(merged_config.resources.clone().into());
 
     let mut pb = PodBuilder::new();
 
@@ -1027,23 +985,23 @@ async fn build_node_rolegroup_statefulset(
                 ..StatefulSetUpdateStrategy::default()
             }),
             volume_claim_templates: Some(vec![
-                resource_definition.storage.content_repo.build_pvc(
+                merged_config.resources.storage.content_repo.build_pvc(
                     &NifiRepository::Content.repository(),
                     Some(vec!["ReadWriteOnce"]),
                 ),
-                resource_definition.storage.database_repo.build_pvc(
+                merged_config.resources.storage.database_repo.build_pvc(
                     &NifiRepository::Database.repository(),
                     Some(vec!["ReadWriteOnce"]),
                 ),
-                resource_definition.storage.flowfile_repo.build_pvc(
+                merged_config.resources.storage.flowfile_repo.build_pvc(
                     &NifiRepository::Flowfile.repository(),
                     Some(vec!["ReadWriteOnce"]),
                 ),
-                resource_definition.storage.provenance_repo.build_pvc(
+                merged_config.resources.storage.provenance_repo.build_pvc(
                     &NifiRepository::Provenance.repository(),
                     Some(vec!["ReadWriteOnce"]),
                 ),
-                resource_definition.storage.state_repo.build_pvc(
+                merged_config.resources.storage.state_repo.build_pvc(
                     &NifiRepository::State.repository(),
                     Some(vec!["ReadWriteOnce"]),
                 ),
@@ -1167,7 +1125,7 @@ async fn check_or_generate_sensitive_key(
     client: &Client,
     nifi: &NifiCluster,
 ) -> Result<bool, Error> {
-    let sensitive_config = &nifi.spec.config.sensitive_properties;
+    let sensitive_config = &nifi.spec.cluster_config.sensitive_properties;
     let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
 
     match client

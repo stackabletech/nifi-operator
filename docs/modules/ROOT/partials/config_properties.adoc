@@ -13,14 +13,18 @@ spec:
   image:
     productVersion: 1.18.0
     stackableVersion: 0.3.0
-  zookeeperConfigMapName: simple-nifi-znode
-  authenticationConfig:
-    method:
-      SingleUser:
-        adminCredentialsSecret:
-          name: nifi-admin-credentials-simple
-          namespace: default
-    allowAnonymousAccess: true
+  clusterConfig:
+    authentication:
+      method:
+        SingleUser:
+          adminCredentialsSecret:
+            name: nifi-admin-credentials-simple
+            namespace: default
+      allowAnonymousAccess: true
+    sensitiveProperties:
+      keySecret: nifi-sensitive-property-key
+      autoGenerate: true
+    zookeeperConfigMapName: simple-nifi-znode
   nodes:
     roleGroups:
       default:
@@ -28,7 +32,6 @@ spec:
           matchLabels:
             kubernetes.io/os: linux
         config:
-          sensitivePropertyKeySecret: nifi-sensitive-property-key
           log:
             rootLogLevel: INFO
         replicas: 3
@@ -38,14 +41,14 @@ spec:
 
 [source,yaml]
 ----
- nodes:
-    roleGroups:
-      default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
-        config:
-        replicas: 3
+nodes:
+  roleGroups:
+    default:
+      selector:
+        matchLabels:
+          kubernetes.io/os: linux
+      config: {}
+      replicas: 3
 ----
 The `nodes` element is used to define how many pods with which configuration should be rolled out.
 It is possible to define multiple groups of nodes, each with its own distinct configuration, every `roleGroup` has the following elements:
@@ -58,7 +61,8 @@ It is possible to define multiple groups of nodes, each with its own distinct co
 
 [source,yaml]
 ----
-  authenticationConfig:
+clusterConfig:
+  authentication:
     method:
       SingleUser:
         adminCredentialsSecret:
@@ -66,7 +70,7 @@ It is possible to define multiple groups of nodes, each with its own distinct co
           namespace: default
     allowAnonymousAccess: true
 ----
-All authentication related parameters are configured in the authenticationConfig element.
+All authentication related parameters are configured in the `authentication` element.
 
 ==== Authentication Method
 
@@ -83,6 +87,7 @@ This setting is independent of the configured authentication method and will ove
 
 [source,yaml]
 ----
+clusterConfig:
   zookeeperConfigMapName: simple-nifi-znode
 ----
 NiFi in cluster mode requires a ZooKeeper ensemble for state management and leader election purposes, this operator at the moment does not support single node deployments without ZooKeeper, hence this is a required setting.
@@ -93,7 +98,6 @@ Configuration happens via a ConfigMap, which needs to contain two keys called `Z
 [source,yaml]
 ----
 config:
-  sensitivePropertyKeySecret: nifi-sensitive-property-key
   log:
     rootLogLevel: INFO
 ----

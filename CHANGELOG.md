@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- [BREAKING]: Renamed global `config` to `clusterConfig` ([#417])
+- [BREAKING]: Moved `zookeeper_configmap_name` to `clusterConfig` ([#417])
+
+[#417]: https://github.com/stackabletech/nifi-operator/pull/417
+
+## [23.1.0] - 2023-01-23
+
+### Changed
+
 - Updated operator-rs to 0.31.0 ([#382], [#401], [#408])
 - Do not run init container as root anymore and avoid chmod and chown ([#390])
 - [BREAKING] Use Product image selection instead of version. `spec.version` has been replaced by `spec.image` ([#394])

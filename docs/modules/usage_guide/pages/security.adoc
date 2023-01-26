@@ -24,8 +24,7 @@ stringData:
 [source,yaml]
 ----
 spec:
-  [...]
-  config:
+  clusterConfig:
     authentication:
       method:
         singleUser:
@@ -50,8 +49,7 @@ kind: NifiCluster
 metadata:
   name: test-nifi
 spec:
-  [...]
-  config:
+  clusterConfig:
     authentication:
       method:
         authenticationClass: ldap # <1>

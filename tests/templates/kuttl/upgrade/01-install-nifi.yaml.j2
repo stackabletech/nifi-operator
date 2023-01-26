@@ -22,14 +22,14 @@ spec:
   image:
     productVersion: "{{ test_scenario['values']['nifi_old'].split('-stackable')[0] }}"
     stackableVersion: "{{ test_scenario['values']['nifi_old'].split('-stackable')[1] }}"
-  zookeeperConfigMapName: test-nifi-znode
-  config:
+  clusterConfig:
     authentication:
       method:
         singleUser:
           adminCredentialsSecret: nifi-admin-credentials-simple
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
+    zookeeperConfigMapName: test-nifi-znode
   nodes:
     roleGroups:
       default:
