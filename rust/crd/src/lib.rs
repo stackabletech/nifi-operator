@@ -180,8 +180,11 @@ pub struct NifiStatus {
 )]
 #[serde(rename_all = "camelCase")]
 pub enum Container {
+    #[strum(serialize = "prepare")]
     Prepare,
+    #[strum(serialize = "vector")]
     Vector,
+    #[strum(serialize = "nifi")]
     Nifi,
 }
 

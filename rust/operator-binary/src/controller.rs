@@ -4,16 +4,16 @@ use crate::config::{
     validated_product_config, NifiRepository, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES,
     NIFI_STATE_MANAGEMENT_XML,
 };
+use crate::product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address};
 use crate::{config, OPERATOR_NAME};
 
-use crate::product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address};
 use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_nifi_crd::{
     authentication::ResolvedAuthenticationMethod, Container, NifiCluster, NifiConfig,
     NifiConfigFragment, NifiRole, NifiStatus, APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME,
-    HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT,
-    PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
+    HTTPS_PORT, HTTPS_PORT_NAME, LOG_VOLUME_SIZE_IN_MIB, METRICS_PORT, METRICS_PORT_NAME,
+    PROTOCOL_PORT, PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
 };
 use stackable_operator::{
     builder::{
@@ -35,7 +35,9 @@ use stackable_operator::{
                 SecretVolumeSource, Service, ServicePort, ServiceSpec, TCPSocketAction, Volume,
             },
         },
-        apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
+        apimachinery::pkg::{
+            api::resource::Quantity, apis::meta::v1::LabelSelector, util::intstr::IntOrString,
+        },
     },
     kube::{runtime::controller::Action, runtime::reflector::ObjectRef, Resource, ResourceExt},
     labels::{role_group_selector_labels, role_selector_labels, ObjectLabels},
@@ -713,7 +715,7 @@ async fn build_node_rolegroup_statefulset(
         format!("rm -f {keystore_path}/password", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
         "echo Replacing config directory".to_string(),
         "cp /conf/* /stackable/nifi/conf".to_string(),
-        "ln -sf /stackable/logconfig/logback.xml /stackable/nifi/conf/logback.xml".to_string(),
+        "ln -sf /stackable/log_config/logback.xml /stackable/nifi/conf/logback.xml".to_string(),
         "echo Replacing nifi.cluster.node.address in nifi.properties".to_string(),
         format!("sed -i \"s/nifi.cluster.node.address=/nifi.cluster.node.address={}/g\" /stackable/nifi/conf/nifi.properties", node_address),
         "echo Replacing nifi.web.https.host in nifi.properties".to_string(),
@@ -909,6 +911,14 @@ async fn build_node_rolegroup_statefulset(
         .node_selector_opt(rolegroup.and_then(|rg| rg.selector.clone()))
         // One volume for the NiFi configuration. A script will later on edit (e.g. nodename)
         // and copy the whole content to the <NIFI_HOME>/conf folder.
+        .add_volume(stackable_operator::k8s_openapi::api::core::v1::Volume {
+            name: "config".to_string(),
+            config_map: Some(ConfigMapVolumeSource {
+                name: Some(rolegroup_ref.object_name()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        })
         .add_volume(Volume {
             name: "conf".to_string(),
             config_map: Some(ConfigMapVolumeSource {
@@ -917,16 +927,11 @@ async fn build_node_rolegroup_statefulset(
             }),
             ..Volume::default()
         })
-        // The logback config is stored in a separate configmap, because this can be updated
-        // on the fly without restarting NiFi
-        // since the rest of the config is copied to a folder inside the container this would
-        // not work for the log config, so this gets mounted from a separate configmap that can
-        // be updated by the Kubelet
         .add_volume(Volume {
-            name: "logconf".to_string(),
-            config_map: Some(ConfigMapVolumeSource {
-                name: Some(rolegroup_ref.object_name() + "-log"),
-                ..ConfigMapVolumeSource::default()
+            name: "log".to_string(),
+            empty_dir: Some(EmptyDirVolumeSource {
+                medium: None,
+                size_limit: Some(Quantity(format!("{LOG_VOLUME_SIZE_IN_MIB}Mi"))),
             }),
             ..Volume::default()
         })
