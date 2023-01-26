@@ -1,7 +1,7 @@
 use snafu::{ResultExt, Snafu};
 use stackable_nifi_crd::{
-    NifiCluster, NifiConfigFragment, NifiLogConfig, NifiRole, NifiSpec, NifiStorageConfig,
-    HTTPS_PORT, PROTOCOL_PORT,
+    NifiCluster, NifiConfigFragment, NifiRole, NifiSpec, NifiStorageConfig, HTTPS_PORT,
+    PROTOCOL_PORT,
 };
 use stackable_operator::{
     commons::resources::Resources,
@@ -561,13 +561,6 @@ pub fn build_nifi_properties(
     properties.extend(overrides);
 
     Ok(format_properties(properties))
-}
-
-pub fn build_logback_xml(log_config: &NifiLogConfig) -> String {
-    include_str!("../resources/logback.xml").replace(
-        "STACKABLEROOTLEVEL",
-        log_config.root_log_level.to_string().as_str(),
-    )
 }
 
 pub fn build_state_management_xml() -> String {

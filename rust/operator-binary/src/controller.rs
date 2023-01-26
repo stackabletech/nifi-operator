@@ -1,6 +1,6 @@
 //! Ensures that `Pod`s are configured and running for each [`NifiCluster`]
 use crate::config::{
-    build_bootstrap_conf, build_logback_xml, build_nifi_properties, build_state_management_xml,
+    build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
     validated_product_config, NifiRepository, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES,
     NIFI_STATE_MANAGEMENT_XML,
 };
@@ -10,8 +10,8 @@ use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_nifi_crd::{
     authentication::ResolvedAuthenticationMethod, NifiCluster, NifiConfig, NifiConfigFragment,
-    NifiLogConfig, NifiRole, NifiStatus, APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, HTTPS_PORT,
-    HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
+    NifiRole, NifiStatus, APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME,
+    METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
 };
 use stackable_operator::{
     builder::{
@@ -353,9 +353,6 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             )
             .await?;
 
-            let rg_log_configmap =
-                build_node_rolegroup_log_config_map(&nifi, &resolved_product_image, &rolegroup)?;
-
             let rg_statefulset = build_node_rolegroup_statefulset(
                 &nifi,
                 &resolved_product_image,
@@ -384,12 +381,6 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
                 })?;
             cluster_resources
                 .add(client, &rg_configmap)
-                .await
-                .with_context(|_| ApplyRoleGroupConfigSnafu {
-                    rolegroup: rolegroup.clone(),
-                })?;
-            cluster_resources
-                .add(client, &rg_log_configmap)
                 .await
                 .with_context(|_| ApplyRoleGroupConfigSnafu {
                     rolegroup: rolegroup.clone(),
@@ -477,49 +468,6 @@ pub fn build_node_role_service(
         }),
         status: None,
     })
-}
-
-fn get_log_config(nifi: &NifiCluster, rolegroup: &RoleGroupRef<NifiCluster>) -> NifiLogConfig {
-    let nodes = &nifi.spec.nodes.clone();
-    let role_groups = &nodes.clone().unwrap().role_groups;
-
-    match role_groups.get(&rolegroup.role_group.to_string()) {
-        Some(role_group) => {
-            let config = &role_group.config;
-            config.config.clone().log.unwrap_or_default()
-        }
-        None => NifiLogConfig::default(),
-    }
-}
-
-fn build_node_rolegroup_log_config_map(
-    nifi: &NifiCluster,
-    resolved_product_image: &ResolvedProductImage,
-    rolegroup: &RoleGroupRef<NifiCluster>,
-) -> Result<ConfigMap> {
-    ConfigMapBuilder::new()
-        .metadata(
-            ObjectMetaBuilder::new()
-                .name_and_namespace(nifi)
-                .name(rolegroup.object_name() + "-log")
-                .ownerreference_from_resource(nifi, None, Some(true))
-                .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_recommended_labels(build_recommended_labels(
-                    nifi,
-                    &resolved_product_image.app_version_label,
-                    &rolegroup.role,
-                    &rolegroup.role_group,
-                ))
-                .build(),
-        )
-        .add_data(
-            "logback.xml",
-            build_logback_xml(&get_log_config(nifi, rolegroup)),
-        )
-        .build()
-        .with_context(|_| BuildRoleGroupConfigSnafu {
-            rolegroup: rolegroup.clone(),
-        })
 }
 
 /// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the administrator

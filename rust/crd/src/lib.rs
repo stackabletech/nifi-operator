@@ -20,6 +20,7 @@ use stackable_operator::{
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::{runtime::reflector::ObjectRef, CustomResource},
     product_config_utils::{ConfigError, Configuration},
+    product_logging::{self, spec::Logging},
     role_utils::{Role, RoleGroupRef},
     schemars::{self, JsonSchema},
 };
@@ -150,6 +151,26 @@ pub struct NifiStatus {
     pub deployed_version: Option<String>,
 }
 
+#[derive(
+    Clone,
+    Debug,
+    Deserialize,
+    strum::Display,
+    Eq,
+    strum::EnumIter,
+    JsonSchema,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+)]
+#[serde(rename_all = "camelCase")]
+pub enum Container {
+    Prepare,
+    Vector,
+    Nifi,
+}
+
 #[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
 #[fragment_attrs(
     derive(
@@ -166,7 +187,7 @@ pub struct NifiStatus {
 )]
 pub struct NifiConfig {
     #[fragment_attrs(serde(default))]
-    pub log: NifiLogConfig,
+    pub logging: Logging<Container>,
     #[fragment_attrs(serde(default))]
     pub resources: Resources<NifiStorageConfig, NoRuntimeLimits>,
 }
@@ -176,7 +197,7 @@ impl NifiConfig {
 
     pub fn default_config() -> NifiConfigFragment {
         NifiConfigFragment {
-            log: Some(NifiLogConfig::default()),
+            logging: product_logging::spec::default_logging(),
             resources: ResourcesFragment {
                 memory: MemoryLimitsFragment {
                     limit: Some(Quantity("2Gi".to_string())),
