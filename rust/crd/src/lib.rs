@@ -38,6 +38,7 @@ pub const METRICS_PORT_NAME: &str = "metrics";
 pub const METRICS_PORT: u16 = 8081;
 
 pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
+pub const STACKABLE_LOG_CONFIG_DIR: &str = "/stackable/log_config";
 
 pub const MAX_ZK_LOG_FILES_SIZE_IN_MIB: u32 = 10;
 const MAX_PREPARE_LOG_FILE_SIZE_IN_MIB: u32 = 1;

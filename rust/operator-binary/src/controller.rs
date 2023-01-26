@@ -6,12 +6,14 @@ use crate::config::{
 };
 use crate::{config, OPERATOR_NAME};
 
+use crate::product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address};
 use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_nifi_crd::{
-    authentication::ResolvedAuthenticationMethod, NifiCluster, NifiConfig, NifiConfigFragment,
-    NifiRole, NifiStatus, APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME,
-    METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
+    authentication::ResolvedAuthenticationMethod, Container, NifiCluster, NifiConfig,
+    NifiConfigFragment, NifiRole, NifiStatus, APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME,
+    HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT,
+    PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
 };
 use stackable_operator::{
     builder::{
@@ -39,6 +41,13 @@ use stackable_operator::{
     labels::{role_group_selector_labels, role_selector_labels, ObjectLabels},
     logging::controller::ReconcilerError,
     product_config::{types::PropertyNameKind, ProductConfigManager},
+    product_logging::{
+        self,
+        spec::{
+            ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
+            CustomContainerLogConfig,
+        },
+    },
     role_utils::{Role, RoleGroupRef},
 };
 use std::{
@@ -175,6 +184,15 @@ pub enum Error {
     },
     #[snafu(display("failed to resolve and merge config for role and role group"))]
     FailedToResolveConfig { source: stackable_nifi_crd::Error },
+    #[snafu(display("failed to resolve the Vector aggregator address"))]
+    ResolveVectorAggregatorAddress {
+        source: crate::product_logging::Error,
+    },
+    #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
+    InvalidLoggingConfig {
+        source: crate::product_logging::Error,
+        cm_name: String,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -319,6 +337,10 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         .await
         .context(MaterializeAuthConfigSnafu)?;
 
+    let vector_aggregator_address = resolve_vector_aggregator_address(&nifi, client)
+        .await
+        .context(ResolveVectorAggregatorAddressSnafu)?;
+
     for (rolegroup_name, rolegroup_config) in nifi_node_config.iter() {
         let rg_span = tracing::info_span!("rolegroup_span", rolegroup = rolegroup_name.as_str());
         async {
@@ -349,6 +371,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
                 &rolegroup,
                 rolegroup_config,
                 &merged_config,
+                vector_aggregator_address.as_deref(),
                 &proxy_hosts,
             )
             .await?;
@@ -478,13 +501,16 @@ async fn build_node_rolegroup_config_map(
     rolegroup: &RoleGroupRef<NifiCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &NifiConfig,
+    vector_aggregator_address: Option<&str>,
     proxy_hosts: &str,
 ) -> Result<ConfigMap> {
     tracing::debug!("building rolegroup configmaps");
 
     let (login_identity_provider_xml, authorizers_xml) = resolved_auth_conf.get_auth_config();
 
-    ConfigMapBuilder::new()
+    let mut cm_builder = ConfigMapBuilder::new();
+
+    cm_builder
         .metadata(
             ObjectMetaBuilder::new()
                 .name_and_namespace(nifi)
@@ -531,7 +557,19 @@ async fn build_node_rolegroup_config_map(
         )
         .add_data(NIFI_STATE_MANAGEMENT_XML, build_state_management_xml())
         .add_data("login-identity-providers.xml", login_identity_provider_xml)
-        .add_data("authorizers.xml", authorizers_xml)
+        .add_data("authorizers.xml", authorizers_xml);
+
+    extend_role_group_config_map(
+        rolegroup,
+        vector_aggregator_address,
+        &merged_config.logging,
+        &mut cm_builder,
+    )
+    .context(InvalidLoggingConfigSnafu {
+        cm_name: rolegroup.object_name(),
+    })?;
+
+    cm_builder
         .build()
         .with_context(|_| BuildRoleGroupConfigSnafu {
             rolegroup: rolegroup.clone(),
@@ -607,11 +645,6 @@ async fn build_node_rolegroup_statefulset(
     tracing::debug!("Building statefulset");
     let zookeeper_host = "ZOOKEEPER_HOSTS";
     let zookeeper_chroot = "ZOOKEEPER_CHROOT";
-
-    let mut container_builder =
-        ContainerBuilder::new(APP_NAME).with_context(|_| IllegalContainerNameSnafu {
-            container_name: APP_NAME.to_string(),
-        })?;
 
     // get env vars and env overrides
     let mut env_vars: Vec<EnvVar> = rolegroup_config
@@ -703,10 +736,25 @@ async fn build_node_rolegroup_statefulset(
             .as_slice(),
     );
 
+    let prepare_container_name = Container::Prepare.to_string();
     let mut container_prepare =
-        ContainerBuilder::new("prepare").with_context(|_| IllegalContainerNameSnafu {
-            container_name: APP_NAME.to_string(),
+        ContainerBuilder::new(&prepare_container_name).with_context(|_| {
+            IllegalContainerNameSnafu {
+                container_name: APP_NAME.to_string(),
+            }
         })?;
+
+    if let Some(ContainerLogConfig {
+        choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
+    }) = merged_config.logging.containers.get(&Container::Prepare)
+    {
+        args.push(product_logging::framework::capture_shell_output(
+            STACKABLE_LOG_DIR,
+            &prepare_container_name,
+            log_config,
+        ));
+    }
+
     container_prepare
         .image_from_product_image(resolved_product_image)
         .command(vec![
@@ -740,7 +788,15 @@ async fn build_node_rolegroup_statefulset(
         .add_volume_mount("conf", "/conf")
         .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_NIFI_CONTAINER_MOUNT)
         .add_volume_mount("activeconf", "/stackable/nifi/conf")
-        .add_volume_mount("sensitiveproperty", "/stackable/sensitiveproperty");
+        .add_volume_mount("sensitiveproperty", "/stackable/sensitiveproperty")
+        .add_volume_mount("log", STACKABLE_LOG_DIR);
+
+    let nifi_container_name = Container::Nifi.to_string();
+    let mut container_builder = ContainerBuilder::new(&nifi_container_name).with_context(|_| {
+        IllegalContainerNameSnafu {
+            container_name: nifi_container_name,
+        }
+    })?;
 
     let container_nifi = container_builder
         .image_from_product_image(resolved_product_image)
@@ -769,7 +825,8 @@ async fn build_node_rolegroup_statefulset(
             &NifiRepository::State.mount_path(),
         )
         .add_volume_mount("activeconf", "/stackable/nifi/conf")
-        .add_volume_mount("logconf", "/stackable/logconfig")
+        .add_volume_mount("log-config", STACKABLE_LOG_CONFIG_DIR)
+        .add_volume_mount("log", STACKABLE_LOG_DIR)
         .add_container_port(HTTPS_PORT_NAME, HTTPS_PORT.into())
         .add_container_port(PROTOCOL_PORT_NAME, PROTOCOL_PORT.into())
         .add_container_port(BALANCE_PORT_NAME, BALANCE_PORT.into())
@@ -795,12 +852,49 @@ async fn build_node_rolegroup_statefulset(
         })
         .resources(merged_config.resources.clone().into());
 
-    let mut pb = PodBuilder::new();
+    let mut pod_builder = PodBuilder::new();
 
-    resolved_auth_conf
-        .add_volumes_and_mounts(&mut pb, vec![&mut container_prepare, container_nifi]);
+    if let Some(ContainerLogConfig {
+        choice:
+            Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
+                custom: ConfigMapLogConfig { config_map },
+            })),
+    }) = merged_config.logging.containers.get(&Container::Nifi)
+    {
+        pod_builder.add_volume(Volume {
+            name: "log-config".to_string(),
+            config_map: Some(ConfigMapVolumeSource {
+                name: Some(config_map.into()),
+                ..ConfigMapVolumeSource::default()
+            }),
+            ..Volume::default()
+        });
+    } else {
+        pod_builder.add_volume(Volume {
+            name: "log-config".to_string(),
+            config_map: Some(ConfigMapVolumeSource {
+                name: Some(rolegroup_ref.object_name()),
+                ..ConfigMapVolumeSource::default()
+            }),
+            ..Volume::default()
+        });
+    }
 
-    let mut pod_template = pb
+    if merged_config.logging.enable_vector_agent {
+        pod_builder.add_container(product_logging::framework::vector_container(
+            resolved_product_image,
+            "config",
+            "log",
+            merged_config.logging.containers.get(&Container::Vector),
+        ));
+    }
+
+    resolved_auth_conf.add_volumes_and_mounts(
+        &mut pod_builder,
+        vec![&mut container_prepare, container_nifi],
+    );
+
+    let mut pod_template = pod_builder
         .metadata_builder(|m| {
             m.with_recommended_labels(build_recommended_labels(
                 nifi,
