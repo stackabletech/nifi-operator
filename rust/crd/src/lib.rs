@@ -37,6 +37,15 @@ pub const BALANCE_PORT: u16 = 6243;
 pub const METRICS_PORT_NAME: &str = "metrics";
 pub const METRICS_PORT: u16 = 8081;
 
+pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
+
+pub const MAX_ZK_LOG_FILES_SIZE_IN_MIB: u32 = 10;
+const MAX_PREPARE_LOG_FILE_SIZE_IN_MIB: u32 = 1;
+// Additional buffer space is not needed, as the `prepare` container already has sufficient buffer
+// space and all containers share a single volume.
+pub const LOG_VOLUME_SIZE_IN_MIB: u32 =
+    MAX_ZK_LOG_FILES_SIZE_IN_MIB + MAX_PREPARE_LOG_FILE_SIZE_IN_MIB;
+
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display("object has no namespace associated"))]
@@ -84,6 +93,10 @@ pub struct NifiClusterConfig {
     pub authentication: NifiAuthenticationConfig,
     /// Configuration options for how NiFi encrypts sensitive properties on disk
     pub sensitive_properties: NifiSensitivePropertiesConfig,
+    /// Name of the Vector aggregator discovery ConfigMap.
+    /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vector_aggregator_config_map_name: Option<String>,
     /// The reference to the ZooKeeper cluster
     pub zookeeper_config_map_name: String,
 }
