@@ -11,16 +11,16 @@ dimensions:
       - 3.8.0-stackable0.8.0
   - name: nifi
     values:
-      - 1.15.3-stackable0.3.0
-      - 1.16.3-stackable0.3.0
-      - 1.18.0-stackable0.3.0
+      - 1.15.3-stackable0.prerelease
+      - 1.16.3-stackable0.prerelease
+      - 1.18.0-stackable0.prerelease
   - name: nifi_old
     values:
-      - 1.15.3-stackable0.3.0
-      - 1.16.3-stackable0.3.0
+      - 1.15.3-stackable0.prerelease
+      - 1.16.3-stackable0.prerelease
   - name: nifi_new
     values:
-      - 1.18.0-stackable0.3.0
+      - 1.18.0-stackable0.prerelease
   - name: ldap-use-tls
     values:
       - "false"
