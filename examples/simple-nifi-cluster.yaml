@@ -70,8 +70,6 @@ spec:
     roleGroups:
       default:
         config:
-          log:
-            rootLogLevel: INFO
           resources:
             memory:
               limit: "2Gi"  # Option
