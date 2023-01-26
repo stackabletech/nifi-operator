@@ -395,8 +395,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
                 &resolved_product_image,
                 &rolegroup,
                 &resolved_auth_conf,
-            )
-            .await?;
+            )?;
 
             cluster_resources
                 .add(client, &rg_service)
@@ -496,6 +495,7 @@ pub fn build_node_role_service(
 }
 
 /// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the administrator
+#[allow(clippy::too_many_arguments)]
 async fn build_node_rolegroup_config_map(
     nifi: &NifiCluster,
     resolved_product_image: &ResolvedProductImage,
@@ -1073,7 +1073,7 @@ async fn build_node_rolegroup_statefulset(
 /// as well as a public certificate provided by the Stackable
 /// [`secret-operator`](https://github.com/stackabletech/secret-operator)
 ///
-async fn build_reporting_task_job(
+fn build_reporting_task_job(
     nifi: &NifiCluster,
     resolved_product_image: &ResolvedProductImage,
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
@@ -1107,7 +1107,7 @@ async fn build_reporting_task_job(
     ];
     let mut cb = ContainerBuilder::new("create-reporting-task").with_context(|_| {
         IllegalContainerNameSnafu {
-            container_name: APP_NAME.to_string(),
+            container_name: "create-reporting-task".to_string(),
         }
     })?;
     cb.image_from_product_image(resolved_product_image)
