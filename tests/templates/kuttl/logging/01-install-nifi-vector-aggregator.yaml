@@ -5,13 +5,13 @@ commands:
   - script: >-
       helm install nifi-vector-aggregator vector
       --namespace $NAMESPACE
-      --version 0.18.0
+      --version 0.19.0
       --repo https://helm.vector.dev
       --values nifi-vector-aggregator-values.yaml
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: nifi-vector-aggregator-discovery
+  name: vector-aggregator-discovery
 data:
   ADDRESS: nifi-vector-aggregator:6123

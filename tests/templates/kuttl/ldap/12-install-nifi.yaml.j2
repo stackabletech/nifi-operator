@@ -42,8 +42,14 @@ spec:
 {% endif %}
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+    vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
     zookeeperConfigMapName: nifi-with-ldap-znode
   nodes:
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
     roleGroups:
       default:
         config: {}
