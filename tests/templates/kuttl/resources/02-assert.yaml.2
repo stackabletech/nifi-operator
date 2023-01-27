@@ -23,3 +23,6 @@ spec:
           memory: 2Gi
         requests:
           memory: 2Gi
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+    - name: vector
+{% endif %}
