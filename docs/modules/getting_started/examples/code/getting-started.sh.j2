@@ -58,7 +58,7 @@ metadata:
 spec:
   image:
     productVersion: 3.8.0
-    stackableVersion: 23.1
+    stackableVersion: "23.1"
   servers:
     roleGroups:
       default:
@@ -113,8 +113,8 @@ spec:
   image:
     productVersion: 1.18.0
     stackableVersion: 0.prerelease
-  zookeeperConfigMapName: simple-nifi-znode
-  config:
+  clusterConfig:
+    zookeeperConfigMapName: simple-nifi-znode
     authentication:
       method:
         singleUser:
