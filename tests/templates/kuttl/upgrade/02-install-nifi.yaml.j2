@@ -30,7 +30,7 @@ spec:
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
-    vectorAggregatorConfigMapName: nifi-vector-aggregator-discovery
+    vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
     zookeeperConfigMapName: test-nifi-znode
   nodes:

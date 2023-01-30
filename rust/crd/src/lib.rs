@@ -178,7 +178,8 @@ pub struct NifiStatus {
     PartialOrd,
     Serialize,
 )]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "kebab-case")]
+￼#[strum(serialize_all = "kebab-case")]
 pub enum Container {
     #[strum(serialize = "prepare")]
     Prepare,
