@@ -700,7 +700,21 @@ async fn build_node_rolegroup_statefulset(
 
     let sensitive_key_secret = &nifi.spec.cluster_config.sensitive_properties.key_secret;
 
-    let mut args = vec![
+    let prepare_container_name = Container::Prepare.to_string();
+    let mut args = vec![];
+
+    if let Some(ContainerLogConfig {
+        choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
+    }) = merged_config.logging.containers.get(&Container::Prepare)
+    {
+        args.push(product_logging::framework::capture_shell_output(
+            STACKABLE_LOG_DIR,
+            &prepare_container_name,
+            log_config,
+        ));
+    }
+
+    args.extend(vec![
         "echo Storing password".to_string(),
         format!("echo secret > {keystore_path}/password", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
         "echo Cleaning up truststore - just in case".to_string(),
@@ -730,7 +744,7 @@ async fn build_node_rolegroup_statefulset(
         format!("sed -i \"s|xxxxxx|${{{}}}|g\" /stackable/nifi/conf/state-management.xml", zookeeper_host),
         "echo Replacing root node 'yyyyyy' in /stackable/nifi/conf/state-management.xml".to_string(),
         format!("sed -i \"s|yyyyyy|${{{}}}|g\" /stackable/nifi/conf/state-management.xml",zookeeper_chroot)
-    ];
+    ]);
 
     args.extend_from_slice(
         resolved_auth_conf
@@ -738,24 +752,12 @@ async fn build_node_rolegroup_statefulset(
             .as_slice(),
     );
 
-    let prepare_container_name = Container::Prepare.to_string();
     let mut container_prepare =
         ContainerBuilder::new(&prepare_container_name).with_context(|_| {
             IllegalContainerNameSnafu {
-                container_name: APP_NAME.to_string(),
+                container_name: prepare_container_name.to_string(),
             }
         })?;
-
-    if let Some(ContainerLogConfig {
-        choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-    }) = merged_config.logging.containers.get(&Container::Prepare)
-    {
-        args.push(product_logging::framework::capture_shell_output(
-            STACKABLE_LOG_DIR,
-            &prepare_container_name,
-            log_config,
-        ));
-    }
 
     container_prepare
         .image_from_product_image(resolved_product_image)
@@ -855,6 +857,8 @@ async fn build_node_rolegroup_statefulset(
         .resources(merged_config.resources.clone().into());
 
     let mut pod_builder = PodBuilder::new();
+    // We want to add nifi container first for easier defaulting into this container
+    pod_builder.add_container(container_nifi.build());
 
     if let Some(ContainerLogConfig {
         choice:
@@ -907,7 +911,6 @@ async fn build_node_rolegroup_statefulset(
         })
         .image_pull_secrets_from_product_image(resolved_product_image)
         .add_init_container(container_prepare.build())
-        .add_container(container_nifi.build())
         .node_selector_opt(rolegroup.and_then(|rg| rg.selector.clone()))
         // One volume for the NiFi configuration. A script will later on edit (e.g. nodename)
         // and copy the whole content to the <NIFI_HOME>/conf folder.

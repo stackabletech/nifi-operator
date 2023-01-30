@@ -91,7 +91,10 @@ pub fn extend_role_group_config_map(
         cm_builder.add_data(
             LOGBACK_CONFIG_FILE,
             product_logging::framework::create_logback_config(
-                &format!("{STACKABLE_LOG_DIR}/nifi"),
+                &format!(
+                    "{STACKABLE_LOG_DIR}/{container}",
+                    container = Container::Nifi
+                ),
                 NIFI_LOG_FILE,
                 MAX_ZK_LOG_FILES_SIZE_IN_MIB,
                 CONSOLE_CONVERSION_PATTERN,
