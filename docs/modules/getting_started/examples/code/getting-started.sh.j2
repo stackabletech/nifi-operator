@@ -114,7 +114,6 @@ spec:
     productVersion: 1.18.0
     stackableVersion: 0.prerelease
   clusterConfig:
-    zookeeperConfigMapName: simple-nifi-znode
     authentication:
       method:
         singleUser:
@@ -123,6 +122,7 @@ spec:
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
       autoGenerate: true
+    zookeeperConfigMapName: simple-nifi-znode
   nodes:
     roleGroups:
       default:
