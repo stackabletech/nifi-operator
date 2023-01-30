@@ -112,9 +112,9 @@ metadata:
 spec:
   image:
     productVersion: 1.18.0
-    stackableVersion: "0.prerelease"
-  zookeeperConfigMapName: simple-nifi-znode
-  config:
+    stackableVersion: 0.prerelease
+  clusterConfig:
+    zookeeperConfigMapName: simple-nifi-znode
     authentication:
       method:
         singleUser:
