@@ -15,7 +15,7 @@ use stackable_operator::{
     config::{
         fragment::Fragment,
         fragment::{self, ValidationError},
-        merge::{Atomic, Merge},
+        merge::Merge,
     },
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::{runtime::reflector::ObjectRef, CustomResource},
@@ -181,11 +181,8 @@ pub struct NifiStatus {
 #[serde(rename_all = "kebab-case")]
 #[strum(serialize_all = "kebab-case")]
 pub enum Container {
-    #[strum(serialize = "prepare")]
     Prepare,
-    #[strum(serialize = "vector")]
     Vector,
-    #[strum(serialize = "nifi")]
     Nifi,
 }
 
@@ -284,29 +281,6 @@ impl Configuration for NifiConfigFragment {
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         Ok(BTreeMap::new())
     }
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NifiLogConfig {
-    pub root_log_level: LogLevel,
-}
-
-impl Atomic for NifiLogConfig {}
-
-impl Default for LogLevel {
-    fn default() -> Self {
-        Self::INFO
-    }
-}
-
-#[derive(strum::Display, Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-pub enum LogLevel {
-    DEBUG,
-    INFO,
-    WARN,
-    ERROR,
-    FATAL,
 }
 
 #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
