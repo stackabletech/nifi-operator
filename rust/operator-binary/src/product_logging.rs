@@ -34,11 +34,27 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-const VECTOR_AGGREGATOR_CM_ENTRY: &str = "ADDRESS";
-const CONSOLE_CONVERSION_PATTERN: &str = "%date %level [%thread] %logger{40} %msg%n";
-
 pub const LOGBACK_CONFIG_FILE: &str = "logback.xml";
 pub const NIFI_LOG_FILE: &str = "nifi.log4j.xml";
+
+const VECTOR_AGGREGATOR_CM_ENTRY: &str = "ADDRESS";
+const CONSOLE_CONVERSION_PATTERN: &str = "%date %level [%thread] %logger{40} %msg%n";
+// This is required to remove double entries in the nifi.log4j.xml as well as nested
+// console output like: "<timestamp> <loglevel> ... <timestamp> <loglevel> ...
+const ADDITONAL_LOGBACK_CONFIG: &str = r#"  <appender name="PASSTHROUGH" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <logger name="org.apache.nifi.StdOut" level="INFO" additivity="false">
+    <appender-ref ref="PASSTHROUGH" />
+  </logger>
+
+  <logger name="org.apache.nifi.StdErr" level="INFO" additivity="false">
+    <appender-ref ref="PASSTHROUGH" />
+  </logger>
+"#;
 
 /// Return the address of the Vector aggregator if the corresponding ConfigMap name is given in the
 /// cluster spec
@@ -99,6 +115,7 @@ pub fn extend_role_group_config_map(
                 MAX_ZK_LOG_FILES_SIZE_IN_MIB,
                 CONSOLE_CONVERSION_PATTERN,
                 log_config,
+                Some(ADDITONAL_LOGBACK_CONFIG),
             ),
         );
     }
