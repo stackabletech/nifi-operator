@@ -48,9 +48,23 @@ data:
         </triggeringPolicy>
       </appender>
 
+      <appender name="PASSTHROUGH" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+          <pattern>%msg%n</pattern>
+        </encoder>
+      </appender>
+
+      <logger name="org.apache.nifi.StdOut" level="INFO" additivity="false">
+        <appender-ref ref="PASSTHROUGH" />
+      </logger>
+
+      <logger name="org.apache.nifi.StdErr" level="INFO" additivity="false">
+        <appender-ref ref="PASSTHROUGH" />
+      </logger>
+
       <root level="INFO">
-        <appender-ref ref="CONSOLE" />
         <appender-ref ref="FILE" />
+        <appender-ref ref="CONSOLE" />
       </root>
     </configuration>
 ---
