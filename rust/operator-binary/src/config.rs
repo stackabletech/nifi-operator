@@ -5,7 +5,7 @@ use stackable_nifi_crd::{
 };
 use stackable_operator::{
     commons::resources::Resources,
-    memory::{to_java_heap_value, BinaryMultiple, MemoryQuantity},
+    memory::{BinaryMultiple, MemoryQuantity},
     product_config::{types::PropertyNameKind, ProductConfigManager},
     product_config_utils::{
         transform_all_roles_to_config, validate_all_roles_and_groups_config,
@@ -28,6 +28,8 @@ const STORAGE_PROVENANCE_UTILIZATION_FACTOR: f32 = 0.9;
 const STORAGE_FLOW_ARCHIVE_UTILIZATION_FACTOR: f32 = 0.9;
 // Content archive only counts _old_ data, so we want to allow some space for active data as well
 const STORAGE_CONTENT_ARCHIVE_UTILIZATION_FACTOR: f32 = 0.5;
+// Part of memory resources allocated for Java heap
+const JAVA_HEAP_FACTOR: f32 = 0.8;
 
 #[derive(Debug, Display, EnumIter)]
 pub enum NifiRepository {
@@ -94,17 +96,24 @@ pub fn build_bootstrap_conf(
     // Read memory limits from config
     if let Some(heap_size_definition) = &resource_config.memory.limit {
         tracing::debug!("Read {:?} from crd as memory limit", heap_size_definition);
-        let heap_size = to_java_heap_value(heap_size_definition, 0.8, BinaryMultiple::Mebi)
-            .context(InvalidProductConfigSnafu)?;
-        tracing::debug!(
-            "Converted {:?} to {}m for java heap config",
-            &heap_size_definition,
-            heap_size
-        );
 
+        let heap_size = MemoryQuantity::try_from(heap_size_definition)
+            .context(InvalidProductConfigSnafu)?
+            .scale_to(BinaryMultiple::Mebi)
+            * JAVA_HEAP_FACTOR;
+
+        let java_heap = heap_size
+            .format_for_java()
+            .context(InvalidProductConfigSnafu)?;
+
+        tracing::debug!(
+            "Converted {:?} to {} for java heap config",
+            &heap_size_definition,
+            java_heap
+        );
         // Push heap size config as max and min size to java args
-        java_args.push(format!("-Xmx{}m", heap_size));
-        java_args.push(format!("-Xms{}m", heap_size));
+        java_args.push(format!("-Xmx{}", java_heap));
+        java_args.push(format!("-Xms{}", java_heap));
     } else {
         tracing::debug!("No memory limits defined");
     }
