@@ -1,0 +1,120 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nifi-admin-credentials-simple
+stringData:
+  username: admin
+  password: supersecretpassword
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nifi-sensitive-property-key
+stringData:
+  nifiSensitivePropsKey: mYsUp3rS3cr3tk3y
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nifi-log-config
+data:
+  logback.xml: |
+    <configuration>
+      <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+          <pattern>%date %level [%thread] %logger{40} %msg%n</pattern>
+        </encoder>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+          <level>INFO</level>
+        </filter>
+      </appender>
+
+      <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <File>/stackable/log/nifi/nifi.log4j.xml</File>
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+          <layout class="ch.qos.logback.classic.log4j.XMLLayout" />
+        </encoder>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+          <level>INFO</level>
+        </filter>
+        <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+          <minIndex>1</minIndex>
+          <maxIndex>1</maxIndex>
+          <FileNamePattern>/stackable/log/nifi/nifi.log4j.xml.%i</FileNamePattern>
+        </rollingPolicy>
+        <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+          <MaxFileSize>5MB</MaxFileSize>
+        </triggeringPolicy>
+      </appender>
+
+      <appender name="PASSTHROUGH" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+          <pattern>%msg%n</pattern>
+        </encoder>
+      </appender>
+
+      <logger name="org.apache.nifi.StdOut" level="INFO" additivity="false">
+        <appender-ref ref="PASSTHROUGH" />
+      </logger>
+
+      <logger name="org.apache.nifi.StdErr" level="INFO" additivity="false">
+        <appender-ref ref="PASSTHROUGH" />
+      </logger>
+
+      <root level="INFO">
+        <appender-ref ref="FILE" />
+        <appender-ref ref="CONSOLE" />
+      </root>
+    </configuration>
+---
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: test-nifi
+spec:
+  image:
+    productVersion: "{{ test_scenario['values']['nifi'].split('-stackable')[0] }}"
+    stackableVersion: "{{ test_scenario['values']['nifi'].split('-stackable')[1] }}"
+  clusterConfig:
+    authentication:
+      method:
+        singleUser:
+          adminCredentialsSecret: nifi-admin-credentials-simple
+    sensitiveProperties:
+      keySecret: nifi-sensitive-property-key
+    vectorAggregatorConfigMapName: vector-aggregator-discovery
+    zookeeperConfigMapName: test-nifi-znode
+  nodes:
+    roleGroups:
+      automatic-log-config:
+        replicas: 1
+        config:
+          logging:
+            enableVectorAgent: true
+            containers:
+              nifi:
+                console:
+                  level: INFO
+                file:
+                  level: INFO
+                loggers:
+                  ROOT:
+                    level: INFO
+              vector:
+                console:
+                  level: INFO
+                file:
+                  level: INFO
+                loggers:
+                  ROOT:
+                    level: INFO
+      custom-log-config:
+        replicas: 1
+        config:
+          logging:
+            enableVectorAgent: true
+            containers:
+              nifi:
+                custom:
+                  configMap: nifi-log-config

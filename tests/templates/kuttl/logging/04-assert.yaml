@@ -6,12 +6,7 @@ timeout: 300
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: test-zk-server-default
+  name: nifi-test-runner
 status:
   readyReplicas: 1
   replicas: 1
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: test-nifi-znode

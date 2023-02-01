@@ -2,25 +2,25 @@
 dimensions:
   - name: zookeeper
     values:
-      - 3.5.8-stackable0.8.0
-      - 3.6.3-stackable0.8.0
-      - 3.7.0-stackable0.8.0
-      - 3.8.0-stackable0.8.0
+      - 3.5.8-stackable23.4.0-rc1
+      - 3.6.3-stackable23.4.0-rc1
+      - 3.7.0-stackable23.4.0-rc1
+      - 3.8.0-stackable23.4.0-rc1
   - name: zookeeper-latest
     values:
-      - 3.8.0-stackable0.8.0
+      - 3.8.0-stackable23.4.0-rc1
   - name: nifi
     values:
-      - 1.15.3-stackable0.3.0
-      - 1.16.3-stackable0.3.0
-      - 1.18.0-stackable0.3.0
+      - 1.15.3-stackable23.4.0-rc1
+      - 1.16.3-stackable23.4.0-rc1
+      - 1.18.0-stackable23.4.0-rc1
   - name: nifi_old
     values:
-      - 1.15.3-stackable0.3.0
-      - 1.16.3-stackable0.3.0
+      - 1.15.3-stackable23.4.0-rc1
+      - 1.16.3-stackable23.4.0-rc1
   - name: nifi_new
     values:
-      - 1.18.0-stackable0.3.0
+      - 1.18.0-stackable23.4.0-rc1
   - name: ldap-use-tls
     values:
       - "false"
@@ -48,3 +48,7 @@ tests:
       - nifi
       - zookeeper-latest
       - ldap-use-tls
+  - name: logging
+    dimensions:
+      - nifi
+      - zookeeper-latest

@@ -7,13 +7,18 @@ spec:
   image:
     productVersion: "{{ test_scenario['values']['zookeeper-latest'].split('-stackable')[0] }}"
     stackableVersion: "{{ test_scenario['values']['zookeeper-latest'].split('-stackable')[1] }}"
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+  clusterConfig:
+    logging:
+      vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
   servers:
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
     roleGroups:
       default:
         replicas: 1
-        config:
-          myidOffset: 10
-  stopped: false
 ---
 apiVersion: zookeeper.stackable.tech/v1alpha1
 kind: ZookeeperZnode

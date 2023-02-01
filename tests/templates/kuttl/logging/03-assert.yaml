@@ -1,20 +1,20 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-timeout: 1200
+timeout: 600
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: test-nifi-node-default
+  name: test-nifi-node-automatic-log-config
 status:
-  readyReplicas: 2
-  replicas: 2
+  readyReplicas: 1
+  replicas: 1
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: test-nifi-node-throwaway
+  name: test-nifi-node-custom-log-config
 status:
   readyReplicas: 1
   replicas: 1

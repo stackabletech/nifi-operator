@@ -2,6 +2,11 @@
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 timeout: 300
-commands:
-  - script: kubectl exec -n $NAMESPACE test-nifi-0 -- python /tmp/test_nifi.py -u admin -p supersecretpassword -n $NAMESPACE -c 3
-  - script: kubectl exec -n $NAMESPACE test-nifi-0 -- python /tmp/test_nifi_metrics.py -n $NAMESPACE
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test-nifi
+status:
+  readyReplicas: 1
+  replicas: 1

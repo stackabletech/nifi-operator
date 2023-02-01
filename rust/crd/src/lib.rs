@@ -15,11 +15,12 @@ use stackable_operator::{
     config::{
         fragment::Fragment,
         fragment::{self, ValidationError},
-        merge::{Atomic, Merge},
+        merge::Merge,
     },
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::{runtime::reflector::ObjectRef, CustomResource},
     product_config_utils::{ConfigError, Configuration},
+    product_logging::{self, spec::Logging},
     role_utils::{Role, RoleGroupRef},
     schemars::{self, JsonSchema},
 };
@@ -35,6 +36,16 @@ pub const BALANCE_PORT_NAME: &str = "balance";
 pub const BALANCE_PORT: u16 = 6243;
 pub const METRICS_PORT_NAME: &str = "metrics";
 pub const METRICS_PORT: u16 = 8081;
+
+pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
+pub const STACKABLE_LOG_CONFIG_DIR: &str = "/stackable/log_config";
+
+pub const MAX_ZK_LOG_FILES_SIZE_IN_MIB: u32 = 10;
+const MAX_PREPARE_LOG_FILE_SIZE_IN_MIB: u32 = 1;
+// Additional buffer space is not needed, as the `prepare` container already has sufficient buffer
+// space and all containers share a single volume.
+pub const LOG_VOLUME_SIZE_IN_MIB: u32 =
+    MAX_ZK_LOG_FILES_SIZE_IN_MIB + MAX_PREPARE_LOG_FILE_SIZE_IN_MIB;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -83,6 +94,10 @@ pub struct NifiClusterConfig {
     pub authentication: NifiAuthenticationConfig,
     /// Configuration options for how NiFi encrypts sensitive properties on disk
     pub sensitive_properties: NifiSensitivePropertiesConfig,
+    /// Name of the Vector aggregator discovery ConfigMap.
+    /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vector_aggregator_config_map_name: Option<String>,
     /// The reference to the ZooKeeper cluster
     pub zookeeper_config_map_name: String,
 }
@@ -150,6 +165,27 @@ pub struct NifiStatus {
     pub deployed_version: Option<String>,
 }
 
+#[derive(
+    Clone,
+    Debug,
+    Deserialize,
+    strum::Display,
+    Eq,
+    strum::EnumIter,
+    JsonSchema,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+)]
+#[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "kebab-case")]
+pub enum Container {
+    Prepare,
+    Vector,
+    Nifi,
+}
+
 #[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
 #[fragment_attrs(
     derive(
@@ -166,7 +202,7 @@ pub struct NifiStatus {
 )]
 pub struct NifiConfig {
     #[fragment_attrs(serde(default))]
-    pub log: NifiLogConfig,
+    pub logging: Logging<Container>,
     #[fragment_attrs(serde(default))]
     pub resources: Resources<NifiStorageConfig, NoRuntimeLimits>,
 }
@@ -176,7 +212,7 @@ impl NifiConfig {
 
     pub fn default_config() -> NifiConfigFragment {
         NifiConfigFragment {
-            log: Some(NifiLogConfig::default()),
+            logging: product_logging::spec::default_logging(),
             resources: ResourcesFragment {
                 memory: MemoryLimitsFragment {
                     limit: Some(Quantity("2Gi".to_string())),
@@ -245,29 +281,6 @@ impl Configuration for NifiConfigFragment {
     ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         Ok(BTreeMap::new())
     }
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NifiLogConfig {
-    pub root_log_level: LogLevel,
-}
-
-impl Atomic for NifiLogConfig {}
-
-impl Default for LogLevel {
-    fn default() -> Self {
-        Self::INFO
-    }
-}
-
-#[derive(strum::Display, Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-pub enum LogLevel {
-    DEBUG,
-    INFO,
-    WARN,
-    ERROR,
-    FATAL,
 }
 
 #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]

@@ -12,7 +12,7 @@ metadata:
 spec:
   image:
     productVersion: 1.16.3 # <1>
-    stackableVersion: 0.3.0 # <2>
+    stackableVersion: "23.4.0-rc1" # <2>
   clusterConfig:
     authentication:
       method:
@@ -27,9 +27,7 @@ spec:
         selector:
           matchLabels:
             kubernetes.io/os: linux
-        config:
-          log:
-            rootLogLevel: INFO
+        config: {}
         replicas: 3
 ----
 

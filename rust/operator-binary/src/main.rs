@@ -1,5 +1,6 @@
 mod config;
 mod controller;
+mod product_logging;
 
 use crate::controller::CONTROLLER_NAME;
 
