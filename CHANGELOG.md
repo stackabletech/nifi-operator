@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 
 - [BREAKING]: Renamed global `config` to `clusterConfig` ([#417])
 - [BREAKING]: Moved `zookeeper_configmap_name` to `clusterConfig` ([#417])
+- Updated operator-rs to 0.33.0  ([#418])
 
 [#417]: https://github.com/stackabletech/nifi-operator/pull/417
 [#418]: https://github.com/stackabletech/nifi-operator/pull/418
