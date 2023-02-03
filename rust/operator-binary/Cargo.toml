@@ -11,7 +11,7 @@ publish = false
 
 [dependencies]
 anyhow = "1.0"
-clap = "4.0"
+clap = "4.1"
 fnv = "1.0"
 futures = { version = "0.3", features = ["compat"] }
 pin-project = "1.0"
@@ -23,7 +23,7 @@ snafu = "0.7"
 stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "0.33.0" }
 stackable-nifi-crd = { path = "../crd" }
 strum = { version = "0.24", features = ["derive"] }
-tokio = { version = "1.24", features = ["full"] }
+tokio = { version = "1.25", features = ["full"] }
 tracing = "0.1"
 
 [build-dependencies]
