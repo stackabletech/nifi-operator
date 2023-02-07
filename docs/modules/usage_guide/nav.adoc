@@ -1,7 +1,0 @@
-* xref:index.adoc[]
-** xref:security.adoc[]
-** xref:resource-configuration.adoc[]
-** xref:monitoring.adoc[]
-** xref:log-aggregation.adoc[]
-** xref:configuration-environment-overrides.adoc[]
-** xref:updating.adoc[]
