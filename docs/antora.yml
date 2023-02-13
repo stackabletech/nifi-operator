@@ -1,8 +1,3 @@
-name: nifi
+---
+name: home
 version: "23.1"
-title: Stackable Operator for Apache NiFi
-nav:
-  - modules/getting_started/nav.adoc
-  - modules/ROOT/nav.adoc
-  - modules/usage_guide/nav.adoc
-prerelease: false

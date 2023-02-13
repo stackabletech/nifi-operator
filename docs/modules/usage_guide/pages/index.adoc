@@ -1,3 +1,0 @@
-= Usage guide
-
-This section will help you to use various aspects of the Stackable Operator for Apache NiFi. For a general introduction into the operator follow the xref:getting_started:index.adoc[] guide.
