@@ -1,17 +1,7 @@
-mod config;
-mod controller;
-mod product_logging;
-
-use crate::controller::CONTROLLER_NAME;
-
 use std::sync::Arc;
 
-use clap::Parser;
+use clap::{crate_description, crate_version, Parser};
 use futures::stream::StreamExt;
-use stackable_nifi_crd::{
-    authentication::{NifiAuthenticationConfig, NifiAuthenticationMethod},
-    NifiCluster,
-};
 use stackable_operator::{
     cli::{Command, ProductOperatorRun},
     commons::authentication::AuthenticationClass,
@@ -28,14 +18,26 @@ use stackable_operator::{
     CustomResourceExt,
 };
 
+use stackable_nifi_crd::{
+    authentication::{NifiAuthenticationConfig, NifiAuthenticationMethod},
+    NifiCluster,
+};
+
+use crate::controller::CONTROLLER_NAME;
+
+mod config;
+mod controller;
+mod product_logging;
+
 const OPERATOR_NAME: &str = "nifi.stackable.tech";
 
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
+    pub const TARGET_PLATFORM: Option<&str> = option_env!("TARGET");
 }
 
 #[derive(Parser)]
-#[clap(about = built_info::PKG_DESCRIPTION, author = "Stackable GmbH - info@stackable.de")]
+#[clap(about, author)]
 struct Opts {
     #[clap(subcommand)]
     cmd: Command,
@@ -57,10 +59,10 @@ async fn main() -> anyhow::Result<()> {
                 tracing_target,
             );
             stackable_operator::utils::print_startup_string(
-                built_info::PKG_DESCRIPTION,
-                built_info::PKG_VERSION,
+                crate_description!(),
+                crate_version!(),
                 built_info::GIT_VERSION,
-                built_info::TARGET,
+                built_info::TARGET_PLATFORM.unwrap_or("unknown target"),
                 built_info::BUILT_TIME_UTC,
                 built_info::RUSTC_VERSION,
             );
