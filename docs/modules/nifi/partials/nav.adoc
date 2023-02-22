@@ -6,6 +6,7 @@
 * xref:nifi:usage_guide/index.adoc[]
 ** xref:nifi:usage_guide/security.adoc[]
 ** xref:nifi:usage_guide/resource-configuration.adoc[]
+** xref:nifi:usage_guide/extra_mounts.adoc[]
 ** xref:nifi:usage_guide/monitoring.adoc[]
 ** xref:nifi:usage_guide/log-aggregation.adoc[]
 ** xref:nifi:usage_guide/configuration-environment-overrides.adoc[]

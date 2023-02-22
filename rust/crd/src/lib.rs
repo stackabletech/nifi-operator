@@ -1,9 +1,8 @@
-pub mod authentication;
-
-use crate::authentication::NifiAuthenticationConfig;
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::k8s_openapi::api::core::v1::Volume;
 use stackable_operator::{
     commons::{
         product_image_selection::ProductImage,
@@ -24,7 +23,10 @@ use stackable_operator::{
     role_utils::{Role, RoleGroupRef},
     schemars::{self, JsonSchema},
 };
-use std::collections::BTreeMap;
+
+use crate::authentication::NifiAuthenticationConfig;
+
+pub mod authentication;
 
 pub const APP_NAME: &str = "nifi";
 
@@ -85,6 +87,9 @@ pub struct NifiSpec {
     /// Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stopped: Option<bool>,
+    /// Extra volumes to mount into every container, this can be useful to for example make client
+    /// certificates, keytabs or similar things available to processors
+    pub extra_mounts: Option<Vec<Volume>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
