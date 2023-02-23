@@ -91,7 +91,7 @@ spec:
                     - sensitiveProperties
                     - zookeeperConfigMapName
                   type: object
-                extraMounts:
+                extraVolumes:
                   description: Extra volumes to mount into every container, this can be useful to for example make client certificates, keytabs or similar things available to processors
                   items:
                     description: Volume represents a named volume in a pod that may be accessed by any container in the pod.
