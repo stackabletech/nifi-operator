@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Enabled logging and log aggregation ([#418])
+- Added the ability to mount extra volumes for files that may be needed for NiFi processors to work ([#434])
 
 ### Changed
 

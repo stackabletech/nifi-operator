@@ -862,9 +862,9 @@ async fn build_node_rolegroup_statefulset(
     let mut pod_builder = PodBuilder::new();
 
     // Add user configured extra volumes if any are specified
-    if let Some(extra_mounts) = &nifi.spec.extra_mounts {
-        pod_builder.add_volumes(extra_mounts.clone());
-        container_nifi.add_volume_mounts(extra_mounts.iter().map(|volume| VolumeMount {
+    if let Some(extra_volumes) = &nifi.spec.extra_volumes {
+        pod_builder.add_volumes(extra_volumes.clone());
+        container_nifi.add_volume_mounts(extra_volumes.iter().map(|volume| VolumeMount {
             mount_path: format!("/stackable/userdata/{}", volume.name),
             mount_propagation: None,
             name: volume.name.clone(),
