@@ -8,7 +8,7 @@ In order to make these files available the operator allows specifying extra volu
 [source,yaml]
 ----
 spec:
-  extraMounts:
+  extraVolumes:
   - configMap:
       name: nifi-client-certs
     name: certs
