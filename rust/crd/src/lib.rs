@@ -89,7 +89,7 @@ pub struct NifiSpec {
     pub stopped: Option<bool>,
     /// Extra volumes to mount into every container, this can be useful to for example make client
     /// certificates, keytabs or similar things available to processors
-    pub extra_mounts: Option<Vec<Volume>>,
+    pub extra_volumes: Option<Vec<Volume>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
