@@ -911,7 +911,7 @@ async fn build_node_rolegroup_statefulset(
         })
         .image_pull_secrets_from_product_image(resolved_product_image)
         .add_init_container(container_prepare.build())
-        .node_selector_opt(rolegroup.and_then(|rg| rg.selector.clone()))
+        .affinity(&merged_config.affinity)
         // One volume for the NiFi configuration. A script will later on edit (e.g. nodename)
         // and copy the whole content to the <NIFI_HOME>/conf folder.
         .add_volume(stackable_operator::k8s_openapi::api::core::v1::Volume {
