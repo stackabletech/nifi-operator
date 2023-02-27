@@ -10,3 +10,4 @@
 ** xref:nifi:usage_guide/log-aggregation.adoc[]
 ** xref:nifi:usage_guide/configuration-environment-overrides.adoc[]
 ** xref:nifi:usage_guide/updating.adoc[]
+** xref:nifi:usage_guide/pod-placement.adoc[]
