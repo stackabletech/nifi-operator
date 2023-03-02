@@ -12,6 +12,6 @@ commands:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: vector-aggregator-discovery
+  name: nifi-vector-aggregator-discovery
 data:
   ADDRESS: nifi-vector-aggregator:6123
