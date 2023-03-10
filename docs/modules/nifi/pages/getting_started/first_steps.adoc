@@ -17,14 +17,14 @@ To create a ZooKeeper instance run the following command:
 
 [source,bash]
 ----
-include::example$getting_started/getting-started.sh[tag=install-zookeeper]
+include::example$getting_started/getting_started.sh[tag=install-zookeeper]
 ----
 
 Create a Znode object:
 
 [source,bash]
 ----
-include::example$getting_started/getting-started.sh[tag=install-znode]
+include::example$getting_started/getting_started.sh[tag=install-znode]
 ----
 
 The xref:zookeeper:znodes.adoc[ZNode] makes sure that the NiFi cluster will operate in its own separated directory in ZooKeeper.
@@ -35,14 +35,14 @@ The NiFi cluster requires authentication. Create a set of credentials for this p
 
 [source,bash]
 ----
-include::example$getting_started/getting-started.sh[tag=install-nifi-credentials]
+include::example$getting_started/getting_started.sh[tag=install-nifi-credentials]
 ----
 
 Finally create a NiFi instance:
 
 [source,bash]
 ----
-include::example$getting_started/getting-started.sh[tag=install-nifi]
+include::example$getting_started/getting_started.sh[tag=install-nifi]
 ----
 
 == Verify that it works
@@ -51,7 +51,7 @@ First, make sure all pods are ready:
 
 [source,bash]
 ----
-include::example$getting_started/getting-started.sh[tag=wait-nifi-rollout]
+include::example$getting_started/getting_started.sh[tag=wait-nifi-rollout]
 ----
 
 Then make sure the StatefulSets are ready:
@@ -105,7 +105,7 @@ Extracting the IP and port via `kubectl` is cumbersome. We recommend using `stac
 
 [source,bash]
 ----
-include::example$getting_started/getting-started.sh[tag=get-nifi-node-name]
+include::example$getting_started/getting_started.sh[tag=get-nifi-node-name]
 ----
 
 which should output a single node name where a NiFi pod is scheduled:
@@ -119,7 +119,7 @@ Retrieve the IP of that node:
 
 [source,bash]
 ----
-include::example$getting_started/getting-started.sh[tag=get-nifi-node-ip]
+include::example$getting_started/getting_started.sh[tag=get-nifi-node-ip]
 ----
 
 which should output the internal IP of that node:
@@ -133,7 +133,7 @@ Finally, retrieve the NodePort of the `simple-nifi` service:
 
 [source,bash]
 ----
-include::example$getting_started/getting-started.sh[tag=get-nifi-service-port]
+include::example$getting_started/getting_started.sh[tag=get-nifi-service-port]
 ----
 
 which should output the NodePort:
@@ -147,7 +147,7 @@ Now build the full URL:
 
 [source,bash]
 ----
-include::example$getting_started/getting-started.sh[tag=create_nifi_url]
+include::example$getting_started/getting_started.sh[tag=create_nifi_url]
 ----
 
 which should output a URL to connect to the NiFi web interface:

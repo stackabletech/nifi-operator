@@ -19,7 +19,7 @@ running, run the following command to install all operators necessary for NiFi:
 
 [source,bash]
 ----
-include::example$getting_started/getting-started.sh[tag=stackablectl-install-operators]
+include::example$getting_started/getting_started.sh[tag=stackablectl-install-operators]
 ----
 
 The output should contain the following lines
@@ -37,14 +37,14 @@ You can also use Helm to install the operators. Add the Stackable Helm repositor
 
 [source,bash]
 ----
-include::example$getting_started/getting-started.sh[tag=helm-add-repo]
+include::example$getting_started/getting_started.sh[tag=helm-add-repo]
 ----
 
 Then install the Stackable Operators:
 
 [source,bash]
 ----
-include::example$getting_started/getting-started.sh[tag=helm-install-operators]
+include::example$getting_started/getting_started.sh[tag=helm-install-operators]
 ----
 
 Helm will deploy the operators in a Kubernetes Deployment and apply the CRDs for the Apache NiFi service (as well as the CRDs for the required operators). You are now ready to deploy Apache NiFi in Kubernetes.
