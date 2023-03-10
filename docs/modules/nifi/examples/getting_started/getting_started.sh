@@ -30,20 +30,20 @@ helm repo update
 
 echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
-helm install --wait commons-operator stackable-dev/commons-operator --version 0.5.0-nightly
-helm install --wait secret-operator stackable-dev/secret-operator --version 0.7.0-nightly
-helm install --wait zookeeper-operator stackable-dev/zookeeper-operator --version 0.13.0-nightly
-helm install --wait nifi-operator stackable-dev/nifi-operator --version 0.9.0-nightly
+helm install --wait commons-operator stackable-dev/commons-operator --version 0.0.0-dev
+helm install --wait secret-operator stackable-dev/secret-operator --version 0.0.0-dev
+helm install --wait zookeeper-operator stackable-dev/zookeeper-operator --version 0.0.0-dev
+helm install --wait nifi-operator stackable-dev/nifi-operator --version 0.0.0-dev
 # end::helm-install-operators[]
 ;;
 "stackablectl")
 echo "installing Operators with stackablectl"
 # tag::stackablectl-install-operators[]
 stackablectl operator install \
-  commons=0.5.0-nightly \
-  secret=0.7.0-nightly \
-  zookeeper=0.13.0-nightly \
-  nifi=0.9.0-nightly
+  commons=0.0.0-dev \
+  secret=0.0.0-dev \
+  zookeeper=0.0.0-dev \
+  nifi=0.0.0-dev
 # end::stackablectl-install-operators[]
 ;;
 *)
