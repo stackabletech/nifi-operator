@@ -89,7 +89,7 @@ sleep 15
 
 echo "Awaiting ZooKeeper rollout finish"
 # tag::watch-zookeeper-rollout[]
-kubectl rollout status --watch --timout=5m statefulset/simple-zk-server-default
+kubectl rollout status --watch --timeout=5m statefulset/simple-zk-server-default
 # end::watch-zookeeper-rollout[]
 
 echo "Create NiFi admin credentials"
