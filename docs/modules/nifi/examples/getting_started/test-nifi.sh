@@ -9,7 +9,8 @@ nifi_username=$(kubectl get secret nifi-admin-credentials-simple -o jsonpath='{.
 nifi_password=$(kubectl get secret nifi-admin-credentials-simple -o jsonpath='{.data.password}' | base64 --decode)
 
 # check if host is reachable
-return_code=$(curl --insecure -s -o /dev/null -w "%{http_code}" "$nifi_host")
+echo "Checking if NiFi is reachable at $nifi_host"
+return_code=$(curl --insecure -v -o /dev/null -w "%{http_code}" "$nifi_host")
 
 if [ "$return_code" -ne "200" ]; then
   echo "can't reach NiFi. return code: $return_code"
