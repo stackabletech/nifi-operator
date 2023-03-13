@@ -8,6 +8,14 @@ echo "Getting NiFi credentials"
 nifi_username=$(kubectl get secret nifi-admin-credentials-simple -o jsonpath='{.data.username}' | base64 --decode)
 nifi_password=$(kubectl get secret nifi-admin-credentials-simple -o jsonpath='{.data.password}' | base64 --decode)
 
+# check if host is reachable
+return_code=$(curl --insecure -s -o /dev/null -w "%{http_code}" "$nifi_host")
+
+if [ "$return_code" -ne "200" ]; then
+  echo "can't reach NiFi. return code: $return_code"
+  exit 1
+fi
+
 # get nifi token
 echo "Getting NiFi JWT token"
 nifi_jwt_token=$(curl -s -X POST --insecure --header 'content-type: application/x-www-form-urlencoded' -d "username=$nifi_username&password=$nifi_password" "$nifi_host/nifi-api/access/token")
