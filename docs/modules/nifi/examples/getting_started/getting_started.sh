@@ -155,7 +155,7 @@ echo "NodeName: $nifi_node_name"
 
 echo "List $nifi_node_name node internal ip"
 # tag::get-nifi-node-ip[]
-nifi_node_ip=$(kubectl get nodes -o jsonpath="{.items[?(@.metadata.name==\"$nifi_node_name\")].status.addresses[?(@.type==\"InternalIP\")].address}") && \
+nifi_node_ip=$(kubectl get nodes -o jsonpath="{.items[?(@.metadata.name==\"$nifi_node_name\")].status.addresses[?(@.type==\"ExternalIP\")].address}") && \
 echo "NodeIp: $nifi_node_ip"
 # end::get-nifi-node-ip[]
 
