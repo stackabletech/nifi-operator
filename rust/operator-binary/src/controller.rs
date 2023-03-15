@@ -864,7 +864,8 @@ async fn build_node_rolegroup_statefulset(
     let mut pod_builder = PodBuilder::new();
 
     // Add user configured extra volumes if any are specified
-    if let Some(extra_volumes) = &nifi.spec.extra_volumes {
+    let extra_volumes = &nifi.spec.extra_volumes;
+    if !extra_volumes.is_empty() {
         let volume_names: Vec<String> = extra_volumes
             .clone()
             .into_iter()
@@ -877,7 +878,7 @@ async fn build_node_rolegroup_statefulset(
         );
         pod_builder.add_volumes(extra_volumes.clone());
         container_nifi.add_volume_mounts(extra_volumes.iter().map(|volume| VolumeMount {
-            mount_path: format!("{USERDATA_MOUNTPOINT}/{volume.name}"),
+            mount_path: format!("{USERDATA_MOUNTPOINT}/{0}", volume.name),
             mount_propagation: None,
             name: volume.name.clone(),
             read_only: None,
