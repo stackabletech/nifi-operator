@@ -30,10 +30,6 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
 };
 
-use crate::authentication::NifiAuthenticationConfig;
-
-pub mod authentication;
-
 pub const APP_NAME: &str = "nifi";
 
 pub const HTTPS_PORT_NAME: &str = "https";
