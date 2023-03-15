@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Enabled logging and log aggregation ([#418])
+- Deploy default and support custom affinities ([#436]).
 - Added the ability to mount extra volumes for files that may be needed for NiFi processors to work ([#434])
 
 ### Changed
@@ -17,6 +18,7 @@ All notable changes to this project will be documented in this file.
 
 [#417]: https://github.com/stackabletech/nifi-operator/pull/417
 [#418]: https://github.com/stackabletech/nifi-operator/pull/418
+[#436]: https://github.com/stackabletech/nifi-operator/pull/436
 
 ## [23.1.0] - 2023-01-23
 

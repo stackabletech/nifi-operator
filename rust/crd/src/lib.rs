@@ -1,10 +1,16 @@
+pub mod affinity;
+pub mod authentication;
+
+use crate::authentication::NifiAuthenticationConfig;
 use std::collections::BTreeMap;
 
+use affinity::get_affinity;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::k8s_openapi::api::core::v1::Volume;
 use stackable_operator::{
     commons::{
+        affinity::StackableAffinity,
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
@@ -17,10 +23,10 @@ use stackable_operator::{
         merge::Merge,
     },
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
-    kube::{runtime::reflector::ObjectRef, CustomResource},
+    kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
     product_config_utils::{ConfigError, Configuration},
     product_logging::{self, spec::Logging},
-    role_utils::{Role, RoleGroupRef},
+    role_utils::{Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
 };
 
@@ -210,12 +216,14 @@ pub struct NifiConfig {
     pub logging: Logging<Container>,
     #[fragment_attrs(serde(default))]
     pub resources: Resources<NifiStorageConfig, NoRuntimeLimits>,
+    #[fragment_attrs(serde(default))]
+    pub affinity: StackableAffinity,
 }
 
 impl NifiConfig {
     pub const NIFI_SENSITIVE_PROPS_KEY: &'static str = "NIFI_SENSITIVE_PROPS_KEY";
 
-    pub fn default_config() -> NifiConfigFragment {
+    pub fn default_config(cluster_name: &str, role: &NifiRole) -> NifiConfigFragment {
         NifiConfigFragment {
             logging: product_logging::spec::default_logging(),
             resources: ResourcesFragment {
@@ -255,6 +263,7 @@ impl NifiConfig {
                     },
                 },
             },
+            affinity: get_affinity(cluster_name, role),
         }
     }
 }
@@ -367,7 +376,7 @@ impl NifiCluster {
     /// Retrieve and merge resource configs for role and role groups
     pub fn merged_config(&self, role: &NifiRole, role_group: &str) -> Result<NifiConfig, Error> {
         // Initialize the result with all default values as baseline
-        let conf_defaults = NifiConfig::default_config();
+        let conf_defaults = NifiConfig::default_config(&self.name_any(), role);
 
         let role = self.spec.nodes.as_ref().context(MissingNifiRoleSnafu {
             role: role.to_string(),
@@ -382,6 +391,17 @@ impl NifiCluster {
             .get(role_group)
             .map(|rg| rg.config.config.clone())
             .unwrap_or_default();
+
+        if let Some(RoleGroup {
+            selector: Some(selector),
+            ..
+        }) = role.role_groups.get(role_group)
+        {
+            // Migrate old `selector` attribute, see ADR 26 affinities.
+            // TODO Can be removed after support for the old `selector` field is dropped.
+            #[allow(deprecated)]
+            conf_rolegroup.affinity.add_legacy_selector(selector);
+        }
 
         // Merge more specific configs into default config
         // Hierarchy is:
