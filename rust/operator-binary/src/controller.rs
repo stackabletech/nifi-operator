@@ -865,10 +865,15 @@ async fn build_node_rolegroup_statefulset(
 
     // Add user configured extra volumes if any are specified
     if let Some(extra_volumes) = &nifi.spec.extra_volumes {
+        let volume_names: Vec<String> = extra_volumes
+            .clone()
+            .into_iter()
+            .map(|volume| volume.name)
+            .collect();
         tracing::info!(
-            "Found user specified extra volumes: {:?} these will be mounted in '{}'",
-            extra_volumes,
-            USERDATA_MOUNTPOINT
+            ?volume_names,
+            extra_volumes_mount_point = USERDATA_MOUNTPOINT,
+            "Found user-specified extra volumes",
         );
         pod_builder.add_volumes(extra_volumes.clone());
         container_nifi.add_volume_mounts(extra_volumes.iter().map(|volume| VolumeMount {
