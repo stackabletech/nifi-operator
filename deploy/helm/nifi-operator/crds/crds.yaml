@@ -1166,7 +1166,6 @@ spec:
                     required:
                       - name
                     type: object
-                  nullable: true
                   type: array
                 image:
                   anyOf:
