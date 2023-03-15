@@ -632,7 +632,7 @@ fn build_node_rolegroup_service(
     })
 }
 
-const USERDATA_MOUNTPOINT: &'static str = "/stackable/userdata";
+const USERDATA_MOUNTPOINT: &str = "/stackable/userdata";
 
 /// The rolegroup [`StatefulSet`] runs the rolegroup, as configured by the administrator.
 ///
@@ -872,7 +872,7 @@ async fn build_node_rolegroup_statefulset(
         );
         pod_builder.add_volumes(extra_volumes.clone());
         container_nifi.add_volume_mounts(extra_volumes.iter().map(|volume| VolumeMount {
-            mount_path: format!("USERDATA_MOUNTPOINT/{}", volume.name),
+            mount_path: format!("{}/{}", USERDATA_MOUNTPOINT, volume.name),
             mount_propagation: None,
             name: volume.name.clone(),
             read_only: None,
