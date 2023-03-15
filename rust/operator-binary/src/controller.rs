@@ -632,6 +632,8 @@ fn build_node_rolegroup_service(
     })
 }
 
+const USERDATA_MOUNTPOINT: &'static str = "/stackable/userdata";
+
 /// The rolegroup [`StatefulSet`] runs the rolegroup, as configured by the administrator.
 ///
 /// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the
@@ -863,9 +865,14 @@ async fn build_node_rolegroup_statefulset(
 
     // Add user configured extra volumes if any are specified
     if let Some(extra_volumes) = &nifi.spec.extra_volumes {
+        tracing::info!(
+            "Found user specified extra volumes: {:?} these will be mounted in '{}'",
+            extra_volumes,
+            USERDATA_MOUNTPOINT
+        );
         pod_builder.add_volumes(extra_volumes.clone());
         container_nifi.add_volume_mounts(extra_volumes.iter().map(|volume| VolumeMount {
-            mount_path: format!("/stackable/userdata/{}", volume.name),
+            mount_path: format!("USERDATA_MOUNTPOINT/{}", volume.name),
             mount_propagation: None,
             name: volume.name.clone(),
             read_only: None,

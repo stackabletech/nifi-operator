@@ -14,4 +14,4 @@ spec:
     name: certs
 ----
 
-All `Volumes` specified in this sectino will be made available under `/stackabe/userdata/{volumename}`.
+All `Volumes` specified in this section will be made available under `/stackable/userdata/{volumename}`.
