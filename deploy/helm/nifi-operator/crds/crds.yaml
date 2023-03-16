@@ -57,7 +57,7 @@ spec:
                         - method
                       type: object
                     extraVolumes:
-                      description: Extra volumes to mount into every container, this can be useful to for example make client certificates, keytabs or similar things available to processors
+                      description: Extra volumes to mount into every container, this can be useful to for example make client certificates, keytabs or similar things available to processors These volumes will be mounted below `/stackable/userdata/{volumename}`
                       items:
                         description: Volume represents a named volume in a pod that may be accessed by any container in the pod.
                         properties:
