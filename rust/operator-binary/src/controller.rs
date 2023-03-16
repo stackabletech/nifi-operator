@@ -9,7 +9,6 @@ use std::{
 
 use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::k8s_openapi::api::core::v1::VolumeMount;
 use stackable_operator::{
     builder::{
         ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
@@ -862,8 +861,6 @@ async fn build_node_rolegroup_statefulset(
         .resources(merged_config.resources.clone().into());
 
     let mut pod_builder = PodBuilder::new();
-
-
 
     // Add user configured extra volumes if any are specified
     for volume in &nifi.spec.cluster_config.extra_volumes {

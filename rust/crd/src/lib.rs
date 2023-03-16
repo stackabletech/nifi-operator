@@ -91,7 +91,7 @@ pub struct NifiSpec {
     pub stopped: Option<bool>,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiClusterConfig {
     /// A reference to a Secret containing username/password for the initial admin user
