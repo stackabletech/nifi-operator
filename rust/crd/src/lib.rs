@@ -89,10 +89,6 @@ pub struct NifiSpec {
     /// Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stopped: Option<bool>,
-    /// Extra volumes to mount into every container, this can be useful to for example make client
-    /// certificates, keytabs or similar things available to processors
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub extra_volumes: Vec<Volume>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -108,6 +104,10 @@ pub struct NifiClusterConfig {
     pub vector_aggregator_config_map_name: Option<String>,
     /// The reference to the ZooKeeper cluster
     pub zookeeper_config_map_name: String,
+    /// Extra volumes to mount into every container, this can be useful to for example make client
+    /// certificates, keytabs or similar things available to processors
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extra_volumes: Vec<Volume>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]

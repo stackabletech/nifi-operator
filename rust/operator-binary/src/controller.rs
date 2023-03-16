@@ -863,28 +863,23 @@ async fn build_node_rolegroup_statefulset(
 
     let mut pod_builder = PodBuilder::new();
 
+
+
     // Add user configured extra volumes if any are specified
-    let extra_volumes = &nifi.spec.extra_volumes;
-    if !extra_volumes.is_empty() {
-        let volume_names: Vec<String> = extra_volumes
-            .clone()
-            .into_iter()
-            .map(|volume| volume.name)
-            .collect();
+    for volume in &nifi.spec.cluster_config.extra_volumes {
+        // Extract values into vars so we make it impossible to log something other than
+        // what we actually use to create the mounts - maybe paranoid, but hey ..
+        let volume_name = &volume.name;
+        let mount_point = format!("{USERDATA_MOUNTPOINT}/{}", volume.name);
+
         tracing::info!(
-            ?volume_names,
-            extra_volumes_mount_point = USERDATA_MOUNTPOINT,
-            "Found user-specified extra volumes",
+            ?volume_name,
+            ?mount_point,
+            ?role,
+            "Adding user specified extra volume",
         );
-        pod_builder.add_volumes(extra_volumes.clone());
-        container_nifi.add_volume_mounts(extra_volumes.iter().map(|volume| VolumeMount {
-            mount_path: format!("{USERDATA_MOUNTPOINT}/{0}", volume.name),
-            mount_propagation: None,
-            name: volume.name.clone(),
-            read_only: None,
-            sub_path: None,
-            sub_path_expr: None,
-        }));
+        pod_builder.add_volume(volume.clone());
+        container_nifi.add_volume_mount(volume_name, mount_point);
     }
 
     // We want to add nifi container first for easier defaulting into this container

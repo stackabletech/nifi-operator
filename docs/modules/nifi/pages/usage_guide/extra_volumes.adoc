@@ -8,10 +8,11 @@ In order to make these files available the operator allows specifying extra volu
 [source,yaml]
 ----
 spec:
-  extraVolumes:
-  - configMap:
-      name: nifi-client-certs
-    name: certs
+  clusterConfig:
+      extraVolumes:
+      - configMap:
+          name: nifi-client-certs
+        name: certs
 ----
 
 All `Volumes` specified in this section will be made available under `/stackable/userdata/{volumename}`.
