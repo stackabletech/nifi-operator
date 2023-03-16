@@ -2,10 +2,12 @@ pub mod affinity;
 pub mod authentication;
 
 use crate::authentication::NifiAuthenticationConfig;
+use std::collections::BTreeMap;
 
 use affinity::get_affinity;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::k8s_openapi::api::core::v1::Volume;
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
@@ -27,7 +29,6 @@ use stackable_operator::{
     role_utils::{Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
 };
-use std::collections::BTreeMap;
 
 pub const APP_NAME: &str = "nifi";
 
@@ -90,7 +91,7 @@ pub struct NifiSpec {
     pub stopped: Option<bool>,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiClusterConfig {
     /// A reference to a Secret containing username/password for the initial admin user
@@ -103,6 +104,11 @@ pub struct NifiClusterConfig {
     pub vector_aggregator_config_map_name: Option<String>,
     /// The reference to the ZooKeeper cluster
     pub zookeeper_config_map_name: String,
+    /// Extra volumes to mount into every container, this can be useful to for example make client
+    /// certificates, keytabs or similar things available to processors
+    /// These volumes will be mounted below `/stackable/userdata/{volumename}`
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extra_volumes: Vec<Volume>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]

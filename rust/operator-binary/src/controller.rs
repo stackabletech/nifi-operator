@@ -1,20 +1,14 @@
 //! Ensures that `Pod`s are configured and running for each [`NifiCluster`]
-use crate::config::{
-    build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
-    validated_product_config, NifiRepository, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES,
-    NIFI_STATE_MANAGEMENT_XML,
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+    ops::Deref,
+    sync::Arc,
+    time::Duration,
 };
-use crate::product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address};
-use crate::{config, OPERATOR_NAME};
 
 use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_nifi_crd::{
-    authentication::ResolvedAuthenticationMethod, Container, NifiCluster, NifiConfig,
-    NifiConfigFragment, NifiRole, NifiStatus, APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME,
-    HTTPS_PORT, HTTPS_PORT_NAME, LOG_VOLUME_SIZE_IN_MIB, METRICS_PORT, METRICS_PORT_NAME,
-    PROTOCOL_PORT, PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
-};
 use stackable_operator::{
     builder::{
         ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
@@ -52,15 +46,23 @@ use stackable_operator::{
     },
     role_utils::{Role, RoleGroupRef},
 };
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, HashMap},
-    ops::Deref,
-    sync::Arc,
-    time::Duration,
-};
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
+
+use stackable_nifi_crd::{
+    authentication::ResolvedAuthenticationMethod, Container, NifiCluster, NifiConfig,
+    NifiConfigFragment, NifiRole, NifiStatus, APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME,
+    HTTPS_PORT, HTTPS_PORT_NAME, LOG_VOLUME_SIZE_IN_MIB, METRICS_PORT, METRICS_PORT_NAME,
+    PROTOCOL_PORT, PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
+};
+
+use crate::config::{
+    build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
+    validated_product_config, NifiRepository, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES,
+    NIFI_STATE_MANAGEMENT_XML,
+};
+use crate::product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address};
+use crate::{config, OPERATOR_NAME};
 
 pub const CONTROLLER_NAME: &str = "nificluster";
 
@@ -629,6 +631,8 @@ fn build_node_rolegroup_service(
     })
 }
 
+const USERDATA_MOUNTPOINT: &str = "/stackable/userdata";
+
 /// The rolegroup [`StatefulSet`] runs the rolegroup, as configured by the administrator.
 ///
 /// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the
@@ -857,6 +861,24 @@ async fn build_node_rolegroup_statefulset(
         .resources(merged_config.resources.clone().into());
 
     let mut pod_builder = PodBuilder::new();
+
+    // Add user configured extra volumes if any are specified
+    for volume in &nifi.spec.cluster_config.extra_volumes {
+        // Extract values into vars so we make it impossible to log something other than
+        // what we actually use to create the mounts - maybe paranoid, but hey ..
+        let volume_name = &volume.name;
+        let mount_point = format!("{USERDATA_MOUNTPOINT}/{}", volume.name);
+
+        tracing::info!(
+            ?volume_name,
+            ?mount_point,
+            ?role,
+            "Adding user specified extra volume",
+        );
+        pod_builder.add_volume(volume.clone());
+        container_nifi.add_volume_mount(volume_name, mount_point);
+    }
+
     // We want to add nifi container first for easier defaulting into this container
     pod_builder.add_container(container_nifi.build());
 
