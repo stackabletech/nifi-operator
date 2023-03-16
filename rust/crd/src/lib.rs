@@ -106,6 +106,7 @@ pub struct NifiClusterConfig {
     pub zookeeper_config_map_name: String,
     /// Extra volumes to mount into every container, this can be useful to for example make client
     /// certificates, keytabs or similar things available to processors
+    /// These volumes will be mounted below `/stackable/userdata/{volumename}`
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extra_volumes: Vec<Volume>,
 }
