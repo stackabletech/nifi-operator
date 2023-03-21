@@ -147,17 +147,29 @@ kubectl wait -l statefulset.kubernetes.io/pod-name=simple-nifi-node-default-1 \
 
 sleep 5
 
+case "$1" in
+"helm")
+
 echo "Get a single node where a NiFi pod is running"
 # tag::get-nifi-node-name[]
 nifi_node_name=$(kubectl get endpoints simple-nifi --output=jsonpath='{.subsets[0].addresses[0].nodeName}') && \
 echo "NodeName: $nifi_node_name"
 # end::get-nifi-node-name[]
 
+
+if [ "$internal" = true ] ; then
 echo "List $nifi_node_name node internal ip"
-# tag::get-nifi-node-ip[]
+# tag::get-nifi-node-ip-internal[]
+nifi_node_ip=$(kubectl get nodes -o jsonpath="{.items[?(@.metadata.name==\"$nifi_node_name\")].status.addresses[?(@.type==\"InternalIP\")].address}") && \
+echo "NodeIp: $nifi_node_ip"
+# end::get-nifi-node-ip-internal[]
+else
+echo "List $nifi_node_name node external ip"
+# tag::get-nifi-node-ip-external[]
 nifi_node_ip=$(kubectl get nodes -o jsonpath="{.items[?(@.metadata.name==\"$nifi_node_name\")].status.addresses[?(@.type==\"ExternalIP\")].address}") && \
 echo "NodeIp: $nifi_node_ip"
-# end::get-nifi-node-ip[]
+# end::get-nifi-node-ip-external[]
+fi
 
 echo "Get node port from service"
 # tag::get-nifi-service-port[]
@@ -166,10 +178,26 @@ echo "NodePort: $nifi_service_port"
 # end::get-nifi-service-port[]
 
 echo "Create NiFi url"
-# tag::create_nifi_url[]
+# tag::create-nifi-url[]
 nifi_url="https://$nifi_node_ip:$nifi_service_port" && \
 echo "NiFi web interface: $nifi_url"
-# end::create_nifi_url[]
+# end::create-nifi-url[]
+
+;;
+"stackablectl")
+
+echo "Getting NiFi endpoint with stackablectl ..."
+# tag::stackablectl-nifi-url[]
+nifi_url=$(svc list -o json | jq --raw-output '.nifi[0].endpoints.https')
+# end::stackablectl-nifi-url[]
+echo "Endpoint: $nifi_url"
+
+;;
+*)
+echo "Need to provide 'helm' or 'stackablectl' as an argument for which installation method to use!"
+exit 1
+;;
+esac
 
 echo "Starting nifi tests"
 chmod +x ./test-nifi.sh
