@@ -52,6 +52,23 @@ exit 1
 ;;
 esac
 
+internal=true
+if [ $# -eq 2 ]
+then
+  case "$2" in
+  "InternalIP")
+  internal=true
+  ;;
+  "ExternalIP")
+  internal=false
+  ;;
+  *)
+  echo "Need to provide 'InternalIP' or 'ExternalIP' as the connection type argument."
+  exit 1
+  ;;
+  esac
+fi
+
 echo "Installing ZooKeeper"
 # tag::install-zookeeper[]
 kubectl apply -f - <<EOF

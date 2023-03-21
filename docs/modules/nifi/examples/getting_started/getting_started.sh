@@ -21,7 +21,6 @@ cd "$(dirname "$0")"
 
 case "$1" in
 "helm")
-
 echo "Adding 'stackable-dev' Helm Chart repository"
 # tag::helm-add-repo[]
 helm repo add stackable-dev https://repo.stackable.tech/repository/helm-dev/
@@ -69,8 +68,6 @@ then
   ;;
   esac
 fi
-
-
 
 echo "Installing ZooKeeper"
 # tag::install-zookeeper[]
