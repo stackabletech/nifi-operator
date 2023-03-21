@@ -205,7 +205,7 @@ echo "NiFi web interface: $nifi_url"
 
 echo "Getting NiFi endpoint with stackablectl ..."
 # tag::stackablectl-nifi-url[]
-nifi_url=$(svc list -o json | jq --raw-output '.nifi[0].endpoints.https')
+nifi_url=$(stackablectl svc list -o json | jq --raw-output '.nifi[0].endpoints.https')
 # end::stackablectl-nifi-url[]
 echo "Endpoint: $nifi_url"
 
