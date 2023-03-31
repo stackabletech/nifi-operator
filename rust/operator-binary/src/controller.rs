@@ -426,6 +426,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
                 &resolved_product_image,
                 &rolegroup,
                 &resolved_auth_conf,
+                &rbac_sa.name_unchecked(),
             )?;
 
             cluster_resources
@@ -1134,6 +1135,7 @@ fn build_reporting_task_job(
     resolved_product_image: &ResolvedProductImage,
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
     resolved_auth_conf: &ResolvedAuthenticationMethod,
+    sa_name: &str,
 ) -> Result<Job> {
     let rolegroup_obj_name = rolegroup_ref.object_name();
     let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
@@ -1190,12 +1192,14 @@ fn build_reporting_task_job(
                 .build(),
         )
         .image_pull_secrets_from_product_image(resolved_product_image)
-        .security_context(PodSecurityContext {
-            run_as_user: Some(1000),
-            run_as_group: Some(1000),
-            fs_group: Some(1000),
-            ..PodSecurityContext::default()
-        })
+        .service_account_name(sa_name)
+        .security_context(
+            PodSecurityContextBuilder::new()
+                .run_as_user(NIFI_UID)
+                .run_as_group(0)
+                .fs_group(1000)
+                .build(),
+        )
         .add_container(cb.build())
         .add_volume(build_keystore_volume(KEYSTORE_VOLUME_NAME))
         .build_template();

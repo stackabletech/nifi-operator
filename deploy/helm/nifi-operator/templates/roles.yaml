@@ -148,6 +148,7 @@ volumes:
   - projected
   - secret
   - ephemeral
+  - csi
 {{ end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
