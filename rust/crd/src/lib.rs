@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 use affinity::get_affinity;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::commons::cluster_operation::ClusterOperation;
 use stackable_operator::k8s_openapi::api::core::v1::Volume;
 use stackable_operator::{
     commons::{
@@ -29,7 +30,6 @@ use stackable_operator::{
     role_utils::{Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
 };
-use stackable_operator::commons::cluster_operation::ClusterOperation;
 
 pub const APP_NAME: &str = "nifi";
 
