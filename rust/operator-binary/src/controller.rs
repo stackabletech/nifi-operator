@@ -27,8 +27,8 @@ use stackable_operator::{
             core::v1::{
                 Affinity, CSIVolumeSource, ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource,
                 EmptyDirVolumeSource, EnvVar, EnvVarSource, Node, NodeAddress, ObjectFieldSelector,
-                PodAffinityTerm, PodAntiAffinity, PodSecurityContext, PodSpec, Probe, Secret,
-                SecretVolumeSource, Service, ServicePort, ServiceSpec, TCPSocketAction, Volume,
+                PodAffinityTerm, PodAntiAffinity, PodSpec, Probe, Secret, SecretVolumeSource,
+                Service, ServicePort, ServiceSpec, TCPSocketAction, Volume,
             },
         },
         apimachinery::pkg::{
