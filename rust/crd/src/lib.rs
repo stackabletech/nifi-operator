@@ -29,6 +29,7 @@ use stackable_operator::{
     role_utils::{Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
 };
+use stackable_operator::commons::cluster_operation::ClusterOperation;
 
 pub const APP_NAME: &str = "nifi";
 
@@ -89,6 +90,8 @@ pub struct NifiSpec {
     /// Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stopped: Option<bool>,
+    #[serde(default)]
+    pub cluster_operation: ClusterOperation,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]

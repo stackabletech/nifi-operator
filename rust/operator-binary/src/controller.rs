@@ -46,6 +46,8 @@ use stackable_operator::{
     },
     role_utils::{Role, RoleGroupRef},
 };
+use stackable_operator::cluster_resources::ClusterResourceApplyStrategy;
+use stackable_operator::commons::rbac::build_rbac_resources;
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
 
@@ -65,6 +67,7 @@ use crate::product_logging::{extend_role_group_config_map, resolve_vector_aggreg
 use crate::{config, OPERATOR_NAME};
 
 pub const CONTROLLER_NAME: &str = "nificluster";
+pub const NIFI_UID: i64 = 1000;
 
 const KEYSTORE_VOLUME_NAME: &str = "keystore";
 const KEYSTORE_NIFI_CONTAINER_MOUNT: &str = "/stackable/keystore";
@@ -197,6 +200,16 @@ pub enum Error {
         source: crate::product_logging::Error,
         cm_name: String,
     },
+    #[snafu(display("failed to patch service account: {source}"))]
+    ApplyServiceAccount {
+        name: String,
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("failed to patch role binding: {source}"))]
+    ApplyRoleBinding {
+        name: String,
+        source: stackable_operator::error::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -225,6 +238,20 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
 
     let resolved_product_image: ResolvedProductImage =
         nifi.spec.image.resolve(DOCKER_IMAGE_BASE_NAME);
+
+    let (rbac_sa, rbac_rolebinding) = build_rbac_resources(nifi.as_ref(), "nifi");
+    client
+        .apply_patch(CONTROLLER_NAME, &rbac_sa, &rbac_sa)
+        .await
+        .with_context(|_| ApplyServiceAccountSnafu {
+            name: rbac_sa.name_unchecked(),
+        })?;
+    client
+        .apply_patch(CONTROLLER_NAME, &rbac_rolebinding, &rbac_rolebinding)
+        .await
+        .with_context(|_| ApplyRoleBindingSnafu {
+            name: rbac_rolebinding.name_unchecked(),
+        })?;
 
     tracing::info!("Checking for sensitive key configuration");
     check_or_generate_sensitive_key(client, &nifi).await?;
@@ -308,6 +335,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         OPERATOR_NAME,
         CONTROLLER_NAME,
         &nifi.object_ref(&()),
+        ClusterResourceApplyStrategy::from(&nifi.spec.cluster_operation),
     )
     .context(CreateClusterResourcesSnafu)?;
 
@@ -318,7 +346,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
 
     let node_role_service = build_node_role_service(&nifi, &resolved_product_image)?;
     cluster_resources
-        .add(client, &node_role_service)
+        .add(client, node_role_service)
         .await
         .context(ApplyRoleServiceSnafu)?;
 
@@ -389,6 +417,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
                 &merged_config,
                 &resolved_auth_conf,
                 &version_change,
+                &rbac_sa.name_unchecked(),
             )
             .await?;
 
@@ -400,19 +429,19 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             )?;
 
             cluster_resources
-                .add(client, &rg_service)
+                .add(client, rg_service)
                 .await
                 .with_context(|_| ApplyRoleGroupServiceSnafu {
                     rolegroup: rolegroup.clone(),
                 })?;
             cluster_resources
-                .add(client, &rg_configmap)
+                .add(client, rg_configmap)
                 .await
                 .with_context(|_| ApplyRoleGroupConfigSnafu {
                     rolegroup: rolegroup.clone(),
                 })?;
             cluster_resources
-                .add(client, &rg_statefulset)
+                .add(client, rg_statefulset)
                 .await
                 .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
                     rolegroup: rolegroup.clone(),
@@ -647,6 +676,7 @@ async fn build_node_rolegroup_statefulset(
     merged_config: &NifiConfig,
     resolved_auth_conf: &ResolvedAuthenticationMethod,
     version_change_state: &VersionChangeState,
+    sa_name: &str,
 ) -> Result<StatefulSet> {
     tracing::debug!("Building statefulset");
     let zookeeper_host = "ZOOKEEPER_HOSTS";
@@ -978,10 +1008,11 @@ async fn build_node_rolegroup_statefulset(
             name: "activeconf".to_string(),
             ..Volume::default()
         })
+        .service_account_name(sa_name)
         .security_context(
             PodSecurityContextBuilder::new()
-                .run_as_user(1000)
-                .run_as_group(1000)
+                .run_as_user(NIFI_UID)
+                .run_as_group(0)
                 .fs_group(1000)
                 .build(),
         )
