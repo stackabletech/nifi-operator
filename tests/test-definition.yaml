@@ -21,6 +21,9 @@ dimensions:
   - name: nifi_new
     values:
       - 1.18.0-stackable23.4.0-rc2
+  - name: nifi-latest
+    values:
+      - 1.18.0-stackable23.4.0-rc2
   - name: ldap-use-tls
     values:
       - "false"
@@ -51,4 +54,8 @@ tests:
   - name: logging
     dimensions:
       - nifi
+      - zookeeper-latest
+  - name: cluster_operation
+    dimensions:
+      - nifi-latest
       - zookeeper-latest
