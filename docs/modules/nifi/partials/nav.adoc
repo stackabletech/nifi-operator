@@ -12,3 +12,4 @@
 ** xref:nifi:usage_guide/configuration-environment-overrides.adoc[]
 ** xref:nifi:usage_guide/updating.adoc[]
 ** xref:nifi:usage_guide/pod-placement.adoc[]
+** xref:nifi:usage_guide/cluster_operations.adoc[]
