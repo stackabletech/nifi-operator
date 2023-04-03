@@ -1,3 +1,7 @@
+# These tests can run against an OpenShift cluster, provided you note the following:
+#
+# 1. Set the "openshift" dimension below to "true" (with quotes)
+#
 ---
 dimensions:
   - name: zookeeper
@@ -25,6 +29,9 @@ dimensions:
     values:
       - "false"
       - "true"
+  - name: openshift
+    values:
+      - "true"
 tests:
   - name: upgrade
     dimensions:
@@ -48,6 +55,7 @@ tests:
       - nifi
       - zookeeper-latest
       - ldap-use-tls
+      - openshift
   - name: logging
     dimensions:
       - nifi
