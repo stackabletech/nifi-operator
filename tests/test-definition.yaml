@@ -31,7 +31,7 @@ dimensions:
       - "true"
   - name: openshift
     values:
-      - "true"
+      - "false"
 tests:
   - name: upgrade
     dimensions:
