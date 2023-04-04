@@ -2,7 +2,7 @@
 ---
 image:
   repository: docker.stackable.tech/stackable/nifi-operator
-  pullPolicy: IfNotPresent
+  pullPolicy: Always #IfNotPresent
 
 imagePullSecrets: []
 nameOverride: ""
