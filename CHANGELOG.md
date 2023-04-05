@@ -7,19 +7,21 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Enabled logging and log aggregation ([#418])
-- Deploy default and support custom affinities ([#436]).
+- Deploy default and support custom affinities ([#436])
 - Added the ability to mount extra volumes for files that may be needed for NiFi processors to work ([#434])
+- Extend cluster resources for status and cluster operation (paused, stopped) ([#447])
 
 ### Changed
 
 - [BREAKING]: Renamed global `config` to `clusterConfig` ([#417])
 - [BREAKING]: Moved `zookeeper_configmap_name` to `clusterConfig` ([#417])
-- Updated operator-rs to 0.33.0  ([#418])
+- `operator-rs` `0.33.0` -> `0.39.0` ([#418], [#447])
 
 [#417]: https://github.com/stackabletech/nifi-operator/pull/417
 [#418]: https://github.com/stackabletech/nifi-operator/pull/418
 [#434]: https://github.com/stackabletech/nifi-operator/pull/434
 [#436]: https://github.com/stackabletech/nifi-operator/pull/436
+[#447]: https://github.com/stackabletech/nifi-operator/pull/447
 
 ## [23.1.0] - 2023-01-23
 

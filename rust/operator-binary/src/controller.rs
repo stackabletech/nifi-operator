@@ -15,7 +15,7 @@ use stackable_operator::{
         PodSecurityContextBuilder, VolumeBuilder,
     },
     client::Client,
-    cluster_resources::ClusterResources,
+    cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::product_image_selection::ResolvedProductImage,
     config::fragment,
     k8s_openapi::{
@@ -308,6 +308,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         OPERATOR_NAME,
         CONTROLLER_NAME,
         &nifi.object_ref(&()),
+        ClusterResourceApplyStrategy::from(&nifi.spec.cluster_operation),
     )
     .context(CreateClusterResourcesSnafu)?;
 
@@ -318,7 +319,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
 
     let node_role_service = build_node_role_service(&nifi, &resolved_product_image)?;
     cluster_resources
-        .add(client, &node_role_service)
+        .add(client, node_role_service)
         .await
         .context(ApplyRoleServiceSnafu)?;
 
@@ -400,19 +401,19 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             )?;
 
             cluster_resources
-                .add(client, &rg_service)
+                .add(client, rg_service)
                 .await
                 .with_context(|_| ApplyRoleGroupServiceSnafu {
                     rolegroup: rolegroup.clone(),
                 })?;
             cluster_resources
-                .add(client, &rg_configmap)
+                .add(client, rg_configmap)
                 .await
                 .with_context(|_| ApplyRoleGroupConfigSnafu {
                     rolegroup: rolegroup.clone(),
                 })?;
             cluster_resources
-                .add(client, &rg_statefulset)
+                .add(client, rg_statefulset)
                 .await
                 .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
                     rolegroup: rolegroup.clone(),
@@ -1034,9 +1035,7 @@ async fn build_node_rolegroup_statefulset(
             .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("Parallel".to_string()),
-            replicas: if nifi.spec.stopped.unwrap_or(false)
-                || version_change_state == &VersionChangeState::BeginChange
-            {
+            replicas: if version_change_state == &VersionChangeState::BeginChange {
                 Some(0)
             } else {
                 rolegroup.and_then(|rg| rg.replicas).map(i32::from)
