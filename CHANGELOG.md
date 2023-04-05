@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 - Deploy default and support custom affinities ([#436])
 - Added the ability to mount extra volumes for files that may be needed for NiFi processors to work ([#434])
 - Extend cluster resources for status and cluster operation (paused, stopped) ([#447])
+- Cluster status conditions ([#448])
 
 ### Changed
 
@@ -22,6 +23,7 @@ All notable changes to this project will be documented in this file.
 [#434]: https://github.com/stackabletech/nifi-operator/pull/434
 [#436]: https://github.com/stackabletech/nifi-operator/pull/436
 [#447]: https://github.com/stackabletech/nifi-operator/pull/447
+[#448]: https://github.com/stackabletech/nifi-operator/pull/448
 
 ## [23.1.0] - 2023-01-23
 
