@@ -1066,9 +1066,7 @@ async fn build_node_rolegroup_statefulset(
             .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("Parallel".to_string()),
-            replicas: if nifi.spec.stopped.unwrap_or(false)
-                || version_change_state == &VersionChangeState::BeginChange
-            {
+            replicas: if version_change_state == &VersionChangeState::BeginChange {
                 Some(0)
             } else {
                 rolegroup.and_then(|rg| rg.replicas).map(i32::from)

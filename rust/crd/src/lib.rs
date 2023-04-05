@@ -84,14 +84,15 @@ pub struct NifiSpec {
     pub image: ProductImage,
     /// Global Nifi config for e.g. authentication or sensitive properties
     pub cluster_config: NifiClusterConfig,
+    /// Cluster operations like pause reconciliation or cluster stop.
+    #[serde(default)]
+    pub cluster_operation: ClusterOperation,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     /// Available NiFi roles
     pub nodes: Option<Role<NifiConfigFragment>>,
     /// Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stopped: Option<bool>,
-    #[serde(default)]
-    pub cluster_operation: ClusterOperation,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
