@@ -1140,12 +1140,9 @@ spec:
                         * cluster-internal: Use a ClusterIP service
 
                         * external-unstable: Use a NodePort service
-
-                        * external-stable: Use a LoadBalancer service
                       enum:
                         - cluster-internal
                         - external-unstable
-                        - external-stable
                       type: string
                     sensitiveProperties:
                       description: Configuration options for how NiFi encrypts sensitive properties on disk
