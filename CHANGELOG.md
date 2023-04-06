@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Enabled logging and log aggregation ([#418])
-- Deploy default and support custom affinities ([#436])
+- Deploy default and support custom affinities ([#436], [#449])
 - Added the ability to mount extra volumes for files that may be needed for NiFi processors to work ([#434])
 - Extend cluster resources for status and cluster operation (paused, stopped) ([#447])
 
@@ -19,7 +19,7 @@ All notable changes to this project will be documented in this file.
   This enables us to later switch non-breaking to using `ListenerClasses` for the exposure of Services.
   This change is breaking, because - for security reasons - we default to the `cluster-internal` `ListenerClass`.
   If you need your cluster to be accessible from outside of Kubernetes you need to set `clusterConfig.listenerClass`
-  to `external-unstable` or `external-stable` ([#449]).
+  to `external-unstable` ([#449]).
 - `operator-rs` `0.33.0` -> `0.39.0` ([#418], [#447])
 
 [#417]: https://github.com/stackabletech/nifi-operator/pull/417

@@ -120,8 +120,6 @@ pub struct NifiClusterConfig {
     /// * cluster-internal: Use a ClusterIP service
     ///
     /// * external-unstable: Use a NodePort service
-    ///
-    /// * external-stable: Use a LoadBalancer service
     #[serde(default)]
     pub listener_class: CurrentlySupportedListenerClasses,
 }
@@ -135,8 +133,6 @@ pub enum CurrentlySupportedListenerClasses {
     ClusterInternal,
     #[serde(rename = "external-unstable")]
     ExternalUnstable,
-    #[serde(rename = "external-stable")]
-    ExternalStable,
 }
 
 impl CurrentlySupportedListenerClasses {
@@ -144,7 +140,6 @@ impl CurrentlySupportedListenerClasses {
         match self {
             CurrentlySupportedListenerClasses::ClusterInternal => "ClusterIP".to_string(),
             CurrentlySupportedListenerClasses::ExternalUnstable => "NodePort".to_string(),
-            CurrentlySupportedListenerClasses::ExternalStable => "LoadBalancer".to_string(),
         }
     }
 }
