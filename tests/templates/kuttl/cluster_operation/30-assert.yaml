@@ -1,7 +1,9 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-timeout: 1200
+timeout: 300
+commands:
+  - script: kubectl -n $NAMESPACE wait --for=condition=stopped nificlusters.nifi.stackable.tech/test-nifi --timeout 301s
 ---
 apiVersion: apps/v1
 kind: StatefulSet

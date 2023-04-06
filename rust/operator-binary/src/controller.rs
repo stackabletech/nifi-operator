@@ -45,6 +45,10 @@ use stackable_operator::{
         },
     },
     role_utils::{Role, RoleGroupRef},
+    status::condition::{
+        compute_conditions, operations::ClusterOperationsConditionBuilder,
+        statefulset::StatefulSetConditionBuilder,
+    },
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
@@ -346,6 +350,8 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         .await
         .context(ResolveVectorAggregatorAddressSnafu)?;
 
+    let mut ss_cond_builder = StatefulSetConditionBuilder::default();
+
     for (rolegroup_name, rolegroup_config) in nifi_node_config.iter() {
         let rg_span = tracing::info_span!("rolegroup_span", rolegroup = rolegroup_name.as_str());
         async {
@@ -412,12 +418,14 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
                 .with_context(|_| ApplyRoleGroupConfigSnafu {
                     rolegroup: rolegroup.clone(),
                 })?;
-            cluster_resources
-                .add(client, rg_statefulset)
-                .await
-                .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
-                    rolegroup: rolegroup.clone(),
-                })?;
+            ss_cond_builder.add(
+                cluster_resources
+                    .add(client, rg_statefulset)
+                    .await
+                    .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
+                        rolegroup: rolegroup.clone(),
+                    })?,
+            );
 
             client
                 .apply_patch(CONTROLLER_NAME, &reporting_task_job, &reporting_task_job)
@@ -439,20 +447,35 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         .await
         .context(DeleteOrphanedResourcesSnafu)?;
 
+    let cluster_operation_cond_builder =
+        ClusterOperationsConditionBuilder::new(&nifi.spec.cluster_operation);
+
+    let conditions = compute_conditions(
+        nifi.as_ref(),
+        &[&ss_cond_builder, &cluster_operation_cond_builder],
+    );
+
     // Update the deployed product version in the status after everything has been deployed, unless
     // we are still in the process of updating
-    if version_change != VersionChangeState::BeginChange {
-        client
-            .apply_patch_status(
-                CONTROLLER_NAME,
-                nifi.deref(),
-                &NifiStatus {
-                    deployed_version: Some(resolved_product_image.product_version),
-                },
-            )
-            .await
-            .with_context(|_| StatusUpdateSnafu {})?;
-    }
+    let status = if version_change != VersionChangeState::BeginChange {
+        NifiStatus {
+            deployed_version: Some(resolved_product_image.product_version),
+            conditions,
+        }
+    } else {
+        NifiStatus {
+            deployed_version: nifi
+                .status
+                .as_ref()
+                .and_then(|status| status.deployed_version.clone()),
+            conditions,
+        }
+    };
+
+    client
+        .apply_patch_status(OPERATOR_NAME, &*nifi, &status)
+        .await
+        .context(StatusUpdateSnafu)?;
 
     Ok(Action::await_change())
 }
