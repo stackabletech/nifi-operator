@@ -482,6 +482,7 @@ pub fn build_node_role_service(
             ))
             .build(),
         spec: Some(ServiceSpec {
+            type_: Some(nifi.spec.cluster_config.listener_class.k8s_service_type()),
             ports: Some(vec![ServicePort {
                 name: Some(HTTPS_PORT_NAME.to_string()),
                 port: HTTPS_PORT.into(),
@@ -489,7 +490,6 @@ pub fn build_node_role_service(
                 ..ServicePort::default()
             }]),
             selector: Some(role_selector_labels(nifi, APP_NAME, &role_name)),
-            type_: Some("NodePort".to_string()),
             external_traffic_policy: Some("Local".to_string()),
             ..ServiceSpec::default()
         }),
@@ -604,6 +604,8 @@ fn build_node_rolegroup_service(
             .with_label("prometheus.io/scrape", "true")
             .build(),
         spec: Some(ServiceSpec {
+            // Internal communication does not need to be exposed
+            type_: Some("ClusterIP".to_string()),
             cluster_ip: Some("None".to_string()),
             ports: Some(vec![
                 ServicePort {
