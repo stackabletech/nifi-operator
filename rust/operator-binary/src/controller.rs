@@ -23,10 +23,10 @@ use stackable_operator::{
             apps::v1::{StatefulSet, StatefulSetSpec, StatefulSetUpdateStrategy},
             batch::v1::{Job, JobSpec},
             core::v1::{
-                Affinity, CSIVolumeSource, ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource,
+                CSIVolumeSource, ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource,
                 EmptyDirVolumeSource, EnvVar, EnvVarSource, Node, NodeAddress, ObjectFieldSelector,
-                PodAffinityTerm, PodAntiAffinity, PodSecurityContext, PodSpec, Probe, Secret,
-                SecretVolumeSource, Service, ServicePort, ServiceSpec, TCPSocketAction, Volume,
+                PodSecurityContext, Probe, Secret, SecretVolumeSource, Service, ServicePort,
+                ServiceSpec, TCPSocketAction, Volume,
             },
         },
         apimachinery::pkg::{
@@ -923,7 +923,7 @@ async fn build_node_rolegroup_statefulset(
         vec![&mut container_prepare, container_nifi],
     );
 
-    let mut pod_template = pod_builder
+    let pod_template = pod_builder
         .metadata_builder(|m| {
             m.with_recommended_labels(build_recommended_labels(
                 nifi,
@@ -997,28 +997,6 @@ async fn build_node_rolegroup_statefulset(
             .with_context(|| ObjectHasNoNameSnafu {})?
             .to_string(),
     );
-
-    let anti_affinity = PodAntiAffinity {
-        required_during_scheduling_ignored_during_execution: Some(vec![PodAffinityTerm {
-            label_selector: Some(LabelSelector {
-                match_expressions: None,
-                match_labels: Some(labels),
-            }),
-            topology_key: "kubernetes.io/hostname".to_string(),
-            ..PodAffinityTerm::default()
-        }]),
-        ..PodAntiAffinity::default()
-    };
-
-    let affinity = Affinity {
-        pod_anti_affinity: Some(anti_affinity),
-        ..Affinity::default()
-    };
-
-    pod_template
-        .spec
-        .get_or_insert_with(PodSpec::default)
-        .affinity = Some(affinity);
 
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
