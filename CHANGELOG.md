@@ -16,7 +16,7 @@ All notable changes to this project will be documented in this file.
 
 - [BREAKING]: Renamed global `config` to `clusterConfig` ([#417])
 - [BREAKING]: Moved `zookeeper_configmap_name` to `clusterConfig` ([#417])
-- `operator-rs` `0.33.0` -> `0.39.0` ([#418], [#447])
+- `operator-rs` `0.33.0` -> `0.39.1` ([#418], [#447], [#452])
 
 ### Fixed
 
