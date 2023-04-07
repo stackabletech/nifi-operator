@@ -20,36 +20,48 @@ customConfig:
       type: vector
       version: "2"
   transforms:
-    automaticLogConfigNodeNifi:
+    filteredAutomaticLogConfigNodeNifi:
       type: filter
       inputs: [vector]
       condition: >-
         .pod == "test-nifi-node-automatic-log-config-0" &&
         .container == "nifi"
-    automaticLogConfigNodeVector:
+    filteredAutomaticLogConfigNodeVector:
       type: filter
       inputs: [vector]
       condition: >-
         .pod == "test-nifi-node-automatic-log-config-0" &&
         .container == "vector"
-    customLogConfigNodeNifi:
+    filteredCustomLogConfigNodeNifi:
       type: filter
       inputs: [vector]
       condition: >-
         .pod == "test-nifi-node-custom-log-config-0" &&
         .container == "nifi"
-    customLogConfigNodeVector:
+    filteredCustomLogConfigNodeVector:
       type: filter
       inputs: [vector]
       condition: >-
         .pod == "test-nifi-node-custom-log-config-0" &&
         .container == "vector"
+    filteredInvalidEvents:
+      type: filter
+      inputs: [vector]
+      condition: |-
+        .timestamp == to_timestamp!(0) ||
+        is_null(.level) ||
+        is_null(.logger) ||
+        is_null(.message)
   sinks:
     out:
-      inputs: [automaticLogConfig*, customLogConfig*]
+      inputs: [filtered*]
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
       type: vector
       address: {{ lookup('env', 'VECTOR_AGGREGATOR') }}
+      buffer:
+        # Avoid back pressure from VECTOR_AGGREGATOR. The test should
+        # not fail if the aggregator is not available.
+        when_full: drop_newest
 {% else %}
       type: blackhole
 {% endif %}

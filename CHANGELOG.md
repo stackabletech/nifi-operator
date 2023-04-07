@@ -18,12 +18,18 @@ All notable changes to this project will be documented in this file.
 - [BREAKING]: Moved `zookeeper_configmap_name` to `clusterConfig` ([#417])
 - `operator-rs` `0.33.0` -> `0.39.0` ([#418], [#447])
 
+### Fixed
+
+- Avoid empty log events dated to 1970-01-01 and improve the precision of the
+  log event timestamps ([#452]).
+
 [#417]: https://github.com/stackabletech/nifi-operator/pull/417
 [#418]: https://github.com/stackabletech/nifi-operator/pull/418
 [#434]: https://github.com/stackabletech/nifi-operator/pull/434
 [#436]: https://github.com/stackabletech/nifi-operator/pull/436
 [#447]: https://github.com/stackabletech/nifi-operator/pull/447
 [#448]: https://github.com/stackabletech/nifi-operator/pull/448
+[#452]: https://github.com/stackabletech/nifi-operator/pull/452
 
 ## [23.1.0] - 2023-01-23
 
