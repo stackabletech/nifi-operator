@@ -16,6 +16,11 @@ All notable changes to this project will be documented in this file.
 
 - [BREAKING]: Renamed global `config` to `clusterConfig` ([#417])
 - [BREAKING]: Moved `zookeeper_configmap_name` to `clusterConfig` ([#417])
+- [BREAKING] Support specifying Service type.
+  This enables us to later switch non-breaking to using `ListenerClasses` for the exposure of Services.
+  This change is breaking, because - for security reasons - we default to the `cluster-internal` `ListenerClass`.
+  If you need your cluster to be accessible from outside of Kubernetes you need to set `clusterConfig.listenerClass`
+  to `external-unstable` ([#449]).
 - `operator-rs` `0.33.0` -> `0.39.0` ([#418], [#447])
 
 [#417]: https://github.com/stackabletech/nifi-operator/pull/417
@@ -24,6 +29,8 @@ All notable changes to this project will be documented in this file.
 [#436]: https://github.com/stackabletech/nifi-operator/pull/436
 [#447]: https://github.com/stackabletech/nifi-operator/pull/447
 [#448]: https://github.com/stackabletech/nifi-operator/pull/448
+[#449]: https://github.com/stackabletech/nifi-operator/pull/449
+[#451]: https://github.com/stackabletech/nifi-operator/pull/451
 
 ## [23.1.0] - 2023-01-23
 
