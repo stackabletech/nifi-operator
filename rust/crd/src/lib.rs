@@ -7,7 +7,6 @@ use std::collections::BTreeMap;
 use affinity::get_affinity;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::k8s_openapi::api::core::v1::Volume;
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
@@ -23,12 +22,13 @@ use stackable_operator::{
         fragment::{self, ValidationError},
         merge::Merge,
     },
-    k8s_openapi::apimachinery::pkg::api::resource::Quantity,
+    k8s_openapi::{api::core::v1::Volume, apimachinery::pkg::api::resource::Quantity},
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
     product_config_utils::{ConfigError, Configuration},
     product_logging::{self, spec::Logging},
     role_utils::{Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
+    status::condition::{ClusterCondition, HasStatusCondition},
 };
 use strum::Display;
 
@@ -205,6 +205,16 @@ pub enum NifiRole {
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, Serialize)]
 pub struct NifiStatus {
     pub deployed_version: Option<String>,
+    pub conditions: Vec<ClusterCondition>,
+}
+
+impl HasStatusCondition for NifiCluster {
+    fn conditions(&self) -> Vec<ClusterCondition> {
+        match &self.status {
+            Some(status) => status.conditions.clone(),
+            None => vec![],
+        }
+    }
 }
 
 #[derive(
