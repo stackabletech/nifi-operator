@@ -35,6 +35,11 @@ dimensions:
   - name: openshift
     values:
       - "false"
+  # Used for both, zookeeper and nifi
+  - name: listener-class
+    values:
+      - "cluster-internal"
+      - "external-unstable"
 tests:
   - name: upgrade
     dimensions:
@@ -49,6 +54,7 @@ tests:
     dimensions:
       - nifi
       - zookeeper
+      - listener-class
   - name: resources
     dimensions:
       - nifi

@@ -25,10 +25,10 @@ use stackable_operator::{
             apps::v1::{StatefulSet, StatefulSetSpec, StatefulSetUpdateStrategy},
             batch::v1::{Job, JobSpec},
             core::v1::{
-                Affinity, CSIVolumeSource, ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource,
-                EmptyDirVolumeSource, EnvVar, EnvVarSource, Node, NodeAddress, ObjectFieldSelector,
-                PodAffinityTerm, PodAntiAffinity, PodSpec, Probe, Secret, SecretVolumeSource,
-                Service, ServicePort, ServiceSpec, TCPSocketAction, Volume,
+                CSIVolumeSource, ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource,
+                EmptyDirVolumeSource, EnvVar, EnvVarSource, Node, ObjectFieldSelector, Probe,
+                Secret, SecretVolumeSource, Service, ServicePort, ServiceSpec, TCPSocketAction,
+                Volume,
             },
         },
         apimachinery::pkg::{
@@ -47,15 +47,20 @@ use stackable_operator::{
         },
     },
     role_utils::{Role, RoleGroupRef},
+    status::condition::{
+        compute_conditions, operations::ClusterOperationsConditionBuilder,
+        statefulset::StatefulSetConditionBuilder,
+    },
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
 
 use stackable_nifi_crd::{
-    authentication::ResolvedAuthenticationMethod, Container, NifiCluster, NifiConfig,
-    NifiConfigFragment, NifiRole, NifiStatus, APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME,
-    HTTPS_PORT, HTTPS_PORT_NAME, LOG_VOLUME_SIZE_IN_MIB, METRICS_PORT, METRICS_PORT_NAME,
-    PROTOCOL_PORT, PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
+    authentication::ResolvedAuthenticationMethod, Container, CurrentlySupportedListenerClasses,
+    NifiCluster, NifiConfig, NifiConfigFragment, NifiRole, NifiStatus, APP_NAME, BALANCE_PORT,
+    BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, LOG_VOLUME_SIZE_IN_MIB, METRICS_PORT,
+    METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR,
+    STACKABLE_LOG_DIR,
 };
 
 use crate::config::{
@@ -378,6 +383,8 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         .await
         .context(ResolveVectorAggregatorAddressSnafu)?;
 
+    let mut ss_cond_builder = StatefulSetConditionBuilder::default();
+
     for (rolegroup_name, rolegroup_config) in nifi_node_config.iter() {
         let rg_span = tracing::info_span!("rolegroup_span", rolegroup = rolegroup_name.as_str());
         async {
@@ -446,12 +453,14 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
                 .with_context(|_| ApplyRoleGroupConfigSnafu {
                     rolegroup: rolegroup.clone(),
                 })?;
-            cluster_resources
-                .add(client, rg_statefulset)
-                .await
-                .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
-                    rolegroup: rolegroup.clone(),
-                })?;
+            ss_cond_builder.add(
+                cluster_resources
+                    .add(client, rg_statefulset)
+                    .await
+                    .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
+                        rolegroup: rolegroup.clone(),
+                    })?,
+            );
 
             client
                 .apply_patch(CONTROLLER_NAME, &reporting_task_job, &reporting_task_job)
@@ -473,20 +482,35 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         .await
         .context(DeleteOrphanedResourcesSnafu)?;
 
+    let cluster_operation_cond_builder =
+        ClusterOperationsConditionBuilder::new(&nifi.spec.cluster_operation);
+
+    let conditions = compute_conditions(
+        nifi.as_ref(),
+        &[&ss_cond_builder, &cluster_operation_cond_builder],
+    );
+
     // Update the deployed product version in the status after everything has been deployed, unless
     // we are still in the process of updating
-    if version_change != VersionChangeState::BeginChange {
-        client
-            .apply_patch_status(
-                CONTROLLER_NAME,
-                nifi.deref(),
-                &NifiStatus {
-                    deployed_version: Some(resolved_product_image.product_version),
-                },
-            )
-            .await
-            .with_context(|_| StatusUpdateSnafu {})?;
-    }
+    let status = if version_change != VersionChangeState::BeginChange {
+        NifiStatus {
+            deployed_version: Some(resolved_product_image.product_version),
+            conditions,
+        }
+    } else {
+        NifiStatus {
+            deployed_version: nifi
+                .status
+                .as_ref()
+                .and_then(|status| status.deployed_version.clone()),
+            conditions,
+        }
+    };
+
+    client
+        .apply_patch_status(OPERATOR_NAME, &*nifi, &status)
+        .await
+        .context(StatusUpdateSnafu)?;
 
     Ok(Action::await_change())
 }
@@ -516,6 +540,7 @@ pub fn build_node_role_service(
             ))
             .build(),
         spec: Some(ServiceSpec {
+            type_: Some(nifi.spec.cluster_config.listener_class.k8s_service_type()),
             ports: Some(vec![ServicePort {
                 name: Some(HTTPS_PORT_NAME.to_string()),
                 port: HTTPS_PORT.into(),
@@ -523,8 +548,10 @@ pub fn build_node_role_service(
                 ..ServicePort::default()
             }]),
             selector: Some(role_selector_labels(nifi, APP_NAME, &role_name)),
-            type_: Some("NodePort".to_string()),
-            external_traffic_policy: Some("Local".to_string()),
+            external_traffic_policy: match nifi.spec.cluster_config.listener_class {
+                CurrentlySupportedListenerClasses::ClusterInternal => None,
+                CurrentlySupportedListenerClasses::ExternalUnstable => Some("Local".to_string()),
+            },
             ..ServiceSpec::default()
         }),
         status: None,
@@ -638,6 +665,8 @@ fn build_node_rolegroup_service(
             .with_label("prometheus.io/scrape", "true")
             .build(),
         spec: Some(ServiceSpec {
+            // Internal communication does not need to be exposed
+            type_: Some("ClusterIP".to_string()),
             cluster_ip: Some("None".to_string()),
             ports: Some(vec![
                 ServicePort {
@@ -958,7 +987,7 @@ async fn build_node_rolegroup_statefulset(
         vec![&mut container_prepare, container_nifi],
     );
 
-    let mut pod_template = pod_builder
+    let pod_template = pod_builder
         .metadata_builder(|m| {
             m.with_recommended_labels(build_recommended_labels(
                 nifi,
@@ -1033,28 +1062,6 @@ async fn build_node_rolegroup_statefulset(
             .with_context(|| ObjectHasNoNameSnafu {})?
             .to_string(),
     );
-
-    let anti_affinity = PodAntiAffinity {
-        required_during_scheduling_ignored_during_execution: Some(vec![PodAffinityTerm {
-            label_selector: Some(LabelSelector {
-                match_expressions: None,
-                match_labels: Some(labels),
-            }),
-            topology_key: "kubernetes.io/hostname".to_string(),
-            ..PodAffinityTerm::default()
-        }]),
-        ..PodAntiAffinity::default()
-    };
-
-    let affinity = Affinity {
-        pod_anti_affinity: Some(anti_affinity),
-        ..Affinity::default()
-    };
-
-    pod_template
-        .spec
-        .get_or_insert_with(PodSpec::default)
-        .affinity = Some(affinity);
 
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
@@ -1340,46 +1347,48 @@ async fn get_proxy_hosts(
     nifi: &NifiCluster,
     nifi_service: &Service,
 ) -> Result<String> {
-    let selector = LabelSelector {
-        match_labels: {
-            let mut labels = BTreeMap::new();
-            labels.insert("kubernetes.io/os".to_string(), "linux".to_string());
-            Some(labels)
-        },
-        ..LabelSelector::default()
-    };
+    let mut proxy_setting = vec![nifi
+        .node_role_service_fqdn()
+        .context(NoRoleServiceFqdnSnafu)?];
 
-    let external_port = external_node_port(nifi_service)?;
+    // In case NodePort is used add them as well
+    if nifi.spec.cluster_config.listener_class
+        == CurrentlySupportedListenerClasses::ExternalUnstable
+    {
+        let selector = LabelSelector {
+            match_labels: {
+                let mut labels = BTreeMap::new();
+                labels.insert("kubernetes.io/os".to_string(), "linux".to_string());
+                Some(labels)
+            },
+            ..LabelSelector::default()
+        };
 
-    let cluster_nodes = client
-        .list_with_label_selector::<Node>(&(), &selector)
-        .await
-        .with_context(|_| MissingNodesSnafu {
-            obj_ref: ObjectRef::from_obj(nifi),
-            selector,
-        })?;
+        let external_port = external_node_port(nifi_service)?;
 
-    // We need the addresses of all nodes to add these to the NiFi proxy setting
-    // Since there is no real convention about how to label these addresses we will simply
-    // take all published addresses for now to be on the safe side.
-    let mut proxy_setting = cluster_nodes
-        .into_iter()
-        .flat_map(|node| {
-            node.status
-                .unwrap_or_default()
-                .addresses
-                .unwrap_or_default()
-        })
-        .collect::<Vec<NodeAddress>>()
-        .iter()
-        .map(|node_address| format!("{}:{}", node_address.address, external_port))
-        .collect::<Vec<_>>();
+        let cluster_nodes = client
+            .list_with_label_selector::<Node>(&(), &selector)
+            .await
+            .with_context(|_| MissingNodesSnafu {
+                obj_ref: ObjectRef::from_obj(nifi),
+                selector,
+            })?;
 
-    // Also add the loadbalancer service
-    proxy_setting.push(
-        nifi.node_role_service_fqdn()
-            .context(NoRoleServiceFqdnSnafu)?,
-    );
+        // We need the addresses of all nodes to add these to the NiFi proxy setting
+        // Since there is no real convention about how to label these addresses we will simply
+        // take all published addresses for now to be on the safe side.
+        proxy_setting.extend(
+            cluster_nodes
+                .into_iter()
+                .flat_map(|node| {
+                    node.status
+                        .unwrap_or_default()
+                        .addresses
+                        .unwrap_or_default()
+                })
+                .map(|node_address| format!("{}:{}", node_address.address, external_port)),
+        );
+    }
 
     Ok(proxy_setting.join(","))
 }
