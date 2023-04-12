@@ -404,6 +404,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
                 &resolved_product_image,
                 &rolegroup,
                 &resolved_auth_conf,
+                cluster_resources.get_required_labels(),
             )?;
 
             cluster_resources
@@ -426,11 +427,11 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
                         rolegroup: rolegroup.clone(),
                     })?,
             );
-
-            client
-                .apply_patch(CONTROLLER_NAME, &reporting_task_job, &reporting_task_job)
+            cluster_resources
+                .add(client, reporting_task_job)
                 .await
                 .context(ApplyCreateReportingTaskJobSnafu)?;
+
             Ok(())
         }
         .instrument(rg_span)
@@ -1103,14 +1104,13 @@ fn build_reporting_task_job(
     resolved_product_image: &ResolvedProductImage,
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
     resolved_auth_conf: &ResolvedAuthenticationMethod,
+    labels: BTreeMap<String, String>,
 ) -> Result<Job> {
     let rolegroup_obj_name = rolegroup_ref.object_name();
     let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
     let product_version = &resolved_product_image.product_version;
     let nifi_connect_url = format!(
-        "https://{rolegroup}-0.{rolegroup}.{namespace}.svc.cluster.local:{port}/nifi-api",
-        rolegroup = rolegroup_obj_name,
-        namespace = namespace,
+        "https://{rolegroup_obj_name}-0.{rolegroup_obj_name}.{namespace}.svc.cluster.local:{port}/nifi-api",
         port = HTTPS_PORT
     );
 
@@ -1142,23 +1142,26 @@ fn build_reporting_task_job(
         .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_REPORTING_TASK_MOUNT);
 
     let job_name = format!(
-        "{}-create-reporting-task-{}",
+        "{}-{}-create-reporting-task-{}",
         nifi.name_any(),
+        rolegroup_ref.role_group,
         product_version.replace('.', "-")
     );
 
-    let mut pd = PodBuilder::new();
+    let mut pb = PodBuilder::new();
+    resolved_auth_conf.add_volumes_and_mounts(&mut pb, vec![&mut cb]);
 
-    resolved_auth_conf.add_volumes_and_mounts(&mut pd, vec![&mut cb]);
-
-    let mut pod = pd
+    let pod = pb
         .metadata(
             ObjectMetaBuilder::new()
                 .name(job_name.clone())
                 .namespace_opt(nifi.namespace())
+                .ownerreference_from_resource(nifi, None, Some(true))
+                .context(ObjectMissingMetadataForOwnerRefSnafu)?
                 .build(),
         )
         .image_pull_secrets_from_product_image(resolved_product_image)
+        .restart_policy("OnFailure")
         .security_context(PodSecurityContext {
             run_as_user: Some(1000),
             run_as_group: Some(1000),
@@ -1169,25 +1172,21 @@ fn build_reporting_task_job(
         .add_volume(build_keystore_volume(KEYSTORE_VOLUME_NAME))
         .build_template();
 
-    // The PodBuilder doesn't support setting the restart policy yet, so we have to set it like this
-    // Feature request: https://github.com/stackabletech/operator-rs/issues/538
-    let spec = pod.spec.as_mut().unwrap();
-    spec.restart_policy = Some("OnFailure".to_owned());
-
     let job = Job {
         metadata: ObjectMetaBuilder::new()
             .name(job_name)
             .namespace_opt(nifi.namespace())
+            .labels(labels)
             .ownerreference_from_resource(nifi, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .build(),
         spec: Some(JobSpec {
-            backoff_limit: Some(100),
+            backoff_limit: Some(20),
             ttl_seconds_after_finished: Some(120),
             template: pod,
-            ..Default::default()
+            ..JobSpec::default()
         }),
-        status: None,
+        ..Job::default()
     };
 
     Ok(job)
