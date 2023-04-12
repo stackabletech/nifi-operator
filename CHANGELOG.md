@@ -23,6 +23,12 @@ All notable changes to this project will be documented in this file.
   to `external-unstable` ([#449]).
 - `operator-rs` `0.33.0` -> `0.39.0` ([#418], [#447])
 
+### Fixed
+
+- Fix `create-reporting-task` to support multiple rolegroups ([#453])
+- Fix proxy hosts list missing an entry for the load-balanced Service ([#453])
+- Remove hardcoded `kubernetes.io/os=linux` selector when determining list of valid proxy nodes ([#453])
+
 [#417]: https://github.com/stackabletech/nifi-operator/pull/417
 [#418]: https://github.com/stackabletech/nifi-operator/pull/418
 [#434]: https://github.com/stackabletech/nifi-operator/pull/434
@@ -31,6 +37,7 @@ All notable changes to this project will be documented in this file.
 [#448]: https://github.com/stackabletech/nifi-operator/pull/448
 [#449]: https://github.com/stackabletech/nifi-operator/pull/449
 [#451]: https://github.com/stackabletech/nifi-operator/pull/451
+[#453]: https://github.com/stackabletech/nifi-operator/pull/453
 
 ## [23.1.0] - 2023-01-23
 

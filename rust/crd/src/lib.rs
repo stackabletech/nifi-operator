@@ -367,15 +367,15 @@ pub struct NifiStorageConfig {
 
 impl NifiCluster {
     /// The name of the role-level load-balanced Kubernetes `Service`
-    pub fn node_role_service_name(&self) -> Option<String> {
-        self.metadata.name.clone()
+    pub fn node_role_service_name(&self) -> String {
+        self.name_any()
     }
 
     /// The fully-qualified domain name of the role-level load-balanced Kubernetes `Service`
     pub fn node_role_service_fqdn(&self) -> Option<String> {
         Some(format!(
             "{}.{}.svc.cluster.local",
-            self.node_role_service_name()?,
+            self.node_role_service_name(),
             self.metadata.namespace.as_ref()?
         ))
     }
