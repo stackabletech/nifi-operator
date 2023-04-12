@@ -200,14 +200,16 @@ pub enum Error {
         source: crate::product_logging::Error,
         cm_name: String,
     },
-    #[snafu(display("failed to patch service account: {source}"))]
+    #[snafu(display("failed to patch service account"))]
     ApplyServiceAccount {
-        name: String,
         source: stackable_operator::error::Error,
     },
-    #[snafu(display("failed to patch role binding: {source}"))]
+    #[snafu(display("failed to patch role binding"))]
     ApplyRoleBinding {
-        name: String,
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("failed to build RBAC resources"))]
+    BuildRbacResources {
         source: stackable_operator::error::Error,
     },
 }
@@ -238,20 +240,6 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
 
     let resolved_product_image: ResolvedProductImage =
         nifi.spec.image.resolve(DOCKER_IMAGE_BASE_NAME);
-
-    let (rbac_sa, rbac_rolebinding) = build_rbac_resources(nifi.as_ref(), "nifi");
-    client
-        .apply_patch(CONTROLLER_NAME, &rbac_sa, &rbac_sa)
-        .await
-        .with_context(|_| ApplyServiceAccountSnafu {
-            name: rbac_sa.name_unchecked(),
-        })?;
-    client
-        .apply_patch(CONTROLLER_NAME, &rbac_rolebinding, &rbac_rolebinding)
-        .await
-        .with_context(|_| ApplyRoleBindingSnafu {
-            name: rbac_rolebinding.name_unchecked(),
-        })?;
 
     tracing::info!("Checking for sensitive key configuration");
     check_or_generate_sensitive_key(client, &nifi).await?;
@@ -339,6 +327,23 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
     )
     .context(CreateClusterResourcesSnafu)?;
 
+    let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
+        nifi.as_ref(),
+        APP_NAME,
+        cluster_resources.get_required_labels(),
+    )
+    .context(BuildRbacResourcesSnafu)?;
+
+    let rbac_sa = cluster_resources
+        .add(client, rbac_sa)
+        .await
+        .context(ApplyServiceAccountSnafu)?;
+
+    cluster_resources
+        .add(client, rbac_rolebinding)
+        .await
+        .context(ApplyRoleBindingSnafu)?;
+
     let nifi_node_config = validated_config
         .get(&NifiRole::Node.to_string())
         .map(Cow::Borrowed)
@@ -417,7 +422,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
                 &merged_config,
                 &resolved_auth_conf,
                 &version_change,
-                &rbac_sa.name_unchecked(),
+                &rbac_sa.name_any(),
             )
             .await?;
 
