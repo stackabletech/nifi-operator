@@ -1156,8 +1156,6 @@ fn build_reporting_task_job(
             ObjectMetaBuilder::new()
                 .name(job_name.clone())
                 .namespace_opt(nifi.namespace())
-                .ownerreference_from_resource(nifi, None, Some(true))
-                .context(ObjectMissingMetadataForOwnerRefSnafu)?
                 .build(),
         )
         .image_pull_secrets_from_product_image(resolved_product_image)
