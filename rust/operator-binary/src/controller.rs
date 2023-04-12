@@ -12,7 +12,7 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
         ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
-        PodSecurityContextBuilder, VolumeBuilder,
+        PodSecurityContextBuilder, SecretOperatorVolumeSourceBuilder, VolumeBuilder,
     },
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
@@ -23,17 +23,19 @@ use stackable_operator::{
             apps::v1::{StatefulSet, StatefulSetSpec, StatefulSetUpdateStrategy},
             batch::v1::{Job, JobSpec},
             core::v1::{
-                CSIVolumeSource, ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource,
-                EmptyDirVolumeSource, EnvVar, EnvVarSource, Node, ObjectFieldSelector, Probe,
-                Secret, SecretVolumeSource, Service, ServicePort, ServiceSpec, TCPSocketAction,
-                Volume,
+                ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource, EmptyDirVolumeSource,
+                EnvVar, EnvVarSource, Node, ObjectFieldSelector, Probe, Secret, SecretVolumeSource,
+                Service, ServicePort, ServiceSpec, TCPSocketAction, Volume,
             },
         },
         apimachinery::pkg::{
             api::resource::Quantity, apis::meta::v1::LabelSelector, util::intstr::IntOrString,
         },
     },
-    kube::{runtime::controller::Action, runtime::reflector::ObjectRef, Resource, ResourceExt},
+    kube::{
+        api::ListParams, runtime::controller::Action, runtime::reflector::ObjectRef, Resource,
+        ResourceExt,
+    },
     labels::{role_group_selector_labels, role_selector_labels, ObjectLabels},
     logging::controller::ReconcilerError,
     product_config::{types::PropertyNameKind, ProductConfigManager},
@@ -101,8 +103,6 @@ pub enum Error {
     DeleteOrphanedResources {
         source: stackable_operator::error::Error,
     },
-    #[snafu(display("failed to calculate global service name"))]
-    GlobalServiceNameNotFound,
     #[snafu(display("failed to apply global Service"))]
     ApplyRoleService {
         source: stackable_operator::error::Error,
@@ -156,11 +156,10 @@ pub enum Error {
     ProductConfigLoadFailed { source: config::Error },
     #[snafu(display("Failed to find information about file [{}] in product config", kind))]
     ProductConfigKindNotSpecified { kind: String },
-    #[snafu(display("Failed to find any nodes in cluster {obj_ref} with selector {selector:?}",))]
+    #[snafu(display("Failed to find any nodes in cluster {obj_ref}",))]
     MissingNodes {
         source: stackable_operator::error::Error,
         obj_ref: ObjectRef<NifiCluster>,
-        selector: LabelSelector,
     },
     #[snafu(display("Failed to find service {obj_ref}"))]
     MissingService {
@@ -330,23 +329,6 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
     )
     .context(CreateClusterResourcesSnafu)?;
 
-    let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
-        nifi.as_ref(),
-        APP_NAME,
-        cluster_resources.get_required_labels(),
-    )
-    .context(BuildRbacResourcesSnafu)?;
-
-    let rbac_sa = cluster_resources
-        .add(client, rbac_sa)
-        .await
-        .context(ApplyServiceAccountSnafu)?;
-
-    cluster_resources
-        .add(client, rbac_rolebinding)
-        .await
-        .context(ApplyRoleBindingSnafu)?;
-
     let nifi_node_config = validated_config
         .get(&NifiRole::Node.to_string())
         .map(Cow::Borrowed)
@@ -380,6 +362,23 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
     let vector_aggregator_address = resolve_vector_aggregator_address(&nifi, client)
         .await
         .context(ResolveVectorAggregatorAddressSnafu)?;
+
+    let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
+        nifi.as_ref(),
+        APP_NAME,
+        cluster_resources.get_required_labels(),
+    )
+    .context(BuildRbacResourcesSnafu)?;
+
+    let rbac_sa = cluster_resources
+        .add(client, rbac_sa)
+        .await
+        .context(ApplyServiceAccountSnafu)?;
+
+    cluster_resources
+        .add(client, rbac_rolebinding)
+        .await
+        .context(ApplyRoleBindingSnafu)?;
 
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
@@ -431,14 +430,6 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             )
             .await?;
 
-            let reporting_task_job = build_reporting_task_job(
-                &nifi,
-                &resolved_product_image,
-                &rolegroup,
-                &resolved_auth_conf,
-                &rbac_sa.name_unchecked(),
-            )?;
-
             cluster_resources
                 .add(client, rg_service)
                 .await
@@ -460,15 +451,23 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
                     })?,
             );
 
-            client
-                .apply_patch(CONTROLLER_NAME, &reporting_task_job, &reporting_task_job)
-                .await
-                .context(ApplyCreateReportingTaskJobSnafu)?;
             Ok(())
         }
         .instrument(rg_span)
         .await?
     }
+
+    let reporting_task_job = build_reporting_task_job(
+        &nifi,
+        &resolved_product_image,
+        &resolved_auth_conf,
+        &rbac_sa.name_any(),
+    )?;
+
+    client
+        .apply_patch(CONTROLLER_NAME, &reporting_task_job, &reporting_task_job)
+        .await
+        .context(ApplyCreateReportingTaskJobSnafu)?;
 
     // Remove any orphaned resources that still exist in k8s, but have not been added to
     // the cluster resources during the reconciliation
@@ -521,9 +520,7 @@ pub fn build_node_role_service(
 ) -> Result<Service> {
     let role_name = NifiRole::Node.to_string();
 
-    let role_svc_name = nifi
-        .node_role_service_name()
-        .context(GlobalServiceNameNotFoundSnafu)?;
+    let role_svc_name = nifi.node_role_service_name();
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(nifi)
@@ -1024,7 +1021,10 @@ async fn build_node_rolegroup_statefulset(
             ..Volume::default()
         })
         // One volume for the keystore and truststore data configmap
-        .add_volume(build_keystore_volume(KEYSTORE_VOLUME_NAME))
+        .add_volume(build_keystore_volume(
+            KEYSTORE_VOLUME_NAME,
+            &nifi.name_any(),
+        ))
         .add_volume(Volume {
             name: "sensitiveproperty".to_string(),
             secret: Some(SecretVolumeSource {
@@ -1141,19 +1141,14 @@ async fn build_node_rolegroup_statefulset(
 fn build_reporting_task_job(
     nifi: &NifiCluster,
     resolved_product_image: &ResolvedProductImage,
-    rolegroup_ref: &RoleGroupRef<NifiCluster>,
     resolved_auth_conf: &ResolvedAuthenticationMethod,
     sa_name: &str,
 ) -> Result<Job> {
-    let rolegroup_obj_name = rolegroup_ref.object_name();
-    let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
+    let nifi_name = nifi.name_any();
+    let nifi_namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
     let product_version = &resolved_product_image.product_version;
-    let nifi_connect_url = format!(
-        "https://{rolegroup}-0.{rolegroup}.{namespace}.svc.cluster.local:{port}/nifi-api",
-        rolegroup = rolegroup_obj_name,
-        namespace = namespace,
-        port = HTTPS_PORT
-    );
+    let nifi_connect_url =
+        format!("https://{nifi_name}.{nifi_namespace}.svc.cluster.local:{HTTPS_PORT}/nifi-api",);
 
     let (admin_username_file, admin_password_file) =
         resolved_auth_conf.get_user_and_password_file_paths();
@@ -1209,7 +1204,7 @@ fn build_reporting_task_job(
                 .build(),
         )
         .add_container(cb.build())
-        .add_volume(build_keystore_volume(KEYSTORE_VOLUME_NAME))
+        .add_volume(build_keystore_volume(KEYSTORE_VOLUME_NAME, &nifi_name))
         .build_template();
 
     // The PodBuilder doesn't support setting the restart policy yet, so we have to set it like this
@@ -1283,19 +1278,6 @@ async fn check_or_generate_sensitive_key(
     }
 }
 
-fn get_stackable_secret_volume_attributes() -> BTreeMap<String, String> {
-    let mut result = BTreeMap::new();
-    result.insert(
-        "secrets.stackable.tech/class".to_string(),
-        "tls".to_string(),
-    );
-    result.insert(
-        "secrets.stackable.tech/scope".to_string(),
-        "node,pod".to_string(),
-    );
-    result
-}
-
 fn external_node_port(nifi_service: &Service) -> Result<i32> {
     let external_ports = nifi_service
         .spec
@@ -1315,15 +1297,20 @@ fn external_node_port(nifi_service: &Service) -> Result<i32> {
     port.node_port.with_context(|| ExternalPortSnafu {})
 }
 
-fn build_keystore_volume(name: &str) -> Volume {
-    VolumeBuilder::new(name)
-        .csi(CSIVolumeSource {
-            driver: "secrets.stackable.tech".to_string(),
-            volume_attributes: Some(get_stackable_secret_volume_attributes()),
-            ..CSIVolumeSource::default()
-        })
+fn build_keystore_volume(volume_name: &str, nifi_name: &str) -> Volume {
+    VolumeBuilder::new(volume_name)
+        .ephemeral(
+            // FIXME: Remove hardcoded SecretClass
+            // Instead let the user specify the SecretClass to use
+            SecretOperatorVolumeSourceBuilder::new("tls")
+                .with_node_scope()
+                .with_pod_scope()
+                .with_service_scope(nifi_name)
+                .build(),
+        )
         .build()
 }
+
 /// Used for the `ZOOKEEPER_HOSTS` and `ZOOKEEPER_CHROOT` env vars.
 fn zookeeper_env_var(name: &str, configmap_name: &str) -> EnvVar {
     EnvVar {
@@ -1345,31 +1332,25 @@ async fn get_proxy_hosts(
     nifi: &NifiCluster,
     nifi_service: &Service,
 ) -> Result<String> {
-    let mut proxy_setting = vec![nifi
+    let node_role_service_fqdn = nifi
         .node_role_service_fqdn()
-        .context(NoRoleServiceFqdnSnafu)?];
+        .context(NoRoleServiceFqdnSnafu)?;
+    let mut proxy_setting = vec![
+        node_role_service_fqdn.clone(),
+        format!("{node_role_service_fqdn}:{HTTPS_PORT}"),
+    ];
 
     // In case NodePort is used add them as well
     if nifi.spec.cluster_config.listener_class
         == CurrentlySupportedListenerClasses::ExternalUnstable
     {
-        let selector = LabelSelector {
-            match_labels: {
-                let mut labels = BTreeMap::new();
-                labels.insert("kubernetes.io/os".to_string(), "linux".to_string());
-                Some(labels)
-            },
-            ..LabelSelector::default()
-        };
-
         let external_port = external_node_port(nifi_service)?;
 
         let cluster_nodes = client
-            .list_with_label_selector::<Node>(&(), &selector)
+            .list::<Node>(&(), &ListParams::default())
             .await
             .with_context(|_| MissingNodesSnafu {
                 obj_ref: ObjectRef::from_obj(nifi),
-                selector,
             })?;
 
         // We need the addresses of all nodes to add these to the NiFi proxy setting
