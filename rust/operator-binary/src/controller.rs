@@ -16,7 +16,7 @@ use stackable_operator::{
     },
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
-    commons::product_image_selection::ResolvedProductImage,
+    commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
     config::fragment,
     k8s_openapi::{
         api::{
@@ -72,6 +72,7 @@ use crate::product_logging::{extend_role_group_config_map, resolve_vector_aggreg
 use crate::{config, OPERATOR_NAME};
 
 pub const CONTROLLER_NAME: &str = "nificluster";
+pub const NIFI_UID: i64 = 1000;
 
 const KEYSTORE_VOLUME_NAME: &str = "keystore";
 const KEYSTORE_NIFI_CONTAINER_MOUNT: &str = "/stackable/keystore";
@@ -200,6 +201,18 @@ pub enum Error {
     InvalidLoggingConfig {
         source: crate::product_logging::Error,
         cm_name: String,
+    },
+    #[snafu(display("failed to patch service account"))]
+    ApplyServiceAccount {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("failed to patch role binding"))]
+    ApplyRoleBinding {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("failed to build RBAC resources"))]
+    BuildRbacResources {
+        source: stackable_operator::error::Error,
     },
 }
 
@@ -350,6 +363,23 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         .await
         .context(ResolveVectorAggregatorAddressSnafu)?;
 
+    let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
+        nifi.as_ref(),
+        APP_NAME,
+        cluster_resources.get_required_labels(),
+    )
+    .context(BuildRbacResourcesSnafu)?;
+
+    let rbac_sa = cluster_resources
+        .add(client, rbac_sa)
+        .await
+        .context(ApplyServiceAccountSnafu)?;
+
+    cluster_resources
+        .add(client, rbac_rolebinding)
+        .await
+        .context(ApplyRoleBindingSnafu)?;
+
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
     for (rolegroup_name, rolegroup_config) in nifi_node_config.iter() {
@@ -396,6 +426,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
                 &merged_config,
                 &resolved_auth_conf,
                 &version_change,
+                &rbac_sa.name_any(),
             )
             .await?;
 
@@ -671,6 +702,7 @@ async fn build_node_rolegroup_statefulset(
     merged_config: &NifiConfig,
     resolved_auth_conf: &ResolvedAuthenticationMethod,
     version_change_state: &VersionChangeState,
+    sa_name: &str,
 ) -> Result<StatefulSet> {
     tracing::debug!("Building statefulset");
     let zookeeper_host = "ZOOKEEPER_HOSTS";
@@ -1005,10 +1037,11 @@ async fn build_node_rolegroup_statefulset(
             name: "activeconf".to_string(),
             ..Volume::default()
         })
+        .service_account_name(sa_name)
         .security_context(
             PodSecurityContextBuilder::new()
-                .run_as_user(1000)
-                .run_as_group(1000)
+                .run_as_user(NIFI_UID)
+                .run_as_group(0)
                 .fs_group(1000)
                 .build(),
         )
@@ -1105,6 +1138,7 @@ fn build_reporting_task_job(
     nifi: &NifiCluster,
     resolved_product_image: &ResolvedProductImage,
     resolved_auth_conf: &ResolvedAuthenticationMethod,
+    sa_name: &str,
 ) -> Result<Job> {
     let nifi_name = nifi.name_any();
     let nifi_namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
@@ -1157,12 +1191,14 @@ fn build_reporting_task_job(
                 .build(),
         )
         .image_pull_secrets_from_product_image(resolved_product_image)
-        .security_context(PodSecurityContext {
-            run_as_user: Some(1000),
-            run_as_group: Some(1000),
-            fs_group: Some(1000),
-            ..PodSecurityContext::default()
-        })
+        .service_account_name(sa_name)
+        .security_context(
+            PodSecurityContextBuilder::new()
+                .run_as_user(NIFI_UID)
+                .run_as_group(0)
+                .fs_group(1000)
+                .build(),
+        )
         .add_container(cb.build())
         .add_volume(build_keystore_volume(KEYSTORE_VOLUME_NAME, &nifi_name))
         .build_template();
