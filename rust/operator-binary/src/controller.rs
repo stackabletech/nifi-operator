@@ -9,16 +9,14 @@ use std::{
 
 use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::cluster_resources::ClusterResourceApplyStrategy;
-use stackable_operator::commons::rbac::build_rbac_resources;
 use stackable_operator::{
     builder::{
         ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
         PodSecurityContextBuilder, VolumeBuilder,
     },
     client::Client,
-    cluster_resources::ClusterResources,
-    commons::product_image_selection::ResolvedProductImage,
+    cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
+    commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
     config::fragment,
     k8s_openapi::{
         api::{

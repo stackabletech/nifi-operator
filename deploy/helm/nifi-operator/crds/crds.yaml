@@ -2961,10 +2961,6 @@ spec:
                   required:
                     - roleGroups
                   type: object
-                stopped:
-                  description: Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)
-                  nullable: true
-                  type: boolean
               required:
                 - clusterConfig
                 - image

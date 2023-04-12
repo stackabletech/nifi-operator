@@ -7,10 +7,10 @@ use std::collections::BTreeMap;
 use affinity::get_affinity;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::commons::cluster_operation::ClusterOperation;
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
+        cluster_operation::ClusterOperation,
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
@@ -91,9 +91,6 @@ pub struct NifiSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     /// Available NiFi roles
     pub nodes: Option<Role<NifiConfigFragment>>,
-    /// Emergency stop button, if `true` then all pods are stopped without affecting configuration (as setting `replicas` to `0` would)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub stopped: Option<bool>,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
