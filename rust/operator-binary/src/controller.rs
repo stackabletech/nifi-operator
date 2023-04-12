@@ -24,8 +24,8 @@ use stackable_operator::{
             batch::v1::{Job, JobSpec},
             core::v1::{
                 ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource, EmptyDirVolumeSource,
-                EnvVar, EnvVarSource, Node, ObjectFieldSelector, PodSecurityContext, Probe, Secret,
-                SecretVolumeSource, Service, ServicePort, ServiceSpec, TCPSocketAction, Volume,
+                EnvVar, EnvVarSource, Node, ObjectFieldSelector, Probe, Secret, SecretVolumeSource,
+                Service, ServicePort, ServiceSpec, TCPSocketAction, Volume,
             },
         },
         apimachinery::pkg::{
@@ -457,8 +457,12 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         .await?
     }
 
-    let reporting_task_job =
-        build_reporting_task_job(&nifi, &resolved_product_image, &resolved_auth_conf)?;
+    let reporting_task_job = build_reporting_task_job(
+        &nifi,
+        &resolved_product_image,
+        &resolved_auth_conf,
+        &rbac_sa.name_any(),
+    )?;
 
     client
         .apply_patch(CONTROLLER_NAME, &reporting_task_job, &reporting_task_job)
