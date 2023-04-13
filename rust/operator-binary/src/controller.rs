@@ -1211,7 +1211,6 @@ fn build_reporting_task_job(
         metadata: ObjectMetaBuilder::new()
             .name(job_name)
             .namespace_opt(nifi.namespace())
-            .labels(labels)
             .ownerreference_from_resource(nifi, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .build(),
