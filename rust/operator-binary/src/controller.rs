@@ -1183,11 +1183,10 @@ fn build_reporting_task_job(
         product_version.replace('.', "-")
     );
 
-    let mut pd = PodBuilder::new();
+    let mut pb = PodBuilder::new();
+    resolved_auth_conf.add_volumes_and_mounts(&mut pb, vec![&mut cb]);
 
-    resolved_auth_conf.add_volumes_and_mounts(&mut pd, vec![&mut cb]);
-
-    let mut pod = pd
+    let pod = pb
         .metadata(
             ObjectMetaBuilder::new()
                 .name(job_name.clone())
@@ -1195,6 +1194,7 @@ fn build_reporting_task_job(
                 .build(),
         )
         .image_pull_secrets_from_product_image(resolved_product_image)
+        .restart_policy("OnFailure")
         .service_account_name(sa_name)
         .security_context(
             PodSecurityContextBuilder::new()
@@ -1207,11 +1207,6 @@ fn build_reporting_task_job(
         .add_volume(build_keystore_volume(KEYSTORE_VOLUME_NAME, &nifi_name))
         .build_template();
 
-    // The PodBuilder doesn't support setting the restart policy yet, so we have to set it like this
-    // Feature request: https://github.com/stackabletech/operator-rs/issues/538
-    let spec = pod.spec.as_mut().unwrap();
-    spec.restart_policy = Some("OnFailure".to_owned());
-
     let job = Job {
         metadata: ObjectMetaBuilder::new()
             .name(job_name)
@@ -1223,9 +1218,9 @@ fn build_reporting_task_job(
             backoff_limit: Some(100),
             ttl_seconds_after_finished: Some(120),
             template: pod,
-            ..Default::default()
+            ..JobSpec::default()
         }),
-        status: None,
+        ..Job::default()
     };
 
     Ok(job)
