@@ -30,6 +30,7 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
 };
+use strum::Display;
 
 pub const APP_NAME: &str = "nifi";
 
@@ -110,6 +111,37 @@ pub struct NifiClusterConfig {
     /// These volumes will be mounted below `/stackable/userdata/{volumename}`
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extra_volumes: Vec<Volume>,
+    /// In the future this setting will control, which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html>
+    /// will be used to expose the service.
+    /// Currently only a subset of the ListenerClasses are supported by choosing the type of the created Services
+    /// by looking at the ListenerClass name specified,
+    /// In a future release support for custom ListenerClasses will be introduced without a breaking change:
+    ///
+    /// * cluster-internal: Use a ClusterIP service
+    ///
+    /// * external-unstable: Use a NodePort service
+    #[serde(default)]
+    pub listener_class: CurrentlySupportedListenerClasses,
+}
+
+// TODO: Temporary solution until listener-operator is finished
+#[derive(Clone, Debug, Default, Display, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub enum CurrentlySupportedListenerClasses {
+    #[default]
+    #[serde(rename = "cluster-internal")]
+    ClusterInternal,
+    #[serde(rename = "external-unstable")]
+    ExternalUnstable,
+}
+
+impl CurrentlySupportedListenerClasses {
+    pub fn k8s_service_type(&self) -> String {
+        match self {
+            CurrentlySupportedListenerClasses::ClusterInternal => "ClusterIP".to_string(),
+            CurrentlySupportedListenerClasses::ExternalUnstable => "NodePort".to_string(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -335,15 +367,15 @@ pub struct NifiStorageConfig {
 
 impl NifiCluster {
     /// The name of the role-level load-balanced Kubernetes `Service`
-    pub fn node_role_service_name(&self) -> Option<String> {
-        self.metadata.name.clone()
+    pub fn node_role_service_name(&self) -> String {
+        self.name_any()
     }
 
     /// The fully-qualified domain name of the role-level load-balanced Kubernetes `Service`
     pub fn node_role_service_fqdn(&self) -> Option<String> {
         Some(format!(
             "{}.{}.svc.cluster.local",
-            self.node_role_service_name()?,
+            self.node_role_service_name(),
             self.metadata.namespace.as_ref()?
         ))
     }

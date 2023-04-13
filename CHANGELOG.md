@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - Enabled logging and log aggregation ([#418])
 - Deploy default and support custom affinities ([#436], [#451])
 - Added the ability to mount extra volumes for files that may be needed for NiFi processors to work ([#434])
+- Openshift compatibility ([#446]).
 - Extend cluster resources for status and cluster operation (paused, stopped) ([#447])
 - Cluster status conditions ([#448])
 
@@ -17,19 +18,31 @@ All notable changes to this project will be documented in this file.
 - [BREAKING]: Renamed global `config` to `clusterConfig` ([#417])
 - [BREAKING]: Moved `zookeeper_configmap_name` to `clusterConfig` ([#417])
 - `operator-rs` `0.33.0` -> `0.40.2` ([#418], [#447], [#452])
+- [BREAKING] Support specifying Service type.
+  This enables us to later switch non-breaking to using `ListenerClasses` for the exposure of Services.
+  This change is breaking, because - for security reasons - we default to the `cluster-internal` `ListenerClass`.
+  If you need your cluster to be accessible from outside of Kubernetes you need to set `clusterConfig.listenerClass`
+  to `external-unstable` ([#449]).
 
 ### Fixed
 
 - Avoid empty log events dated to 1970-01-01 and improve the precision of the
   log event timestamps ([#452]).
+- Fix `create-reporting-task` to support multiple rolegroups ([#453])
+- Fix proxy hosts list missing an entry for the load-balanced Service ([#453])
+- Remove hardcoded `kubernetes.io/os=linux` selector when determining list of valid proxy nodes ([#453])
 
 [#417]: https://github.com/stackabletech/nifi-operator/pull/417
 [#418]: https://github.com/stackabletech/nifi-operator/pull/418
 [#434]: https://github.com/stackabletech/nifi-operator/pull/434
 [#436]: https://github.com/stackabletech/nifi-operator/pull/436
+[#446]: https://github.com/stackabletech/nifi-operator/pull/446
 [#447]: https://github.com/stackabletech/nifi-operator/pull/447
 [#448]: https://github.com/stackabletech/nifi-operator/pull/448
+[#449]: https://github.com/stackabletech/nifi-operator/pull/449
+[#451]: https://github.com/stackabletech/nifi-operator/pull/451
 [#452]: https://github.com/stackabletech/nifi-operator/pull/452
+[#453]: https://github.com/stackabletech/nifi-operator/pull/453
 
 ## [23.1.0] - 2023-01-23
 
