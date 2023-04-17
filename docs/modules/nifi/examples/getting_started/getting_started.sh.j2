@@ -80,7 +80,7 @@ metadata:
 spec:
   image:
     productVersion: 3.8.0
-    stackableVersion: "23.4.0-rc1"
+    stackableVersion: "{{ versions.zookeeper }}"
   servers:
     roleGroups:
       default:
@@ -134,8 +134,9 @@ metadata:
 spec:
   image:
     productVersion: 1.18.0
-    stackableVersion: "23.4.0-rc1"
+    stackableVersion: "{{ versions.nifi }}"
   clusterConfig:
+    listenerClass: external-unstable
     authentication:
       method:
         singleUser:
