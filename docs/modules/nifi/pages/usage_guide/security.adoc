@@ -4,11 +4,13 @@
 
 Every user has to authenticate themselves before using NiFI.
 There are multiple options to set up the authentication of users.
+All authentication related parameters are configured under `spec.clusterConfig.authentication`.
 
 === Single user
 
-The default setting is to only provision a single user with administrative privileges.
-You need to specify the username and password of the user.
+Currently, the only supported authentication method is "SingleUser", which allows the definition of one admin user which can then access the cluster.
+Specification of these users credentials happens via referring to a Secret in Kubernetes, this secret will need to contain at least the two keys `username` and `password`.
+Extra keys may be present, but will be ignored by the operator.
 
 [source,yaml]
 ----
@@ -35,6 +37,11 @@ spec:
 <1> Administrator credentials for logging into the NiFi web interface. This is the name of a `Secret` resource with two fields: `username` and `password`. This `Secret` must exist but it's entries can be populated by the operator when `autoGenerate` is `true`.
 
 Additional users can not be added.
+
+==== Anonymous Access
+
+NiFi can be configured to allow anonymous access to the web UI, this is turned off by default, but can be enabled via the parameter `allowAnonymousAccess`.
+This setting is independent of the configured authentication method and will override anything specified for the authentication provider.
 
 [#authentication-ldap]
 === LDAP

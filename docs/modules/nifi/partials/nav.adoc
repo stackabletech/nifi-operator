@@ -4,6 +4,7 @@
 * xref:nifi:usage_guide/index.adoc[]
 ** xref:nifi:usage_guide/cluster-operations.adoc[]
 ** xref:nifi:usage_guide/pod-placement.adoc[]
+** xref:nifi:usage_guide/zookeeper-connection.adoc[]
 ** xref:nifi:usage_guide/extra-volumes.adoc[]
 ** xref:nifi:usage_guide/security.adoc[]
 ** xref:nifi:usage_guide/resource-configuration.adoc[]
