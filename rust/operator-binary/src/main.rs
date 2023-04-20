@@ -10,8 +10,7 @@ use stackable_operator::{
         core::v1::{ConfigMap, Service},
     },
     kube::{
-        api::ListParams,
-        runtime::{reflector::ObjectRef, Controller},
+        runtime::{reflector::ObjectRef, watcher, Controller},
         ResourceExt,
     },
     logging::controller::report_controller_reconciled,
@@ -77,7 +76,7 @@ async fn main() -> anyhow::Result<()> {
 
             let nifi_controller = Controller::new(
                 watch_namespace.get_api::<NifiCluster>(&client),
-                ListParams::default(),
+                watcher::Config::default(),
             );
 
             let nifi_store_1 = nifi_controller.store();
@@ -85,20 +84,20 @@ async fn main() -> anyhow::Result<()> {
             nifi_controller
                 .owns(
                     watch_namespace.get_api::<Service>(&client),
-                    ListParams::default(),
+                    watcher::Config::default(),
                 )
                 .owns(
                     watch_namespace.get_api::<StatefulSet>(&client),
-                    ListParams::default(),
+                    watcher::Config::default(),
                 )
                 .owns(
                     watch_namespace.get_api::<ConfigMap>(&client),
-                    ListParams::default(),
+                    watcher::Config::default(),
                 )
                 .shutdown_on_signal()
                 .watches(
                     client.get_api::<AuthenticationClass>(&()),
-                    ListParams::default(),
+                    watcher::Config::default(),
                     move |authentication_class| {
                         nifi_store_1
                             .state()
