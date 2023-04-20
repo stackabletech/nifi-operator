@@ -1,3 +1,110 @@
 = Usage guide
 
 This section will help you to use various aspects of the Stackable Operator for Apache NiFi. For a general introduction into the operator follow the xref:getting_started/index.adoc[] guide.
+
+== Kubernetes custom resource options
+
+The cluster is configured via a YAML manifest file. This custom resource specifies the amount of replicas for each role group or role specific configuration like port definitions etc.
+The following listing shows a fairly complete example.
+
+[source,yaml]
+----
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: simple-nifi
+spec:
+  image:
+    productVersion: 1.18.0
+    stackableVersion: "23.4.0-rc1"
+  clusterConfig:
+    authentication:
+      method:
+        SingleUser:
+          adminCredentialsSecret:
+            name: nifi-admin-credentials-simple
+            namespace: default
+      allowAnonymousAccess: true
+    sensitiveProperties:
+      keySecret: nifi-sensitive-property-key
+      autoGenerate: true
+    zookeeperConfigMapName: simple-nifi-znode
+  nodes:
+    roleGroups:
+      default:
+        selector:
+          matchLabels:
+            kubernetes.io/os: linux
+        config:
+          log:
+            rootLogLevel: INFO
+        replicas: 3
+----
+
+=== Node Configuration
+
+[source,yaml]
+----
+nodes:
+  roleGroups:
+    default:
+      selector:
+        matchLabels:
+          kubernetes.io/os: linux
+      config: {}
+      replicas: 3
+----
+The `nodes` element is used to define how many pods with which configuration should be rolled out.
+It is possible to define multiple groups of nodes, each with its own distinct configuration, every `roleGroup` has the following elements:
+
+ - selector: a Kubernetes `Selector` to specify criteria that can be used to target nodes
+ - config: The NiFi config to use for this group
+ - replicas: How many pods to roll out for this group
+
+=== Authentication
+
+[source,yaml]
+----
+clusterConfig:
+  authentication:
+    method:
+      SingleUser:
+        adminCredentialsSecret:
+          name: nifi-admin-credentials-simple
+          namespace: default
+    allowAnonymousAccess: true
+----
+All authentication related parameters are configured in the `authentication` element.
+
+==== Authentication Method
+
+Currently, the only supported authentication method is "SingleUser", which allows the definition of one admin user which can then access the cluster.
+Specification of these users credentials happens via referring to a Secret in Kubernetes, this secret will need to contain at least the two keys `username` and `password`.
+Extra keys may be present, but will be ignored by the operator.
+
+==== Anonymous Access
+
+NiFi can be configured to allow anonymous access to the web UI, this is turned off by default, but can be enabled via the parameter `allowAnonymousAccess`.
+This setting is independent of the configured authentication method and will override anything specified for the authentication provider.
+
+=== ZooKeeper Connection
+
+[source,yaml]
+----
+clusterConfig:
+  zookeeperConfigMapName: simple-nifi-znode
+----
+NiFi in cluster mode requires a ZooKeeper ensemble for state management and leader election purposes, this operator at the moment does not support single node deployments without ZooKeeper, hence this is a required setting.
+Configuration happens via a ConfigMap, which needs to contain two keys called `ZOOKEEPER_HOSTS` with the value being the ZooKeeper connection string and `ZOOKEEPER_CHROOT` with the value being the ZooKeeper chroot. This ConfigMap typically is created by a ZookeeperZnode of the https://github.com/stackabletech/zookeeper-operator[ZooKeeper Operator].
+
+=== NiFi Configuration
+
+[source,yaml]
+----
+config:
+  log:
+    rootLogLevel: INFO
+----
+This is the actual NiFi configuration element.
+At the moment only a very limited set of options is supported, but you can expect these to grow quickly over time.
+Anything that is not mentioned here can be configured via configOverrides. This does not include properties for XML files like `state-management.xml`.

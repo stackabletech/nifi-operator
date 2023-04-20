@@ -15,6 +15,8 @@ The Operator manages the _NifiCluster_ custom resource. NiFi only has a single p
 
 image::nifi_overview.drawio.svg[A diagram depicting the Kubernetes resources created by the Stackable Operator for Apache NiFi]
 
+For every role group the Operator creates a ConfigMap and StatefulSet which can have multiple replicas (Pods). Every role group is accessible through it's own Service, and there is a Service for the whole Cluster.
+
 == Dependencies
 
 Apache NiFi depends on Apache ZooKeeper which you can run in Kubernetes with the xref:zookeeper:index.adoc[].
