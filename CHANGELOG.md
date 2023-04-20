@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- `operator-rs` `0.40.2` -> `0.41.0` ([#461]).
+
+[#461]: https://github.com/stackabletech/nifi-operator/pull/461
+
 ## [23.4.0] - 2023-04-17
 
 ### Added
