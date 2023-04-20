@@ -11,17 +11,13 @@ Get started with Apache NiFi and the Stackable Operator by following the xref:ge
 
 == Operator Model
 
-TODO
+The Operator manages the _NifiCluster_ custom resource. NiFi only has a single process that it needs to run, so the NifiCluster has only a single xref:concepts:roles-and-role-groups.adoc[role]: `node`. This role can be divided in multiple role groups.
+
+image::nifi_overview.drawio.svg[A diagram depicting the Kubernetes resources created by the Stackable Operator for Apache NiFi]
 
 == Dependencies
 
 Apache NiFi depends on Apache ZooKeeper which you can run in Kubernetes with the xref:zookeeper:index.adoc[].
-
-== Other Operators to connect
-
-Can write to S3 and HDFS
-
-Can ingest into Kafka
 
 == [[demos]]Demos
 
