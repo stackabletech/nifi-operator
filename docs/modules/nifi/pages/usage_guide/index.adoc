@@ -32,20 +32,21 @@ spec:
       keySecret: nifi-sensitive-property-key
       autoGenerate: true
   nodes:
-    roleGroups:
-      default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
-        config:
-          log:  # <4>
-            rootLogLevel: INFO
+  roleGroups:
+    default:
+      config:
+        resources:  # <4>
+          cpu:
+            min: "500m"
+            max: "4"
+          memory:
+            limit: '2Gi'
         replicas: 3
 ----
 
 <1>: The xref:usage_guide/zookeeper-connection.adoc[ZooKeeper instance] to use.
 <2>: How users should xref:usage_guide/security.adoc[authenticate] themselves.
 <3>: xref:usage_guide/extra-volumes.adoc[Extra volumes] with files that can be referenced in custom workflows.
-<4>: The xref:usage_guide/logging.adoc[logging configuration] for this role group.
+<4>: xref:usage_guide/resource-configuration.adoc[CPU and memory configuration] can be set per role group.
 
-Not shown are the common settings for xref:usage_guide/cluster-operations.adoc[starting and stopping the cluster], xref:usage_guide/pod-placement.adoc[distributing Pods] and xref:usage_guide/resource-configuration.adoc[storage, CPU and memory configuration]. Additionally you can set any NiFi setting using xref:usage_guide/configuration-environment-overrides.adoc[overrides].
+Not shown are the common settings for xref:usage_guide/cluster-operations.adoc[starting and stopping the cluster] and xref:usage_guide/pod-placement.adoc[distributing Pods]. Additionally you can set any NiFi setting using xref:usage_guide/configuration-environment-overrides.adoc[overrides]. You can also configure xref:usage_guide/log-aggregation.adoc[log aggregation].
