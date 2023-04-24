@@ -2,7 +2,7 @@
 
 This section will help you to use various aspects of the Stackable Operator for Apache NiFi. For a general introduction into the operator follow the xref:getting_started/index.adoc[] guide. Below is a general overview of some configuration aspects, have a look at the sub pages for details.
 
-The cluster is configured via a YAML manifest file. This custom resource specifies the amount of replicas for each role group or role specific configuration like port definitions etc.
+The cluster is configured via a YAML manifest file. This custom resource specifies the amount of replicas for each role group or role specific configuration like resource requests.
 The following listing shows an example configuration:
 
 [source,yaml]
