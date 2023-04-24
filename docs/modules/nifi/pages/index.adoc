@@ -3,7 +3,7 @@
 :keywords: k8s, Kubernetes, Stackable Operator, Apache NiFi, open source, operator, data science, data exploration, big data
 
 This Operator manages https://nifi.apache.org/[Apache NiFi] clusters on Kubernetes.
-Apache NiFi is an open-source data integration tool that provides a web-based interface for designing, monitoring, and managing data flows between various systems and devices, using a visual programming approach. It supports a wide range of data sources, formats, and features such as data provenance, security, and clustering.
+Apache NiFi is an open-source data integration tool that provides a web-based interface for designing, monitoring and managing data flows between various systems and devices, using a visual programming approach. It supports a wide range of data sources, formats and features such as data provenance, security and clustering.
 
 == Getting started
 
