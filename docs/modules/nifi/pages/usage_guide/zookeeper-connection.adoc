@@ -1,0 +1,12 @@
+= Connecting NiFi to ZooKeeper
+
+NiFi in cluster mode requires a ZooKeeper ensemble for state management and leader election purposes, this operator at the moment does not support single node deployments without ZooKeeper, hence this is a required setting.
+
+[source,yaml]
+----
+spec:
+  clusterConfig:
+    zookeeperConfigMapName: simple-nifi-znode
+----
+
+Configuration happens via a ConfigMap, which needs to contain two keys called `ZOOKEEPER_HOSTS` with the value being the ZooKeeper connection string and `ZOOKEEPER_CHROOT` with the value being the ZooKeeper chroot. This ConfigMap typically is created by a ZookeeperZnode of the xref:zookeeper:index.adoc[ZooKeeper Operator].

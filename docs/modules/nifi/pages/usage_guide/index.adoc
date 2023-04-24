@@ -1,3 +1,52 @@
 = Usage guide
 
-This section will help you to use various aspects of the Stackable Operator for Apache NiFi. For a general introduction into the operator follow the xref:getting_started/index.adoc[] guide.
+This section will help you to use various aspects of the Stackable Operator for Apache NiFi. For a general introduction into the operator follow the xref:getting_started/index.adoc[] guide. Below is a general overview of some configuration aspects, have a look at the sub pages for details.
+
+The cluster is configured via a YAML manifest file. This custom resource specifies the amount of replicas for each role group or role specific configuration like resource requests.
+The following listing shows an example configuration:
+
+[source,yaml]
+----
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: simple-nifi
+spec:
+  image:
+    productVersion: 1.18.0
+    stackableVersion: "23.4.0"
+  clusterConfig:
+    zookeeperConfigMapName: simple-nifi-znode  # <1>
+    authentication:  # <2>
+      method:
+        SingleUser:
+          adminCredentialsSecret:
+            name: nifi-admin-credentials-simple
+            namespace: default
+      allowAnonymousAccess: true
+    extraVolumes:  # <3>
+      - name: nifi-client-certs
+        secret:
+          secretName: nifi-client-certs
+    sensitiveProperties:
+      keySecret: nifi-sensitive-property-key
+      autoGenerate: true
+  nodes:
+  roleGroups:
+    default:
+      config:
+        resources:  # <4>
+          cpu:
+            min: "500m"
+            max: "4"
+          memory:
+            limit: '2Gi'
+        replicas: 3
+----
+
+<1>: The xref:usage_guide/zookeeper-connection.adoc[ZooKeeper instance] to use.
+<2>: How users should xref:usage_guide/security.adoc[authenticate] themselves.
+<3>: xref:usage_guide/extra-volumes.adoc[Extra volumes] with files that can be referenced in custom workflows.
+<4>: xref:usage_guide/resource-configuration.adoc[CPU and memory configuration] can be set per role group.
+
+Not shown are the common settings for xref:usage_guide/cluster-operations.adoc[starting and stopping the cluster] and xref:usage_guide/pod-placement.adoc[distributing Pods]. Additionally you can set any NiFi setting using xref:usage_guide/configuration-environment-overrides.adoc[overrides]. You can also configure xref:usage_guide/log-aggregation.adoc[log aggregation].
