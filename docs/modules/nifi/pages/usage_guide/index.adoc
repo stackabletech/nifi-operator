@@ -14,7 +14,7 @@ metadata:
 spec:
   image:
     productVersion: 1.18.0
-    stackableVersion: "23.4.0"
+    stackableVersion: "0.0.0-dev"
   clusterConfig:
     zookeeperConfigMapName: simple-nifi-znode  # <1>
     authentication:  # <2>
