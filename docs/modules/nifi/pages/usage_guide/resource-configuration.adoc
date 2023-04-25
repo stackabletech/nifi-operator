@@ -15,15 +15,15 @@ nodes:
       config:
         resources:
           storage:
-            flowfile_repo:
+            flowfileRepo:
               capacity: 12Gi
-            provenance_repo:
+            provenanceRepo:
               capacity: 12Gi
-            database_repo:
+            databaseRepo:
               capacity: 12Gi
-            content_repo:
+            contentRepo:
               capacity: 12Gi
-            state_repo:
+            stateRepo:
               capacity: 12Gi
 ----
 
@@ -48,14 +48,14 @@ nodes:
           memory:
             limit: '2Gi'
           storage:
-            flowfile_repo:
+            flowfileRepo:
               capacity: 2Gi
-            provenance_repo:
+            provenanceRepo:
               capacity: 2Gi
-            database_repo:
+            databaseRepo:
               capacity: 2Gi
-            content_repo:
+            contentRepo:
               capacity: 2Gi
-            state_repo:
+            stateRepo:
               capacity: 2Gi
 ----
