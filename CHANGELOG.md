@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Added support for NiFi version 1.20.0 and 1.21.0 ([#464]).
+- Added support for NiFi versions 1.20.0 and 1.21.0 ([#464]).
 
 ### Changed
 
