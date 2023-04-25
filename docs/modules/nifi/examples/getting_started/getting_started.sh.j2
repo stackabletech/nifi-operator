@@ -133,15 +133,15 @@ metadata:
   name: simple-nifi
 spec:
   image:
-    productVersion: 1.18.0
+    productVersion: 1.21.0
     stackableVersion: "{{ versions.nifi }}"
   clusterConfig:
-    listenerClass: external-unstable
     authentication:
       method:
         singleUser:
           adminCredentialsSecret: nifi-admin-credentials-simple
           autoGenerate: true
+    listenerClass: external-unstable
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
       autoGenerate: true
