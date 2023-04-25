@@ -34,6 +34,7 @@ dimensions:
   - name: openshift
     values:
       - "false"
+  # Used for both, zookeeper and nifi
   - name: listener-class
     values:
       - "cluster-internal"
