@@ -6,8 +6,6 @@
 dimensions:
   - name: zookeeper
     values:
-      - 3.5.8-stackable0.0.0-dev
-      - 3.6.3-stackable0.0.0-dev
       - 3.7.0-stackable0.0.0-dev
       - 3.8.0-stackable0.0.0-dev
   - name: zookeeper-latest
@@ -18,16 +16,17 @@ dimensions:
       - 1.15.3-stackable0.0.0-dev
       - 1.16.3-stackable0.0.0-dev
       - 1.18.0-stackable0.0.0-dev
+      - 1.20.0-stackable0.0.0-dev
+      - 1.21.0-stackable0.0.0-dev
   - name: nifi_old
     values:
-      - 1.15.3-stackable0.0.0-dev
-      - 1.16.3-stackable0.0.0-dev
+      - 1.18.0-stackable0.0.0-dev
   - name: nifi_new
     values:
-      - 1.18.0-stackable0.0.0-dev
+      - 1.21.0-stackable0.0.0-dev
   - name: nifi-latest
     values:
-      - 1.18.0-stackable0.0.0-dev
+      - 1.21.0-stackable0.0.0-dev
   - name: ldap-use-tls
     values:
       - "false"
@@ -35,7 +34,6 @@ dimensions:
   - name: openshift
     values:
       - "false"
-  # Used for both, zookeeper and nifi
   - name: listener-class
     values:
       - "cluster-internal"
