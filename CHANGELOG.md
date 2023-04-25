@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Added support for NiFi version 1.20.0 and 1.21.0 ([#464]).
+
 ### Changed
 
 - `operator-rs` `0.40.2` -> `0.41.0` ([#461]).
@@ -12,6 +16,7 @@ All notable changes to this project will be documented in this file.
 
 [#461]: https://github.com/stackabletech/nifi-operator/pull/461
 [#463]: https://github.com/stackabletech/nifi-operator/pull/463
+[#464]: https://github.com/stackabletech/nifi-operator/pull/464
 
 ## [23.4.0] - 2023-04-17
 
