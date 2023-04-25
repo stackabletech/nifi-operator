@@ -1,7 +1,7 @@
 = Updating NiFi
 
 Updating (or downgrading for that matter) the deployed version of NiFi is as simple as changing the version stated in the CRD.
-Continuing the example above, to change the deployed version from `1.18.0` to `1.16.3` you'd simply deploy the following CRD.
+Continuing the example above, to change the deployed version from `1.21.0` to `1.20.0` you'd simply deploy the following CRD.
 
 [source,yaml]
 ----
@@ -11,13 +11,14 @@ metadata:
   name: simple-nifi
 spec:
   image:
-    productVersion: 1.16.3 # <1>
+    productVersion: 1.20.0 # <1>
     stackableVersion: "0.0.0-dev" # <2>
   clusterConfig:
     authentication:
       method:
         singleUser:
           adminCredentialsSecret: nifi-admin-credentials-simple
+    listenerClass: external-unstable
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
     zookeeperConfigMapName: simple-nifi-znode
