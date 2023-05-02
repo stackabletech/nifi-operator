@@ -14,9 +14,15 @@ All notable changes to this project will be documented in this file.
 - Use 0.0.0-dev product images for testing ([#463])
 - Use testing-tools 0.2.0 ([#463])
 
+### Fixed
+
+- Use ou with spaces in LDAP tests ([#466]).
+- Reporting task now escapes user and password input in case of whitespaces ([#466]). 
+
 [#461]: https://github.com/stackabletech/nifi-operator/pull/461
 [#463]: https://github.com/stackabletech/nifi-operator/pull/463
 [#464]: https://github.com/stackabletech/nifi-operator/pull/464
+[#466]: https://github.com/stackabletech/nifi-operator/pull/466
 
 ## [23.4.0] - 2023-04-17
 
