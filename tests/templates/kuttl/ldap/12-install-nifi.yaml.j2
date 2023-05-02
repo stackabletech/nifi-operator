@@ -21,7 +21,7 @@ metadata:
   labels:
     secrets.stackable.tech/class: nifi-with-ldap-bind
 stringData:
-  user: cn=integrationtest,ou=users,dc=example,dc=org
+  user: cn=integrationtest,ou=my users,dc=example,dc=org
   password: integrationtest
 ---
 apiVersion: nifi.stackable.tech/v1alpha1
@@ -33,6 +33,7 @@ spec:
     productVersion: "{{ test_scenario['values']['nifi'].split('-stackable')[0] }}"
     stackableVersion: "{{ test_scenario['values']['nifi'].split('-stackable')[1] }}"
   clusterConfig:
+    listenerClass: external-unstable
     authentication:
       method:
 {% if test_scenario['values']['ldap-use-tls'] == 'false' %}
