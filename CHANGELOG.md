@@ -17,7 +17,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Use ou with spaces in LDAP tests ([#466]).
-- Reporting task now escapes user and password input in case of whitespaces ([#466]). 
+- Reporting task now escapes user and password input in case of whitespaces ([#466]).
 
 [#461]: https://github.com/stackabletech/nifi-operator/pull/461
 [#463]: https://github.com/stackabletech/nifi-operator/pull/463
