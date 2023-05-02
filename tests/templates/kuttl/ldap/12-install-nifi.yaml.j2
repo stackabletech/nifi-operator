@@ -33,7 +33,6 @@ spec:
     productVersion: "{{ test_scenario['values']['nifi'].split('-stackable')[0] }}"
     stackableVersion: "{{ test_scenario['values']['nifi'].split('-stackable')[1] }}"
   clusterConfig:
-    listenerClass: external-unstable
     authentication:
       method:
 {% if test_scenario['values']['ldap-use-tls'] == 'false' %}
