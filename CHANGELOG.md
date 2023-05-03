@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Added support for NiFi versions 1.20.0 and 1.21.0 ([#464]).
+- Generate OLM bundle for Release 23.4.0 ([#467]).
 
 ### Changed
 
@@ -17,6 +18,7 @@ All notable changes to this project will be documented in this file.
 [#461]: https://github.com/stackabletech/nifi-operator/pull/461
 [#463]: https://github.com/stackabletech/nifi-operator/pull/463
 [#464]: https://github.com/stackabletech/nifi-operator/pull/464
+[#467]: https://github.com/stackabletech/nifi-operator/pull/467
 
 ## [23.4.0] - 2023-04-17
 
