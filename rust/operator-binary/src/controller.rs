@@ -1159,9 +1159,9 @@ fn build_reporting_task_job(
         // In case of the username being simple (e.g. admin) just use it as is
         // If the username is a bind dn (e.g. cn=integrationtest,ou=users,dc=example,dc=org) we have to extract the cn/dn/uid (in this case integrationtest)
         format!(
-            "-u $(cat {admin_username_file} | grep -oP '((cn|dn|uid)=\\K[^,]+|.*)' | head -n 1)"
+            "-u \"$(cat {admin_username_file} | grep -oP '((cn|dn|uid)=\\K[^,]+|.*)' | head -n 1)\""
         ),
-        format!("-p $(cat {admin_password_file})"),
+        format!("-p \"$(cat {admin_password_file})\""),
         format!("-v {product_version}"),
         format!("-m {METRICS_PORT}"),
         format!("-c {KEYSTORE_REPORTING_TASK_MOUNT}/ca.crt"),

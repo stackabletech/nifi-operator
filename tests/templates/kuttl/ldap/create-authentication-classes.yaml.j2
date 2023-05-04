@@ -11,7 +11,7 @@ spec:
   provider:
     ldap:
       hostname: openldap.$NAMESPACE.svc.cluster.local
-      searchBase: ou=users,dc=example,dc=org
+      searchBase: ou=my users,dc=example,dc=org
       bindCredentials:
         secretClass: nifi-with-ldap-bind
 {% if test_scenario['values']['ldap-use-tls'] == 'false' %}
