@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [23.4.1] - 2023-05-17
+
+- Missing CRD defaults for `status.conditions` field ([#471]).
+
+[#471]: https://github.com/stackabletech/nifi-operator/pull/471
+
 ## [23.4.0] - 2023-04-17
 
 ### Added
