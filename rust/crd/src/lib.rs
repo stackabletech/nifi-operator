@@ -205,6 +205,7 @@ pub enum NifiRole {
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, Serialize)]
 pub struct NifiStatus {
     pub deployed_version: Option<String>,
+    #[serde(default)]
     pub conditions: Vec<ClusterCondition>,
 }
 
