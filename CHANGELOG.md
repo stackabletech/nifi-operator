@@ -9,7 +9,7 @@ All notable changes to this project will be documented in this file.
 - Added support for NiFi versions 1.20.0 and 1.21.0 ([#464]).
 - Generate OLM bundle for Release 23.4.0 ([#467]).
 - Missing CRD defaults for `status.conditions` field ([#471]).
-- Add support for resource quotas ([#xxx])
+- Add support for resource quotas ([#476])
 
 ### Changed
 
@@ -28,7 +28,7 @@ All notable changes to this project will be documented in this file.
 [#466]: https://github.com/stackabletech/nifi-operator/pull/466
 [#467]: https://github.com/stackabletech/nifi-operator/pull/467
 [#471]: https://github.com/stackabletech/nifi-operator/pull/471
-[#xxx]: https://github.com/stackabletech/nifi-operator/pull/xxx
+[#476]: https://github.com/stackabletech/nifi-operator/pull/476
 
 ## [23.4.0] - 2023-04-17
 
