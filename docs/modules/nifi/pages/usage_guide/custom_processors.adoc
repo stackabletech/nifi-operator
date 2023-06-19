@@ -20,7 +20,7 @@ FROM docker.stackable.tech/stackable/nifi:1.21.0-stackable0.0.0-dev
 COPY /path/to/your/nar.file /stackable/nifi/lib/
 ----
 
-You then need to make this image available to your Kubernetes cluster and specify it in your NiFi resource as described in xref:home:concepts:pages:product_image_selection.adoc[].
+You then need to make this image available to your Kubernetes cluster and specify it in your NiFi resource as described in xref:home:concepts:product_image_selection.adoc[].
 
 [source,yaml]
 ----
