@@ -74,7 +74,7 @@ spec:
           name: nifi-processor
 ----
 
-<1> Please note that this access mode will mean that you can only use this volume with a single NiFi pod. For a distributed scenario, a value of `ReadWriteMany` could be used if this is supported.
+<1> Please note that this access mode will mean that you can only use this volume with a single NiFi pod. For a distributed scenario, an additional list value of `ReadOnlyMany` could be specified here if this is supported.
 
 The command to then copy the nar bundle into the PVC is:
 
