@@ -1,0 +1,127 @@
+= Loading Custom Components
+
+It is possible to develop https://nifi.apache.org/docs/nifi-docs/html/developer-guide.html#introduction[custom components] for Apache NiFi to extend the available functionality - most often this will probably be custom processors.
+
+For these to be available in the NiFi UI, they need to be present in the classpath at startup, so the nar bundles have to be injected into your NiFi instance.
+
+The Stackable Data Platform supports two ways to achive this goal, both of which are described below.
+
+Please note that building your own Docker image is the recommended solution, as giving multiple pods access to a shared PVC can often be tricky (see comment on access mode in the second section).
+
+== Custom Docker Image
+
+You can extend the official Stackable NiFi image and simply copy all required nar files into the classpath of Nifi.
+The benefit of this method is that there is no need for any config overrides or extra mounts, you can simply use any ouf our NiFi examples, swap the image and your components will be available.
+But this means you will need to have access to a registry to push your custom image to.
+
+A simple Dockerfile would look like show in the following listing.
+
+[source,Dockerfile]
+----
+FROM docker.stackable.tech/stackable/nifi:1.21.0-stackable0.0.0-dev
+COPY /path/to/your/nar.file /stackable/nifi/lib/
+----
+
+You then need to make this image available to your Kubernetes cluster and specify it in your NiFi resource as described in xref:home:concepts:product_image_selection.adoc[].
+
+[source,yaml]
+----
+spec:
+  image:
+    productVersion: 1.21.0
+    custom: "docker.company.org/nifi:1.21.0-customprocessor"
+----
+
+== Using the Official Image
+If you don't want to create a custom image, then you can use the extra volume mount functionality to load components and configure NiFi with to read these from the extra volumes.
+
+For this to work you'll need to prepare a PVC containing your components.
+Usually the best way to do this will be to mount the PVC into a temporary container and then simply `kubectl cp` the nar files into that volume.
+
+The following listing shows an example of creating the PVC and the Pod:
+
+[source, yaml]
+----
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nifi-processor
+spec:
+  accessModes:
+    - ReadWriteOnce  # <1>
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: processorcopy
+spec:
+  volumes:
+    - name: nifi-processor
+      persistentVolumeClaim:
+        claimName: nifi-processor
+  containers:
+    - name: copycontainer
+      image: alpine
+      command:
+        - tail
+        - "-f"
+        - "/dev/null"
+      volumeMounts:
+        - mountPath: "/volume"
+          name: nifi-processor
+----
+
+<1> Please note that this access mode will mean that you can only use this volume with a single NiFi pod. For a distributed scenario, an additional list value of `ReadOnlyMany` could be specified here if this is supported.
+
+The command to then copy the nar bundle into the PVC is:
+
+[source,bash]
+----
+kubectl cp /path/to/component.nar processorcopy:/volume/
+----
+
+Now you can mount the extra volume into your NiFi instance as described in xref:nifi:usage_guide/extra-volumes.adoc[] .
+
+After this is done your components will be available within the NiFi pods and NiFi can be configured to load these at startup by adding an extra directory to the classpath:
+
+
+[source,yaml]
+----
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: simple-nifi
+spec:
+  image:
+    productVersion: 1.21.0
+    stackableVersion: "0.0.0-dev"
+  clusterConfig:
+    extraVolumes: # <1>
+      - name: nifi-processor
+        persistentVolumeClaim:
+          claimName: nifi-processor
+    authentication:
+      method:
+        singleUser:
+          adminCredentialsSecret: nifi-admin-credentials-simple
+          autoGenerate: true
+    listenerClass: external-unstable
+    sensitiveProperties:
+      keySecret: nifi-sensitive-property-key
+      autoGenerate: true
+    zookeeperConfigMapName: simple-nifi-znode
+  nodes:
+    config:
+    configOverrides:
+      nifi.properties:
+        nifi.nar.library.directory.myCustomLibs: "../userdata/nifi-processor/" # <2>
+    roleGroups:
+      default:
+        replicas: 1
+----
+
+<1> Specify your prepared PVC here.
+<2> The directory name after `userdata` has to match the name of the volume, while `mycustomlibs` is a name you can freely change.
