@@ -6,6 +6,8 @@ For these to be available in the NiFi UI, they need to be present in the classpa
 
 The Stackable Data Platform supports two ways to achive this goal, both of which are described below.
 
+Please note that building your own Docker image is the recommended solution, as giving multiple pods access to a shared PVC can often be tricky (see comment on access mode in the second section).
+
 == Custom Docker Image
 
 You can extend the official Stackable NiFi image and simply copy all required nar files into the classpath of Nifi.
@@ -36,18 +38,17 @@ If you don't want to create a custom image, then you can use the extra volume mo
 For this to work you'll need to prepare a PVC containing your components.
 Usually the best way to do this will be to mount the PVC into a temporary container and then simply `kubectl cp` the nar files into that volume.
 
-The following listing shows an example of creating the PVC and the pod:
+The following listing shows an example of creating the PVC and the Pod:
 
 [source, yaml]
 ----
----
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: nifi-processor
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteOnce  # <1>
   resources:
     requests:
       storage: 1Gi
@@ -73,6 +74,8 @@ spec:
           name: nifi-processor
 ----
 
+<1> Please note that this access mode will mean that you can only use this volume with a single NiFi pod. For a distributed scenario, a value of `ReadWriteMany` could be used if this is supported.
+
 The command to then copy the nar bundle into the PVC is:
 
 [source,bash]
@@ -87,7 +90,6 @@ After this is done your components will be available within the NiFi pods and Ni
 
 [source,yaml]
 ----
----
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
 metadata:
