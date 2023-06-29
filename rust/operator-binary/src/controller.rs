@@ -861,10 +861,10 @@ async fn build_node_rolegroup_statefulset(
         .add_volume_mount("log", STACKABLE_LOG_DIR)
         .resources(
             ResourceRequirementsBuilder::new()
-                .with_cpu_request("100m")
-                .with_cpu_limit("200m")
-                .with_memory_request("64Mi")
-                .with_memory_limit("64Mi")
+                .with_cpu_request("500m")
+                .with_cpu_limit("2000m")
+                .with_memory_request("4096Mi")
+                .with_memory_limit("4096Mi")
                 .build(),
         );
 
