@@ -270,8 +270,8 @@ impl NifiConfig {
             logging: product_logging::spec::default_logging(),
             resources: ResourcesFragment {
                 cpu: CpuLimitsFragment {
-                    min: Some(Quantity("200m".to_string())),
-                    max: Some(Quantity("800m".to_string())),
+                    min: Some(Quantity("1".to_string())),
+                    max: Some(Quantity("2".to_string())),
                 },
                 memory: MemoryLimitsFragment {
                     limit: Some(Quantity("1024Mi".to_string())),
@@ -279,27 +279,27 @@ impl NifiConfig {
                 },
                 storage: NifiStorageConfigFragment {
                     flowfile_repo: PvcConfigFragment {
-                        capacity: Some(Quantity("2Gi".to_string())),
+                        capacity: Some(Quantity("1024Mi".to_string())),
                         storage_class: None,
                         selectors: None,
                     },
                     provenance_repo: PvcConfigFragment {
-                        capacity: Some(Quantity("2Gi".to_string())),
+                        capacity: Some(Quantity("2048Mi".to_string())),
                         storage_class: None,
                         selectors: None,
                     },
                     database_repo: PvcConfigFragment {
-                        capacity: Some(Quantity("2Gi".to_string())),
+                        capacity: Some(Quantity("1024Mi".to_string())),
                         storage_class: None,
                         selectors: None,
                     },
                     content_repo: PvcConfigFragment {
-                        capacity: Some(Quantity("2Gi".to_string())),
+                        capacity: Some(Quantity("4096Mi".to_string())),
                         storage_class: None,
                         selectors: None,
                     },
                     state_repo: PvcConfigFragment {
-                        capacity: Some(Quantity("2Gi".to_string())),
+                        capacity: Some(Quantity("1024Mi".to_string())),
                         storage_class: None,
                         selectors: None,
                     },

@@ -1190,7 +1190,15 @@ fn build_reporting_task_job(
         .command(vec!["sh".to_string(), "-c".to_string()])
         .args(vec![args.join(" ")])
         // The VolumeMount for the secret operator key store certificates
-        .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_REPORTING_TASK_MOUNT);
+        .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_REPORTING_TASK_MOUNT)
+        .resources(
+            ResourceRequirementsBuilder::new()
+                .with_cpu_request("100m")
+                .with_cpu_limit("400m")
+                .with_memory_request("512Mi")
+                .with_memory_limit("512Mi")
+                .build(),
+        );
 
     let job_name = format!(
         "{}-create-reporting-task-{}",
