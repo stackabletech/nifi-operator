@@ -50,10 +50,10 @@ nodes:
       config:
         resources:
           cpu:
-            min: "200m"
-            max: "800m"
+            min: "500m"
+            max: "2000m"
           memory:
-            limit: '1024Mi'
+            limit: '4096Mi'
           storage:
             flowfileRepo:
               capacity: 1024Mi
