@@ -269,37 +269,37 @@ impl NifiConfig {
         NifiConfigFragment {
             logging: product_logging::spec::default_logging(),
             resources: ResourcesFragment {
-                memory: MemoryLimitsFragment {
-                    limit: Some(Quantity("2Gi".to_string())),
-                    runtime_limits: NoRuntimeLimitsFragment {},
-                },
                 cpu: CpuLimitsFragment {
                     min: Some(Quantity("500m".to_string())),
-                    max: Some(Quantity("4".to_string())),
+                    max: Some(Quantity("2000m".to_string())),
+                },
+                memory: MemoryLimitsFragment {
+                    limit: Some(Quantity("4096Mi".to_string())),
+                    runtime_limits: NoRuntimeLimitsFragment {},
                 },
                 storage: NifiStorageConfigFragment {
                     flowfile_repo: PvcConfigFragment {
-                        capacity: Some(Quantity("2Gi".to_string())),
+                        capacity: Some(Quantity("1024Mi".to_string())),
                         storage_class: None,
                         selectors: None,
                     },
                     provenance_repo: PvcConfigFragment {
-                        capacity: Some(Quantity("2Gi".to_string())),
+                        capacity: Some(Quantity("2048Mi".to_string())),
                         storage_class: None,
                         selectors: None,
                     },
                     database_repo: PvcConfigFragment {
-                        capacity: Some(Quantity("2Gi".to_string())),
+                        capacity: Some(Quantity("1024Mi".to_string())),
                         storage_class: None,
                         selectors: None,
                     },
                     content_repo: PvcConfigFragment {
-                        capacity: Some(Quantity("2Gi".to_string())),
+                        capacity: Some(Quantity("4096Mi".to_string())),
                         storage_class: None,
                         selectors: None,
                     },
                     state_repo: PvcConfigFragment {
-                        capacity: Some(Quantity("2Gi".to_string())),
+                        capacity: Some(Quantity("1024Mi".to_string())),
                         storage_class: None,
                         selectors: None,
                     },

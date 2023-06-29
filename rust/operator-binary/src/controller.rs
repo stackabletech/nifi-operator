@@ -11,8 +11,9 @@ use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
-        ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
-        PodSecurityContextBuilder, SecretOperatorVolumeSourceBuilder, VolumeBuilder,
+        resources::ResourceRequirementsBuilder, ConfigMapBuilder, ContainerBuilder,
+        ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder,
+        SecretOperatorVolumeSourceBuilder, VolumeBuilder,
     },
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
@@ -857,7 +858,15 @@ async fn build_node_rolegroup_statefulset(
         .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_NIFI_CONTAINER_MOUNT)
         .add_volume_mount("activeconf", "/stackable/nifi/conf")
         .add_volume_mount("sensitiveproperty", "/stackable/sensitiveproperty")
-        .add_volume_mount("log", STACKABLE_LOG_DIR);
+        .add_volume_mount("log", STACKABLE_LOG_DIR)
+        .resources(
+            ResourceRequirementsBuilder::new()
+                .with_cpu_request("500m")
+                .with_cpu_limit("2000m")
+                .with_memory_request("4096Mi")
+                .with_memory_limit("4096Mi")
+                .build(),
+        );
 
     let nifi_container_name = Container::Nifi.to_string();
     let mut container_builder = ContainerBuilder::new(&nifi_container_name).with_context(|_| {
@@ -974,6 +983,12 @@ async fn build_node_rolegroup_statefulset(
             "config",
             "log",
             merged_config.logging.containers.get(&Container::Vector),
+            ResourceRequirementsBuilder::new()
+                .with_cpu_request("250m")
+                .with_cpu_limit("500m")
+                .with_memory_request("128Mi")
+                .with_memory_limit("128Mi")
+                .build(),
         ));
     }
 
@@ -1175,7 +1190,15 @@ fn build_reporting_task_job(
         .command(vec!["sh".to_string(), "-c".to_string()])
         .args(vec![args.join(" ")])
         // The VolumeMount for the secret operator key store certificates
-        .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_REPORTING_TASK_MOUNT);
+        .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_REPORTING_TASK_MOUNT)
+        .resources(
+            ResourceRequirementsBuilder::new()
+                .with_cpu_request("100m")
+                .with_cpu_limit("400m")
+                .with_memory_request("512Mi")
+                .with_memory_limit("512Mi")
+                .build(),
+        );
 
     let job_name = format!(
         "{}-create-reporting-task-{}",
