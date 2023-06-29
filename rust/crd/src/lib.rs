@@ -270,11 +270,11 @@ impl NifiConfig {
             logging: product_logging::spec::default_logging(),
             resources: ResourcesFragment {
                 cpu: CpuLimitsFragment {
-                    min: Some(Quantity("1".to_string())),
-                    max: Some(Quantity("2".to_string())),
+                    min: Some(Quantity("500m".to_string())),
+                    max: Some(Quantity("2000m".to_string())),
                 },
                 memory: MemoryLimitsFragment {
-                    limit: Some(Quantity("1024Mi".to_string())),
+                    limit: Some(Quantity("4096Mi".to_string())),
                     runtime_limits: NoRuntimeLimitsFragment {},
                 },
                 storage: NifiStorageConfigFragment {

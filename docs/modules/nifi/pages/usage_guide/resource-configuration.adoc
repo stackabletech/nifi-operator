@@ -35,9 +35,9 @@ include::home:concepts:stackable_resource_requests.adoc[]
 
 A minimal HA setup consisting of 2 NiFi instances has the following https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/[resource requirements]:
 
-* `2500m` CPU request
+* `1500m` CPU request
 * `5000m` CPU limit
-* `2304Mi` memory request and limit
+* `8448Mi` memory request and limit
 * `18432Mi` persistent storage
 
 Corresponding to the values above, the operator uses the following resource defaults:
