@@ -269,13 +269,13 @@ impl NifiConfig {
         NifiConfigFragment {
             logging: product_logging::spec::default_logging(),
             resources: ResourcesFragment {
-                memory: MemoryLimitsFragment {
-                    limit: Some(Quantity("2Gi".to_string())),
-                    runtime_limits: NoRuntimeLimitsFragment {},
-                },
                 cpu: CpuLimitsFragment {
-                    min: Some(Quantity("500m".to_string())),
-                    max: Some(Quantity("4".to_string())),
+                    min: Some(Quantity("200m".to_string())),
+                    max: Some(Quantity("800m".to_string())),
+                },
+                memory: MemoryLimitsFragment {
+                    limit: Some(Quantity("1024Mi".to_string())),
+                    runtime_limits: NoRuntimeLimitsFragment {},
                 },
                 storage: NifiStorageConfigFragment {
                     flowfile_repo: PvcConfigFragment {

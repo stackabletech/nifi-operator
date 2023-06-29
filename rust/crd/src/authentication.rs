@@ -5,19 +5,21 @@ use rand::distributions::Alphanumeric;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
-use stackable_operator::builder::{
-    ContainerBuilder, ObjectMetaBuilder, PodBuilder, SecretOperatorVolumeSourceBuilder,
-    VolumeBuilder,
+use stackable_operator::{
+    builder::{
+        ContainerBuilder, ObjectMetaBuilder, PodBuilder, SecretOperatorVolumeSourceBuilder,
+        VolumeBuilder,
+    },
+    client::Client,
+    commons::authentication::{
+        ldap::LdapAuthenticationProvider,
+        tls::{CaCert, Tls, TlsServerVerification, TlsVerification},
+        AuthenticationClass, AuthenticationClassProvider,
+    },
+    k8s_openapi::api::core::v1::{Secret, SecretVolumeSource, Volume},
+    kube::runtime::reflector::ObjectRef,
+    schemars::{self, JsonSchema},
 };
-use stackable_operator::client::Client;
-use stackable_operator::commons::authentication::{
-    AuthenticationClass, AuthenticationClassProvider,
-};
-use stackable_operator::commons::ldap::LdapAuthenticationProvider;
-use stackable_operator::commons::tls::{CaCert, Tls, TlsServerVerification, TlsVerification};
-use stackable_operator::k8s_openapi::api::core::v1::{Secret, SecretVolumeSource, Volume};
-use stackable_operator::kube::runtime::reflector::ObjectRef;
-use stackable_operator::schemars::{self, JsonSchema};
 
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
