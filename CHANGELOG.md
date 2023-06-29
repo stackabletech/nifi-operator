@@ -9,13 +9,14 @@ All notable changes to this project will be documented in this file.
 - Added support for NiFi versions 1.20.0 and 1.21.0 ([#464]).
 - Generate OLM bundle for Release 23.4.0 ([#467]).
 - Missing CRD defaults for `status.conditions` field ([#471]).
-- Add support for resource quotas ([#476])
+- Set explicit resources on all containers ([#476])
 
 ### Changed
 
 - `operator-rs` `0.40.2` -> `0.41.0` ([#461]).
 - Use 0.0.0-dev product images for testing ([#463])
 - Use testing-tools 0.2.0 ([#463])
+- Added kuttl test suites ([#480])
 
 ### Fixed
 
@@ -29,6 +30,7 @@ All notable changes to this project will be documented in this file.
 [#467]: https://github.com/stackabletech/nifi-operator/pull/467
 [#471]: https://github.com/stackabletech/nifi-operator/pull/471
 [#476]: https://github.com/stackabletech/nifi-operator/pull/476
+[#480]: https://github.com/stackabletech/nifi-operator/pull/480
 
 ## [23.4.0] - 2023-04-17
 

@@ -1,5 +1,5 @@
 [package]
-authors = ["Stackable GmbH <info@stackable.de>"]
+authors = ["Stackable GmbH <info@stackable.tech>"]
 description = "Contains the Apache NiFi CRD structs and utilities"
 edition = "2021"
 license = "OSL-3.0"

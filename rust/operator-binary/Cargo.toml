@@ -1,5 +1,5 @@
 [package]
-authors = ["Stackable GmbH <info@stackable.de>"]
+authors = ["Stackable GmbH <info@stackable.tech>"]
 build = "build.rs"
 edition = "2021"
 description = "Stackable Operator for Apache NiFi"
