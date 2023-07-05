@@ -32,6 +32,7 @@ use stackable_operator::{
         apimachinery::pkg::{
             api::resource::Quantity, apis::meta::v1::LabelSelector, util::intstr::IntOrString,
         },
+        DeepMerge,
     },
     kube::{
         api::ListParams, runtime::controller::Action, runtime::reflector::ObjectRef, Resource,
@@ -710,6 +711,8 @@ async fn build_node_rolegroup_statefulset(
     sa_name: &str,
 ) -> Result<StatefulSet> {
     tracing::debug!("Building statefulset");
+    let role_group = role.role_groups.get(&rolegroup_ref.role_group);
+
     let zookeeper_host = "ZOOKEEPER_HOSTS";
     let zookeeper_chroot = "ZOOKEEPER_CHROOT";
 
@@ -749,8 +752,6 @@ async fn build_node_rolegroup_statefulset(
         zookeeper_chroot,
         &nifi.spec.cluster_config.zookeeper_config_map_name,
     ));
-
-    let rolegroup = role.role_groups.get(&rolegroup_ref.role_group);
 
     let node_address = format!(
         "$POD_NAME.{}-node-{}.{}.svc.cluster.local",
@@ -997,7 +998,7 @@ async fn build_node_rolegroup_statefulset(
         vec![&mut container_prepare, container_nifi],
     );
 
-    let pod_template = pod_builder
+    pod_builder
         .metadata_builder(|m| {
             m.with_recommended_labels(build_recommended_labels(
                 nifi,
@@ -1063,8 +1064,7 @@ async fn build_node_rolegroup_statefulset(
                 .run_as_group(0)
                 .fs_group(1000)
                 .build(),
-        )
-        .build_template();
+        );
 
     let mut labels = BTreeMap::new();
     labels.insert(
@@ -1075,6 +1075,12 @@ async fn build_node_rolegroup_statefulset(
             .with_context(|| ObjectHasNoNameSnafu {})?
             .to_string(),
     );
+
+    let mut pod_template = pod_builder.build_template();
+    pod_template.merge_from(role.config.pod_overrides.clone());
+    if let Some(role_group) = role_group {
+        pod_template.merge_from(role_group.config.pod_overrides.clone());
+    }
 
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
@@ -1094,7 +1100,7 @@ async fn build_node_rolegroup_statefulset(
             replicas: if version_change_state == &VersionChangeState::BeginChange {
                 Some(0)
             } else {
-                rolegroup.and_then(|rg| rg.replicas).map(i32::from)
+                role_group.and_then(|rg| rg.replicas).map(i32::from)
             },
             selector: LabelSelector {
                 match_labels: Some(role_group_selector_labels(
