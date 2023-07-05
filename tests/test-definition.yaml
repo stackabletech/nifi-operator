@@ -73,17 +73,31 @@ tests:
       - nifi-latest
       - zookeeper-latest
 suites:
-  - name: latest
+  - name: nightly
+    patch:
+      - dimensions:
+          - name: nifi
+            expr: last
+          - name: zookeeper
+            expr: last
+          - name: ldap-use-tls
+            expr: "true"
+  - name: smoke-latest
+    select:
+      - smoke
     patch:
       - dimensions:
           - expr: last
-  - name: smoke
-    select:
-      - smoke
   - name: openshift
     patch:
       - dimensions:
           - expr: last
       - dimensions:
           - name: openshift
+            expr: "true"
+          - name: nifi
+            expr: last
+          - name: zookeeper
+            expr: last
+          - name: ldap-use-tls
             expr: "true"
