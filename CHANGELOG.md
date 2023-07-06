@@ -9,7 +9,8 @@ All notable changes to this project will be documented in this file.
 - Added support for NiFi versions 1.20.0 and 1.21.0 ([#464]).
 - Generate OLM bundle for Release 23.4.0 ([#467]).
 - Missing CRD defaults for `status.conditions` field ([#471]).
-- Set explicit resources on all containers ([#476])
+- Set explicit resources on all containers ([#476]).
+- Support podOverrides ([#483]).
 
 ### Changed
 
@@ -31,6 +32,7 @@ All notable changes to this project will be documented in this file.
 [#471]: https://github.com/stackabletech/nifi-operator/pull/471
 [#476]: https://github.com/stackabletech/nifi-operator/pull/476
 [#480]: https://github.com/stackabletech/nifi-operator/pull/480
+[#483]: https://github.com/stackabletech/nifi-operator/pull/483
 
 ## [23.4.0] - 2023-04-17
 

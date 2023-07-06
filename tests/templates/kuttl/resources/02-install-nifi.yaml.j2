@@ -38,8 +38,11 @@ spec:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
       resources:
+        cpu:
+          min: 500m
+          max: "1"
         memory:
-          limit: "2Gi"
+          limit: 2Gi
         storage:
           flowfileRepo:
             capacity: 2Gi
@@ -52,6 +55,24 @@ spec:
           stateRepo:
             capacity: 2Gi
     roleGroups:
-      default:
-        config: {}
+      resources-from-role:
         replicas: 1
+      resources-from-role-group:
+        config:
+          resources:
+            cpu:
+              min: 600m
+              max: 1100m
+            memory:
+              limit: 3Gi
+        replicas: 1
+      resources-from-pod-overrides:
+        podOverrides:
+          spec:
+            containers:
+              - name: nifi
+                resources:
+                  requests:
+                    cpu: 700m
+                  limits:
+                    cpu: 1200m
