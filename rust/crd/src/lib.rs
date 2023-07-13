@@ -24,6 +24,7 @@ use stackable_operator::{
     },
     k8s_openapi::{api::core::v1::Volume, apimachinery::pkg::api::resource::Quantity},
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
+    memory::{BinaryMultiple, MemoryQuantity},
     product_config_utils::{ConfigError, Configuration},
     product_logging::{self, spec::Logging},
     role_utils::{Role, RoleGroup, RoleGroupRef},
@@ -46,12 +47,14 @@ pub const METRICS_PORT: u16 = 8081;
 pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
 pub const STACKABLE_LOG_CONFIG_DIR: &str = "/stackable/log_config";
 
-pub const MAX_ZK_LOG_FILES_SIZE_IN_MIB: u32 = 10;
-const MAX_PREPARE_LOG_FILE_SIZE_IN_MIB: u32 = 1;
-// Additional buffer space is not needed, as the `prepare` container already has sufficient buffer
-// space and all containers share a single volume.
-pub const LOG_VOLUME_SIZE_IN_MIB: u32 =
-    MAX_ZK_LOG_FILES_SIZE_IN_MIB + MAX_PREPARE_LOG_FILE_SIZE_IN_MIB;
+pub const MAX_NIFI_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity {
+    value: 10.0,
+    unit: BinaryMultiple::Mebi,
+};
+pub const MAX_PREPARE_LOG_FILE_SIZE: MemoryQuantity = MemoryQuantity {
+    value: 1.0,
+    unit: BinaryMultiple::Mebi,
+};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
