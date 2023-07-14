@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- `operator-rs` `0.40.2` -> `0.41.0` ([#461]).
+- `operator-rs` `0.40.2` -> `0.44.0` ([#461], [#486]).
 - Use 0.0.0-dev product images for testing ([#463])
 - Use testing-tools 0.2.0 ([#463])
 - Added kuttl test suites ([#480])
@@ -23,6 +23,7 @@ All notable changes to this project will be documented in this file.
 
 - Use ou with spaces in LDAP tests ([#466]).
 - Reporting task now escapes user and password input in case of whitespaces ([#466]).
+- Increase the size limit of the log volume ([#486]).
 
 [#461]: https://github.com/stackabletech/nifi-operator/pull/461
 [#463]: https://github.com/stackabletech/nifi-operator/pull/463
@@ -33,6 +34,7 @@ All notable changes to this project will be documented in this file.
 [#476]: https://github.com/stackabletech/nifi-operator/pull/476
 [#480]: https://github.com/stackabletech/nifi-operator/pull/480
 [#483]: https://github.com/stackabletech/nifi-operator/pull/483
+[#486]: https://github.com/stackabletech/nifi-operator/pull/486
 
 ## [23.4.0] - 2023-04-17
 

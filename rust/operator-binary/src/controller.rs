@@ -29,9 +29,7 @@ use stackable_operator::{
                 Service, ServicePort, ServiceSpec, TCPSocketAction, Volume,
             },
         },
-        apimachinery::pkg::{
-            api::resource::Quantity, apis::meta::v1::LabelSelector, util::intstr::IntOrString,
-        },
+        apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
         DeepMerge,
     },
     kube::{
@@ -60,9 +58,9 @@ use tracing::Instrument;
 use stackable_nifi_crd::{
     authentication::ResolvedAuthenticationMethod, Container, CurrentlySupportedListenerClasses,
     NifiCluster, NifiConfig, NifiConfigFragment, NifiRole, NifiStatus, APP_NAME, BALANCE_PORT,
-    BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, LOG_VOLUME_SIZE_IN_MIB, METRICS_PORT,
-    METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR,
-    STACKABLE_LOG_DIR,
+    BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, MAX_NIFI_LOG_FILES_SIZE,
+    MAX_PREPARE_LOG_FILE_SIZE, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
+    STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
 };
 
 use crate::config::{
@@ -1028,14 +1026,12 @@ async fn build_node_rolegroup_statefulset(
             }),
             ..Volume::default()
         })
-        .add_volume(Volume {
-            name: "log".to_string(),
-            empty_dir: Some(EmptyDirVolumeSource {
-                medium: None,
-                size_limit: Some(Quantity(format!("{LOG_VOLUME_SIZE_IN_MIB}Mi"))),
-            }),
-            ..Volume::default()
-        })
+        .add_empty_dir_volume(
+            "log",
+            Some(product_logging::framework::calculate_log_volume_size_limit(
+                &[MAX_NIFI_LOG_FILES_SIZE, MAX_PREPARE_LOG_FILE_SIZE],
+            )),
+        )
         // One volume for the keystore and truststore data configmap
         .add_volume(build_keystore_volume(
             KEYSTORE_VOLUME_NAME,
