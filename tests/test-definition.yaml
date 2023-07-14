@@ -6,27 +6,27 @@
 dimensions:
   - name: zookeeper
     values:
-      - 3.7.0-stackable0.0.0-dev
-      - 3.8.0-stackable0.0.0-dev
+      - 3.7.0-stackable23.7
+      - 3.8.0-stackable23.7
   - name: zookeeper-latest
     values:
-      - 3.8.0-stackable0.0.0-dev
+      - 3.8.0-stackable23.7
   - name: nifi
     values:
-      - 1.15.3-stackable0.0.0-dev
-      - 1.16.3-stackable0.0.0-dev
-      - 1.18.0-stackable0.0.0-dev
-      - 1.20.0-stackable0.0.0-dev
-      - 1.21.0-stackable0.0.0-dev
+      - 1.15.3-stackable23.7
+      - 1.16.3-stackable23.7
+      - 1.18.0-stackable23.7
+      - 1.20.0-stackable23.7
+      - 1.21.0-stackable23.7
   - name: nifi_old
     values:
-      - 1.18.0-stackable0.0.0-dev
+      - 1.18.0-stackable23.7
   - name: nifi_new
     values:
-      - 1.21.0-stackable0.0.0-dev
+      - 1.21.0-stackable23.7
   - name: nifi-latest
     values:
-      - 1.21.0-stackable0.0.0-dev
+      - 1.21.0-stackable23.7
   - name: ldap-use-tls
     values:
       - "false"

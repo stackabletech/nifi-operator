@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [23.7.0] - 2023-07-14
+
 ### Added
 
 - Added support for NiFi versions 1.20.0 and 1.21.0 ([#464]).
