@@ -6,7 +6,9 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Default stackableVersion to operator version ([#XXX]).
+- Default stackableVersion to operator version ([#493]).
+
+[#493]: https://github.com/stackabletech/nifi-operator/pull/493
 
 ## [23.7.0] - 2023-07-14
 
