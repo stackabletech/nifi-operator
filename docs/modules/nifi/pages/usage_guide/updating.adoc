@@ -12,7 +12,6 @@ metadata:
 spec:
   image:
     productVersion: 1.20.0 # <1>
-    stackableVersion: "0.0.0-dev" # <2>
   clusterConfig:
     authentication:
       method:

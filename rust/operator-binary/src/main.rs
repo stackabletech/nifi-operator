@@ -33,6 +33,7 @@ const OPERATOR_NAME: &str = "nifi.stackable.tech";
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
     pub const TARGET_PLATFORM: Option<&str> = option_env!("TARGET");
+    pub const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 }
 
 #[derive(Parser)]

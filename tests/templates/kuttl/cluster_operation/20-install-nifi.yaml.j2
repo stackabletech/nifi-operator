@@ -20,8 +20,7 @@ metadata:
   name: test-nifi
 spec:
   image:
-    productVersion: "{{ test_scenario['values']['nifi-latest'].split('-stackable')[0] }}"
-    stackableVersion: "{{ test_scenario['values']['nifi-latest'].split('-stackable')[1] }}"
+    productVersion: "{{ test_scenario['values']['nifi-latest'] }}"
   clusterConfig:
     authentication:
       method:
