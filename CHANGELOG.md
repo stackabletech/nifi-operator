@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Default stackableVersion to operator version ([#493]).
+- Default stackableVersion to operator version. It is recommended to remove `spec.image.stackableVersion` from your custom resources ([#493]).
 
 [#493]: https://github.com/stackabletech/nifi-operator/pull/493
 
