@@ -97,7 +97,6 @@ metadata:
 spec:
   image:
     productVersion: 1.21.0
-    stackableVersion: "0.0.0-dev"
   clusterConfig:
     extraVolumes: # <1>
       - name: nifi-processor

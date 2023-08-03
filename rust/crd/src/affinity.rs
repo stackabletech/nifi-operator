@@ -47,7 +47,6 @@ mod tests {
         spec:
           image:
             productVersion: 1.18.0
-            stackableVersion: "23.1"
           clusterConfig:
             authentication:
               method:
@@ -115,7 +114,6 @@ mod tests {
         spec:
           image:
             productVersion: 1.18.0
-            stackableVersion: "23.1"
           clusterConfig:
             authentication:
               method:

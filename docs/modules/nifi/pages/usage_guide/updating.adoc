@@ -12,7 +12,6 @@ metadata:
 spec:
   image:
     productVersion: 1.20.0 # <1>
-    stackableVersion: "0.0.0-dev" # <2>
   clusterConfig:
     authentication:
       method:
@@ -33,7 +32,6 @@ spec:
 ----
 
 <1> Change the NiFi version here
-<2> Change the stackable image version here
 
 IMPORTANT: Due to a limitation in NiFi itself it is not possible to up- or downgrade a NiFi cluster in a rolling fashion.
 So any change to the NiFi version you make in this CRD will result in a full cluster restart with a short downtime.

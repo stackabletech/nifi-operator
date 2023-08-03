@@ -80,7 +80,6 @@ metadata:
 spec:
   image:
     productVersion: 3.8.0
-    stackableVersion: "0.0.0-dev"
   servers:
     roleGroups:
       default:
@@ -134,7 +133,6 @@ metadata:
 spec:
   image:
     productVersion: 1.21.0
-    stackableVersion: "0.0.0-dev"
   clusterConfig:
     authentication:
       method:
