@@ -19,9 +19,12 @@ use std::{
 };
 use strum::{Display, EnumIter};
 
+pub const NIFI_CONFIG_DIRECTORY: &str = "/stackable/nifi/conf";
+
 pub const NIFI_BOOTSTRAP_CONF: &str = "bootstrap.conf";
 pub const NIFI_PROPERTIES: &str = "nifi.properties";
 pub const NIFI_STATE_MANAGEMENT_XML: &str = "state-management.xml";
+pub const JVM_SECURITY_PROPERTIES_FILE: &str = "security.properties";
 
 // Keep some overhead for NiFi volumes, since cleanup is an asynchronous process that can stall active jobs
 const STORAGE_PROVENANCE_UTILIZATION_FACTOR: f32 = 0.9;
@@ -142,6 +145,12 @@ pub fn build_bootstrap_conf(
     // Zookeeper 3.5 now includes an Admin Server that starts on port 8080, since NiFi is already using that port disable by default.
     // Please see https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_adminserver_config for configuration options.
     java_args.push("-Dzookeeper.admin.enableServer=false".to_string());
+
+    // JVM security properties include especially TTL values for the positive and negative DNS caches.
+    java_args.push(
+        "-Djava.security.properties={NIFI_CONFIG_DIRECTORY}/{JVM_SECURITY_PROPERTIES_FILE}"
+            .to_string(),
+    );
 
     // add java args
     bootstrap.extend(
@@ -626,6 +635,7 @@ pub fn validated_product_config(
                 PropertyNameKind::File(NIFI_BOOTSTRAP_CONF.to_string()),
                 PropertyNameKind::File(NIFI_PROPERTIES.to_string()),
                 PropertyNameKind::File(NIFI_STATE_MANAGEMENT_XML.to_string()),
+                PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
                 PropertyNameKind::Env,
             ],
             role.clone(),

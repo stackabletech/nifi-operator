@@ -38,7 +38,9 @@ use stackable_operator::{
     },
     labels::{role_group_selector_labels, role_selector_labels, ObjectLabels},
     logging::controller::ReconcilerError,
-    product_config::{types::PropertyNameKind, ProductConfigManager},
+    product_config::{
+        types::PropertyNameKind, writer::to_java_properties_string, ProductConfigManager,
+    },
     product_logging::{
         self,
         spec::{
@@ -65,8 +67,8 @@ use stackable_nifi_crd::{
 
 use crate::config::{
     build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
-    validated_product_config, NifiRepository, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES,
-    NIFI_STATE_MANAGEMENT_XML,
+    validated_product_config, NifiRepository, JVM_SECURITY_PROPERTIES_FILE, NIFI_BOOTSTRAP_CONF,
+    NIFI_CONFIG_DIRECTORY, NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML,
 };
 use crate::product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address};
 use crate::{config, OPERATOR_NAME};
@@ -213,6 +215,14 @@ pub enum Error {
     #[snafu(display("failed to build RBAC resources"))]
     BuildRbacResources {
         source: stackable_operator::error::Error,
+    },
+    #[snafu(display(
+        "failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}",
+        rolegroup
+    ))]
+    JvmSecurityPoperties {
+        source: stackable_operator::product_config::writer::PropertiesWriterError,
+        rolegroup: String,
     },
 }
 
@@ -571,6 +581,16 @@ async fn build_node_rolegroup_config_map(
 
     let (login_identity_provider_xml, authorizers_xml) = resolved_auth_conf.get_auth_config();
 
+    let jvm_sec_props: BTreeMap<String, Option<String>> = rolegroup_config
+        .get(&PropertyNameKind::File(
+            JVM_SECURITY_PROPERTIES_FILE.to_string(),
+        ))
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(k, v)| (k, Some(v)))
+        .collect();
+
     let mut cm_builder = ConfigMapBuilder::new();
 
     cm_builder
@@ -620,7 +640,15 @@ async fn build_node_rolegroup_config_map(
         )
         .add_data(NIFI_STATE_MANAGEMENT_XML, build_state_management_xml())
         .add_data("login-identity-providers.xml", login_identity_provider_xml)
-        .add_data("authorizers.xml", authorizers_xml);
+        .add_data("authorizers.xml", authorizers_xml)
+        .add_data(
+            JVM_SECURITY_PROPERTIES_FILE,
+            to_java_properties_string(jvm_sec_props.iter()).with_context(|_| {
+                JvmSecurityPopertiesSnafu {
+                    rolegroup: rolegroup.role_group.clone(),
+                }
+            })?,
+        );
 
     extend_role_group_config_map(
         rolegroup,
@@ -857,7 +885,7 @@ async fn build_node_rolegroup_statefulset(
         )
         .add_volume_mount("conf", "/conf")
         .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_NIFI_CONTAINER_MOUNT)
-        .add_volume_mount("activeconf", "/stackable/nifi/conf")
+        .add_volume_mount("activeconf", NIFI_CONFIG_DIRECTORY)
         .add_volume_mount("sensitiveproperty", "/stackable/sensitiveproperty")
         .add_volume_mount("log", STACKABLE_LOG_DIR)
         .resources(
@@ -902,7 +930,7 @@ async fn build_node_rolegroup_statefulset(
             &NifiRepository::State.repository(),
             &NifiRepository::State.mount_path(),
         )
-        .add_volume_mount("activeconf", "/stackable/nifi/conf")
+        .add_volume_mount("activeconf", NIFI_CONFIG_DIRECTORY)
         .add_volume_mount("log-config", STACKABLE_LOG_CONFIG_DIR)
         .add_volume_mount("log", STACKABLE_LOG_DIR)
         .add_container_port(HTTPS_PORT_NAME, HTTPS_PORT.into())
