@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Default stackableVersion to operator version. It is recommended to remove `spec.image.stackableVersion` from your custom resources ([#493]).
+- Configuration overrides for the JVM security properties, such as DNS caching ([#497]).
 
 ### Changed
 
@@ -15,6 +16,7 @@ All notable changes to this project will be documented in this file.
 
 [#493]: https://github.com/stackabletech/nifi-operator/pull/493
 [#494]: https://github.com/stackabletech/nifi-operator/pull/494
+[#497]: https://github.com/stackabletech/nifi-operator/pull/497
 
 ## [23.7.0] - 2023-07-14
 
