@@ -10,7 +10,7 @@ This will lead to cluster malfunction.
 Apache NiFi runtime configuration is stored in several files liested below.  The `configOverrides` block enables you to customize parameters in these files.
 The complete list of the configuration options can be found in the  https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#system_properties[Apache NiFi documentation].
 
-The following files can be edited directly via the `configOverrides`` mechansim:
+The following files can be edited directly via the `configOverrides` mechanism:
 
 - `bootstrap.conf`
 - `nifi.properties`
