@@ -147,10 +147,9 @@ pub fn build_bootstrap_conf(
     java_args.push("-Dzookeeper.admin.enableServer=false".to_string());
 
     // JVM security properties include especially TTL values for the positive and negative DNS caches.
-    java_args.push(
+    java_args.push(format!(
         "-Djava.security.properties={NIFI_CONFIG_DIRECTORY}/{JVM_SECURITY_PROPERTIES_FILE}"
-            .to_string(),
-    );
+    ));
 
     // add java args
     bootstrap.extend(

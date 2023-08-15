@@ -33,7 +33,7 @@ properties:
         min: "0"
       recommendedValues:
         - fromVersion: "0.0.0"
-          value: "30"
+          value: "0"
       roles:
         - name: "node"
           required: true
