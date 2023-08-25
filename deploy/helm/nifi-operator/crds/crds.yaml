@@ -32,7 +32,7 @@ spec:
                       items:
                         properties:
                           authenticationClass:
-                            description: 'Name of the AuthenticationClass used to authenticate users. Supported providers are: * static. Important: This operator requires the "admin" user to be present, and will add only this user to Nifi. Other users are ignored. * ldap'
+                            description: 'Name of the AuthenticationClass used to authenticate users. Supported providers are: * static. Important: This operator requires the "admin" user to be present, and will add only this user to NiFi. Other users are ignored. * ldap'
                             type: string
                         required:
                           - authenticationClass
