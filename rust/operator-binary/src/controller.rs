@@ -365,7 +365,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         })?;
 
     let nifi_authentication_config = NifiAuthenticationConfig::try_from(
-        resolve_authentication_classes(&client, &nifi.spec.cluster_config.authentication)
+        resolve_authentication_classes(client, &nifi.spec.cluster_config.authentication)
             .await
             .context(FailedResolveNifiAuthenticationConfigSnafu)?,
     )

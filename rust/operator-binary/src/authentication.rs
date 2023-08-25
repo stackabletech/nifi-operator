@@ -28,6 +28,7 @@ pub enum Error {
     },
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum NifiAuthenticationConfig {
     SingleUser(StaticAuthenticationProvider),
     Ldap(LdapAuthenticationProvider),
