@@ -5,8 +5,8 @@ nifi_host=$1
 
 # get user password
 echo "Getting NiFi credentials"
-nifi_username=$(kubectl get secret nifi-admin-credentials-simple -o jsonpath='{.data.username}' | base64 --decode)
-nifi_password=$(kubectl get secret nifi-admin-credentials-simple -o jsonpath='{.data.password}' | base64 --decode)
+nifi_username=admin
+nifi_password=$(kubectl get secret simple-admin-credentials -o jsonpath='{.data.password}' | base64 --decode)
 
 # check if host is reachable
 echo "Checking if NiFi is reachable at $nifi_host"

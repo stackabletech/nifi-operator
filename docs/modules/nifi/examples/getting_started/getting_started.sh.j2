@@ -115,10 +115,19 @@ kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Secret
 metadata:
-  name: nifi-admin-credentials-simple
+  name: simple-admin-credentials
 stringData:
-  username: admin
-  password: admin
+  admin: admin
+---
+apiVersion: authentication.stackable.tech/v1alpha1
+kind: AuthenticationClass
+metadata:
+  name: simple-nifi-users
+spec:
+  provider:
+    static:
+      userCredentialsSecret:
+        name: simple-admin-credentials
 EOF
 # end::install-nifi-credentials[]
 
@@ -135,10 +144,7 @@ spec:
     productVersion: 1.21.0
   clusterConfig:
     authentication:
-      method:
-        singleUser:
-          adminCredentialsSecret: nifi-admin-credentials-simple
-          autoGenerate: true
+      - authenticationClass: simple-nifi-users
     listenerClass: external-unstable
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
