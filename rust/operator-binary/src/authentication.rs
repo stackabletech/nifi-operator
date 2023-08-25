@@ -155,21 +155,8 @@ impl NifiAuthenticationConfig {
                     }),
                     ..Volume::default()
                 };
-
-                // let admin_volume = Volume {
-                //     name: AUTH_VOLUME_NAME.to_string(),
-                //     secret: Some(SecretVolumeSource {
-                //         secret_name: Some(
-                //             admin_credentials_secret
-                //                 .user_credentials_secret
-                //                 .name
-                //                 .to_string(),
-                //         ),
-                //         ..SecretVolumeSource::default()
-                //     }),
-                //     ..Volume::default()
-                // };
                 pod_builder.add_volume(admin_volume);
+
                 for cb in container_builders {
                     cb.add_volume_mount(
                         STACKABLE_ADMIN_USER_NAME,
