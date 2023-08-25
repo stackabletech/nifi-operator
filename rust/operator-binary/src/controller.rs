@@ -1196,14 +1196,20 @@ fn build_reporting_task_job(
     let (admin_username_file, admin_password_file) =
         nifi_auth_config.get_user_and_password_file_paths();
 
+    let user_name_command = if admin_username_file.is_empty() {
+        // In case of the username being simple (e.g admin for SingleUser) just use it as is
+        format!("-u {STACKABLE_ADMIN_USER_NAME}")
+    } else {
+        // If the username is a bind dn (e.g. cn=integrationtest,ou=users,dc=example,dc=org) we have to extract the cn/dn/uid (in this case integrationtest)
+        format!(
+            "-u \"$(cat {admin_username_file} | grep -oP '((cn|dn|uid)=\\K[^,]+|.*)' | head -n 1)\""
+        )
+    };
+
     let args = vec![
         "/stackable/python/create_nifi_reporting_task.py".to_string(),
         format!("-n {nifi_connect_url}"),
-        // In case of the username being simple (e.g. admin) just use it as is
-        // If the username is a bind dn (e.g. cn=integrationtest,ou=users,dc=example,dc=org) we have to extract the cn/dn/uid (in this case integrationtest)
-        format!(
-            "-u \"$(cat {admin_username_file} || {STACKABLE_ADMIN_USER_NAME} | grep -oP '((cn|dn|uid)=\\K[^,]+|.*)' | head -n 1)\""
-        ),
+        user_name_command,
         format!("-p \"$(cat {admin_password_file})\""),
         format!("-v {product_version}"),
         format!("-m {METRICS_PORT}"),
