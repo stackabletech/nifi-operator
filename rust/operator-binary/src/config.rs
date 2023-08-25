@@ -539,10 +539,7 @@ pub fn build_nifi_properties(
     );
     properties.insert(
         "nifi.security.allow.anonymous.authentication".to_string(),
-        spec.cluster_config
-            .authentication
-            .allow_anonymous()
-            .to_string(),
+        "false".to_string(),
     );
     properties.insert(
         "nifi.cluster.protocol.is.secure".to_string(),

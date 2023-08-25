@@ -57,14 +57,15 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
 
+use stackable_nifi_crd::authentication::resolve_authentication_classes;
 use stackable_nifi_crd::{
-    authentication::ResolvedAuthenticationMethod, Container, CurrentlySupportedListenerClasses,
-    NifiCluster, NifiConfig, NifiConfigFragment, NifiRole, NifiStatus, APP_NAME, BALANCE_PORT,
-    BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, MAX_NIFI_LOG_FILES_SIZE,
-    MAX_PREPARE_LOG_FILE_SIZE, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
-    STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
+    Container, CurrentlySupportedListenerClasses, NifiCluster, NifiConfig, NifiConfigFragment,
+    NifiRole, NifiStatus, APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME,
+    MAX_NIFI_LOG_FILES_SIZE, MAX_PREPARE_LOG_FILE_SIZE, METRICS_PORT, METRICS_PORT_NAME,
+    PROTOCOL_PORT, PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
 };
 
+use crate::authentication::NifiAuthenticationConfig;
 use crate::config::{
     build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
     validated_product_config, NifiRepository, JVM_SECURITY_PROPERTIES_FILE, NIFI_BOOTSTRAP_CONF,
@@ -168,10 +169,6 @@ pub enum Error {
         source: stackable_operator::error::Error,
         obj_ref: ObjectRef<Service>,
     },
-    #[snafu(display("Failed to materialize authentication config element from k8s"))]
-    MaterializeAuthConfig {
-        source: stackable_nifi_crd::authentication::Error,
-    },
     #[snafu(display("Failed to find an external port to use for proxy hosts"))]
     ExternalPort,
     #[snafu(display("Could not build role service fqdn"))]
@@ -220,9 +217,17 @@ pub enum Error {
         "failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}",
         rolegroup
     ))]
-    JvmSecurityPoperties {
+    JvmSecurityProperties {
         source: stackable_operator::product_config::writer::PropertiesWriterError,
         rolegroup: String,
+    },
+    #[snafu(display("Invalid NiFi Authentication Configuration"))]
+    InvalidNifiAuthenticationConfig {
+        source: crate::authentication::Error,
+    },
+    #[snafu(display("Failed to resolve NiFi Authentication Configuration"))]
+    FailedResolveNifiAuthenticationConfig {
+        source: stackable_nifi_crd::authentication::Error,
     },
 }
 
@@ -360,16 +365,12 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             obj_ref: ObjectRef::new(&nifi.name_any()).within(namespace),
         })?;
 
-    let namespace = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
-
-    let resolved_auth_conf = nifi
-        .spec
-        .cluster_config
-        .authentication
-        .method
-        .resolve(client, namespace)
-        .await
-        .context(MaterializeAuthConfigSnafu)?;
+    let nifi_authentication_config = NifiAuthenticationConfig::try_from(
+        resolve_authentication_classes(&client, &nifi.spec.cluster_config.authentication)
+            .await
+            .context(FailedResolveNifiAuthenticationConfigSnafu)?,
+    )
+    .context(InvalidNifiAuthenticationConfigSnafu)?;
 
     let vector_aggregator_address = resolve_vector_aggregator_address(&nifi, client)
         .await
@@ -420,7 +421,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             let rg_configmap = build_node_rolegroup_config_map(
                 &nifi,
                 &resolved_product_image,
-                &resolved_auth_conf,
+                &nifi_authentication_config,
                 &rolegroup,
                 rolegroup_config,
                 &merged_config,
@@ -436,7 +437,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
                 role,
                 rolegroup_config,
                 &merged_config,
-                &resolved_auth_conf,
+                &nifi_authentication_config,
                 &version_change,
                 &rbac_sa.name_any(),
             )
@@ -472,7 +473,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
     let reporting_task_job = build_reporting_task_job(
         &nifi,
         &resolved_product_image,
-        &resolved_auth_conf,
+        &nifi_authentication_config,
         &rbac_sa.name_any(),
     )?;
 
@@ -570,7 +571,7 @@ pub fn build_node_role_service(
 async fn build_node_rolegroup_config_map(
     nifi: &NifiCluster,
     resolved_product_image: &ResolvedProductImage,
-    resolved_auth_conf: &ResolvedAuthenticationMethod,
+    nifi_auth_config: &NifiAuthenticationConfig,
     rolegroup: &RoleGroupRef<NifiCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &NifiConfig,
@@ -579,7 +580,7 @@ async fn build_node_rolegroup_config_map(
 ) -> Result<ConfigMap> {
     tracing::debug!("building rolegroup configmaps");
 
-    let (login_identity_provider_xml, authorizers_xml) = resolved_auth_conf.get_auth_config();
+    let (login_identity_provider_xml, authorizers_xml) = nifi_auth_config.get_auth_config();
 
     let jvm_sec_props: BTreeMap<String, Option<String>> = rolegroup_config
         .get(&PropertyNameKind::File(
@@ -644,7 +645,7 @@ async fn build_node_rolegroup_config_map(
         .add_data(
             JVM_SECURITY_PROPERTIES_FILE,
             to_java_properties_string(jvm_sec_props.iter()).with_context(|_| {
-                JvmSecurityPopertiesSnafu {
+                JvmSecurityPropertiesSnafu {
                     rolegroup: rolegroup.role_group.clone(),
                 }
             })?,
@@ -734,7 +735,7 @@ async fn build_node_rolegroup_statefulset(
     role: &Role<NifiConfigFragment>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &NifiConfig,
-    resolved_auth_conf: &ResolvedAuthenticationMethod,
+    nifi_auth_config: &NifiAuthenticationConfig,
     version_change_state: &VersionChangeState,
     sa_name: &str,
 ) -> Result<StatefulSet> {
@@ -840,11 +841,7 @@ async fn build_node_rolegroup_statefulset(
         format!("sed -i \"s|yyyyyy|${{{}}}|g\" /stackable/nifi/conf/state-management.xml",zookeeper_chroot)
     ]);
 
-    args.extend_from_slice(
-        resolved_auth_conf
-            .get_additional_container_args()
-            .as_slice(),
-    );
+    args.extend_from_slice(nifi_auth_config.get_additional_container_args().as_slice());
 
     let mut container_prepare =
         ContainerBuilder::new(&prepare_container_name).with_context(|_| {
@@ -1021,7 +1018,7 @@ async fn build_node_rolegroup_statefulset(
         ));
     }
 
-    resolved_auth_conf.add_volumes_and_mounts(
+    nifi_auth_config.add_volumes_and_mounts(
         &mut pod_builder,
         vec![&mut container_prepare, container_nifi],
     );
@@ -1188,7 +1185,7 @@ async fn build_node_rolegroup_statefulset(
 fn build_reporting_task_job(
     nifi: &NifiCluster,
     resolved_product_image: &ResolvedProductImage,
-    resolved_auth_conf: &ResolvedAuthenticationMethod,
+    nifi_auth_config: &NifiAuthenticationConfig,
     sa_name: &str,
 ) -> Result<Job> {
     let nifi_name = nifi.name_any();
@@ -1198,7 +1195,7 @@ fn build_reporting_task_job(
         format!("https://{nifi_name}.{nifi_namespace}.svc.cluster.local:{HTTPS_PORT}/nifi-api",);
 
     let (admin_username_file, admin_password_file) =
-        resolved_auth_conf.get_user_and_password_file_paths();
+        nifi_auth_config.get_user_and_password_file_paths();
 
     let args = vec![
         "/stackable/python/create_nifi_reporting_task.py".to_string(),
@@ -1239,7 +1236,7 @@ fn build_reporting_task_job(
     );
 
     let mut pb = PodBuilder::new();
-    resolved_auth_conf.add_volumes_and_mounts(&mut pb, vec![&mut cb]);
+    nifi_auth_config.add_volumes_and_mounts(&mut pb, vec![&mut cb]);
 
     let pod = pb
         .metadata(

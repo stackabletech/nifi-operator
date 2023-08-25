@@ -1868,6 +1868,7 @@ dependencies = [
  "clap",
  "fnv",
  "futures 0.3.28",
+ "indoc",
  "pin-project",
  "rand",
  "semver",

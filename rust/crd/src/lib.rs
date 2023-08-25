@@ -1,8 +1,7 @@
 pub mod affinity;
 pub mod authentication;
 
-use crate::authentication::NifiAuthenticationConfig;
-use std::collections::BTreeMap;
+use crate::authentication::NifiAuthenticationClassRef;
 
 use affinity::get_affinity;
 use serde::{Deserialize, Serialize};
@@ -31,6 +30,7 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
 };
+use std::collections::BTreeMap;
 use strum::Display;
 
 pub const APP_NAME: &str = "nifi";
@@ -99,8 +99,9 @@ pub struct NifiSpec {
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiClusterConfig {
-    /// A reference to a Secret containing username/password for the initial admin user
-    pub authentication: NifiAuthenticationConfig,
+    /// Authentication options for NiFi (required)
+    // We don't add `#[serde(default)]` here, as we require authentication
+    pub authentication: Vec<NifiAuthenticationClassRef>,
     /// Configuration options for how NiFi encrypts sensitive properties on disk
     pub sensitive_properties: NifiSensitivePropertiesConfig,
     /// Name of the Vector aggregator discovery ConfigMap.
