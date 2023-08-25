@@ -28,34 +28,16 @@ spec:
                   description: Global Nifi config for e.g. authentication or sensitive properties
                   properties:
                     authentication:
-                      description: A reference to a Secret containing username/password for the initial admin user
-                      properties:
-                        allowAnonymousAccess:
-                          nullable: true
-                          type: boolean
-                        method:
-                          oneOf:
-                            - required:
-                                - singleUser
-                            - required:
-                                - authenticationClass
-                          properties:
-                            authenticationClass:
-                              type: string
-                            singleUser:
-                              properties:
-                                adminCredentialsSecret:
-                                  type: string
-                                autoGenerate:
-                                  default: false
-                                  type: boolean
-                              required:
-                                - adminCredentialsSecret
-                              type: object
-                          type: object
-                      required:
-                        - method
-                      type: object
+                      description: Authentication options for NiFi (required)
+                      items:
+                        properties:
+                          authenticationClass:
+                            description: 'Name of the AuthenticationClass used to authenticate users. Supported providers are: * static. Important: This operator requires the "admin" user to be present, and will add only this user to Nifi. Other users are ignored. * ldap'
+                            type: string
+                        required:
+                          - authenticationClass
+                        type: object
+                      type: array
                     extraVolumes:
                       description: Extra volumes to mount into every container, this can be useful to for example make client certificates, keytabs or similar things available to processors These volumes will be mounted below `/stackable/userdata/{volumename}`
                       items:
