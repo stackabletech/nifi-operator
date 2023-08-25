@@ -7,8 +7,16 @@ use stackable_operator::commons::authentication::{
 };
 use stackable_operator::k8s_openapi::api::core::v1::{KeyToPath, SecretVolumeSource, Volume};
 
-const STACKABLE_ADMIN_USER_NAME: &str = "admin";
+pub const STACKABLE_ADMIN_USER_NAME: &str = "admin";
+
 const STACKABLE_USER_VOLUME_MOUNT_PATH: &str = "/stackable/users";
+
+const STACKABLE_SINGLE_USER_PASSWORD_PLACEHOLDER: &str = "xxx_singleuser_password_xxx";
+const STACKABLE_LDAP_BIND_USER_NAME_PLACEHOLDER: &str = "xxx_ldap_bind_username_xxx";
+const STACKABLE_LDAP_BIND_USER_PASSWORD_PLACEHOLDER: &str = "xxx_ldap_bind_password_xxx";
+
+const LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME: &str = "login-identity-providers.xml";
+const AUTHORIZERS_XML_FILE_NAME: &str = "authorizers.xml";
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -45,7 +53,7 @@ impl NifiAuthenticationConfig {
                         <identifier>login-identity-provider</identifier>
                         <class>org.apache.nifi.authentication.single.user.SingleUserLoginIdentityProvider</class>
                         <property name="Username">{STACKABLE_ADMIN_USER_NAME}</property>
-                        <property name="Password">xxx_singleuser_password_xxx</property>
+                        <property name="Password">{STACKABLE_SINGLE_USER_PASSWORD_PLACEHOLDER}</property>
                     </provider>
                 "#});
 
@@ -96,18 +104,18 @@ impl NifiAuthenticationConfig {
             Self::SingleUser(_) => {
                 let (_, admin_password_file) = self.get_user_and_password_file_paths();
                 commands.extend(vec![
-                    format!("echo 'Replacing {STACKABLE_ADMIN_USER_NAME} password in login-identity-provider.xml (if configured)'"),
-                    format!("sed -i \"s|xxx_singleuser_password_xxx|$(cat {admin_password_file} | java -jar /bin/stackable-bcrypt.jar)|g\" /stackable/nifi/conf/login-identity-providers.xml"),
+                    format!("echo 'Replacing {STACKABLE_ADMIN_USER_NAME} password in {LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME} (if configured)'"),
+                    format!("sed -i \"s|{STACKABLE_SINGLE_USER_PASSWORD_PLACEHOLDER}|$(cat {admin_password_file} | java -jar /bin/stackable-bcrypt.jar)|g\" /stackable/nifi/conf/{LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME}"),
                 ]
                 );
             }
             Self::Ldap(ldap) => {
                 if let Some((username_path, password_path)) = ldap.bind_credentials_mount_paths() {
                     commands.extend(vec![
-                        "echo Replacing ldap bind username and password in login-identity-provider.xml".to_string(),
-                        format!("sed -i \"s|xxx_ldap_bind_username_xxx|$(cat {username_path})|g\" /stackable/nifi/conf/login-identity-providers.xml"),
-                        format!("sed -i \"s|xxx_ldap_bind_password_xxx|$(cat {password_path})|g\" /stackable/nifi/conf/login-identity-providers.xml"),
-                        format!("sed -i \"s|xxx_ldap_bind_username_xxx|$(cat {username_path})|g\" /stackable/nifi/conf/authorizers.xml"),
+                        format!("echo Replacing ldap bind username and password in {LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME}"),
+                        format!("sed -i \"s|{STACKABLE_LDAP_BIND_USER_NAME_PLACEHOLDER}|$(cat {username_path})|g\" /stackable/nifi/conf/{LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME}"),
+                        format!("sed -i \"s|{STACKABLE_LDAP_BIND_USER_PASSWORD_PLACEHOLDER}|$(cat {password_path})|g\" /stackable/nifi/conf/{LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME}"),
+                        format!("sed -i \"s|{STACKABLE_LDAP_BIND_USER_NAME_PLACEHOLDER}|$(cat {username_path})|g\" /stackable/nifi/conf/{AUTHORIZERS_XML_FILE_NAME}"),
                     ]
                     );
                 }
@@ -213,8 +221,8 @@ fn get_ldap_login_identity_provider(ldap: &LdapAuthenticationProvider) -> String
             <class>org.apache.nifi.ldap.LdapProvider</class>
             <property name="Authentication Strategy">{authentication_strategy}</property>
 
-            <property name="Manager DN">xxx_ldap_bind_username_xxx</property>
-            <property name="Manager Password">xxx_ldap_bind_password_xxx</property>
+            <property name="Manager DN">{STACKABLE_LDAP_BIND_USER_NAME_PLACEHOLDER}</property>
+            <property name="Manager Password">{STACKABLE_LDAP_BIND_USER_PASSWORD_PLACEHOLDER}</property>
 
             <property name="Referral Strategy">THROW</property>
             <property name="Connect Timeout">10 secs</property>
@@ -267,7 +275,7 @@ fn get_ldap_authorizer(_ldap: &LdapAuthenticationProvider) -> String {
 
             <!-- As we currently don't have authorization (including admin user) configurable we simply paste in the ldap bind user in here -->
             <!-- In the future the whole authorization may be reworked to OPA -->
-            <property name="Initial User Identity admin">xxx_ldap_bind_username_xxx</property>
+            <property name="Initial User Identity admin">{STACKABLE_LDAP_BIND_USER_NAME_PLACEHOLDER}</property>
 
             <!-- As the secret-operator provides the NiFi nodes with cert with a common name of "generated certificate for pod" we have to put that here -->
             <property name="Initial User Identity other-nifis">CN=generated certificate for pod</property>
@@ -281,7 +289,7 @@ fn get_ldap_authorizer(_ldap: &LdapAuthenticationProvider) -> String {
 
             <!-- As we currently don't have authorization (including admin user) configurable we simply paste in the ldap bind user in here -->
             <!-- In the future the whole authorization may be reworked to OPA -->
-            <property name="Initial Admin Identity">xxx_ldap_bind_username_xxx</property>
+            <property name="Initial Admin Identity">{STACKABLE_LDAP_BIND_USER_NAME_PLACEHOLDER}</property>
 
             <!-- As the secret-operator provides the NiFi nodes with cert with a common name of "generated certificate for pod" we have to put that here -->
             <property name="Node Identity other-nifis">CN=generated certificate for pod</property>

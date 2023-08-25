@@ -7,8 +7,24 @@ use std::{
     time::Duration,
 };
 
+use crate::authentication::{NifiAuthenticationConfig, STACKABLE_ADMIN_USER_NAME};
+use crate::config::{
+    build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
+    validated_product_config, NifiRepository, JVM_SECURITY_PROPERTIES_FILE, NIFI_BOOTSTRAP_CONF,
+    NIFI_CONFIG_DIRECTORY, NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML,
+};
+use crate::product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address};
+use crate::{config, OPERATOR_NAME};
+
 use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_nifi_crd::{
+    authentication::resolve_authentication_classes, Container, CurrentlySupportedListenerClasses,
+    NifiCluster, NifiConfig, NifiConfigFragment, NifiRole, NifiStatus, APP_NAME, BALANCE_PORT,
+    BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, MAX_NIFI_LOG_FILES_SIZE,
+    MAX_PREPARE_LOG_FILE_SIZE, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
+    STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
+};
 use stackable_operator::{
     builder::{
         resources::ResourceRequirementsBuilder, ConfigMapBuilder, ContainerBuilder,
@@ -56,23 +72,6 @@ use stackable_operator::{
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
-
-use stackable_nifi_crd::authentication::resolve_authentication_classes;
-use stackable_nifi_crd::{
-    Container, CurrentlySupportedListenerClasses, NifiCluster, NifiConfig, NifiConfigFragment,
-    NifiRole, NifiStatus, APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME,
-    MAX_NIFI_LOG_FILES_SIZE, MAX_PREPARE_LOG_FILE_SIZE, METRICS_PORT, METRICS_PORT_NAME,
-    PROTOCOL_PORT, PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
-};
-
-use crate::authentication::NifiAuthenticationConfig;
-use crate::config::{
-    build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
-    validated_product_config, NifiRepository, JVM_SECURITY_PROPERTIES_FILE, NIFI_BOOTSTRAP_CONF,
-    NIFI_CONFIG_DIRECTORY, NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML,
-};
-use crate::product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address};
-use crate::{config, OPERATOR_NAME};
 
 pub const CONTROLLER_NAME: &str = "nificluster";
 pub const NIFI_UID: i64 = 1000;
@@ -1203,7 +1202,7 @@ fn build_reporting_task_job(
         // In case of the username being simple (e.g. admin) just use it as is
         // If the username is a bind dn (e.g. cn=integrationtest,ou=users,dc=example,dc=org) we have to extract the cn/dn/uid (in this case integrationtest)
         format!(
-            "-u \"$(cat {admin_username_file} | grep -oP '((cn|dn|uid)=\\K[^,]+|.*)' | head -n 1)\""
+            "-u \"$(cat {admin_username_file} || {STACKABLE_ADMIN_USER_NAME} | grep -oP '((cn|dn|uid)=\\K[^,]+|.*)' | head -n 1)\""
         ),
         format!("-p \"$(cat {admin_password_file})\""),
         format!("-v {product_version}"),

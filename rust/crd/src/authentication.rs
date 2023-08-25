@@ -38,7 +38,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct NifiAuthenticationClassRef {
     /// Name of the AuthenticationClass used to authenticate users.
     /// Supported providers are:
-    /// * static. Important: This operator requires the "admin" user to be present, and will add only this user to Nifi. Other users are ignored.
+    /// * static. Important: This operator requires the "admin" user to be present, and will add only this user to NiFi. Other users are ignored.
     /// * ldap
     pub authentication_class: String,
 }
