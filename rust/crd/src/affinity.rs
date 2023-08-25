@@ -49,10 +49,7 @@ mod tests {
             productVersion: 1.18.0
           clusterConfig:
             authentication:
-              method:
-                singleUser:
-                  adminCredentialsSecret: nifi-admin-credentials-simple
-                  autoGenerate: true
+              - authenticationClass: nifi-admin-credentials-simple
             sensitiveProperties:
               keySecret: simple-nifi-sensitive-property-key
               autoGenerate: true
@@ -116,10 +113,7 @@ mod tests {
             productVersion: 1.18.0
           clusterConfig:
             authentication:
-              method:
-                singleUser:
-                  adminCredentialsSecret: nifi-admin-credentials-simple
-                  autoGenerate: true
+              - authenticationClass: nifi-admin-credentials-simple
             sensitiveProperties:
               keySecret: simple-nifi-sensitive-property-key
               autoGenerate: true
