@@ -8,40 +8,49 @@ All authentication related parameters are configured under `spec.clusterConfig.a
 
 === Single user
 
-Currently, the only supported authentication method is "SingleUser", which allows the definition of one admin user which can then access the cluster.
-Specification of these users credentials happens via referring to a Secret in Kubernetes, this secret will need to contain at least the two keys `username` and `password`.
-Extra keys may be present, but will be ignored by the operator.
+The `Single user` allows the creation of one admin user for NiFi. This is a simple authentication method to quickly test and login to the canvas.
+However, due to it being a single user with all rights, this is not recommended in production.
+
+[source, yaml]
+----
+apiVersion: authentication.stackable.tech/v1alpha1
+kind: AuthenticationClass
+metadata:
+  name: simple-nifi-users # <1>
+spec:
+  provider:
+    static:
+      userCredentialsSecret:
+        name: nifi-admin-credentials # <2>
+----
+
+<1> The name of the `AuthenticationClass` that will be referenced in the NiFi cluster.
+<2> The name of the `Secret` containing the admin credentials.
 
 [source,yaml]
 ----
 apiVersion: v1
 kind: Secret
 metadata:
-  name: nifi-admin-credentials-simple
+  name: nifi-admin-credentials # <1>
 stringData:
-  username: admin
-  password: admin
+  admin: admin # <2>
+  bob: bob # <3>
 ----
+
+<1> The name of the `Secret` containing the admin user credentials.
+<2> The user and password combination of the admin user. The username *must* be admin and cannot be changed. The password can be adapted.
+<3> The secret maybe used by other products of the Stackable Data Platform that allow more than one user. The Stackable Operator for Apache NiFi will ignore all users except for "admin".
 
 [source,yaml]
 ----
 spec:
   clusterConfig:
     authentication:
-      method:
-        singleUser:
-          adminCredentialsSecret: nifi-admin-credentials-simple # <1>
-          autoGenerate: true
+      - authenticationClass: simple-nifi-users # <1>
 ----
 
-<1> Administrator credentials for logging into the NiFi web interface. This is the name of a `Secret` resource with two fields: `username` and `password`. This `Secret` must exist but it's entries can be populated by the operator when `autoGenerate` is `true`.
-
-Additional users can not be added.
-
-==== Anonymous Access
-
-NiFi can be configured to allow anonymous access to the web UI, this is turned off by default, but can be enabled via the parameter `allowAnonymousAccess`.
-This setting is independent of the configured authentication method and will override anything specified for the authentication provider.
+<1> The reference to an `AuthenticationClass`. NiFi only supports one authentication mechanism at a time.
 
 [#authentication-ldap]
 === LDAP
@@ -58,8 +67,7 @@ metadata:
 spec:
   clusterConfig:
     authentication:
-      method:
-        authenticationClass: ldap # <1>
+      - authenticationClass: ldap # <1>
 ----
 
 <1> The reference to an AuthenticationClass called `ldap`
