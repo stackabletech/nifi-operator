@@ -1,19 +1,4 @@
 ---
-apiVersion: v1
-kind: Secret
-metadata:
-  name: nifi-admin-credentials-simple
-stringData:
-  username: admin
-  password: supersecretpassword
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: nifi-sensitive-property-key
-stringData:
-  nifiSensitivePropsKey: mYsUp3rS3cr3tk3y
----
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
 metadata:
@@ -23,9 +8,7 @@ spec:
     productVersion: "{{ test_scenario['values']['nifi-latest'] }}"
   clusterConfig:
     authentication:
-      method:
-        singleUser:
-          adminCredentialsSecret: nifi-admin-credentials-simple
+      - authenticationClass: simple-nifi-users
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
