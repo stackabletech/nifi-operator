@@ -3,10 +3,10 @@ set -euo pipefail
 
 nifi_host=$1
 
-# get user password
+# get user password (admin is fixed as username)
 echo "Getting NiFi credentials"
-nifi_username=admin
-nifi_password=$(kubectl get secret simple-admin-credentials -o jsonpath='{.data.password}' | base64 --decode)
+nifi_username="admin"
+nifi_password=$(kubectl get secret simple-admin-credentials -o jsonpath='{.data.admin}' | base64 --decode)
 
 # check if host is reachable
 echo "Checking if NiFi is reachable at $nifi_host"
