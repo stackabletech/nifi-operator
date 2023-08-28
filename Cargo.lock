@@ -1833,7 +1833,6 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 name = "stackable-nifi-crd"
 version = "0.0.0-dev"
 dependencies = [
- "indoc",
  "rand",
  "serde",
  "serde_json",
