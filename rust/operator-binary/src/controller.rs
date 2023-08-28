@@ -1177,7 +1177,7 @@ async fn build_node_rolegroup_statefulset(
 /// library to authenticate and run the required REST calls to the NiFi REST API.
 ///
 /// In order to authenticate we need the `username` and `password` from the
-/// [`NifiAuthenticationConfig`](`stackable_nifi_crd::authentication::NifiAuthenticationConfig`)
+/// [`NifiAuthenticationConfig`](`crate::authentication::NifiAuthenticationConfig`)
 /// as well as a public certificate provided by the Stackable
 /// [`secret-operator`](https://github.com/stackabletech/secret-operator)
 ///
