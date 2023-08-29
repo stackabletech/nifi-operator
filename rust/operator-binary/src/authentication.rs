@@ -15,8 +15,8 @@ const STACKABLE_SINGLE_USER_PASSWORD_PLACEHOLDER: &str = "xxx_singleuser_passwor
 const STACKABLE_LDAP_BIND_USER_NAME_PLACEHOLDER: &str = "xxx_ldap_bind_username_xxx";
 const STACKABLE_LDAP_BIND_USER_PASSWORD_PLACEHOLDER: &str = "xxx_ldap_bind_password_xxx";
 
-const LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME: &str = "login-identity-providers.xml";
-const AUTHORIZERS_XML_FILE_NAME: &str = "authorizers.xml";
+pub const LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME: &str = "login-identity-providers.xml";
+pub const AUTHORIZERS_XML_FILE_NAME: &str = "authorizers.xml";
 
 #[derive(Snafu, Debug)]
 pub enum Error {

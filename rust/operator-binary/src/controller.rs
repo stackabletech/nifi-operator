@@ -1,13 +1,8 @@
 //! Ensures that `Pod`s are configured and running for each [`NifiCluster`]
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, HashMap},
-    ops::Deref,
-    sync::Arc,
-    time::Duration,
+use crate::authentication::{
+    NifiAuthenticationConfig, AUTHORIZERS_XML_FILE_NAME, LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME,
+    STACKABLE_ADMIN_USER_NAME,
 };
-
-use crate::authentication::{NifiAuthenticationConfig, STACKABLE_ADMIN_USER_NAME};
 use crate::config::{
     build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
     validated_product_config, NifiRepository, JVM_SECURITY_PROPERTIES_FILE, NIFI_BOOTSTRAP_CONF,
@@ -69,6 +64,13 @@ use stackable_operator::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
         statefulset::StatefulSetConditionBuilder,
     },
+};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+    ops::Deref,
+    sync::Arc,
+    time::Duration,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
@@ -639,8 +641,11 @@ async fn build_node_rolegroup_config_map(
             })?,
         )
         .add_data(NIFI_STATE_MANAGEMENT_XML, build_state_management_xml())
-        .add_data("login-identity-providers.xml", login_identity_provider_xml)
-        .add_data("authorizers.xml", authorizers_xml)
+        .add_data(
+            LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME,
+            login_identity_provider_xml,
+        )
+        .add_data(AUTHORIZERS_XML_FILE_NAME, authorizers_xml)
         .add_data(
             JVM_SECURITY_PROPERTIES_FILE,
             to_java_properties_string(jvm_sec_props.iter()).with_context(|_| {
