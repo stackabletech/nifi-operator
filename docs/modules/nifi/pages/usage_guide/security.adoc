@@ -39,7 +39,7 @@ stringData:
 ----
 
 <1> The name of the `Secret` containing the admin user credentials.
-<2> The user and password combination of the admin user. The username *must* be admin and cannot be changed. The password can be adapted.
+<2> The user and password combination of the admin user. The username *must* be "admin" and cannot be changed. The password can be adapted.
 <3> The secret maybe used by other products of the Stackable Data Platform that allow more than one user. The Stackable Operator for Apache NiFi will ignore all users except for "admin".
 
 [source,yaml]
