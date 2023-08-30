@@ -1,11 +1,20 @@
 ---
+apiVersion: authentication.stackable.tech/v1alpha1
+kind: AuthenticationClass
+metadata:
+  name: simple-nifi-users
+spec:
+  provider:
+    static:
+      userCredentialsSecret:
+        name: simple-nifi-admin-credentials
+---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: nifi-admin-credentials-simple
+  name: simple-nifi-admin-credentials
 stringData:
-  username: admin
-  password: supersecretpassword
+  admin: supersecretpassword
 ---
 apiVersion: v1
 kind: Secret
@@ -23,9 +32,7 @@ spec:
     productVersion: "{{ test_scenario['values']['nifi-latest'] }}"
   clusterConfig:
     authentication:
-      method:
-        singleUser:
-          adminCredentialsSecret: nifi-admin-credentials-simple
+      - authenticationClass: simple-nifi-users
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}

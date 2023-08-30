@@ -14,9 +14,7 @@ spec:
     productVersion: 1.20.0 # <1>
   clusterConfig:
     authentication:
-      method:
-        singleUser:
-          adminCredentialsSecret: nifi-admin-credentials-simple
+      - authenticationClass: simple-nifi-admin-user
     listenerClass: external-unstable
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key

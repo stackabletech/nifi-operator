@@ -98,15 +98,12 @@ spec:
   image:
     productVersion: 1.21.0
   clusterConfig:
+    authentication:
+      - authenticationClass: simple-nifi-admin-user
     extraVolumes: # <1>
       - name: nifi-processor
         persistentVolumeClaim:
           claimName: nifi-processor
-    authentication:
-      method:
-        singleUser:
-          adminCredentialsSecret: nifi-admin-credentials-simple
-          autoGenerate: true
     listenerClass: external-unstable
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key

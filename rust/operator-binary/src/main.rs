@@ -9,21 +9,16 @@ use stackable_operator::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Service},
     },
-    kube::{
-        runtime::{reflector::ObjectRef, watcher, Controller},
-        ResourceExt,
-    },
+    kube::runtime::{reflector::ObjectRef, watcher, Controller},
     logging::controller::report_controller_reconciled,
     CustomResourceExt,
 };
 
-use stackable_nifi_crd::{
-    authentication::{NifiAuthenticationConfig, NifiAuthenticationMethod},
-    NifiCluster,
-};
+use stackable_nifi_crd::NifiCluster;
 
 use crate::controller::CONTROLLER_NAME;
 
+mod authentication;
 mod config;
 mod controller;
 mod product_logging;
@@ -99,17 +94,11 @@ async fn main() -> anyhow::Result<()> {
                 .watches(
                     client.get_api::<AuthenticationClass>(&()),
                     watcher::Config::default(),
-                    move |authentication_class| {
+                    move |_| {
                         nifi_store_1
                             .state()
                             .into_iter()
-                            .filter(move |nifi: &Arc<NifiCluster>| {
-                                references_authentication_class(
-                                    &nifi.spec.cluster_config.authentication,
-                                    &authentication_class,
-                                )
-                            })
-                            .map(|superset| ObjectRef::from_obj(&*superset))
+                            .map(|nifi| ObjectRef::from_obj(&*nifi))
                     },
                 )
                 .run(
@@ -133,16 +122,4 @@ async fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
-}
-
-fn references_authentication_class(
-    authentication_config: &NifiAuthenticationConfig,
-    authentication_class: &AuthenticationClass,
-) -> bool {
-    match &authentication_config.method {
-        NifiAuthenticationMethod::AuthenticationClass(authentication_class_in_nifi) => {
-            authentication_class_in_nifi == &authentication_class.name_any()
-        }
-        _ => false,
-    }
 }

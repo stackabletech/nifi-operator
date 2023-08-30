@@ -21,13 +21,25 @@ spec:
   clusterRef:
     name: simple-zk
 ---
+apiVersion: authentication.stackable.tech/v1alpha1
+kind: AuthenticationClass
+metadata:
+  name: simple-nifi-admin-user
+spec:
+  provider:
+    static:
+      userCredentialsSecret:
+        name: simple-nifi-admin-user-secret
+---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: nifi-admin-credentials-simple
+  name: simple-nifi-admin-user-secret
 stringData:
-  username: admin
-  password: supersecretpassword
+  # The admin user is required for a working single user NiFi deployment. The password can be changed as desired.
+  admin: admin
+  # Will not be read and used by NiFi (e.g. in case of reusing a Secret)
+  bob: bob
 ---
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
@@ -38,10 +50,7 @@ spec:
     productVersion: 1.21.0
   clusterConfig:
     authentication:
-      method:
-        singleUser:
-          adminCredentialsSecret: nifi-admin-credentials-simple
-          autoGenerate: true
+      - authenticationClass: simple-nifi-admin-user
     listenerClass: external-unstable
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key

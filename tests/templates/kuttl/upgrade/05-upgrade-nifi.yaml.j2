@@ -8,9 +8,7 @@ spec:
     productVersion: "{{ test_scenario['values']['nifi_new'] }}"
   clusterConfig:
     authentication:
-      method:
-        singleUser:
-          adminCredentialsSecret: nifi-admin-credentials-simple
+      - authenticationClass: simple-nifi-users
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
