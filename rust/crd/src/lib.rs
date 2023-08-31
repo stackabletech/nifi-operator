@@ -120,7 +120,7 @@ pub struct NifiClusterConfig {
     /// * cluster-internal: Use a ClusterIP service
     ///
     /// * external-unstable: Use a NodePort service
-    /// 
+    ///
     /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
     /// In the future, this setting will control which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html>
     /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
