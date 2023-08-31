@@ -115,15 +115,15 @@ pub struct NifiClusterConfig {
     /// These volumes will be mounted below `/stackable/userdata/{volumename}`
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extra_volumes: Vec<Volume>,
-    /// In the future this setting will control, which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html>
-    /// will be used to expose the service.
-    /// Currently only a subset of the ListenerClasses are supported by choosing the type of the created Services
-    /// by looking at the ListenerClass name specified,
-    /// In a future release support for custom ListenerClasses will be introduced without a breaking change:
+    /// This field controls which type of Service the Operator creates for this NifiCluster:
     ///
     /// * cluster-internal: Use a ClusterIP service
     ///
     /// * external-unstable: Use a NodePort service
+    /// 
+    /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
+    /// In the future, this setting will control which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html>
+    /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
     #[serde(default)]
     pub listener_class: CurrentlySupportedListenerClasses,
 }
