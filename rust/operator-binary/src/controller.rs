@@ -13,6 +13,7 @@ use crate::{config, OPERATOR_NAME};
 
 use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_nifi_crd::STACKABLE_SERVER_TLS_DIR;
 use stackable_nifi_crd::{
     authentication::resolve_authentication_classes, Container, CurrentlySupportedListenerClasses,
     NifiCluster, NifiConfig, NifiConfigFragment, NifiRole, NifiStatus, APP_NAME, BALANCE_PORT,
@@ -20,6 +21,7 @@ use stackable_nifi_crd::{
     MAX_PREPARE_LOG_FILE_SIZE, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
     STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
 };
+use stackable_operator::builder::SecretFormat;
 use stackable_operator::{
     builder::{
         resources::ResourceRequirementsBuilder, ConfigMapBuilder, ContainerBuilder,
@@ -814,18 +816,10 @@ async fn build_node_rolegroup_statefulset(
     }
 
     args.extend(vec![
-        "echo Storing password".to_string(),
-        format!("echo secret > {keystore_path}/password", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
-        "echo Cleaning up truststore - just in case".to_string(),
-        format!("rm -f {keystore_path}/truststore.p12", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
-        "echo Creating truststore".to_string(),
-        format!("keytool -importcert -file {keystore_path}/ca.crt -keystore {keystore_path}/truststore.p12 -storetype pkcs12 -noprompt -alias ca_cert -storepass secret", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
-        "echo Creating certificate chain".to_string(),
-        format!("cat {keystore_path}/ca.crt {keystore_path}/tls.crt > {keystore_path}/chain.crt", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
-        "echo Creating keystore".to_string(),
-        format!("openssl pkcs12 -export -in {keystore_path}/chain.crt -inkey {keystore_path}/tls.key -out {keystore_path}/keystore.p12 --passout file:{keystore_path}/password", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
-        "echo Cleaning up password".to_string(),
-        format!("rm -f {keystore_path}/password", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
+        format!("echo Importing  {keystore_path}/keystore.p12 to {target_keystore_path}/keystore.p12", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT, target_keystore_path=STACKABLE_SERVER_TLS_DIR),
+        format!("keytool -importkeystore -srckeystore {keystore_path}/keystore.p12 -srcstoretype PKCS12 -srcstorepass \"\" -destkeystore {target_keystore_path}/keystore.p12 -deststoretype PKCS12 -deststorepass secret -noprompt", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT, target_keystore_path=STACKABLE_SERVER_TLS_DIR),
+        format!("echo Importing  {keystore_path}/truststore.p12 to {target_keystore_path}/truststore.p12", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT, target_keystore_path=STACKABLE_SERVER_TLS_DIR),
+        format!("keytool -importkeystore -srckeystore {keystore_path}/truststore.p12 -srcstoretype PKCS12 -srcstorepass \"\" -destkeystore {target_keystore_path}/truststore.p12 -deststoretype PKCS12 -deststorepass secret -noprompt", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT, target_keystore_path=STACKABLE_SERVER_TLS_DIR),
         "echo Replacing config directory".to_string(),
         "cp /conf/* /stackable/nifi/conf".to_string(),
         "ln -sf /stackable/log_config/logback.xml /stackable/nifi/conf/logback.xml".to_string(),
@@ -889,6 +883,7 @@ async fn build_node_rolegroup_statefulset(
         .add_volume_mount("activeconf", NIFI_CONFIG_DIRECTORY)
         .add_volume_mount("sensitiveproperty", "/stackable/sensitiveproperty")
         .add_volume_mount("log", STACKABLE_LOG_DIR)
+        .add_volume_mount("server-tls", STACKABLE_SERVER_TLS_DIR)
         .resources(
             ResourceRequirementsBuilder::new()
                 .with_cpu_request("500m")
@@ -908,7 +903,7 @@ async fn build_node_rolegroup_statefulset(
     let container_nifi = container_builder
         .image_from_product_image(resolved_product_image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
-        .args(vec![["bin/nifi.sh run"].join(" && ")])
+        .args(vec!["bin/nifi.sh run".to_string()])
         .add_env_vars(env_vars)
         .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_NIFI_CONTAINER_MOUNT)
         .add_volume_mount(
@@ -934,6 +929,7 @@ async fn build_node_rolegroup_statefulset(
         .add_volume_mount("activeconf", NIFI_CONFIG_DIRECTORY)
         .add_volume_mount("log-config", STACKABLE_LOG_CONFIG_DIR)
         .add_volume_mount("log", STACKABLE_LOG_DIR)
+        .add_volume_mount("server-tls", STACKABLE_SERVER_TLS_DIR)
         .add_container_port(HTTPS_PORT_NAME, HTTPS_PORT.into())
         .add_container_port(PROTOCOL_PORT_NAME, PROTOCOL_PORT.into())
         .add_container_port(BALANCE_PORT_NAME, BALANCE_PORT.into())
@@ -1068,6 +1064,7 @@ async fn build_node_rolegroup_statefulset(
             KEYSTORE_VOLUME_NAME,
             &nifi.name_any(),
         ))
+        .add_empty_dir_volume("server-tls", None)
         .add_volume(Volume {
             name: "sensitiveproperty".to_string(),
             secret: Some(SecretVolumeSource {
@@ -1363,6 +1360,7 @@ fn build_keystore_volume(volume_name: &str, nifi_name: &str) -> Volume {
                 .with_node_scope()
                 .with_pod_scope()
                 .with_service_scope(nifi_name)
+                .with_format(SecretFormat::TlsPkcs12)
                 .build(),
         )
         .build()

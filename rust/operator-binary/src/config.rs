@@ -1,7 +1,7 @@
 use snafu::{ResultExt, Snafu};
 use stackable_nifi_crd::{
     NifiCluster, NifiConfigFragment, NifiRole, NifiSpec, NifiStorageConfig, HTTPS_PORT,
-    PROTOCOL_PORT,
+    PROTOCOL_PORT, STACKABLE_SERVER_TLS_DIR,
 };
 use stackable_operator::{
     commons::resources::Resources,
@@ -507,7 +507,10 @@ pub fn build_nifi_properties(
     // generated with fixed values in the init container
     properties.insert(
         "nifi.security.keystore".to_string(),
-        "/stackable/keystore/keystore.p12".to_string(),
+        format!(
+            "{keystore_path}/keystore.p12",
+            keystore_path = STACKABLE_SERVER_TLS_DIR
+        ),
     );
     properties.insert(
         "nifi.security.keystoreType".to_string(),
@@ -519,7 +522,10 @@ pub fn build_nifi_properties(
     );
     properties.insert(
         "nifi.security.truststore".to_string(),
-        "/stackable/keystore/truststore.p12".to_string(),
+        format!(
+            "{keystore_path}/truststore.p12",
+            keystore_path = STACKABLE_SERVER_TLS_DIR
+        ),
     );
     properties.insert(
         "nifi.security.truststoreType".to_string(),
