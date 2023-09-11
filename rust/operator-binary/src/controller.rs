@@ -816,9 +816,14 @@ async fn build_node_rolegroup_statefulset(
     }
 
     args.extend(vec![
-        format!("echo Importing  {keystore_path}/keystore.p12 to {target_keystore_path}/keystore.p12", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT, target_keystore_path=STACKABLE_SERVER_TLS_DIR),
+        // The source directory is a secret-op mount and we do not want to write / add anything in there
+        // Therefore we import all the contents to a truststore in "writeable" empty dirs.
+        // Keytool is only barking if a password is not set for the destination truststore (which we set)
+        // and do provide an empty password for the source truststore coming from the secret-operator.
+        // Using no password will result in a warning.
+        format!("echo Importing {keystore_path}/keystore.p12 to {target_keystore_path}/keystore.p12", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT, target_keystore_path=STACKABLE_SERVER_TLS_DIR),
         format!("keytool -importkeystore -srckeystore {keystore_path}/keystore.p12 -srcstoretype PKCS12 -srcstorepass \"\" -destkeystore {target_keystore_path}/keystore.p12 -deststoretype PKCS12 -deststorepass secret -noprompt", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT, target_keystore_path=STACKABLE_SERVER_TLS_DIR),
-        format!("echo Importing  {keystore_path}/truststore.p12 to {target_keystore_path}/truststore.p12", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT, target_keystore_path=STACKABLE_SERVER_TLS_DIR),
+        format!("echo Importing {keystore_path}/truststore.p12 to {target_keystore_path}/truststore.p12", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT, target_keystore_path=STACKABLE_SERVER_TLS_DIR),
         format!("keytool -importkeystore -srckeystore {keystore_path}/truststore.p12 -srcstoretype PKCS12 -srcstorepass \"\" -destkeystore {target_keystore_path}/truststore.p12 -deststoretype PKCS12 -deststorepass secret -noprompt", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT, target_keystore_path=STACKABLE_SERVER_TLS_DIR),
         "echo Replacing config directory".to_string(),
         "cp /conf/* /stackable/nifi/conf".to_string(),
