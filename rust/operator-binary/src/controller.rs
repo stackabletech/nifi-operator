@@ -1213,11 +1213,14 @@ fn build_reporting_task_job(
         )
     };
 
-    let args = [
-        // export CA certificate from PKCS12 store to PEM format
-        format!("keytool -exportcert -rfc -storetype PKCS12 -storepass \"\" -alias 1 -keystore /stackable/cert/truststore.p12 > {KEYSTORE_REPORTING_TASK_MOUNT}/ca.crt"),
-        // then run the python script to create the reporting task
-        format!("/stackable/python/create_nifi_reporting_task.py -n {nifi_connect_url} {user_name_command} -p \"$(cat {admin_password_file})\" -v {product_version} -m {METRICS_PORT} -c {KEYSTORE_REPORTING_TASK_MOUNT}/ca.crt")
+    let args = vec![
+        "/stackable/python/create_nifi_reporting_task.py".to_string(),
+        format!("-n {nifi_connect_url}"),
+        user_name_command,
+        format!("-p \"$(cat {admin_password_file})\""),
+        format!("-v {product_version}"),
+        format!("-m {METRICS_PORT}"),
+        format!("-c {KEYSTORE_REPORTING_TASK_MOUNT}/ca.crt"),
     ];
     let mut cb = ContainerBuilder::new("create-reporting-task").with_context(|_| {
         IllegalContainerNameSnafu {
@@ -1226,7 +1229,7 @@ fn build_reporting_task_job(
     })?;
     cb.image_from_product_image(resolved_product_image)
         .command(vec!["sh".to_string(), "-c".to_string()])
-        .args(vec![args.join(" && ")])
+        .args(vec![args.join(" ")])
         // The VolumeMount for the secret operator key store certificates
         .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_REPORTING_TASK_MOUNT)
         .resources(
