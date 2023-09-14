@@ -1,6 +1,5 @@
 use indoc::{formatdoc, indoc};
 use snafu::{OptionExt, Snafu};
-use stackable_nifi_crd::STACKABLE_SERVER_TLS_DIR;
 use stackable_operator::builder::{ContainerBuilder, PodBuilder};
 use stackable_operator::commons::authentication::{
     AuthenticationClass, AuthenticationClassProvider, LdapAuthenticationProvider,
@@ -18,6 +17,9 @@ const STACKABLE_LDAP_BIND_USER_PASSWORD_PLACEHOLDER: &str = "xxx_ldap_bind_passw
 
 pub const LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME: &str = "login-identity-providers.xml";
 pub const AUTHORIZERS_XML_FILE_NAME: &str = "authorizers.xml";
+
+pub const STACKABLE_SERVER_TLS_DIR: &str = "/stackable/server_tls";
+pub const STACKABLE_TLS_STORE_PASSWORD: &str = "secret";
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -124,7 +126,7 @@ impl NifiAuthenticationConfig {
                 if let Some(ca_path) = ldap.tls_ca_cert_mount_path() {
                     commands.extend(vec![
                         "echo Adding LDAP tls cert to global truststore".to_string(),
-                        format!("keytool -importcert -file {ca_path} -keystore {keystore_path}/truststore.p12 -storetype pkcs12 -noprompt -alias ldap_ca_cert -storepass secret", keystore_path=STACKABLE_SERVER_TLS_DIR),
+                        format!("keytool -importcert -file {ca_path} -keystore {STACKABLE_SERVER_TLS_DIR}/truststore.p12 -storetype pkcs12 -noprompt -alias ldap_ca_cert -storepass {STACKABLE_TLS_STORE_PASSWORD}"),
                     ]
                     );
                 }

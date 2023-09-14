@@ -1,7 +1,8 @@
+use crate::authentication::STACKABLE_SERVER_TLS_DIR;
 use snafu::{ResultExt, Snafu};
 use stackable_nifi_crd::{
     NifiCluster, NifiConfigFragment, NifiRole, NifiSpec, NifiStorageConfig, HTTPS_PORT,
-    PROTOCOL_PORT, STACKABLE_SERVER_TLS_DIR,
+    PROTOCOL_PORT,
 };
 use stackable_operator::{
     commons::resources::Resources,

@@ -1,7 +1,7 @@
 //! Ensures that `Pod`s are configured and running for each [`NifiCluster`]
 use crate::authentication::{
     NifiAuthenticationConfig, AUTHORIZERS_XML_FILE_NAME, LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME,
-    STACKABLE_ADMIN_USER_NAME,
+    STACKABLE_ADMIN_USER_NAME, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
 };
 use crate::config::{
     build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
@@ -13,7 +13,6 @@ use crate::{config, OPERATOR_NAME};
 
 use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_nifi_crd::STACKABLE_SERVER_TLS_DIR;
 use stackable_nifi_crd::{
     authentication::resolve_authentication_classes, Container, CurrentlySupportedListenerClasses,
     NifiCluster, NifiConfig, NifiConfigFragment, NifiRole, NifiStatus, APP_NAME, BALANCE_PORT,
@@ -21,11 +20,10 @@ use stackable_nifi_crd::{
     MAX_PREPARE_LOG_FILE_SIZE, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
     STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
 };
-use stackable_operator::builder::SecretFormat;
 use stackable_operator::{
     builder::{
         resources::ResourceRequirementsBuilder, ConfigMapBuilder, ContainerBuilder,
-        ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder,
+        ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder, SecretFormat,
         SecretOperatorVolumeSourceBuilder, VolumeBuilder,
     },
     client::Client,
@@ -83,6 +81,8 @@ pub const NIFI_UID: i64 = 1000;
 const KEYSTORE_VOLUME_NAME: &str = "keystore";
 const KEYSTORE_NIFI_CONTAINER_MOUNT: &str = "/stackable/keystore";
 const KEYSTORE_REPORTING_TASK_MOUNT: &str = "/stackable/cert";
+
+const TRUSTSTORE_VOLUME_NAME: &str = "truststore";
 
 const DOCKER_IMAGE_BASE_NAME: &str = "nifi";
 
@@ -821,10 +821,10 @@ async fn build_node_rolegroup_statefulset(
         // Keytool is only barking if a password is not set for the destination truststore (which we set)
         // and do provide an empty password for the source truststore coming from the secret-operator.
         // Using no password will result in a warning.
-        format!("echo Importing {keystore_path}/keystore.p12 to {target_keystore_path}/keystore.p12", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT, target_keystore_path=STACKABLE_SERVER_TLS_DIR),
-        format!("keytool -importkeystore -srckeystore {keystore_path}/keystore.p12 -srcstoretype PKCS12 -srcstorepass \"\" -destkeystore {target_keystore_path}/keystore.p12 -deststoretype PKCS12 -deststorepass secret -noprompt", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT, target_keystore_path=STACKABLE_SERVER_TLS_DIR),
-        format!("echo Importing {keystore_path}/truststore.p12 to {target_keystore_path}/truststore.p12", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT, target_keystore_path=STACKABLE_SERVER_TLS_DIR),
-        format!("keytool -importkeystore -srckeystore {keystore_path}/truststore.p12 -srcstoretype PKCS12 -srcstorepass \"\" -destkeystore {target_keystore_path}/truststore.p12 -deststoretype PKCS12 -deststorepass secret -noprompt", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT, target_keystore_path=STACKABLE_SERVER_TLS_DIR),
+        format!("echo Importing {KEYSTORE_NIFI_CONTAINER_MOUNT}/keystore.p12 to {STACKABLE_SERVER_TLS_DIR}/keystore.p12"),
+        format!("keytool -importkeystore -srckeystore {KEYSTORE_NIFI_CONTAINER_MOUNT}/keystore.p12 -srcstoretype PKCS12 -srcstorepass \"\" -destkeystore {STACKABLE_SERVER_TLS_DIR}/keystore.p12 -deststoretype PKCS12 -deststorepass {STACKABLE_TLS_STORE_PASSWORD} -noprompt"),
+        format!("echo Importing {KEYSTORE_NIFI_CONTAINER_MOUNT}/truststore.p12 to {STACKABLE_SERVER_TLS_DIR}/truststore.p12"),
+        format!("keytool -importkeystore -srckeystore {KEYSTORE_NIFI_CONTAINER_MOUNT}/truststore.p12 -srcstoretype PKCS12 -srcstorepass \"\" -destkeystore {STACKABLE_SERVER_TLS_DIR}/truststore.p12 -deststoretype PKCS12 -deststorepass {STACKABLE_TLS_STORE_PASSWORD} -noprompt"),
         "echo Replacing config directory".to_string(),
         "cp /conf/* /stackable/nifi/conf".to_string(),
         "ln -sf /stackable/log_config/logback.xml /stackable/nifi/conf/logback.xml".to_string(),
@@ -888,7 +888,7 @@ async fn build_node_rolegroup_statefulset(
         .add_volume_mount("activeconf", NIFI_CONFIG_DIRECTORY)
         .add_volume_mount("sensitiveproperty", "/stackable/sensitiveproperty")
         .add_volume_mount("log", STACKABLE_LOG_DIR)
-        .add_volume_mount("server-tls", STACKABLE_SERVER_TLS_DIR)
+        .add_volume_mount(TRUSTSTORE_VOLUME_NAME, STACKABLE_SERVER_TLS_DIR)
         .resources(
             ResourceRequirementsBuilder::new()
                 .with_cpu_request("500m")
@@ -934,7 +934,7 @@ async fn build_node_rolegroup_statefulset(
         .add_volume_mount("activeconf", NIFI_CONFIG_DIRECTORY)
         .add_volume_mount("log-config", STACKABLE_LOG_CONFIG_DIR)
         .add_volume_mount("log", STACKABLE_LOG_DIR)
-        .add_volume_mount("server-tls", STACKABLE_SERVER_TLS_DIR)
+        .add_volume_mount(TRUSTSTORE_VOLUME_NAME, STACKABLE_SERVER_TLS_DIR)
         .add_container_port(HTTPS_PORT_NAME, HTTPS_PORT.into())
         .add_container_port(PROTOCOL_PORT_NAME, PROTOCOL_PORT.into())
         .add_container_port(BALANCE_PORT_NAME, BALANCE_PORT.into())
@@ -1069,7 +1069,7 @@ async fn build_node_rolegroup_statefulset(
             KEYSTORE_VOLUME_NAME,
             &nifi.name_any(),
         ))
-        .add_empty_dir_volume("server-tls", None)
+        .add_empty_dir_volume(TRUSTSTORE_VOLUME_NAME, None)
         .add_volume(Volume {
             name: "sensitiveproperty".to_string(),
             secret: Some(SecretVolumeSource {

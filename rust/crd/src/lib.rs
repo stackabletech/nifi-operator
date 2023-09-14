@@ -46,7 +46,6 @@ pub const METRICS_PORT: u16 = 8081;
 
 pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
 pub const STACKABLE_LOG_CONFIG_DIR: &str = "/stackable/log_config";
-pub const STACKABLE_SERVER_TLS_DIR: &str = "/stackable/server_tls";
 
 pub const MAX_NIFI_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity {
     value: 10.0,
