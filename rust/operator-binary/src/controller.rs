@@ -1068,6 +1068,7 @@ async fn build_node_rolegroup_statefulset(
         .add_volume(build_keystore_volume(
             KEYSTORE_VOLUME_NAME,
             &nifi.name_any(),
+            SecretFormat::TlsPkcs12,
         ))
         .add_empty_dir_volume(TRUSTSTORE_VOLUME_NAME, None)
         .add_volume(Volume {
@@ -1268,7 +1269,11 @@ fn build_reporting_task_job(
                 .build(),
         )
         .add_container(cb.build())
-        .add_volume(build_keystore_volume(KEYSTORE_VOLUME_NAME, &nifi_name))
+        .add_volume(build_keystore_volume(
+            KEYSTORE_VOLUME_NAME,
+            &nifi_name,
+            SecretFormat::TlsPem,
+        ))
         .build_template();
 
     let job = Job {
@@ -1356,7 +1361,11 @@ fn external_node_port(nifi_service: &Service) -> Result<i32> {
     port.node_port.with_context(|| ExternalPortSnafu {})
 }
 
-fn build_keystore_volume(volume_name: &str, nifi_name: &str) -> Volume {
+fn build_keystore_volume(
+    volume_name: &str,
+    nifi_name: &str,
+    secret_format: SecretFormat,
+) -> Volume {
     VolumeBuilder::new(volume_name)
         .ephemeral(
             // FIXME: Remove hardcoded SecretClass
@@ -1365,7 +1374,7 @@ fn build_keystore_volume(volume_name: &str, nifi_name: &str) -> Volume {
                 .with_node_scope()
                 .with_pod_scope()
                 .with_service_scope(nifi_name)
-                .with_format(SecretFormat::TlsPkcs12)
+                .with_format(secret_format)
                 .build(),
         )
         .build()
