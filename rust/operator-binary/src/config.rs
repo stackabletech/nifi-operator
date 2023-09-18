@@ -1,4 +1,4 @@
-use crate::authentication::STACKABLE_SERVER_TLS_DIR;
+use crate::authentication::{STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD};
 use snafu::{ResultExt, Snafu};
 use stackable_nifi_crd::{
     NifiCluster, NifiConfigFragment, NifiRole, NifiSpec, NifiStorageConfig, HTTPS_PORT,
@@ -519,7 +519,7 @@ pub fn build_nifi_properties(
     );
     properties.insert(
         "nifi.security.keystorePasswd".to_string(),
-        "secret".to_string(),
+        STACKABLE_TLS_STORE_PASSWORD.to_string(),
     );
     properties.insert(
         "nifi.security.truststore".to_string(),
@@ -534,7 +534,7 @@ pub fn build_nifi_properties(
     );
     properties.insert(
         "nifi.security.truststorePasswd".to_string(),
-        "secret".to_string(),
+        STACKABLE_TLS_STORE_PASSWORD.to_string(),
     );
     properties.insert(
         "nifi.security.user.login.identity.provider".to_string(),

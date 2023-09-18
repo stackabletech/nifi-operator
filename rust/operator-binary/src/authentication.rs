@@ -225,10 +225,10 @@ fn get_ldap_login_identity_provider(ldap: &LdapAuthenticationProvider) -> String
 
             <property name="TLS - Client Auth">NONE</property>
             <property name="TLS - Keystore">{keystore_path}/keystore.p12</property>
-            <property name="TLS - Keystore Password">secret</property>
+            <property name="TLS - Keystore Password">{STACKABLE_TLS_STORE_PASSWORD}</property>
             <property name="TLS - Keystore Type">PKCS12</property>
             <property name="TLS - Truststore">{keystore_path}/truststore.p12</property>
-            <property name="TLS - Truststore Password">secret</property>
+            <property name="TLS - Truststore Password">{STACKABLE_TLS_STORE_PASSWORD}</property>
             <property name="TLS - Truststore Type">PKCS12</property>
             <property name="TLS - Protocol">TLSv1.2</property>
             <property name="TLS - Shutdown Gracefully">true</property>

@@ -822,9 +822,9 @@ async fn build_node_rolegroup_statefulset(
         // and do provide an empty password for the source truststore coming from the secret-operator.
         // Using no password will result in a warning.
         format!("echo Importing {KEYSTORE_NIFI_CONTAINER_MOUNT}/keystore.p12 to {STACKABLE_SERVER_TLS_DIR}/keystore.p12"),
-        format!("keytool -importkeystore -srckeystore {KEYSTORE_NIFI_CONTAINER_MOUNT}/keystore.p12 -srcstoretype PKCS12 -srcstorepass \"\" -destkeystore {STACKABLE_SERVER_TLS_DIR}/keystore.p12 -deststoretype PKCS12 -deststorepass {STACKABLE_TLS_STORE_PASSWORD} -noprompt"),
+        format!("cp {KEYSTORE_NIFI_CONTAINER_MOUNT}/keystore.p12 {STACKABLE_SERVER_TLS_DIR}/keystore.p12"),
         format!("echo Importing {KEYSTORE_NIFI_CONTAINER_MOUNT}/truststore.p12 to {STACKABLE_SERVER_TLS_DIR}/truststore.p12"),
-        format!("keytool -importkeystore -srckeystore {KEYSTORE_NIFI_CONTAINER_MOUNT}/truststore.p12 -srcstoretype PKCS12 -srcstorepass \"\" -destkeystore {STACKABLE_SERVER_TLS_DIR}/truststore.p12 -deststoretype PKCS12 -deststorepass {STACKABLE_TLS_STORE_PASSWORD} -noprompt"),
+        format!("cp {KEYSTORE_NIFI_CONTAINER_MOUNT}/truststore.p12 {STACKABLE_SERVER_TLS_DIR}/truststore.p12"),
         "echo Replacing config directory".to_string(),
         "cp /conf/* /stackable/nifi/conf".to_string(),
         "ln -sf /stackable/log_config/logback.xml /stackable/nifi/conf/logback.xml".to_string(),
@@ -1366,11 +1366,15 @@ fn build_keystore_volume(
     nifi_name: &str,
     secret_format: SecretFormat,
 ) -> Volume {
+    let mut secret_volume_source_builder = SecretOperatorVolumeSourceBuilder::new("tls");
+
+    if secret_format == SecretFormat::TlsPkcs12 {
+        secret_volume_source_builder.with_tls_pkcs12_password(STACKABLE_TLS_STORE_PASSWORD);
+    }
+
     VolumeBuilder::new(volume_name)
         .ephemeral(
-            // FIXME: Remove hardcoded SecretClass
-            // Instead let the user specify the SecretClass to use
-            SecretOperatorVolumeSourceBuilder::new("tls")
+            secret_volume_source_builder
                 .with_node_scope()
                 .with_pod_scope()
                 .with_service_scope(nifi_name)
