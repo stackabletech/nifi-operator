@@ -37,7 +37,7 @@ from various sources. The xref:demos:data-lakehouse-iceberg-trino-spark.adoc[] d
 datasets in various formats. The data is then ingested into a Kafka topic. Apache Kafka is also
 xref:kafka:index.adoc[part of the Stackable platform].
 
-The xref:sdemos:nifi-kafka-druid-earthquake-data.adoc[] and xref:demos:nifi-kafka-druid-water-level-data.adoc[] demo use
+The xref:demos:nifi-kafka-druid-earthquake-data.adoc[] and xref:demos:nifi-kafka-druid-water-level-data.adoc[] demo use
 NiFi in the same way, both demos showcase downloading data from web APIs and ingesting it into Kafka.
 
 == Supported Versions

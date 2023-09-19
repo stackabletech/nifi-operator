@@ -7,9 +7,8 @@ as well as the commons and secret operator which are required by all Stackable O
 
 There are two ways to install Stackable Operators:
 
-1. Using xref:management:stackablectl:index.adoc[stackablectl]
-
-2. Using Helm
+. Using xref:management:stackablectl:index.adoc[stackablectl]
+. Using Helm
 
 === stackablectl
 
