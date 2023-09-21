@@ -2,20 +2,29 @@
 :description: The Stackable Operator for Apache NiFi is a Kubernetes operator that can manage Apache NiFi clusters. Learn about its features, resources, dependencies and demos, and see the list of supported NiFi versions.
 :keywords: k8s, Kubernetes, Stackable Operator, Apache NiFi, open source, operator, data science, data exploration, big data
 
-This Operator manages https://nifi.apache.org/[Apache NiFi] clusters on Kubernetes.
-Apache NiFi is an open-source data integration tool that provides a web-based interface for designing, monitoring and managing data flows between various systems and devices, using a visual programming approach. It supports a wide range of data sources, formats and features such as data provenance, security and clustering.
+This Operator manages https://nifi.apache.org/[Apache NiFi] clusters on Kubernetes. Apache NiFi is an open-source data
+integration tool that provides a web-based interface for designing, monitoring and managing data flows between various
+systems and devices, using a visual programming approach. It supports a wide range of data sources, formats and features
+such as data provenance, security and clustering.
 
 == Getting started
 
-Get started with Apache NiFi and the Stackable Operator by following the xref:getting_started/index.adoc[] guide. It will guide you through the xref:getting_started/installation.adoc[installation] process and xref:getting_started/first_steps.adoc[connect] to the NiFi web interface. Afterwards have a look at the xref:usage_guide/index.adoc[] to learn how to configure your NiFi instance to your needs or run some <<demos, demos>> to learn more about using NiFi with other components.
+Get started with Apache NiFi and the Stackable Operator by following the xref:getting_started/index.adoc[] guide. It
+will guide you through the xref:getting_started/installation.adoc[installation] process and
+xref:getting_started/first_steps.adoc[connect] to the NiFi web interface. Afterwards have a look at the
+xref:usage_guide/index.adoc[] to learn how to configure your NiFi instance to your needs or run some <<demos, demos>> to
+learn more about using NiFi with other components.
 
 == Operator Model
 
-The Operator manages the _NifiCluster_ custom resource. NiFi only has a single process that it needs to run, so the NifiCluster has only a single xref:concepts:roles-and-role-groups.adoc[role]: `node`. This role can be divided in multiple role groups.
+The Operator manages the _NifiCluster_ custom resource. NiFi only has a single process that it needs to run, so the
+NifiCluster has only a single xref:concepts:roles-and-role-groups.adoc[role]: `node`. This role can be divided in
+multiple role groups.
 
 image::nifi_overview.drawio.svg[A diagram depicting the Kubernetes resources created by the Stackable Operator for Apache NiFi]
 
-For every role group the Operator creates a ConfigMap and StatefulSet which can have multiple replicas (Pods). Every role group is accessible through it's own Service, and there is a Service for the whole Cluster.
+For every role group the Operator creates a ConfigMap and StatefulSet which can have multiple replicas (Pods). Every
+role group is accessible through it's own Service, and there is a Service for the whole Cluster.
 
 == Dependencies
 
@@ -23,9 +32,13 @@ Apache NiFi depends on Apache ZooKeeper which you can run in Kubernetes with the
 
 == [[demos]]Demos
 
-NiFi is often a good choice as a first step in a data pipeline when it comes to fetching the data in various formats from various sources. The xref:stackablectl::demos/data-lakehouse-iceberg-trino-spark.adoc[] demo uses NiFi to fetch six different datasets in various formats. The data is then ingested into a Kafka topic. Apache Kafka is also xref:kafka:index.adoc[part of the Stackable platform].
+NiFi is often a good choice as a first step in a data pipeline when it comes to fetching the data in various formats
+from various sources. The xref:demos:data-lakehouse-iceberg-trino-spark.adoc[] demo uses NiFi to fetch six different
+datasets in various formats. The data is then ingested into a Kafka topic. Apache Kafka is also
+xref:kafka:index.adoc[part of the Stackable platform].
 
-The xref:stackablectl::demos/nifi-kafka-druid-earthquake-data.adoc[] and xref:stackablectl::demos/nifi-kafka-druid-water-level-data.adoc[] demo use NiFi in the same way, both demos showcase downloading data from web APIs and ingesting it into Kafka.
+The xref:demos:nifi-kafka-druid-earthquake-data.adoc[] and xref:demos:nifi-kafka-druid-water-level-data.adoc[] demo use
+NiFi in the same way, both demos showcase downloading data from web APIs and ingesting it into Kafka.
 
 == Supported Versions
 
