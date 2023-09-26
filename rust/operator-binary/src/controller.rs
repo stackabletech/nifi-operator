@@ -1,7 +1,7 @@
 //! Ensures that `Pod`s are configured and running for each [`NifiCluster`]
 use crate::authentication::{
     NifiAuthenticationConfig, AUTHORIZERS_XML_FILE_NAME, LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME,
-    STACKABLE_ADMIN_USER_NAME,
+    STACKABLE_ADMIN_USER_NAME, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
 };
 use crate::config::{
     build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
@@ -23,7 +23,7 @@ use stackable_nifi_crd::{
 use stackable_operator::{
     builder::{
         resources::ResourceRequirementsBuilder, ConfigMapBuilder, ContainerBuilder,
-        ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder,
+        ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder, SecretFormat,
         SecretOperatorVolumeSourceBuilder, VolumeBuilder,
     },
     client::Client,
@@ -81,6 +81,8 @@ pub const NIFI_UID: i64 = 1000;
 const KEYSTORE_VOLUME_NAME: &str = "keystore";
 const KEYSTORE_NIFI_CONTAINER_MOUNT: &str = "/stackable/keystore";
 const KEYSTORE_REPORTING_TASK_MOUNT: &str = "/stackable/cert";
+
+const TRUSTSTORE_VOLUME_NAME: &str = "truststore";
 
 const DOCKER_IMAGE_BASE_NAME: &str = "nifi";
 
@@ -814,18 +816,15 @@ async fn build_node_rolegroup_statefulset(
     }
 
     args.extend(vec![
-        "echo Storing password".to_string(),
-        format!("echo secret > {keystore_path}/password", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
-        "echo Cleaning up truststore - just in case".to_string(),
-        format!("rm -f {keystore_path}/truststore.p12", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
-        "echo Creating truststore".to_string(),
-        format!("keytool -importcert -file {keystore_path}/ca.crt -keystore {keystore_path}/truststore.p12 -storetype pkcs12 -noprompt -alias ca_cert -storepass secret", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
-        "echo Creating certificate chain".to_string(),
-        format!("cat {keystore_path}/ca.crt {keystore_path}/tls.crt > {keystore_path}/chain.crt", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
-        "echo Creating keystore".to_string(),
-        format!("openssl pkcs12 -export -in {keystore_path}/chain.crt -inkey {keystore_path}/tls.key -out {keystore_path}/keystore.p12 --passout file:{keystore_path}/password", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
-        "echo Cleaning up password".to_string(),
-        format!("rm -f {keystore_path}/password", keystore_path=KEYSTORE_NIFI_CONTAINER_MOUNT),
+        // The source directory is a secret-op mount and we do not want to write / add anything in there
+        // Therefore we import all the contents to a truststore in "writeable" empty dirs.
+        // Keytool is only barking if a password is not set for the destination truststore (which we set)
+        // and do provide an empty password for the source truststore coming from the secret-operator.
+        // Using no password will result in a warning.
+        format!("echo Importing {KEYSTORE_NIFI_CONTAINER_MOUNT}/keystore.p12 to {STACKABLE_SERVER_TLS_DIR}/keystore.p12"),
+        format!("cp {KEYSTORE_NIFI_CONTAINER_MOUNT}/keystore.p12 {STACKABLE_SERVER_TLS_DIR}/keystore.p12"),
+        format!("echo Importing {KEYSTORE_NIFI_CONTAINER_MOUNT}/truststore.p12 to {STACKABLE_SERVER_TLS_DIR}/truststore.p12"),
+        format!("cp {KEYSTORE_NIFI_CONTAINER_MOUNT}/truststore.p12 {STACKABLE_SERVER_TLS_DIR}/truststore.p12"),
         "echo Replacing config directory".to_string(),
         "cp /conf/* /stackable/nifi/conf".to_string(),
         "ln -sf /stackable/log_config/logback.xml /stackable/nifi/conf/logback.xml".to_string(),
@@ -889,6 +888,7 @@ async fn build_node_rolegroup_statefulset(
         .add_volume_mount("activeconf", NIFI_CONFIG_DIRECTORY)
         .add_volume_mount("sensitiveproperty", "/stackable/sensitiveproperty")
         .add_volume_mount("log", STACKABLE_LOG_DIR)
+        .add_volume_mount(TRUSTSTORE_VOLUME_NAME, STACKABLE_SERVER_TLS_DIR)
         .resources(
             ResourceRequirementsBuilder::new()
                 .with_cpu_request("500m")
@@ -908,7 +908,7 @@ async fn build_node_rolegroup_statefulset(
     let container_nifi = container_builder
         .image_from_product_image(resolved_product_image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
-        .args(vec![["bin/nifi.sh run"].join(" && ")])
+        .args(vec!["bin/nifi.sh run".to_string()])
         .add_env_vars(env_vars)
         .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_NIFI_CONTAINER_MOUNT)
         .add_volume_mount(
@@ -934,6 +934,7 @@ async fn build_node_rolegroup_statefulset(
         .add_volume_mount("activeconf", NIFI_CONFIG_DIRECTORY)
         .add_volume_mount("log-config", STACKABLE_LOG_CONFIG_DIR)
         .add_volume_mount("log", STACKABLE_LOG_DIR)
+        .add_volume_mount(TRUSTSTORE_VOLUME_NAME, STACKABLE_SERVER_TLS_DIR)
         .add_container_port(HTTPS_PORT_NAME, HTTPS_PORT.into())
         .add_container_port(PROTOCOL_PORT_NAME, PROTOCOL_PORT.into())
         .add_container_port(BALANCE_PORT_NAME, BALANCE_PORT.into())
@@ -1067,7 +1068,9 @@ async fn build_node_rolegroup_statefulset(
         .add_volume(build_keystore_volume(
             KEYSTORE_VOLUME_NAME,
             &nifi.name_any(),
+            SecretFormat::TlsPkcs12,
         ))
+        .add_empty_dir_volume(TRUSTSTORE_VOLUME_NAME, None)
         .add_volume(Volume {
             name: "sensitiveproperty".to_string(),
             secret: Some(SecretVolumeSource {
@@ -1266,7 +1269,11 @@ fn build_reporting_task_job(
                 .build(),
         )
         .add_container(cb.build())
-        .add_volume(build_keystore_volume(KEYSTORE_VOLUME_NAME, &nifi_name))
+        .add_volume(build_keystore_volume(
+            KEYSTORE_VOLUME_NAME,
+            &nifi_name,
+            SecretFormat::TlsPem,
+        ))
         .build_template();
 
     let job = Job {
@@ -1354,15 +1361,24 @@ fn external_node_port(nifi_service: &Service) -> Result<i32> {
     port.node_port.with_context(|| ExternalPortSnafu {})
 }
 
-fn build_keystore_volume(volume_name: &str, nifi_name: &str) -> Volume {
+fn build_keystore_volume(
+    volume_name: &str,
+    nifi_name: &str,
+    secret_format: SecretFormat,
+) -> Volume {
+    let mut secret_volume_source_builder = SecretOperatorVolumeSourceBuilder::new("tls");
+
+    if secret_format == SecretFormat::TlsPkcs12 {
+        secret_volume_source_builder.with_tls_pkcs12_password(STACKABLE_TLS_STORE_PASSWORD);
+    }
+
     VolumeBuilder::new(volume_name)
         .ephemeral(
-            // FIXME: Remove hardcoded SecretClass
-            // Instead let the user specify the SecretClass to use
-            SecretOperatorVolumeSourceBuilder::new("tls")
+            secret_volume_source_builder
                 .with_node_scope()
                 .with_pod_scope()
                 .with_service_scope(nifi_name)
+                .with_format(secret_format)
                 .build(),
         )
         .build()

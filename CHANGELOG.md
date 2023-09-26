@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
 - `vector` `0.26.0` -> `0.31.0` ([#494]).
 - `operator-rs` `0.44.0` -> `0.48.0` ([#493], [#498]).
 - [BREAKING] Consolidated authentication config to a list of AuthenticationClasses ([#498]).
+- Let secret-operator handle certificate conversion ([#505]).
 
 ### Removed
 
@@ -24,6 +25,7 @@ All notable changes to this project will be documented in this file.
 [#494]: https://github.com/stackabletech/nifi-operator/pull/494
 [#497]: https://github.com/stackabletech/nifi-operator/pull/497
 [#498]: https://github.com/stackabletech/nifi-operator/pull/498
+[#505]: https://github.com/stackabletech/nifi-operator/pull/505
 
 ## [23.7.0] - 2023-07-14
 

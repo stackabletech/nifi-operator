@@ -18,6 +18,9 @@ const STACKABLE_LDAP_BIND_USER_PASSWORD_PLACEHOLDER: &str = "xxx_ldap_bind_passw
 pub const LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME: &str = "login-identity-providers.xml";
 pub const AUTHORIZERS_XML_FILE_NAME: &str = "authorizers.xml";
 
+pub const STACKABLE_SERVER_TLS_DIR: &str = "/stackable/server_tls";
+pub const STACKABLE_TLS_STORE_PASSWORD: &str = "secret";
+
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display("Only one authentication mechanism is supported by NiFi."))]
@@ -123,7 +126,7 @@ impl NifiAuthenticationConfig {
                 if let Some(ca_path) = ldap.tls_ca_cert_mount_path() {
                     commands.extend(vec![
                         "echo Adding LDAP tls cert to global truststore".to_string(),
-                        format!("keytool -importcert -file {ca_path} -keystore /stackable/keystore/truststore.p12 -storetype pkcs12 -noprompt -alias ldap_ca_cert -storepass secret"),
+                        format!("keytool -importcert -file {ca_path} -keystore {STACKABLE_SERVER_TLS_DIR}/truststore.p12 -storetype pkcs12 -noprompt -alias ldap_ca_cert -storepass {STACKABLE_TLS_STORE_PASSWORD}"),
                     ]
                     );
                 }
@@ -221,11 +224,11 @@ fn get_ldap_login_identity_provider(ldap: &LdapAuthenticationProvider) -> String
             <property name="User Search Filter">{search_filter}</property>
 
             <property name="TLS - Client Auth">NONE</property>
-            <property name="TLS - Keystore">/stackable/keystore/keystore.p12</property>
-            <property name="TLS - Keystore Password">secret</property>
+            <property name="TLS - Keystore">{keystore_path}/keystore.p12</property>
+            <property name="TLS - Keystore Password">{STACKABLE_TLS_STORE_PASSWORD}</property>
             <property name="TLS - Keystore Type">PKCS12</property>
-            <property name="TLS - Truststore">/stackable/keystore/truststore.p12</property>
-            <property name="TLS - Truststore Password">secret</property>
+            <property name="TLS - Truststore">{keystore_path}/truststore.p12</property>
+            <property name="TLS - Truststore Password">{STACKABLE_TLS_STORE_PASSWORD}</property>
             <property name="TLS - Truststore Type">PKCS12</property>
             <property name="TLS - Protocol">TLSv1.2</property>
             <property name="TLS - Shutdown Gracefully">true</property>
@@ -251,6 +254,7 @@ fn get_ldap_login_identity_provider(ldap: &LdapAuthenticationProvider) -> String
         hostname = ldap.hostname,
         port = ldap.port.unwrap_or_else(|| ldap.default_port()),
         search_base = ldap.search_base,
+        keystore_path = STACKABLE_SERVER_TLS_DIR,
     }
 }
 
