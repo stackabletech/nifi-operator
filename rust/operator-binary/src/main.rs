@@ -1,4 +1,8 @@
-use std::sync::Arc;
+mod authentication;
+mod config;
+mod controller;
+mod operations;
+mod product_logging;
 
 use clap::{crate_description, crate_version, Parser};
 use futures::stream::StreamExt;
@@ -13,15 +17,11 @@ use stackable_operator::{
     logging::controller::report_controller_reconciled,
     CustomResourceExt,
 };
+use std::sync::Arc;
 
 use stackable_nifi_crd::NifiCluster;
 
-use crate::controller::CONTROLLER_NAME;
-
-mod authentication;
-mod config;
-mod controller;
-mod product_logging;
+use crate::controller::NIFI_CONTROLLER_NAME;
 
 const OPERATOR_NAME: &str = "nifi.stackable.tech";
 
@@ -112,7 +112,7 @@ async fn main() -> anyhow::Result<()> {
                 .map(|res| {
                     report_controller_reconciled(
                         &client,
-                        &format!("{CONTROLLER_NAME}.{OPERATOR_NAME}"),
+                        &format!("{NIFI_CONTROLLER_NAME}.{OPERATOR_NAME}"),
                         &res,
                     )
                 })

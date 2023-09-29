@@ -10,3 +10,12 @@ metadata:
 status:
   readyReplicas: 2
   replicas: 2
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: test-zk-server
+status:
+  expectedPods: 2
+  currentHealthy: 2
+  disruptionsAllowed: 1

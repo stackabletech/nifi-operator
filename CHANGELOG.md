@@ -8,11 +8,12 @@ All notable changes to this project will be documented in this file.
 
 - Default stackableVersion to operator version. It is recommended to remove `spec.image.stackableVersion` from your custom resources ([#493]).
 - Configuration overrides for the JVM security properties, such as DNS caching ([#497]).
+- Support PodDisruptionBudgets ([#XXX]).
 
 ### Changed
 
 - `vector` `0.26.0` -> `0.31.0` ([#494]).
-- `operator-rs` `0.44.0` -> `0.48.0` ([#493], [#498]).
+- `operator-rs` `0.44.0` -> `0.51.1` ([#493], [#498], [#XXX]).
 - [BREAKING] Consolidated authentication config to a list of AuthenticationClasses ([#498]).
 - Let secret-operator handle certificate conversion ([#505]).
 

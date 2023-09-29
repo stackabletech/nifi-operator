@@ -8,6 +8,7 @@ use crate::config::{
     validated_product_config, NifiRepository, JVM_SECURITY_PROPERTIES_FILE, NIFI_BOOTSTRAP_CONF,
     NIFI_CONFIG_DIRECTORY, NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML,
 };
+use crate::operations::pdb::add_pdbs;
 use crate::product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address};
 use crate::{config, OPERATOR_NAME};
 
@@ -20,6 +21,7 @@ use stackable_nifi_crd::{
     MAX_PREPARE_LOG_FILE_SIZE, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
     STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
 };
+use stackable_operator::role_utils::RoleConfig;
 use stackable_operator::{
     builder::{
         resources::ResourceRequirementsBuilder, ConfigMapBuilder, ContainerBuilder,
@@ -75,7 +77,7 @@ use std::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
 
-pub const CONTROLLER_NAME: &str = "nificluster";
+pub const NIFI_CONTROLLER_NAME: &str = "nificluster";
 pub const NIFI_UID: i64 = 1000;
 
 const KEYSTORE_VOLUME_NAME: &str = "keystore";
@@ -232,6 +234,10 @@ pub enum Error {
     FailedResolveNifiAuthenticationConfig {
         source: stackable_nifi_crd::authentication::Error,
     },
+    #[snafu(display("failed to create PodDisruptionBudget"))]
+    FailedToCreatePdb {
+        source: crate::operations::pdb::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -343,7 +349,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
     let mut cluster_resources = ClusterResources::new(
         APP_NAME,
         OPERATOR_NAME,
-        CONTROLLER_NAME,
+        NIFI_CONTROLLER_NAME,
         &nifi.object_ref(&()),
         ClusterResourceApplyStrategy::from(&nifi.spec.cluster_operation),
     )
@@ -398,6 +404,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
 
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
+    let nifi_role = NifiRole::Node;
     for (rolegroup_name, rolegroup_config) in nifi_node_config.iter() {
         let rg_span = tracing::info_span!("rolegroup_span", rolegroup = rolegroup_name.as_str());
         async {
@@ -473,6 +480,16 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         .await?
     }
 
+    let role_config = nifi.role_config(&nifi_role);
+    if let Some(RoleConfig {
+        pod_disruption_budget: pdb,
+    }) = role_config
+    {
+        add_pdbs(pdb, &nifi, &nifi_role, client, &mut cluster_resources)
+            .await
+            .context(FailedToCreatePdbSnafu)?;
+    }
+
     let reporting_task_job = build_reporting_task_job(
         &nifi,
         &resolved_product_image,
@@ -481,7 +498,11 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
     )?;
 
     client
-        .apply_patch(CONTROLLER_NAME, &reporting_task_job, &reporting_task_job)
+        .apply_patch(
+            NIFI_CONTROLLER_NAME,
+            &reporting_task_job,
+            &reporting_task_job,
+        )
         .await
         .context(ApplyCreateReportingTaskJobSnafu)?;
 
@@ -1460,7 +1481,7 @@ fn build_recommended_labels<'a>(
         app_name: APP_NAME,
         app_version,
         operator_name: OPERATOR_NAME,
-        controller_name: CONTROLLER_NAME,
+        controller_name: NIFI_CONTROLLER_NAME,
         role,
         role_group,
     }
