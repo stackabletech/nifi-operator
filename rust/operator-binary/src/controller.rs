@@ -21,7 +21,6 @@ use stackable_nifi_crd::{
     MAX_PREPARE_LOG_FILE_SIZE, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
     STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
 };
-use stackable_operator::role_utils::RoleConfig;
 use stackable_operator::{
     builder::{
         resources::ResourceRequirementsBuilder, ConfigMapBuilder, ContainerBuilder,
@@ -61,7 +60,7 @@ use stackable_operator::{
             CustomContainerLogConfig,
         },
     },
-    role_utils::{Role, RoleGroupRef},
+    role_utils::{GenericRoleConfig, Role, RoleGroupRef},
     status::condition::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
         statefulset::StatefulSetConditionBuilder,
@@ -481,7 +480,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
     }
 
     let role_config = nifi.role_config(&nifi_role);
-    if let Some(RoleConfig {
+    if let Some(GenericRoleConfig {
         pod_disruption_budget: pdb,
     }) = role_config
     {

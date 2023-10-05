@@ -26,7 +26,7 @@ use stackable_operator::{
     memory::{BinaryMultiple, MemoryQuantity},
     product_config_utils::{ConfigError, Configuration},
     product_logging::{self, spec::Logging},
-    role_utils::{Role, RoleConfig, RoleGroup, RoleGroupRef},
+    role_utils::{GenericRoleConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
 };
@@ -394,7 +394,7 @@ impl NifiCluster {
         }
     }
 
-    pub fn role_config(&self, role: &NifiRole) -> Option<&RoleConfig> {
+    pub fn role_config(&self, role: &NifiRole) -> Option<&GenericRoleConfig> {
         match role {
             NifiRole::Node => self.spec.nodes.as_ref().map(|n| &n.role_config),
         }
