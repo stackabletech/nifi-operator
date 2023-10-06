@@ -14,7 +14,7 @@ status:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: test-zk-server
+  name: test-nifi-node
 status:
   expectedPods: 2
   currentHealthy: 2
