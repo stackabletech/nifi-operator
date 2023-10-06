@@ -1,0 +1,7 @@
+= Pod placement
+
+You can configure the Pod placement of the NiFi pods as described in xref:concepts:operations/pod_placement.adoc[].
+
+The default affinities created by the operator are:
+
+1. Distribute all the NiFi Pods (weight 70)

@@ -8,11 +8,12 @@ All notable changes to this project will be documented in this file.
 
 - Default stackableVersion to operator version. It is recommended to remove `spec.image.stackableVersion` from your custom resources ([#493]).
 - Configuration overrides for the JVM security properties, such as DNS caching ([#497]).
+- Support PodDisruptionBudgets ([#509]).
 
 ### Changed
 
 - `vector` `0.26.0` -> `0.31.0` ([#494]).
-- `operator-rs` `0.44.0` -> `0.48.0` ([#493], [#498]).
+- `operator-rs` `0.44.0` -> `0.52.1` ([#493], [#498], [#509]).
 - [BREAKING] Consolidated authentication config to a list of AuthenticationClasses ([#498]).
 - Let secret-operator handle certificate conversion ([#505]).
 
@@ -26,6 +27,7 @@ All notable changes to this project will be documented in this file.
 [#497]: https://github.com/stackabletech/nifi-operator/pull/497
 [#498]: https://github.com/stackabletech/nifi-operator/pull/498
 [#505]: https://github.com/stackabletech/nifi-operator/pull/505
+[#509]: https://github.com/stackabletech/nifi-operator/pull/509
 
 ## [23.7.0] - 2023-07-14
 
