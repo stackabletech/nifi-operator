@@ -1,9 +1,9 @@
 
 = Allowed Pod disruptions
 
-You can configure the allowed Pod disruptions for NiFi nodes as described in xref:concepts:operations/pod_disruptions.adoc[].
+You can configure the permitted Pod disruptions for NiFi nodes as described in xref:concepts:operations/pod_disruptions.adoc[].
 
-Unless you configure something else or disable our PodDisruptionBudgets (PDBs), we write the following PDBs:
+Unless you configure something else or disable the provided PodDisruptionBudgets (PDBs), the following PDBs are written:
 
 == Nodes
-We only allow a single node to be offline at any given time, regardless of the number of replicas or `roleGroups`.
+The provided PDBs only allow a single node to be offline at any given time, regardless of the number of replicas or `roleGroups`.
