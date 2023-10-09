@@ -2,8 +2,5 @@
 // This is a separate file, since it is used by both the direct NiFi-Operator documentation, and the overarching
 // Stackable Platform documentation.
 
-* 1.15.0, 1.15.1, 1.15.2, 1.15.3
-* 1.16.0, 1.16.1, 1.16.2, 1.16.3
-* 1.18.0
-* 1.20.0
-* 1.21.0
+- 1.23.2
+- 1.21.0 (deprecated)
