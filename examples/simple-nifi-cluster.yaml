@@ -47,7 +47,7 @@ metadata:
   name: simple-nifi
 spec:
   image:
-    productVersion: 1.21.0
+    productVersion: 1.23.2
   clusterConfig:
     authentication:
       - authenticationClass: simple-nifi-admin-user

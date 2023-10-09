@@ -83,7 +83,7 @@
             <bundle>
                 <artifact>nifi-standard-nar</artifact>
                 <group>org.apache.nifi</group>
-                <version>1.16.3</version>
+                <version>1.21.0</version>
             </bundle>
             <config>
                 <backoffMechanism>PENALIZE_FLOWFILE</backoffMechanism>
@@ -222,7 +222,7 @@
             <bundle>
                 <artifact>nifi-standard-nar</artifact>
                 <group>org.apache.nifi</group>
-                <version>1.16.3</version>
+                <version>1.21.0</version>
             </bundle>
             <config>
                 <backoffMechanism>PENALIZE_FLOWFILE</backoffMechanism>
