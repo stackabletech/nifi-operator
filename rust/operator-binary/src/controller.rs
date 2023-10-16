@@ -31,6 +31,7 @@ use stackable_operator::{
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
     config::fragment,
+    duration::Duration,
     k8s_openapi::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec, StatefulSetUpdateStrategy},
@@ -71,7 +72,6 @@ use std::{
     collections::{BTreeMap, HashMap},
     ops::Deref,
     sync::Arc,
-    time::Duration,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
@@ -1466,7 +1466,7 @@ async fn get_proxy_hosts(
 }
 
 pub fn error_policy(_obj: Arc<NifiCluster>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
-    Action::requeue(Duration::from_secs(10))
+    Action::requeue(*Duration::from_secs(10))
 }
 
 fn build_recommended_labels<'a>(
