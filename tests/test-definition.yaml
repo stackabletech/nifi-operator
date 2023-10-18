@@ -6,27 +6,23 @@
 dimensions:
   - name: zookeeper
     values:
-      - 3.7.0
-      - 3.8.0
+      - 3.8.3
   - name: zookeeper-latest
     values:
-      - 3.8.0
+      - 3.8.3
   - name: nifi
     values:
-      - 1.15.3
-      - 1.16.3
-      - 1.18.0
-      - 1.20.0
       - 1.21.0
+      - 1.23.2
   - name: nifi_old
     values:
-      - 1.18.0
+      - 1.21.0
   - name: nifi_new
     values:
-      - 1.21.0
+      - 1.23.2
   - name: nifi-latest
     values:
-      - 1.21.0
+      - 1.23.2
   - name: ldap-use-tls
     values:
       - "false"

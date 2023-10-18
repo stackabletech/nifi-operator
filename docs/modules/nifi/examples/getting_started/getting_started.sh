@@ -79,7 +79,7 @@ metadata:
   name: simple-zk
 spec:
   image:
-    productVersion: 3.8.0
+    productVersion: 3.8.3
   servers:
     roleGroups:
       default:
@@ -141,7 +141,7 @@ metadata:
   name: simple-nifi
 spec:
   image:
-    productVersion: 1.21.0
+    productVersion: 1.23.2
   clusterConfig:
     authentication:
       - authenticationClass: simple-nifi-users

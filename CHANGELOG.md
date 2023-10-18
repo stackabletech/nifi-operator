@@ -9,11 +9,12 @@ All notable changes to this project will be documented in this file.
 - Default stackableVersion to operator version. It is recommended to remove `spec.image.stackableVersion` from your custom resources ([#493]).
 - Configuration overrides for the JVM security properties, such as DNS caching ([#497]).
 - Support PodDisruptionBudgets ([#509]).
+- Support for 1.23.2 ([#513]).
 
 ### Changed
 
-- `vector` `0.26.0` -> `0.31.0` ([#494]).
-- `operator-rs` `0.44.0` -> `0.52.1` ([#493], [#498], [#509]).
+- `vector` `0.26.0` -> `0.33.0` ([#494], [#513]).
+- `operator-rs` `0.44.0` -> `0.55.0` ([#493], [#498], [#509], [#513]).
 - [BREAKING] Consolidated authentication config to a list of AuthenticationClasses ([#498]).
 - Let secret-operator handle certificate conversion ([#505]).
 
@@ -21,6 +22,7 @@ All notable changes to this project will be documented in this file.
 
 - [BREAKING] Removed crd support for nifi.security.allow.anonymous.authentication that was never actually used ([#498]).
 - [BREAKING] Removed crd support for the auto generation of admin credentials (obsolete since the user now always has to provide an AuthenticationClass) ([#498]).
+- Support for 1.15.x, 1.16.x, 1.18.x, 1.20.x ([#513]).
 
 [#493]: https://github.com/stackabletech/nifi-operator/pull/493
 [#494]: https://github.com/stackabletech/nifi-operator/pull/494
@@ -28,6 +30,7 @@ All notable changes to this project will be documented in this file.
 [#498]: https://github.com/stackabletech/nifi-operator/pull/498
 [#505]: https://github.com/stackabletech/nifi-operator/pull/505
 [#509]: https://github.com/stackabletech/nifi-operator/pull/509
+[#513]: https://github.com/stackabletech/nifi-operator/pull/513
 
 ## [23.7.0] - 2023-07-14
 
