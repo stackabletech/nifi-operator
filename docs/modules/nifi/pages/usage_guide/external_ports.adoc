@@ -9,13 +9,13 @@ Stackable doesn't place any restriction on the type of service that can be used 
 == Example
 
 A simple example for this is shown below.
-It consists of a NiFi cluster with three nodes called `simple-nifi` and has a processor that listens to a tcp port and forwards lines written into that port as flowfiles.
+It consists of a NiFi cluster with three nodes called `simple-nifi` and has a processor that listens to a TCP port and forwards lines written into that port as flowfiles.
 
 image:https://user-images.githubusercontent.com/1070361/212958154-941cef1d-e370-4d08-b37d-b789b242c062.png[image]
 
 The processor has been configured to listen on port 8123, so this port is available on all NiFi pods for processes that run inside the Kubernetes cluster.
 
-In order to make this port available to external processes as well a LoadBalancer type service can be used for example:
+In order to make this port available to external processes as well, a LoadBalancer type service can be used for example:
 
 [source,yaml]
 ----
