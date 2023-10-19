@@ -2,7 +2,7 @@
 
 == Exposing processors
 Some NiFi processors allow external tools to connect to them to trigger workflows or send data.
-In order for this to work from outside the Kubernetes cluster NiFi has been deployed to it is necessary to create https://kubernetes.io/docs/concepts/services-networking/service/[Service] or https://kubernetes.io/docs/concepts/services-networking/ingress/[Ingress] objects to configure Kubernetes routes for these ports.
+For this to work from outside the Kubernetes cluster NiFi has been deployed to, it is necessary to create https://kubernetes.io/docs/concepts/services-networking/service/[Service] or https://kubernetes.io/docs/concepts/services-networking/ingress/[Ingress] objects to configure Kubernetes routes for these ports.
 
 Stackable doesn't place any restriction on the type of service that can be used here.
 
