@@ -7,6 +7,7 @@
 ** xref:nifi:usage_guide/zookeeper-connection.adoc[]
 ** xref:nifi:usage_guide/extra-volumes.adoc[]
 ** xref:nifi:usage_guide/custom_processors.adoc[]
+** xref:nifi:usage_guide/external_ports.adoc[]
 ** xref:nifi:usage_guide/security.adoc[]
 ** xref:nifi:usage_guide/resource-configuration.adoc[]
 ** xref:nifi:usage_guide/log-aggregation.adoc[]

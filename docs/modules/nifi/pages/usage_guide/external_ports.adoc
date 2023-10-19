@@ -1,0 +1,63 @@
+= Adding External Files to the NiFi Servers
+
+== Exposing processors
+Some NiFi processors allow external tools to connect to them to trigger workflows or send data.
+For this to work from outside the Kubernetes cluster NiFi has been deployed to, it is necessary to create https://kubernetes.io/docs/concepts/services-networking/service/[Service] or https://kubernetes.io/docs/concepts/services-networking/ingress/[Ingress] objects to configure Kubernetes routes for these ports.
+
+Stackable doesn't place any restriction on the type of service that can be used here.
+
+== Example
+
+A simple example for this is shown below.
+It consists of a NiFi cluster with three nodes called `simple-nifi` and has a processor that listens to a TCP port and forwards lines written into that port as flowfiles.
+
+image:https://user-images.githubusercontent.com/1070361/212958154-941cef1d-e370-4d08-b37d-b789b242c062.png[image]
+
+The processor has been configured to listen on port 8123, so this port is available on all NiFi pods for processes that run inside the Kubernetes cluster.
+
+In order to make this port available to external processes as well, a LoadBalancer type service can be used for example:
+
+[source,yaml]
+----
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nifi-lb
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Cluster
+  selector:
+    app.kubernetes.io/instance: simple-nifi
+  ports:
+    - name: tcp-port
+      protocol: TCP
+      port: 8080
+      targetPort: 8123
+----
+
+Depending on the Kubernetes configuration this snippet will request and external ip address and open port 8080 on that ip address.
+Any requests to this port will be forwarded to port 8123 on the NiFi pods - and thus the processor.
+
+If LoadBalancer services are not available, a NodePort service would be an alternative:
+
+[source,yaml]
+----
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nifi-lb
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/instance: simple-nifi
+  ports:
+    - port: 8123
+      protocol: TCP
+      targetPort: 8123
+      nodePort: 30007
+----
+
+This doesn't require any external addresses and instead opens port 30007 on all Kubernetes nodes.
+Any requests to these ports are then forwarded to the NiFi processor.
