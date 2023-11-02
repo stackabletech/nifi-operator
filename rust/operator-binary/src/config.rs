@@ -1,4 +1,9 @@
-use crate::authentication::{STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fmt::Write,
+};
+
+use product_config::{types::PropertyNameKind, ProductConfigManager};
 use snafu::{ResultExt, Snafu};
 use stackable_nifi_crd::{
     NifiCluster, NifiConfigFragment, NifiRole, NifiSpec, NifiStorageConfig, HTTPS_PORT,
@@ -7,18 +12,15 @@ use stackable_nifi_crd::{
 use stackable_operator::{
     commons::resources::Resources,
     memory::{BinaryMultiple, MemoryQuantity},
-    product_config::{types::PropertyNameKind, ProductConfigManager},
     product_config_utils::{
         transform_all_roles_to_config, validate_all_roles_and_groups_config,
         ValidatedRoleConfigByPropertyKind,
     },
     role_utils::Role,
 };
-use std::{
-    collections::{BTreeMap, HashMap},
-    fmt::Write,
-};
 use strum::{Display, EnumIter};
+
+use crate::authentication::{STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD};
 
 pub const NIFI_CONFIG_DIRECTORY: &str = "/stackable/nifi/conf";
 
