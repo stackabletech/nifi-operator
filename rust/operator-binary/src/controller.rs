@@ -1,17 +1,16 @@
 //! Ensures that `Pod`s are configured and running for each [`NifiCluster`]
-use crate::authentication::{
-    NifiAuthenticationConfig, AUTHORIZERS_XML_FILE_NAME, LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME,
-    STACKABLE_ADMIN_USER_NAME, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+    ops::Deref,
+    sync::Arc,
 };
-use crate::config::{
-    build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
-    validated_product_config, NifiRepository, JVM_SECURITY_PROPERTIES_FILE, NIFI_BOOTSTRAP_CONF,
-    NIFI_CONFIG_DIRECTORY, NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML,
-};
-use crate::operations::pdb::add_pdbs;
-use crate::product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address};
-use crate::{config, OPERATOR_NAME};
 
+use product_config::{
+    types::PropertyNameKind,
+    writer::{to_java_properties_string, PropertiesWriterError},
+    ProductConfigManager,
+};
 use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_nifi_crd::{
@@ -50,9 +49,6 @@ use stackable_operator::{
     },
     labels::{role_group_selector_labels, role_selector_labels, ObjectLabels},
     logging::controller::ReconcilerError,
-    product_config::{
-        types::PropertyNameKind, writer::to_java_properties_string, ProductConfigManager,
-    },
     product_logging::{
         self,
         spec::{
@@ -67,14 +63,24 @@ use stackable_operator::{
     },
     time::Duration,
 };
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, HashMap},
-    ops::Deref,
-    sync::Arc,
-};
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
+
+use crate::{
+    authentication::{
+        NifiAuthenticationConfig, AUTHORIZERS_XML_FILE_NAME,
+        LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME, STACKABLE_ADMIN_USER_NAME,
+        STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
+    },
+    config::{
+        self, build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
+        validated_product_config, NifiRepository, JVM_SECURITY_PROPERTIES_FILE,
+        NIFI_BOOTSTRAP_CONF, NIFI_CONFIG_DIRECTORY, NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML,
+    },
+    operations::pdb::add_pdbs,
+    product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
+    OPERATOR_NAME,
+};
 
 pub const NIFI_CONTROLLER_NAME: &str = "nificluster";
 pub const NIFI_UID: i64 = 1000;
@@ -98,22 +104,28 @@ pub struct Ctx {
 pub enum Error {
     #[snafu(display("object defines no name"))]
     ObjectHasNoName,
+
     #[snafu(display("object defines no spec"))]
     ObjectHasNoSpec,
+
     #[snafu(display("object defines no namespace"))]
     ObjectHasNoNamespace,
+
     #[snafu(display("failed to create cluster resources"))]
     CreateClusterResources {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("failed to delete orphaned resources"))]
     DeleteOrphanedResources {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("failed to apply global Service"))]
     ApplyRoleService {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("failed to update status"))]
     StatusUpdate {
         source: stackable_operator::error::Error,
@@ -123,116 +135,144 @@ pub enum Error {
     SensitiveKeySecret {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display(
         "sensitive key secret [{}/{}] is missing, but auto generation is disabled",
         name,
         namespace
     ))]
     SensitiveKeySecretMissing { name: String, namespace: String },
+
     #[snafu(display("failed to apply Service for {}", rolegroup))]
     ApplyRoleGroupService {
         source: stackable_operator::error::Error,
         rolegroup: RoleGroupRef<NifiCluster>,
     },
+
     #[snafu(display("failed to build ConfigMap for {}", rolegroup))]
     BuildRoleGroupConfig {
         source: stackable_operator::error::Error,
         rolegroup: RoleGroupRef<NifiCluster>,
     },
+
     #[snafu(display("object has no nodes defined"))]
     NoNodesDefined,
+
     #[snafu(display("failed to apply ConfigMap for {}", rolegroup))]
     ApplyRoleGroupConfig {
         source: stackable_operator::error::Error,
         rolegroup: RoleGroupRef<NifiCluster>,
     },
+
     #[snafu(display("failed to apply StatefulSet for {}", rolegroup))]
     ApplyRoleGroupStatefulSet {
         source: stackable_operator::error::Error,
         rolegroup: RoleGroupRef<NifiCluster>,
     },
+
     #[snafu(display("failed to apply create ReportingTask job"))]
     ApplyCreateReportingTaskJob {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("object is missing metadata to build owner reference"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("Failed to load Product Config"))]
     ProductConfigLoadFailed { source: config::Error },
+
     #[snafu(display("Failed to find information about file [{}] in product config", kind))]
     ProductConfigKindNotSpecified { kind: String },
+
     #[snafu(display("Failed to find any nodes in cluster {obj_ref}",))]
     MissingNodes {
         source: stackable_operator::error::Error,
         obj_ref: ObjectRef<NifiCluster>,
     },
+
     #[snafu(display("Failed to find service {obj_ref}"))]
     MissingService {
         source: stackable_operator::error::Error,
         obj_ref: ObjectRef<Service>,
     },
+
     #[snafu(display("Failed to find an external port to use for proxy hosts"))]
     ExternalPort,
+
     #[snafu(display("Could not build role service fqdn"))]
     NoRoleServiceFqdn,
+
     #[snafu(display("Bootstrap configuration error"))]
     BoostrapConfig { source: crate::config::Error },
+
     #[snafu(display("failed to prepare NiFi configuration for rolegroup {rolegroup}"))]
     BuildProductConfig {
         source: crate::config::Error,
         rolegroup: RoleGroupRef<NifiCluster>,
     },
+
     #[snafu(display("illegal container name: [{container_name}]"))]
     IllegalContainerName {
         source: stackable_operator::error::Error,
         container_name: String,
     },
+
     #[snafu(display("failed to validate resources for {rolegroup}"))]
     ResourceValidation {
         source: fragment::ValidationError,
         rolegroup: RoleGroupRef<NifiCluster>,
     },
+
     #[snafu(display("failed to resolve and merge config for role and role group"))]
     FailedToResolveConfig { source: stackable_nifi_crd::Error },
+
     #[snafu(display("failed to resolve the Vector aggregator address"))]
     ResolveVectorAggregatorAddress {
         source: crate::product_logging::Error,
     },
+
     #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
     InvalidLoggingConfig {
         source: crate::product_logging::Error,
         cm_name: String,
     },
+
     #[snafu(display("failed to patch service account"))]
     ApplyServiceAccount {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("failed to patch role binding"))]
     ApplyRoleBinding {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("failed to build RBAC resources"))]
     BuildRbacResources {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display(
         "failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}",
         rolegroup
     ))]
     JvmSecurityProperties {
-        source: stackable_operator::product_config::writer::PropertiesWriterError,
+        source: PropertiesWriterError,
         rolegroup: String,
     },
+
     #[snafu(display("Invalid NiFi Authentication Configuration"))]
     InvalidNifiAuthenticationConfig {
         source: crate::authentication::Error,
     },
+
     #[snafu(display("Failed to resolve NiFi Authentication Configuration"))]
     FailedResolveNifiAuthenticationConfig {
         source: stackable_nifi_crd::authentication::Error,
     },
+
     #[snafu(display("failed to create PodDisruptionBudget"))]
     FailedToCreatePdb {
         source: crate::operations::pdb::Error,
