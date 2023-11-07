@@ -1,4 +1,4 @@
-= Expose ports fron NiFi processors outside of Kubernetes
+= Expose NiFi processor ports
 
 == Exposing processors
 Some NiFi processors allow external tools to connect to them to trigger workflows or send data.
