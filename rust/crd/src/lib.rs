@@ -43,6 +43,7 @@ pub const BALANCE_PORT_NAME: &str = "balance";
 pub const BALANCE_PORT: u16 = 6243;
 pub const METRICS_PORT_NAME: &str = "metrics";
 pub const METRICS_PORT: u16 = 8081;
+pub const DEFAULT_SECRET_CLASS: &str = "tls";
 
 pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
 pub const STACKABLE_LOG_CONFIG_DIR: &str = "/stackable/log_config";
@@ -102,6 +103,8 @@ pub struct NifiClusterConfig {
     /// Authentication options for NiFi (required)
     // We don't add `#[serde(default)]` here, as we require authentication
     pub authentication: Vec<NifiAuthenticationClassRef>,
+    #[serde(default = "default_secret_class")]
+    pub tls_secret_class: String,
     /// Configuration options for how NiFi encrypts sensitive properties on disk
     pub sensitive_properties: NifiSensitivePropertiesConfig,
     /// Name of the Vector aggregator discovery ConfigMap.
@@ -127,7 +130,9 @@ pub struct NifiClusterConfig {
     #[serde(default)]
     pub listener_class: CurrentlySupportedListenerClasses,
 }
-
+fn default_secret_class() -> String {
+    DEFAULT_SECRET_CLASS.to_string()
+}
 // TODO: Temporary solution until listener-operator is finished
 #[derive(Clone, Debug, Default, Display, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "PascalCase")]

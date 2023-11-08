@@ -1126,6 +1126,7 @@ async fn build_node_rolegroup_statefulset(
         )
         // One volume for the keystore and truststore data configmap
         .add_volume(build_keystore_volume(
+            &nifi.spec.cluster_config.tls_secret_class,
             KEYSTORE_VOLUME_NAME,
             &nifi.name_any(),
             SecretFormat::TlsPkcs12,
@@ -1330,6 +1331,7 @@ fn build_reporting_task_job(
         )
         .add_container(cb.build())
         .add_volume(build_keystore_volume(
+            &nifi.spec.cluster_config.tls_secret_class,
             KEYSTORE_VOLUME_NAME,
             &nifi_name,
             SecretFormat::TlsPem,
@@ -1422,11 +1424,12 @@ fn external_node_port(nifi_service: &Service) -> Result<i32> {
 }
 
 fn build_keystore_volume(
+    secret_class: &str,
     volume_name: &str,
     nifi_name: &str,
     secret_format: SecretFormat,
 ) -> Volume {
-    let mut secret_volume_source_builder = SecretOperatorVolumeSourceBuilder::new("tls");
+    let mut secret_volume_source_builder = SecretOperatorVolumeSourceBuilder::new(secret_class);
 
     if secret_format == SecretFormat::TlsPkcs12 {
         secret_volume_source_builder.with_tls_pkcs12_password(STACKABLE_TLS_STORE_PASSWORD);
