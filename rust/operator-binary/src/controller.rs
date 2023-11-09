@@ -1540,3 +1540,24 @@ fn build_recommended_labels<'a>(
         role_group,
     }
 }
+
+
+#[cfg(test)]
+mod nifi_controller_test {
+    use stackable_operator::builder::SecretFormat;
+    use crate::controller::build_keystore_volume;
+    use crate::controller::Volume;
+
+    #[test]
+    pub fn test_build_keystore_volume() {
+        let volume: Volume = build_keystore_volume("tls_secret_class", "nifi-tls", "simple-nifi", SecretFormat::TlsPkcs12);
+
+        let annotations = volume.ephemeral.clone().unwrap().volume_claim_template.unwrap().metadata.unwrap().annotations.unwrap();
+        assert_eq!(annotations.get("secrets.stackable.tech/class"), Some(&"tls_secret_class".to_string()));
+        assert_eq!(annotations.get("secrets.stackable.tech/format"), Some(&"tls-pkcs12".to_string()));
+        assert_eq!(annotations.get("secrets.stackable.tech/scope"), Some(&"node,pod,service=simple-nifi".to_string()));
+
+        let spec = volume.ephemeral.unwrap().volume_claim_template.unwrap().spec;
+        assert_eq!(spec.storage_class_name, Some("secrets.stackable.tech".to_string()));
+    }
+}
