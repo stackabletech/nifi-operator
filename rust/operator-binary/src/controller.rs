@@ -1126,7 +1126,13 @@ async fn build_node_rolegroup_statefulset(
         )
         // One volume for the keystore and truststore data configmap
         .add_volume(build_keystore_volume(
-            &nifi.spec.cluster_config.tls.http_secret_class,
+            &nifi
+                .spec
+                .cluster_config
+                .tls
+                .clone()
+                .unwrap_or_default()
+                .http_secret_class,
             KEYSTORE_VOLUME_NAME,
             &nifi.name_any(),
             SecretFormat::TlsPkcs12,
@@ -1331,7 +1337,13 @@ fn build_reporting_task_job(
         )
         .add_container(cb.build())
         .add_volume(build_keystore_volume(
-            &nifi.spec.cluster_config.tls.http_secret_class,
+            &nifi
+                .spec
+                .cluster_config
+                .tls
+                .clone()
+                .unwrap_or_default()
+                .http_secret_class,
             KEYSTORE_VOLUME_NAME,
             &nifi_name,
             SecretFormat::TlsPem,

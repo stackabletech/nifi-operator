@@ -104,8 +104,8 @@ pub struct NifiClusterConfig {
     /// Authentication options for NiFi (required)
     // We don't add `#[serde(default)]` here, as we require authentication
     pub authentication: Vec<NifiAuthenticationClassRef>,
-    #[serde(default = "tls::default_nifi_tls")]
-    pub tls: NifiTls,
+    #[serde(default = "tls::default_nifi_tls", skip_serializing_if = "Option::is_none")]
+    pub tls: Option<NifiTls>,
     /// Configuration options for how NiFi encrypts sensitive properties on disk
     pub sensitive_properties: NifiSensitivePropertiesConfig,
     /// Name of the Vector aggregator discovery ConfigMap.

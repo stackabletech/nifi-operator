@@ -15,11 +15,16 @@ pub struct NifiTls {
     pub http_secret_class: String,
 }
 
-/// Default TLS settings. Http communication default to "tls" secret class.
-pub fn default_nifi_tls() -> NifiTls {
-    NifiTls {
-        http_secret_class: http_tls_default(),
+impl Default for NifiTls {
+    fn default() -> Self {
+        NifiTls {
+            http_secret_class: http_tls_default(),
+        }
     }
+}
+/// Default TLS settings. Http communication default to "tls" secret class.
+pub fn default_nifi_tls() -> Option<NifiTls> {
+    Some(NifiTls::default())
 }
 
 /// Helper method to provide defaults in the CRDs and tests
