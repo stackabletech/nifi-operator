@@ -1,12 +1,21 @@
 //! Ensures that `Pod`s are configured and running for each [`NifiCluster`]
-use indoc::formatdoc;
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, HashMap},
-    ops::Deref,
-    sync::Arc,
+use crate::{
+    authentication::{
+        NifiAuthenticationConfig, AUTHORIZERS_XML_FILE_NAME,
+        LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME, STACKABLE_ADMIN_USER_NAME,
+        STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
+    },
+    config::{
+        self, build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
+        validated_product_config, NifiRepository, JVM_SECURITY_PROPERTIES_FILE,
+        NIFI_BOOTSTRAP_CONF, NIFI_CONFIG_DIRECTORY, NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML,
+    },
+    operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
+    product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
+    OPERATOR_NAME,
 };
 
+use indoc::formatdoc;
 use product_config::{
     types::PropertyNameKind,
     writer::{to_java_properties_string, PropertiesWriterError},
@@ -66,25 +75,14 @@ use stackable_operator::{
     time::Duration,
     utils::COMMON_BASH_TRAP_FUNCTIONS,
 };
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+    ops::Deref,
+    sync::Arc,
+};
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
-
-use crate::operations::graceful_shutdown::add_graceful_shutdown_config;
-use crate::{
-    authentication::{
-        NifiAuthenticationConfig, AUTHORIZERS_XML_FILE_NAME,
-        LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME, STACKABLE_ADMIN_USER_NAME,
-        STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
-    },
-    config::{
-        self, build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
-        validated_product_config, NifiRepository, JVM_SECURITY_PROPERTIES_FILE,
-        NIFI_BOOTSTRAP_CONF, NIFI_CONFIG_DIRECTORY, NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML,
-    },
-    operations::pdb::add_pdbs,
-    product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
-    OPERATOR_NAME,
-};
 
 pub const NIFI_CONTROLLER_NAME: &str = "nificluster";
 pub const NIFI_UID: i64 = 1000;
