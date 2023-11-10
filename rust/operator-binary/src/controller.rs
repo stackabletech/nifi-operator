@@ -1,5 +1,4 @@
 //! Ensures that `Pod`s are configured and running for each [`NifiCluster`]
-use std::iter::Map;
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap},
@@ -14,13 +13,6 @@ use product_config::{
 };
 use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_nifi_crd::{
-    authentication::resolve_authentication_classes, Container, CurrentlySupportedListenerClasses,
-    NifiCluster, NifiConfig, NifiConfigFragment, NifiRole, NifiStatus, APP_NAME, BALANCE_PORT,
-    BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, MAX_NIFI_LOG_FILES_SIZE,
-    MAX_PREPARE_LOG_FILE_SIZE, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
-    STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
-};
 use stackable_operator::{
     builder::{
         resources::ResourceRequirementsBuilder, ConfigMapBuilder, ContainerBuilder,
@@ -67,11 +59,19 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
 
+use stackable_nifi_crd::{
+    authentication::resolve_authentication_classes, Container, CurrentlySupportedListenerClasses,
+    NifiCluster, NifiConfig, NifiConfigFragment, NifiRole, NifiStatus, APP_NAME, BALANCE_PORT,
+    BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, MAX_NIFI_LOG_FILES_SIZE,
+    MAX_PREPARE_LOG_FILE_SIZE, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
+    STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
+};
+
 use crate::{
     authentication::{
         NifiAuthenticationConfig, AUTHORIZERS_XML_FILE_NAME,
-        LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME, STACKABLE_ADMIN_USER_NAME,
-        STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
+        LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME, STACKABLE_SERVER_TLS_DIR,
+        STACKABLE_TLS_STORE_PASSWORD,
     },
     config::{
         self, build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
@@ -1354,7 +1354,7 @@ fn build_reporting_task_job(
             SecretFormat::TlsPem,
             // Node scope only needed when exposed as nodeport aka ExternalUnstable
             nifi.spec.cluster_config.listener_class
-                == CurrentlySupportedListenerClasses::ExternalUnstable
+                == CurrentlySupportedListenerClasses::ExternalUnstable,
         ))
         .build_template();
 
@@ -1555,9 +1555,10 @@ fn build_recommended_labels<'a>(
 
 #[cfg(test)]
 mod nifi_controller_test {
+    use stackable_operator::builder::SecretFormat;
+
     use crate::controller::build_keystore_volume;
     use crate::controller::Volume;
-    use stackable_operator::builder::SecretFormat;
 
     #[test]
     pub fn test_build_keystore_volume_with_node_scope() {
@@ -1566,7 +1567,7 @@ mod nifi_controller_test {
             "nifi-tls",
             "simple-nifi",
             SecretFormat::TlsPkcs12,
-            true
+            true,
         );
 
         let annotations = volume
@@ -1611,7 +1612,7 @@ mod nifi_controller_test {
             "nifi-tls",
             "simple-nifi",
             SecretFormat::TlsPkcs12,
-            false
+            false,
         );
 
         let annotations = volume
