@@ -21,6 +21,7 @@ use stackable_operator::{
 use strum::{Display, EnumIter};
 
 use crate::authentication::{STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD};
+use crate::operations::graceful_shutdown::graceful_shutdown_config_properties;
 
 pub const NIFI_CONFIG_DIRECTORY: &str = "/stackable/nifi/conf";
 
@@ -92,18 +93,7 @@ pub fn build_bootstrap_conf(
     // Configure where NiFi's lib and conf directories live
     bootstrap.insert("lib.dir".to_string(), "./lib".to_string());
     bootstrap.insert("conf.dir".to_string(), "./conf".to_string());
-    // TODO: How long to wait after telling NiFi to shutdown before explicitly killing the Process
-    let graceful_shutdown_seconds =
-        if let Some(graceful_shutdown_timeout) = nifi_config.graceful_shutdown_timeout {
-            graceful_shutdown_timeout.as_secs().to_string()
-        } else {
-            // Nifi default
-            "20".to_string()
-        };
-    bootstrap.insert(
-        "graceful.shutdown.seconds".to_string(),
-        graceful_shutdown_seconds,
-    );
+    bootstrap.extend(graceful_shutdown_config_properties(nifi_config));
 
     let mut java_args = Vec::with_capacity(18);
     // Disable JSR 199 so that we can use JSP's without running a JDK

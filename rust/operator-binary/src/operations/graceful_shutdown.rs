@@ -1,6 +1,7 @@
 use snafu::{ResultExt, Snafu};
 use stackable_nifi_crd::NifiConfig;
 use stackable_operator::builder::PodBuilder;
+use std::collections::BTreeMap;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -8,6 +9,17 @@ pub enum Error {
     SetTerminationGracePeriod {
         source: stackable_operator::builder::pod::Error,
     },
+}
+
+pub fn graceful_shutdown_config_properties(config: &NifiConfig) -> BTreeMap<String, String> {
+    let mut graceful_shutdown_properties = BTreeMap::new();
+    if let Some(graceful_shutdown_timeout) = config.graceful_shutdown_timeout {
+        graceful_shutdown_properties.insert(
+            "graceful.shutdown.seconds".to_string(),
+            graceful_shutdown_timeout.as_secs().to_string(),
+        );
+    }
+    graceful_shutdown_properties
 }
 
 pub fn add_graceful_shutdown_config(
