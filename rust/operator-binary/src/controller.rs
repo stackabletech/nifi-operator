@@ -1,4 +1,5 @@
 //! Ensures that `Pod`s are configured and running for each [`NifiCluster`]
+use std::iter::Map;
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap},
@@ -1136,6 +1137,10 @@ async fn build_node_rolegroup_statefulset(
             KEYSTORE_VOLUME_NAME,
             &nifi.name_any(),
             SecretFormat::TlsPkcs12,
+            // We only need the node scope on the secret volumes if nodePorts are used to
+            // expose the service - this is a crutch till listener op hits
+            nifi.spec.cluster_config.listener_class
+                == CurrentlySupportedListenerClasses::ExternalUnstable,
         ))
         .add_empty_dir_volume(TRUSTSTORE_VOLUME_NAME, None)
         .add_volume(Volume {
@@ -1347,6 +1352,9 @@ fn build_reporting_task_job(
             KEYSTORE_VOLUME_NAME,
             &nifi_name,
             SecretFormat::TlsPem,
+            // Node scope only needed when exposed as nodeport aka ExternalUnstable
+            nifi.spec.cluster_config.listener_class
+                == CurrentlySupportedListenerClasses::ExternalUnstable
         ))
         .build_template();
 
@@ -1440,6 +1448,7 @@ fn build_keystore_volume(
     volume_name: &str,
     nifi_name: &str,
     secret_format: SecretFormat,
+    node_scope: bool,
 ) -> Volume {
     let mut secret_volume_source_builder = SecretOperatorVolumeSourceBuilder::new(secret_class);
 
@@ -1447,10 +1456,13 @@ fn build_keystore_volume(
         secret_volume_source_builder.with_tls_pkcs12_password(STACKABLE_TLS_STORE_PASSWORD);
     }
 
+    if node_scope {
+        secret_volume_source_builder.with_node_scope();
+    }
+
     VolumeBuilder::new(volume_name)
         .ephemeral(
             secret_volume_source_builder
-                .with_node_scope()
                 .with_pod_scope()
                 .with_service_scope(nifi_name)
                 .with_format(secret_format)
@@ -1541,23 +1553,99 @@ fn build_recommended_labels<'a>(
     }
 }
 
-
 #[cfg(test)]
 mod nifi_controller_test {
-    use stackable_operator::builder::SecretFormat;
     use crate::controller::build_keystore_volume;
     use crate::controller::Volume;
+    use stackable_operator::builder::SecretFormat;
 
     #[test]
-    pub fn test_build_keystore_volume() {
-        let volume: Volume = build_keystore_volume("tls_secret_class", "nifi-tls", "simple-nifi", SecretFormat::TlsPkcs12);
+    pub fn test_build_keystore_volume_with_node_scope() {
+        let volume: Volume = build_keystore_volume(
+            "tls_secret_class",
+            "nifi-tls",
+            "simple-nifi",
+            SecretFormat::TlsPkcs12,
+            true
+        );
 
-        let annotations = volume.ephemeral.clone().unwrap().volume_claim_template.unwrap().metadata.unwrap().annotations.unwrap();
-        assert_eq!(annotations.get("secrets.stackable.tech/class"), Some(&"tls_secret_class".to_string()));
-        assert_eq!(annotations.get("secrets.stackable.tech/format"), Some(&"tls-pkcs12".to_string()));
-        assert_eq!(annotations.get("secrets.stackable.tech/scope"), Some(&"node,pod,service=simple-nifi".to_string()));
+        let annotations = volume
+            .ephemeral
+            .clone()
+            .unwrap()
+            .volume_claim_template
+            .unwrap()
+            .metadata
+            .unwrap()
+            .annotations
+            .unwrap();
+        assert_eq!(
+            annotations.get("secrets.stackable.tech/class"),
+            Some(&"tls_secret_class".to_string())
+        );
+        assert_eq!(
+            annotations.get("secrets.stackable.tech/format"),
+            Some(&"tls-pkcs12".to_string())
+        );
+        assert_eq!(
+            annotations.get("secrets.stackable.tech/scope"),
+            Some(&"node,pod,service=simple-nifi".to_string())
+        );
 
-        let spec = volume.ephemeral.unwrap().volume_claim_template.unwrap().spec;
-        assert_eq!(spec.storage_class_name, Some("secrets.stackable.tech".to_string()));
+        let spec = volume
+            .ephemeral
+            .unwrap()
+            .volume_claim_template
+            .unwrap()
+            .spec;
+        assert_eq!(
+            spec.storage_class_name,
+            Some("secrets.stackable.tech".to_string())
+        );
+    }
+
+    #[test]
+    pub fn test_build_keystore_volume_without_node_scope() {
+        let volume: Volume = build_keystore_volume(
+            "tls_secret_class",
+            "nifi-tls",
+            "simple-nifi",
+            SecretFormat::TlsPkcs12,
+            false
+        );
+
+        let annotations = volume
+            .ephemeral
+            .clone()
+            .unwrap()
+            .volume_claim_template
+            .unwrap()
+            .metadata
+            .unwrap()
+            .annotations
+            .unwrap();
+        assert_eq!(
+            annotations.get("secrets.stackable.tech/class"),
+            Some(&"tls_secret_class".to_string())
+        );
+        assert_eq!(
+            annotations.get("secrets.stackable.tech/format"),
+            Some(&"tls-pkcs12".to_string())
+        );
+        assert_eq!(
+            annotations.get("secrets.stackable.tech/scope"),
+            Some(&"pod,service=simple-nifi".to_string())
+        );
+
+        let spec = volume
+            .ephemeral
+            .unwrap()
+            .volume_claim_template
+            .unwrap()
+            .spec;
+        assert_eq!(
+            spec.storage_class_name,
+            Some("secrets.stackable.tech".to_string())
+        );
     }
 }

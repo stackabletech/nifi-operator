@@ -106,7 +106,6 @@ pub struct NifiClusterConfig {
     pub authentication: Vec<NifiAuthenticationClassRef>,
     #[serde(
         default = "tls::default_nifi_tls",
-        skip_serializing_if = "Option::is_none"
     )]
     pub tls: Option<NifiTls>,
     /// Configuration options for how NiFi encrypts sensitive properties on disk
