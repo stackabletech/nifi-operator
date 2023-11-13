@@ -1,11 +1,5 @@
-pub mod affinity;
-pub mod authentication;
-mod tls;
+use std::collections::BTreeMap;
 
-use crate::authentication::NifiAuthenticationClassRef;
-
-use crate::tls::NifiTls;
-use affinity::get_affinity;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -32,8 +26,16 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
 };
-use std::collections::BTreeMap;
 use strum::Display;
+
+use affinity::get_affinity;
+
+use crate::authentication::NifiAuthenticationClassRef;
+use crate::tls::NifiTls;
+
+pub mod affinity;
+pub mod authentication;
+mod tls;
 
 pub const APP_NAME: &str = "nifi";
 
@@ -104,9 +106,7 @@ pub struct NifiClusterConfig {
     /// Authentication options for NiFi (required)
     // We don't add `#[serde(default)]` here, as we require authentication
     pub authentication: Vec<NifiAuthenticationClassRef>,
-    #[serde(
-        default = "tls::default_nifi_tls",
-    )]
+    #[serde(default = "tls::default_nifi_tls")]
     pub tls: Option<NifiTls>,
     /// Configuration options for how NiFi encrypts sensitive properties on disk
     pub sensitive_properties: NifiSensitivePropertiesConfig,
