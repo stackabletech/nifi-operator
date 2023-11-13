@@ -70,8 +70,8 @@ use stackable_nifi_crd::{
 use crate::{
     authentication::{
         NifiAuthenticationConfig, AUTHORIZERS_XML_FILE_NAME,
-        LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME, STACKABLE_SERVER_TLS_DIR,
-        STACKABLE_TLS_STORE_PASSWORD,
+        LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME, STACKABLE_ADMIN_USER_NAME,
+        STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
     },
     config::{
         self, build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
