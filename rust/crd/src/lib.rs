@@ -1,9 +1,5 @@
-pub mod affinity;
-pub mod authentication;
+use std::collections::BTreeMap;
 
-use crate::authentication::NifiAuthenticationClassRef;
-
-use affinity::get_affinity;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -30,8 +26,16 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
 };
-use std::collections::BTreeMap;
 use strum::Display;
+
+use affinity::get_affinity;
+
+use crate::authentication::NifiAuthenticationClassRef;
+use crate::tls::NifiTls;
+
+pub mod affinity;
+pub mod authentication;
+mod tls;
 
 pub const APP_NAME: &str = "nifi";
 
@@ -102,6 +106,8 @@ pub struct NifiClusterConfig {
     /// Authentication options for NiFi (required)
     // We don't add `#[serde(default)]` here, as we require authentication
     pub authentication: Vec<NifiAuthenticationClassRef>,
+    #[serde(default = "tls::default_nifi_tls")]
+    pub tls: Option<NifiTls>,
     /// Configuration options for how NiFi encrypts sensitive properties on disk
     pub sensitive_properties: NifiSensitivePropertiesConfig,
     /// Name of the Vector aggregator discovery ConfigMap.
@@ -483,5 +489,84 @@ impl PodRef {
             "{}.{}.{}.svc.cluster.local",
             self.pod_name, self.role_group_service_name, self.namespace
         )
+    }
+}
+
+#[cfg(test)]
+mod nifi_crd_test {
+    use super::{NifiCluster, NifiTls};
+
+    #[test]
+    pub fn test_tls_default_secretclass() {
+        let cr = "
+---
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  namespace: nifi-test
+  name: simple-nifi
+spec:
+  image:
+    productVersion: 1.21.0
+    stackableVersion: 23.7.0
+  clusterConfig:
+    authentication:
+      - authenticationClass: simple-nifi-users
+    listenerClass: external-unstable
+    sensitiveProperties:
+      keySecret: nifi-sensitive-property-key
+      autoGenerate: true
+    zookeeperConfigMapName: simple-nifi-znode
+  nodes:
+    roleGroups:
+      default:
+        replicas: 2
+";
+        let nifi: NifiCluster = serde_yaml::from_str(cr).unwrap();
+
+        assert_eq!(
+            nifi.spec.cluster_config.tls,
+            Some(NifiTls {
+                http_secret_class: "tls".to_string()
+            })
+        );
+    }
+
+    #[test]
+    pub fn test_tls_nondefault_secretclass() {
+        let cr = "
+---
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  namespace: nifi-test
+  name: simple-nifi
+spec:
+  image:
+    productVersion: 1.21.0
+    stackableVersion: 23.7.0
+  clusterConfig:
+    tls:
+      httpSecretClass: tls2-123
+    authentication:
+      - authenticationClass: simple-nifi-users
+    listenerClass: external-unstable
+    sensitiveProperties:
+      keySecret: nifi-sensitive-property-key
+      autoGenerate: true
+    zookeeperConfigMapName: simple-nifi-znode
+  nodes:
+    roleGroups:
+      default:
+        replicas: 2
+";
+        let nifi: NifiCluster = serde_yaml::from_str(cr).unwrap();
+
+        assert_eq!(
+            nifi.spec.cluster_config.tls,
+            Some(NifiTls {
+                http_secret_class: "tls2-123".to_string()
+            })
+        );
     }
 }
