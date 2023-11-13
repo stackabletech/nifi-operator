@@ -10,7 +10,7 @@ All notable changes to this project will be documented in this file.
 - Configuration overrides for the JVM security properties, such as DNS caching ([#497]).
 - Support PodDisruptionBudgets ([#509]).
 - Support for 1.23.2 ([#513]).
-- Support specifying the SecretClass that is used to obtain TLS certificates ([#529])
+- Support specifying the SecretClass that is used to obtain TLS certificates ([#529]).
 
 ### Changed
 
@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 - `operator-rs` `0.44.0` -> `0.55.0` ([#493], [#498], [#509], [#513]).
 - [BREAKING] Consolidated authentication config to a list of AuthenticationClasses ([#498]).
 - Let secret-operator handle certificate conversion ([#505]).
+- Secret volumes now only have the `Node` scope when a ListenerClass of `ExternalUnstable` is specified ([#529]).
 
 ### Removed
 
