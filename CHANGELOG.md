@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 - Configuration overrides for the JVM security properties, such as DNS caching ([#497]).
 - Support PodDisruptionBudgets ([#509]).
 - Support for 1.23.2 ([#513]).
+- Support graceful shutdown ([#528]).
 
 ### Changed
 
@@ -31,6 +32,7 @@ All notable changes to this project will be documented in this file.
 [#505]: https://github.com/stackabletech/nifi-operator/pull/505
 [#509]: https://github.com/stackabletech/nifi-operator/pull/509
 [#513]: https://github.com/stackabletech/nifi-operator/pull/513
+[#528]: https://github.com/stackabletech/nifi-operator/pull/528
 
 ## [23.7.0] - 2023-07-14
 

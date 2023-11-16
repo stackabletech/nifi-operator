@@ -29,6 +29,7 @@ use stackable_operator::{
     role_utils::{GenericRoleConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
+    time::Duration,
 };
 use std::collections::BTreeMap;
 use strum::Display;
@@ -55,6 +56,8 @@ pub const MAX_PREPARE_LOG_FILE_SIZE: MemoryQuantity = MemoryQuantity {
     value: 1.0,
     unit: BinaryMultiple::Mebi,
 };
+
+const DEFAULT_NODE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_minutes_unchecked(5);
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -264,6 +267,9 @@ pub struct NifiConfig {
     pub resources: Resources<NifiStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
+    /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
+    #[fragment_attrs(serde(default))]
+    pub graceful_shutdown_timeout: Option<Duration>,
 }
 
 impl NifiConfig {
@@ -310,6 +316,7 @@ impl NifiConfig {
                 },
             },
             affinity: get_affinity(cluster_name, role),
+            graceful_shutdown_timeout: Some(DEFAULT_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
         }
     }
 }

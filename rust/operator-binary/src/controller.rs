@@ -6,6 +6,7 @@ use std::{
     sync::Arc,
 };
 
+use indoc::formatdoc;
 use product_config::{
     types::PropertyNameKind,
     writer::{to_java_properties_string, PropertiesWriterError},
@@ -51,6 +52,7 @@ use stackable_operator::{
     logging::controller::ReconcilerError,
     product_logging::{
         self,
+        framework::{create_vector_shutdown_file_command, remove_vector_shutdown_file_command},
         spec::{
             ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
             CustomContainerLogConfig,
@@ -62,6 +64,7 @@ use stackable_operator::{
         statefulset::StatefulSetConditionBuilder,
     },
     time::Duration,
+    utils::COMMON_BASH_TRAP_FUNCTIONS,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
@@ -77,7 +80,7 @@ use crate::{
         validated_product_config, NifiRepository, JVM_SECURITY_PROPERTIES_FILE,
         NIFI_BOOTSTRAP_CONF, NIFI_CONFIG_DIRECTORY, NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML,
     },
-    operations::pdb::add_pdbs,
+    operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
     OPERATOR_NAME,
 };
@@ -276,6 +279,11 @@ pub enum Error {
     #[snafu(display("failed to create PodDisruptionBudget"))]
     FailedToCreatePdb {
         source: crate::operations::pdb::Error,
+    },
+
+    #[snafu(display("failed to configure graceful shutdown"))]
+    GracefulShutdown {
+        source: crate::operations::graceful_shutdown::Error,
     },
 }
 
@@ -675,7 +683,7 @@ async fn build_node_rolegroup_config_map(
         .add_data(
             NIFI_BOOTSTRAP_CONF,
             build_bootstrap_conf(
-                &merged_config.resources,
+                merged_config,
                 rolegroup_config
                     .get(&PropertyNameKind::File(NIFI_BOOTSTRAP_CONF.to_string()))
                     .with_context(|| ProductConfigKindNotSpecifiedSnafu {
@@ -862,20 +870,20 @@ async fn build_node_rolegroup_statefulset(
     let sensitive_key_secret = &nifi.spec.cluster_config.sensitive_properties.key_secret;
 
     let prepare_container_name = Container::Prepare.to_string();
-    let mut args = vec![];
+    let mut prepare_args = vec![];
 
     if let Some(ContainerLogConfig {
         choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
     }) = merged_config.logging.containers.get(&Container::Prepare)
     {
-        args.push(product_logging::framework::capture_shell_output(
+        prepare_args.push(product_logging::framework::capture_shell_output(
             STACKABLE_LOG_DIR,
             &prepare_container_name,
             log_config,
         ));
     }
 
-    args.extend(vec![
+    prepare_args.extend(vec![
         // The source directory is a secret-op mount and we do not want to write / add anything in there
         // Therefore we import all the contents to a truststore in "writeable" empty dirs.
         // Keytool is only barking if a password is not set for the destination truststore (which we set)
@@ -904,7 +912,7 @@ async fn build_node_rolegroup_statefulset(
         format!("sed -i \"s|yyyyyy|${{{}}}|g\" /stackable/nifi/conf/state-management.xml",zookeeper_chroot)
     ]);
 
-    args.extend_from_slice(nifi_auth_config.get_additional_container_args().as_slice());
+    prepare_args.extend_from_slice(nifi_auth_config.get_additional_container_args().as_slice());
 
     let mut container_prepare =
         ContainerBuilder::new(&prepare_container_name).with_context(|_| {
@@ -922,7 +930,7 @@ async fn build_node_rolegroup_statefulset(
             "pipefail".to_string(),
         ])
         .add_env_vars(env_vars.clone())
-        .args(vec![args.join(" && ")])
+        .args(vec![prepare_args.join(" && ")])
         .add_volume_mount(
             &NifiRepository::Flowfile.repository(),
             &NifiRepository::Flowfile.mount_path(),
@@ -965,10 +973,29 @@ async fn build_node_rolegroup_statefulset(
         }
     })?;
 
+    let nifi_args = vec![formatdoc! {"
+            {COMMON_BASH_TRAP_FUNCTIONS}
+            {remove_vector_shutdown_file_command}
+            prepare_signal_handlers
+            bin/nifi.sh run &
+            wait_for_termination $!
+            {create_vector_shutdown_file_command}
+            ",
+    remove_vector_shutdown_file_command =
+        remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
+    create_vector_shutdown_file_command =
+        create_vector_shutdown_file_command(STACKABLE_LOG_DIR),
+    }];
     let container_nifi = container_builder
         .image_from_product_image(resolved_product_image)
-        .command(vec!["/bin/bash".to_string(), "-c".to_string()])
-        .args(vec!["bin/nifi.sh run".to_string()])
+        .command(vec![
+            "/bin/bash".to_string(),
+            "-x".to_string(),
+            "-euo".to_string(),
+            "pipefail".to_string(),
+            "-c".to_string(),
+        ])
+        .args(nifi_args)
         .add_env_vars(env_vars)
         .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_NIFI_CONTAINER_MOUNT)
         .add_volume_mount(
@@ -1021,6 +1048,7 @@ async fn build_node_rolegroup_statefulset(
         .resources(merged_config.resources.clone().into());
 
     let mut pod_builder = PodBuilder::new();
+    add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
 
     // Add user configured extra volumes if any are specified
     for volume in &nifi.spec.cluster_config.extra_volumes {

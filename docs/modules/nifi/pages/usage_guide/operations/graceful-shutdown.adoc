@@ -1,7 +1,23 @@
 = Graceful shutdown
 
-Graceful shutdown of Nifi nodes is either not supported by the product itself
-or we have not implemented it yet.
+You can configure the graceful shutdown as described in xref:concepts:operations/graceful_shutdown.adoc[].
 
-Outstanding implementation work for the graceful shutdowns of all products where this functionality is relevant is tracked in
-https://github.com/stackabletech/issues/issues/357
+== Nodes
+
+As a default, NiFi nodes have `5 minutes` to shut down gracefully.
+
+The NiFi node process will receive a `SIGTERM` signal when Kubernetes wants to terminate the Pod.
+It will log the received signal as shown in the log below and initiate a graceful shutdown.
+After the graceful shutdown timeout runs out, and the process still didn't exit, Kubernetes will issue a `SIGKILL` signal.
+
+[source,text]
+----
+nifi NiFi PID [43] shutdown started
+nifi NiFi PID [43] shutdown in progress...
+[...]
+nifi 2023-11-08 10:52:14,459 INFO [pool-1-thread-1] org.apache.nifi.NiFi Application Server shutdown completed
+nifi 2023-11-08 10:52:15,139 INFO [Thread-0] org.apache.nifi.NiFi Application Server shutdown started
+nifi 2023-11-08 10:52:15,139 INFO [Thread-0] org.apache.nifi.nar.NarAutoLoader NAR Auto-Loader stopped
+nifi 2023-11-08 10:52:15,139 INFO [Thread-0] o.a.n.f.r.CompositeExternalResourceProviderService External Resource Provider Service is stopped
+nifi 2023-11-08 10:52:15,139 INFO [Thread-0] org.apache.nifi.NiFi Application Server shutdown completed
+----

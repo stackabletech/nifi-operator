@@ -6,7 +6,7 @@ use std::{
 use product_config::{types::PropertyNameKind, ProductConfigManager};
 use snafu::{ResultExt, Snafu};
 use stackable_nifi_crd::{
-    NifiCluster, NifiConfigFragment, NifiRole, NifiSpec, NifiStorageConfig, HTTPS_PORT,
+    NifiCluster, NifiConfig, NifiConfigFragment, NifiRole, NifiSpec, NifiStorageConfig, HTTPS_PORT,
     PROTOCOL_PORT,
 };
 use stackable_operator::{
@@ -20,7 +20,10 @@ use stackable_operator::{
 };
 use strum::{Display, EnumIter};
 
-use crate::authentication::{STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD};
+use crate::{
+    authentication::{STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD},
+    operations::graceful_shutdown::graceful_shutdown_config_properties,
+};
 
 pub const NIFI_CONFIG_DIRECTORY: &str = "/stackable/nifi/conf";
 
@@ -79,7 +82,7 @@ pub enum Error {
 
 /// Create the NiFi bootstrap.conf
 pub fn build_bootstrap_conf(
-    resource_config: &Resources<NifiStorageConfig>,
+    nifi_config: &NifiConfig,
     overrides: BTreeMap<String, String>,
 ) -> Result<String, Error> {
     let mut bootstrap = BTreeMap::new();
@@ -92,15 +95,14 @@ pub fn build_bootstrap_conf(
     // Configure where NiFi's lib and conf directories live
     bootstrap.insert("lib.dir".to_string(), "./lib".to_string());
     bootstrap.insert("conf.dir".to_string(), "./conf".to_string());
-    // How long to wait after telling NiFi to shutdown before explicitly killing the Process
-    bootstrap.insert("graceful.shutdown.seconds".to_string(), "20".to_string());
+    bootstrap.extend(graceful_shutdown_config_properties(nifi_config));
 
     let mut java_args = Vec::with_capacity(18);
     // Disable JSR 199 so that we can use JSP's without running a JDK
     java_args.push("-Dorg.apache.jasper.compiler.disablejsr199=true".to_string());
 
     // Read memory limits from config
-    if let Some(heap_size_definition) = &resource_config.memory.limit {
+    if let Some(heap_size_definition) = &nifi_config.resources.memory.limit {
         tracing::debug!("Read {:?} from crd as memory limit", heap_size_definition);
 
         let heap_size = MemoryQuantity::try_from(heap_size_definition)
