@@ -1,7 +1,8 @@
+use std::collections::BTreeMap;
+
 use snafu::{ResultExt, Snafu};
 use stackable_nifi_crd::NifiConfig;
 use stackable_operator::builder::PodBuilder;
-use std::collections::BTreeMap;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
