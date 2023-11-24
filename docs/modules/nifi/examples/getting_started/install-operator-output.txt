@@ -1,7 +1,7 @@
 # tag::stackablectl-install-operators-output[]
-[INFO ] Installing commons operator in version 0.0.0-dev
-[INFO ] Installing secret operator in version 0.0.0-dev
-[INFO ] Installing listener operator in version 0.0.0-dev
-[INFO ] Installing zookeeper operator in version 0.0.0-dev
-[INFO ] Installing nifi operator in version 0.0.0-dev
+[INFO ] Installing commons operator in version 23.11.0
+[INFO ] Installing secret operator in version 23.11.0
+[INFO ] Installing listener operator in version 23.11.0
+[INFO ] Installing zookeeper operator in version 23.11.0
+[INFO ] Installing nifi operator in version 23.11.0
 # end::stackablectl-install-operators-output[]
