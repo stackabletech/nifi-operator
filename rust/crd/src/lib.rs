@@ -114,7 +114,7 @@ pub struct NifiClusterConfig {
     // We don't add `#[serde(default)]` here, as we require authentication
     pub authentication: Vec<NifiAuthenticationClassRef>,
 
-    /// Configuration options for how NiFi encrypts sensitive properties on disk
+    // no doc - docs in NifiSensitivePropertiesConfig struct.
     pub sensitive_properties: NifiSensitivePropertiesConfig,
 
     /// Name of the Vector aggregator [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
@@ -170,13 +170,34 @@ impl CurrentlySupportedListenerClasses {
     }
 }
 
+/// These settings configure the encryption of sensitive properties in NiFi processors.
+/// NiFi supports encrypting sensitive properties in processors as they are written to disk.
+/// You can configure the encryption algorithm and the key to use.
+/// You can also let the operator generate an encryption key for you.
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiSensitivePropertiesConfig {
+    /// A reference to a Secret. The Secret needs to contain a key `nifiSensitivePropsKey`.
+    /// If `autoGenerate` is false, the Operator will raise an error.
     pub key_secret: String,
-    pub algorithm: Option<NifiSensitiveKeyAlgorithm>,
+
+    /// Whether to generate the `keySecret` if it is missing.
+    /// Defaults to `false`.
     #[serde(default)]
     pub auto_generate: bool,
+
+    /// This is setting the `nifi.sensitive.props.algorithm` property in NiFi.
+    /// This setting configures the encryption algorithm to use to encrypt sensitive properties.
+    /// Valid values are:
+    /// `nifiArgon2AesGcm128`,
+    /// `nifiArgon2AesGcm256`,
+    /// `nifiBcryptAesGcm128`,
+    /// `nifiBcryptAesGcm256`,
+    /// `nifiPbkdf2AesGcm128`,
+    /// `nifiPbkdf2AesGcm256`,
+    /// `nifiScryptAesGcm128`,
+    /// `nifiScryptAesGcm256`.
+    pub algorithm: Option<NifiSensitiveKeyAlgorithm>,
 }
 
 #[derive(strum::Display, Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
