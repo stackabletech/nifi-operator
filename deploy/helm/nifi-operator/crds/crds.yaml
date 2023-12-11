@@ -33,7 +33,7 @@ spec:
                       items:
                         properties:
                           authenticationClass:
-                            description: Name of the [AuthenticationClass](https://docs.stackable.tech/home/nightly/concepts/authentication) used to authenticate users. Supported providers are `static` and `ldap`. For `static` the "admin" user needs to be present, and only this user will be added to NiFi, other users are ignored.
+                            description: Name of the [AuthenticationClass](https://docs.stackable.tech/home/nightly/concepts/authentication) used to authenticate users. Supported providers are `static` and `ldap`. For `static` the "admin" user needs to be present in the referenced secret, and only this user will be added to NiFi, other users are ignored.
                             type: string
                         required:
                           - authenticationClass
@@ -1160,7 +1160,7 @@ spec:
                       nullable: true
                       type: string
                     zookeeperConfigMapName:
-                      description: Kafka requires a ZooKeeper cluster connection to run. Provide the name of the ZooKeeper [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery) here. When using the [Stackable operator for Apache ZooKeeper](https://docs.stackable.tech/home/nightly/zookeeper/) to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
+                      description: NiFi requires a ZooKeeper cluster connection to run. Provide the name of the ZooKeeper [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery) here. When using the [Stackable operator for Apache ZooKeeper](https://docs.stackable.tech/home/nightly/zookeeper/) to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
                       type: string
                   required:
                     - authentication
