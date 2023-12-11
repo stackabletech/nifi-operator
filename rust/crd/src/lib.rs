@@ -124,7 +124,7 @@ pub struct NifiClusterConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vector_aggregator_config_map_name: Option<String>,
 
-    /// Kafka requires a ZooKeeper cluster connection to run.
+    /// NiFi requires a ZooKeeper cluster connection to run.
     /// Provide the name of the ZooKeeper [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery)
     /// here. When using the [Stackable operator for Apache ZooKeeper](DOCS_BASE_URL_PLACEHOLDER/zookeeper/)
     /// to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
