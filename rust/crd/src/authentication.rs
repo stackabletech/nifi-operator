@@ -38,7 +38,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct NifiAuthenticationClassRef {
     /// Name of the [AuthenticationClass](DOCS_BASE_URL_PLACEHOLDER/concepts/authentication) used to authenticate users.
     /// Supported providers are `static` and `ldap`.
-    /// For `static` the "admin" user needs to be present, and only this user will be added to NiFi, other users are ignored.
+    /// For `static` the "admin" user needs to be present in the referenced secret, and only this user will be added to NiFi, other users are ignored.
     pub authentication_class: String,
 }
 
