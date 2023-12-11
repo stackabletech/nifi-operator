@@ -71,6 +71,9 @@ pub enum Error {
     FragmentValidationFailure { source: ValidationError },
 }
 
+/// A NiFi cluster stacklet. This resource is managed by the Stackable operator for Apache NiFi.
+/// Find more information on how to use it and the resources that the operator generates in the
+/// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/).
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[kube(
     group = "nifi.stackable.tech",

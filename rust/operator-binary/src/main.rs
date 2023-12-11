@@ -42,7 +42,7 @@ struct Opts {
 async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
-        Command::Crd => NifiCluster::print_yaml_schema()?,
+        Command::Crd => NifiCluster::print_yaml_schema(built_info::CARGO_PKG_VERSION)?,
         Command::Run(ProductOperatorRun {
             product_config,
             watch_namespace,
