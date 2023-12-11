@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Various documentation of the CRD ([#537]).
+
+[#537]: https://github.com/stackabletech/nifi-operator/pull/537
+
 ## [23.11.0] - 2023-11-24
 
 ### Added

@@ -36,10 +36,9 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiAuthenticationClassRef {
-    /// Name of the AuthenticationClass used to authenticate users.
-    /// Supported providers are:
-    /// * static. Important: This operator requires the "admin" user to be present, and will add only this user to NiFi. Other users are ignored.
-    /// * ldap
+    /// Name of the [AuthenticationClass](DOCS_BASE_URL_PLACEHOLDER/concepts/authentication) used to authenticate users.
+    /// Supported providers are `static` and `ldap`.
+    /// For `static` the "admin" user needs to be present in the referenced secret, and only this user will be added to NiFi, other users are ignored.
     pub authentication_class: String,
 }
 

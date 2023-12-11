@@ -71,6 +71,9 @@ pub enum Error {
     FragmentValidationFailure { source: ValidationError },
 }
 
+/// A NiFi cluster stacklet. This resource is managed by the Stackable operator for Apache NiFi.
+/// Find more information on how to use it and the resources that the operator generates in the
+/// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/).
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[kube(
     group = "nifi.stackable.tech",
@@ -87,37 +90,53 @@ pub enum Error {
 )]
 #[serde(rename_all = "camelCase")]
 pub struct NifiSpec {
-    /// The NiFi image to use
-    pub image: ProductImage,
-    /// Global Nifi config for e.g. authentication or sensitive properties
+    /// Settings that affect all roles and role groups.
+    /// The settings in the `clusterConfig` are cluster wide settings that do not need to be configurable at role or role group level.
     pub cluster_config: NifiClusterConfig,
-    /// Cluster operations like pause reconciliation or cluster stop.
+
+    // no doc - docs in Role struct.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nodes: Option<Role<NifiConfigFragment>>,
+
+    // no doc - docs in ProductImage struct.
+    pub image: ProductImage,
+
+    // no doc - docs in ClusterOperation struct.
     #[serde(default)]
     pub cluster_operation: ClusterOperation,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    /// Available NiFi roles
-    pub nodes: Option<Role<NifiConfigFragment>>,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiClusterConfig {
-    /// Authentication options for NiFi (required)
+    /// Authentication options for NiFi (required).
+    /// Read more about authentication in the [security documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/security).
     // We don't add `#[serde(default)]` here, as we require authentication
     pub authentication: Vec<NifiAuthenticationClassRef>,
-    /// Configuration options for how NiFi encrypts sensitive properties on disk
+
+    // no doc - docs in NifiSensitivePropertiesConfig struct.
     pub sensitive_properties: NifiSensitivePropertiesConfig,
-    /// Name of the Vector aggregator discovery ConfigMap.
+
+    /// Name of the Vector aggregator [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
     /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
+    /// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
+    /// to learn how to configure log aggregation with Vector.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vector_aggregator_config_map_name: Option<String>,
-    /// The reference to the ZooKeeper cluster
+
+    /// NiFi requires a ZooKeeper cluster connection to run.
+    /// Provide the name of the ZooKeeper [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery)
+    /// here. When using the [Stackable operator for Apache ZooKeeper](DOCS_BASE_URL_PLACEHOLDER/zookeeper/)
+    /// to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
     pub zookeeper_config_map_name: String,
+
     /// Extra volumes to mount into every container, this can be useful to for example make client
     /// certificates, keytabs or similar things available to processors
-    /// These volumes will be mounted below `/stackable/userdata/{volumename}`
+    /// These volumes will be mounted below `/stackable/userdata/{volumename}`.
+    /// See also the [external files usage guide](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/extra-volumes).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extra_volumes: Vec<Volume>,
+
     /// This field controls which type of Service the Operator creates for this NifiCluster:
     ///
     /// * cluster-internal: Use a ClusterIP service
@@ -125,7 +144,7 @@ pub struct NifiClusterConfig {
     /// * external-unstable: Use a NodePort service
     ///
     /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
-    /// In the future, this setting will control which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html>
+    /// In the future, this setting will control which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html)
     /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
     #[serde(default)]
     pub listener_class: CurrentlySupportedListenerClasses,
@@ -151,13 +170,34 @@ impl CurrentlySupportedListenerClasses {
     }
 }
 
+/// These settings configure the encryption of sensitive properties in NiFi processors.
+/// NiFi supports encrypting sensitive properties in processors as they are written to disk.
+/// You can configure the encryption algorithm and the key to use.
+/// You can also let the operator generate an encryption key for you.
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiSensitivePropertiesConfig {
+    /// A reference to a Secret. The Secret needs to contain a key `nifiSensitivePropsKey`.
+    /// If `autoGenerate` is false and this object is missing, the Operator will raise an error.
     pub key_secret: String,
-    pub algorithm: Option<NifiSensitiveKeyAlgorithm>,
+
+    /// Whether to generate the `keySecret` if it is missing.
+    /// Defaults to `false`.
     #[serde(default)]
     pub auto_generate: bool,
+
+    /// This is setting the `nifi.sensitive.props.algorithm` property in NiFi.
+    /// This setting configures the encryption algorithm to use to encrypt sensitive properties.
+    /// Valid values are:
+    /// `nifiArgon2AesGcm128`,
+    /// `nifiArgon2AesGcm256`,
+    /// `nifiBcryptAesGcm128`,
+    /// `nifiBcryptAesGcm256`,
+    /// `nifiPbkdf2AesGcm128`,
+    /// `nifiPbkdf2AesGcm256`,
+    /// `nifiScryptAesGcm128`,
+    /// `nifiScryptAesGcm256`.
+    pub algorithm: Option<NifiSensitiveKeyAlgorithm>,
 }
 
 #[derive(strum::Display, Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
