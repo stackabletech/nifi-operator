@@ -178,7 +178,7 @@ impl CurrentlySupportedListenerClasses {
 #[serde(rename_all = "camelCase")]
 pub struct NifiSensitivePropertiesConfig {
     /// A reference to a Secret. The Secret needs to contain a key `nifiSensitivePropsKey`.
-    /// If `autoGenerate` is false, the Operator will raise an error.
+    /// If `autoGenerate` is false and this object is missing, the Operator will raise an error.
     pub key_secret: String,
 
     /// Whether to generate the `keySecret` if it is missing.
