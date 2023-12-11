@@ -26,10 +26,10 @@ spec:
               description: A NiFi cluster stacklet. This resource is managed by the Stackable operator for Apache NiFi. Find more information on how to use it and the resources that the operator generates in the [operator documentation](https://docs.stackable.tech/home/nightly/nifi/).
               properties:
                 clusterConfig:
-                  description: Global Nifi config for e.g. authentication or sensitive properties
+                  description: Settings that affect all roles and role groups. The settings in the `clusterConfig` are cluster wide settings that do not need to be configurable at role or role group level.
                   properties:
                     authentication:
-                      description: Authentication options for NiFi (required)
+                      description: Authentication options for NiFi (required). Read more about authentication in the [security documentation](https://docs.stackable.tech/home/nightly/nifi/usage_guide/security).
                       items:
                         properties:
                           authenticationClass:
@@ -40,7 +40,7 @@ spec:
                         type: object
                       type: array
                     extraVolumes:
-                      description: Extra volumes to mount into every container, this can be useful to for example make client certificates, keytabs or similar things available to processors These volumes will be mounted below `/stackable/userdata/{volumename}`
+                      description: Extra volumes to mount into every container, this can be useful to for example make client certificates, keytabs or similar things available to processors These volumes will be mounted below `/stackable/userdata/{volumename}`. See also the [external files usage guide](https://docs.stackable.tech/home/nightly/nifi/usage_guide/extra-volumes).
                       items:
                         description: Volume represents a named volume in a pod that may be accessed by any container in the pod.
                         properties:
@@ -1124,7 +1124,7 @@ spec:
 
                         * external-unstable: Use a NodePort service
 
-                        This is a temporary solution with the goal to keep yaml manifests forward compatible. In the future, this setting will control which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html> will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
+                        This is a temporary solution with the goal to keep yaml manifests forward compatible. In the future, this setting will control which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
                       enum:
                         - cluster-internal
                         - external-unstable
@@ -1153,11 +1153,11 @@ spec:
                         - keySecret
                       type: object
                     vectorAggregatorConfigMapName:
-                      description: Name of the Vector aggregator discovery ConfigMap. It must contain the key `ADDRESS` with the address of the Vector aggregator.
+                      description: Name of the Vector aggregator [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery). It must contain the key `ADDRESS` with the address of the Vector aggregator. Follow the [logging tutorial](https://docs.stackable.tech/home/nightly/tutorials/logging-vector-aggregator) to learn how to configure log aggregation with Vector.
                       nullable: true
                       type: string
                     zookeeperConfigMapName:
-                      description: The reference to the ZooKeeper cluster
+                      description: Kafka requires a ZooKeeper cluster connection to run. Provide the name of the ZooKeeper [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery) here. When using the [Stackable operator for Apache ZooKeeper](https://docs.stackable.tech/home/nightly/zookeeper/) to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
                       type: string
                   required:
                     - authentication
@@ -1168,7 +1168,7 @@ spec:
                   default:
                     stopped: false
                     reconciliationPaused: false
-                  description: Cluster operations like pause reconciliation or cluster stop.
+                  description: '[Cluster operations](https://docs.stackable.tech/home/nightly/concepts/operations/cluster_operations) properties, allow stopping the product instance as well as pausing reconciliation.'
                   properties:
                     reconciliationPaused:
                       default: false
@@ -1186,7 +1186,10 @@ spec:
                         - productVersion
                     - required:
                         - productVersion
-                  description: The NiFi image to use
+                  description: |-
+                    Specify which image to use, the easiest way is to only configure the `productVersion`. You can also configure a custom image registry to pull from, as well as completely custom images.
+
+                    Consult the [Product image selection documentation](https://docs.stackable.tech/home/nightly/concepts/product_image_selection) for details.
                   properties:
                     custom:
                       description: Overwrite the docker image. Specify the full docker image name, e.g. `docker.stackable.tech/stackable/superset:1.4.1-stackable2.1.0`
@@ -1223,7 +1226,7 @@ spec:
                       type: string
                   type: object
                 nodes:
-                  description: Available NiFi roles
+                  description: This struct represents a role - e.g. HDFS datanodes or Trino workers. It has a [`HashMap`] containing all the roleGroups that are part of this role. Additionally, there is a `config`, which is configurable at the role *and* roleGroup level. Everything at roleGroup level is merged on top of what is configured on role level using the [`Merge`] trait. There is also a second form of config, which can only be configured at role level, the `roleConfig`.
                   nullable: true
                   properties:
                     cliOverrides:
