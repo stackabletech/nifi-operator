@@ -322,7 +322,7 @@ jobs:
         # This step checks if the current run was triggered by a push to a pr (or a pr being created).
         # If this is the case it changes the version of this project in all Cargo.toml files to include the suffix
         # "-pr<prnumber>" so that the published artifacts can be linked to this PR.
-      - uses: stackabletech/cargo-install-action@master
+      - uses: stackabletech/cargo-install-action@main
         with:
           crate: cargo-edit
           bin: cargo-set-version
