@@ -30,6 +30,7 @@ metadata:
 spec:
   image:
     productVersion: "{{ test_scenario['values']['nifi'] }}"
+    pullPolicy: IfNotPresent
   clusterConfig:
     zookeeperConfigMapName: test-nifi-znode
     listenerClass: {{ test_scenario['values']['listener-class'] }}
