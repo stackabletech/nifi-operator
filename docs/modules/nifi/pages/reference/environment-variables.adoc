@@ -1,42 +1,8 @@
-= Configuration
-
-== Command Line Parameters
-
-This operator accepts the following command line parameters:
-
-=== product-config
-
-*Default value*: `/etc/stackable/nifi-operator/config-spec/properties.yaml`
-
-*Required*: false
-
-*Multiple values:* false
-
-[source]
-----
-stackable-nifi-operator run --product-config /foo/bar/properties.yaml
-----
-
-=== watch-namespace
-
-*Default value*: All namespaces
-
-*Required*: false
-
-*Multiple values:* false
-
-The operator will **only** watch for resources in the provided namespace `test`:
-
-[source]
-----
-stackable-nifi-operator run --watch-namespace test
-----
-
-== Environment variables
+= Environment variables
 
 This operator accepts the following environment variables:
 
-=== PRODUCT_CONFIG
+== PRODUCT_CONFIG
 
 *Default value*: `/etc/stackable/nifi-operator/config-spec/properties.yaml`
 
@@ -62,7 +28,7 @@ docker run \
     docker.stackable.tech/stackable/nifi-operator:latest
 ----
 
-=== WATCH_NAMESPACE
+== WATCH_NAMESPACE
 
 *Default value*: All namespaces
 
