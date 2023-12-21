@@ -20,6 +20,6 @@
 *** xref:nifi:usage_guide/operations/graceful-shutdown.adoc[]
 * xref:nifi:reference/index.adoc[]
 ** xref:nifi:reference/crds.adoc[]
-*** {crd-docs}/nifi.stackable.tech/supersetcluster/v1alpha1/[NiFi {external-link-icon}^]
+*** {crd-docs}/nifi.stackable.tech/nificluster/v1alpha1/[NiFiCluster {external-link-icon}^]
 ** xref:nifi:reference/commandline-parameters.adoc[]
 ** xref:nifi:reference/environment-variables.adoc[]
