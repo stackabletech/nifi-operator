@@ -190,20 +190,20 @@ pub struct NifiSensitivePropertiesConfig {
     /// This is setting the `nifi.sensitive.props.algorithm` property in NiFi.
     /// This setting configures the encryption algorithm to use to encrypt sensitive properties.
     /// Valid values are:
-    /// 
+    ///
     /// `nifiPbkdf2AesGcm256` (the default value),
     /// `nifiArgon2AesGcm256`,
-    /// 
+    ///
     /// The following algorithms are deprecated and will be removed in future versions:
-    /// 
+    ///
     /// `nifiArgon2AesGcm128`,
     /// `nifiBcryptAesGcm128`,
     /// `nifiBcryptAesGcm256`,
     /// `nifiPbkdf2AesGcm128`,
     /// `nifiScryptAesGcm128`,
     /// `nifiScryptAesGcm256`.
-    /// 
-    /// Learn more about the specifics of the algorithm parameters in the 
+    ///
+    /// Learn more about the specifics of the algorithm parameters in the
     /// [NiFi documentation](https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#property-encryption-algorithms).
     pub algorithm: Option<NifiSensitiveKeyAlgorithm>,
 }
