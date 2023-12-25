@@ -411,11 +411,19 @@ impl Configuration for NifiConfigFragment {
     serde(rename_all = "camelCase")
 )]
 pub struct NifiStorageConfig {
-    /// Default: 1GB
+    /// [The FlowFile Repository](https://nifi.apache.org/docs/nifi-docs/html/nifi-in-depth.html#flowfile-repository)
+    /// is where NiFi keeps track of the state and metadata of FlowFiles as they traverse the data flow.
+    /// The repository ensures durability, reliability, and recoverability of data in case of system failures or interruptions.
+    /// 
+    /// Default size: 1GB
     #[fragment_attrs(serde(default))]
     pub flowfile_repo: PvcConfig,
 
-    /// Default: 2GB
+    /// [The Provenance Repository](https://nifi.apache.org/docs/nifi-docs/html/nifi-in-depth.html#provenance-repository)
+    /// is where the history of each FlowFile is stored.
+    /// This history is used to provide the Data Lineage (also known as the Chain of Custody) of each piece of data.
+    /// 
+    /// Default size: 2GB
     #[fragment_attrs(serde(default))]
     pub provenance_repo: PvcConfig,
 
@@ -423,6 +431,9 @@ pub struct NifiStorageConfig {
     #[fragment_attrs(serde(default))]
     pub database_repo: PvcConfig,
 
+    /// [The Content Repository](https://nifi.apache.org/docs/nifi-docs/html/nifi-in-depth.html#content-repository)
+    /// is simply a place in local storage where the content of all FlowFiles exists and it is typically the largest of the Repositories.
+    /// 
     /// Default: 4GB
     #[fragment_attrs(serde(default))]
     pub content_repo: PvcConfig,
