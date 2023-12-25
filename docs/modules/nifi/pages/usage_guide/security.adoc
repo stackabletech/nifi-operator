@@ -74,6 +74,7 @@ spec:
 
 You can follow the xref:home:tutorials:authentication_with_openldap.adoc[] tutorial to learn how to set up an AuthenticationClass for an LDAP server, as well as consulting the {crd-docs}/authentication.stackable.tech/authenticationclass/v1alpha1/[AuthenticationClass reference {external-link-icon}^].
 
+[#authorization]
 == Authorization
 
 NiFi supports multiple authorization methods documented https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#multi-tenant-authorization[here].
@@ -89,3 +90,20 @@ With this authorization method, a single user has administrator capabilities.
 === LDAP
 
 The operator uses the https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#fileusergroupprovider[`FileUserGroupProvider`] and https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#fileaccesspolicyprovider[FileAccessPolicyProvider] to bind the LDAP user to the NiFi administrator group. This user is then able to create and modify groups and polices in the web interface. These changes local to the `Pod` running NiFi and are *not* persistent.
+
+[#encrypting-sensitive-properties]
+== Encrypting sensitive properties on disk
+
+Some flows require storing a sensitive property like a password or access token, which is then stored on disk.
+NiFi https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#nifi_sensitive_props_key[encrypts these properties] in flow files.
+
+The sensitive property encryption is configured using the properties `keySecret`, `autoGenerate` and `algorithm` in the {crd-docs}/nifi.stackable.tech/nificluster/v1alpha1/#spec-clusterConfig-sensitiveProperties[`spec.clusterConfig.sensitiveProperties` {external-link-icon}^] configuration section of the NifiCluster resource.
+
+The `keySecret` property is required.
+In it you configure the name of the Secret that hold the encryption key.
+The Secret needs to contain the key as a value to the `nifiSensitivePropsKey` key.
+You can either specify a key yourself, or just specify the name of the secret and set `autoGenerate` to `true`.
+By default `autoGenerate` is false and the operator will raise an error if the Secret cannot be found.
+
+The `algorithm` property configures the encryption algorithm used to encrypt the sensitive properties.
+Consult the {crd-docs}/nifi.stackable.tech/nificluster/v1alpha1/#spec-clusterConfig-sensitiveProperties-algorithm[reference documentation {external-link-icon}^] for a list of supported algorithms.
