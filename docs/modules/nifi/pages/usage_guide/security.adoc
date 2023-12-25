@@ -102,8 +102,8 @@ The sensitive property encryption is configured using the properties `keySecret`
 The `keySecret` property is required.
 In it you configure the name of the Secret that hold the encryption key.
 The Secret needs to contain the key as a value to the `nifiSensitivePropsKey` key.
-You can either specify a key yourself, or just specify the name of the secret and set `autoGenerate` to `true`.
-By default `autoGenerate` is false and the operator will raise an error if the Secret cannot be found.
+You can either specify a key yourself - in which case the key needs to be at least 12 characters long - or just specify the name of the secret and set `autoGenerate` to `true` (the default is false).
+If `autoGenerate` is false and no Secret with the given name in `keySecret` is found, the operator will raise an error.
 
 The `algorithm` property configures the encryption algorithm used to encrypt the sensitive properties.
 Consult the {crd-docs}/nifi.stackable.tech/nificluster/v1alpha1/#spec-clusterConfig-sensitiveProperties-algorithm[reference documentation {external-link-icon}^] for a list of supported algorithms.
