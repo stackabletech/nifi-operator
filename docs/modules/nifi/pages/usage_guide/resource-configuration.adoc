@@ -3,7 +3,9 @@
 
 == Volume storage
 
-By default, a NiFi cluster will create five different persistent volume claims for flow files, provenance, database, content and state folders. These PVCs will request `2Gi`. It is recommended that you configure these volume requests according to your needs.
+By default, a NiFi cluster will create five different persistent volume claims for flow files, provenance, database, content and state folders.
+The example below shows how to configure the sizes of the individual volumes.
+The volume sizes are the defaults used by the Operator.
 
 Storage requests can be configured at role or group level, for one or more of the persistent volumes as follows:
 
@@ -16,18 +18,16 @@ nodes:
         resources:
           storage:
             flowfileRepo:
-              capacity: 12Gi
+              capacity: 1024Mi
             provenanceRepo:
-              capacity: 12Gi
+              capacity: 2048Mi
             databaseRepo:
-              capacity: 12Gi
+              capacity: 1024Mi
             contentRepo:
-              capacity: 12Gi
+              capacity: 4096Mi
             stateRepo:
-              capacity: 12Gi
+              capacity: 1024Mi
 ----
-
-In the above example, all nodes in the default group will request `12Gi` of storage the various folders.
 
 == Resource Requests
 
@@ -39,30 +39,3 @@ A minimal HA setup consisting of 2 NiFi instances has the following https://kube
 * `5000m` CPU limit
 * `8448Mi` memory request and limit
 * `18432Mi` persistent storage
-
-Corresponding to the values above, the operator uses the following resource defaults:
-
-[source,yaml]
-----
-nodes:
-  roleGroups:
-    default:
-      config:
-        resources:
-          cpu:
-            min: "500m"
-            max: "2000m"
-          memory:
-            limit: '4096Mi'
-          storage:
-            flowfileRepo:
-              capacity: 1024Mi
-            provenanceRepo:
-              capacity: 2048Mi
-            databaseRepo:
-              capacity: 1024Mi
-            contentRepo:
-              capacity: 4096Mi
-            stateRepo:
-              capacity: 1024Mi
-----
