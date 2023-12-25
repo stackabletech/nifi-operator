@@ -427,18 +427,18 @@ pub struct NifiStorageConfig {
     #[fragment_attrs(serde(default))]
     pub provenance_repo: PvcConfig,
 
-    /// Default: 1GB
+    /// Default size: 1GB
     #[fragment_attrs(serde(default))]
     pub database_repo: PvcConfig,
 
     /// [The Content Repository](https://nifi.apache.org/docs/nifi-docs/html/nifi-in-depth.html#content-repository)
     /// is simply a place in local storage where the content of all FlowFiles exists and it is typically the largest of the Repositories.
     /// 
-    /// Default: 4GB
+    /// Default size: 4GB
     #[fragment_attrs(serde(default))]
     pub content_repo: PvcConfig,
 
-    /// Default: 1GB
+    /// Default size: 1GB
     #[fragment_attrs(serde(default))]
     pub state_repo: PvcConfig,
 }
