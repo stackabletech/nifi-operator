@@ -6,6 +6,7 @@
 By default, a NiFi cluster will create five different persistent volume claims for flow files, provenance, database, content and state folders.
 The example below shows how to configure the sizes of the individual volumes.
 The volume sizes are the defaults used by the Operator.
+It is recommended that you configure these volume requests according to your needs.
 
 Storage requests can be configured at role or group level, for one or more of the persistent volumes as follows:
 
