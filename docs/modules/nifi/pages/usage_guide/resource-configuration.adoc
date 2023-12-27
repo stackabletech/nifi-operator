@@ -3,7 +3,8 @@
 
 == Volume storage
 
-By default, a NiFi cluster will create five different persistent volume claims for flow files, provenance, database, content and state folders. These PVCs will request `2Gi`. It is recommended that you configure these volume requests according to your needs.
+By default, a NiFi cluster will create five different persistent volume claims for flow files, provenance, database, content and state folders.
+You can find the default sizes of the PVCs in the {crd-docs}/nifi.stackable.tech/NifiCluster/v1alpha1/#spec-nodes-config-resources-storage[NifiCluster reference docs {external-link-icon}^], it is recommended that you configure these volume requests according to your needs.
 
 Storage requests can be configured at role or group level, for one or more of the persistent volumes as follows:
 
@@ -40,29 +41,4 @@ A minimal HA setup consisting of 2 NiFi instances has the following https://kube
 * `8448Mi` memory request and limit
 * `18432Mi` persistent storage
 
-Corresponding to the values above, the operator uses the following resource defaults:
-
-[source,yaml]
-----
-nodes:
-  roleGroups:
-    default:
-      config:
-        resources:
-          cpu:
-            min: "500m"
-            max: "2000m"
-          memory:
-            limit: '4096Mi'
-          storage:
-            flowfileRepo:
-              capacity: 1024Mi
-            provenanceRepo:
-              capacity: 2048Mi
-            databaseRepo:
-              capacity: 1024Mi
-            contentRepo:
-              capacity: 4096Mi
-            stateRepo:
-              capacity: 1024Mi
-----
+You can find the default resource configuration values in the {crd-docs}/nifi.stackable.tech/NifiCluster/v1alpha1/#spec-nodes-config-resources[NifiCluster reference docs {external-link-icon}^].

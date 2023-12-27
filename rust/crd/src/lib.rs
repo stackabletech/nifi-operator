@@ -303,10 +303,16 @@ pub enum Container {
 pub struct NifiConfig {
     #[fragment_attrs(serde(default))]
     pub logging: Logging<Container>,
+
+    /// Resource usage is configured here, this includes CPU usage, memory usage and disk storage usage.
+    /// The default CPU request and limit are 500m and 2000m respectively.
+    /// The default memory limit is 4GB.
     #[fragment_attrs(serde(default))]
     pub resources: Resources<NifiStorageConfig, NoRuntimeLimits>,
+
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
+
     /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
     #[fragment_attrs(serde(default))]
     pub graceful_shutdown_timeout: Option<Duration>,
@@ -405,14 +411,34 @@ impl Configuration for NifiConfigFragment {
     serde(rename_all = "camelCase")
 )]
 pub struct NifiStorageConfig {
+    /// [The FlowFile Repository](https://nifi.apache.org/docs/nifi-docs/html/nifi-in-depth.html#flowfile-repository)
+    /// is where NiFi keeps track of the state and metadata of FlowFiles as they traverse the data flow.
+    /// The repository ensures durability, reliability, and recoverability of data in case of system failures or interruptions.
+    /// 
+    /// Default size: 1GB
     #[fragment_attrs(serde(default))]
     pub flowfile_repo: PvcConfig,
+
+    /// [The Provenance Repository](https://nifi.apache.org/docs/nifi-docs/html/nifi-in-depth.html#provenance-repository)
+    /// is where the history of each FlowFile is stored.
+    /// This history is used to provide the Data Lineage (also known as the Chain of Custody) of each piece of data.
+    /// 
+    /// Default size: 2GB
     #[fragment_attrs(serde(default))]
     pub provenance_repo: PvcConfig,
+
+    /// Default size: 1GB
     #[fragment_attrs(serde(default))]
     pub database_repo: PvcConfig,
+
+    /// [The Content Repository](https://nifi.apache.org/docs/nifi-docs/html/nifi-in-depth.html#content-repository)
+    /// is simply a place in local storage where the content of all FlowFiles exists and it is typically the largest of the Repositories.
+    /// 
+    /// Default size: 4GB
     #[fragment_attrs(serde(default))]
     pub content_repo: PvcConfig,
+
+    /// Default size: 1GB
     #[fragment_attrs(serde(default))]
     pub state_repo: PvcConfig,
 }
