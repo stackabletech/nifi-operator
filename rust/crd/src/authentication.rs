@@ -70,7 +70,7 @@ pub async fn resolve_authentication_classes(
         match &resolved_auth_class.spec.provider {
             AuthenticationClassProvider::Static(_) => {}
             AuthenticationClassProvider::Ldap(ldap) => {
-                if ldap.use_tls() && !ldap.use_tls_verification() {
+                if ldap.tls.uses_tls() && !ldap.tls.uses_tls_verification() {
                     NoLdapTlsVerificationNotSupportedSnafu {
                         authentication_class: ObjectRef::<AuthenticationClass>::new(
                             &resolved_auth_class_name,
