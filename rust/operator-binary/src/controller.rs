@@ -48,7 +48,8 @@ use stackable_operator::{
         api::ListParams, runtime::controller::Action, runtime::reflector::ObjectRef, Resource,
         ResourceExt,
     },
-    labels::{role_group_selector_labels, role_selector_labels, ObjectLabels},
+    kvp::Labels,
+    kvp::{Label, ObjectLabels},
     logging::controller::ReconcilerError,
     product_logging::{
         self,
@@ -285,6 +286,32 @@ pub enum Error {
     GracefulShutdown {
         source: crate::operations::graceful_shutdown::Error,
     },
+
+    #[snafu(display("failed to build metadata"))]
+    MetadataBuild {
+        source: stackable_operator::builder::ObjectMetaBuilderError,
+    },
+
+    #[snafu(display("failed to get required labels"))]
+    GetRequiredLabels {
+        source:
+            stackable_operator::kvp::KeyValuePairError<stackable_operator::kvp::LabelValueError>,
+    },
+
+    #[snafu(display("failed to build labels"))]
+    LabelBuild {
+        source: stackable_operator::kvp::LabelError,
+    },
+
+    #[snafu(display("failed to build TLS certificate SecretClass Volume"))]
+    TlsCertSecretClassVolumeBuild {
+        source: stackable_operator::builder::SecretOperatorVolumeSourceBuilderError,
+    },
+
+    #[snafu(display("failed to add Authentication Volumes and VolumeMounts"))]
+    AddAuthVolumes {
+        source: crate::authentication::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -329,11 +356,11 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             // Check if statefulsets are already scaled to zero, if not - requeue
             let selector = LabelSelector {
                 match_expressions: None,
-                match_labels: Some(role_selector_labels(
-                    nifi.deref(),
-                    APP_NAME,
-                    &NifiRole::Node.to_string(),
-                )),
+                match_labels: Some(
+                    Labels::role_selector(nifi.deref(), APP_NAME, &NifiRole::Node.to_string())
+                        .context(LabelBuildSnafu)?
+                        .into(),
+                ),
             };
 
             // Retrieve the deployed statefulsets to check on the current status of the restart
@@ -435,7 +462,10 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
     let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
         nifi.as_ref(),
         APP_NAME,
-        cluster_resources.get_required_labels(),
+        cluster_resources
+            .get_required_labels()
+            .context(GetRequiredLabelsSnafu)?
+            .into(),
     )
     .context(BuildRbacResourcesSnafu)?;
 
@@ -617,6 +647,7 @@ pub fn build_node_role_service(
                 &role_name,
                 "global",
             ))
+            .context(MetadataBuildSnafu)?
             .build(),
         spec: Some(ServiceSpec {
             type_: Some(nifi.spec.cluster_config.listener_class.k8s_service_type()),
@@ -626,7 +657,11 @@ pub fn build_node_role_service(
                 protocol: Some("TCP".to_string()),
                 ..ServicePort::default()
             }]),
-            selector: Some(role_selector_labels(nifi, APP_NAME, &role_name)),
+            selector: Some(
+                Labels::role_selector(nifi, APP_NAME, &role_name)
+                    .context(LabelBuildSnafu)?
+                    .into(),
+            ),
             external_traffic_policy: match nifi.spec.cluster_config.listener_class {
                 CurrentlySupportedListenerClasses::ClusterInternal => None,
                 CurrentlySupportedListenerClasses::ExternalUnstable => Some("Local".to_string()),
@@ -678,6 +713,7 @@ async fn build_node_rolegroup_config_map(
                     &rolegroup.role,
                     &rolegroup.role_group,
                 ))
+                .context(MetadataBuildSnafu)?
                 .build(),
         )
         .add_data(
@@ -762,7 +798,8 @@ fn build_node_rolegroup_service(
                 &rolegroup.role,
                 &rolegroup.role_group,
             ))
-            .with_label("prometheus.io/scrape", "true")
+            .context(MetadataBuildSnafu)?
+            .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
             .build(),
         spec: Some(ServiceSpec {
             // Internal communication does not need to be exposed
@@ -782,12 +819,11 @@ fn build_node_rolegroup_service(
                     ..ServicePort::default()
                 },
             ]),
-            selector: Some(role_group_selector_labels(
-                nifi,
-                APP_NAME,
-                &rolegroup.role,
-                &rolegroup.role_group,
-            )),
+            selector: Some(
+                Labels::role_group_selector(nifi, APP_NAME, &rolegroup.role, &rolegroup.role_group)
+                    .context(LabelBuildSnafu)?
+                    .into(),
+            ),
             publish_not_ready_addresses: Some(true),
             ..ServiceSpec::default()
         }),
@@ -1111,20 +1147,25 @@ async fn build_node_rolegroup_statefulset(
         ));
     }
 
-    nifi_auth_config.add_volumes_and_mounts(
-        &mut pod_builder,
-        vec![&mut container_prepare, container_nifi],
-    );
+    nifi_auth_config
+        .add_volumes_and_mounts(
+            &mut pod_builder,
+            vec![&mut container_prepare, container_nifi],
+        )
+        .context(AddAuthVolumesSnafu)?;
+
+    let metadata = ObjectMetaBuilder::new()
+        .with_recommended_labels(build_recommended_labels(
+            nifi,
+            &resolved_product_image.app_version_label,
+            &rolegroup_ref.role,
+            &rolegroup_ref.role_group,
+        ))
+        .context(MetadataBuildSnafu)?
+        .build();
 
     pod_builder
-        .metadata_builder(|m| {
-            m.with_recommended_labels(build_recommended_labels(
-                nifi,
-                &resolved_product_image.app_version_label,
-                &rolegroup_ref.role,
-                &rolegroup_ref.role_group,
-            ))
-        })
+        .metadata(metadata)
         .image_pull_secrets_from_product_image(resolved_product_image)
         .add_init_container(container_prepare.build())
         .affinity(&merged_config.affinity)
@@ -1157,7 +1198,7 @@ async fn build_node_rolegroup_statefulset(
             KEYSTORE_VOLUME_NAME,
             &nifi.name_any(),
             SecretFormat::TlsPkcs12,
-        ))
+        )?)
         .add_empty_dir_volume(TRUSTSTORE_VOLUME_NAME, None)
         .add_volume(Volume {
             name: "sensitiveproperty".to_string(),
@@ -1212,6 +1253,7 @@ async fn build_node_rolegroup_statefulset(
                 &rolegroup_ref.role,
                 &rolegroup_ref.role_group,
             ))
+            .context(MetadataBuildSnafu)?
             .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("Parallel".to_string()),
@@ -1221,12 +1263,16 @@ async fn build_node_rolegroup_statefulset(
                 role_group.and_then(|rg| rg.replicas).map(i32::from)
             },
             selector: LabelSelector {
-                match_labels: Some(role_group_selector_labels(
-                    nifi,
-                    APP_NAME,
-                    &rolegroup_ref.role,
-                    &rolegroup_ref.role_group,
-                )),
+                match_labels: Some(
+                    Labels::role_group_selector(
+                        nifi,
+                        APP_NAME,
+                        &rolegroup_ref.role,
+                        &rolegroup_ref.role_group,
+                    )
+                    .context(LabelBuildSnafu)?
+                    .into(),
+                ),
                 ..LabelSelector::default()
             },
             service_name: rolegroup_ref.object_name(),
@@ -1337,7 +1383,9 @@ fn build_reporting_task_job(
     );
 
     let mut pb = PodBuilder::new();
-    nifi_auth_config.add_volumes_and_mounts(&mut pb, vec![&mut cb]);
+    nifi_auth_config
+        .add_volumes_and_mounts(&mut pb, vec![&mut cb])
+        .context(AddAuthVolumesSnafu)?;
 
     let pod = pb
         .metadata(
@@ -1361,7 +1409,7 @@ fn build_reporting_task_job(
             KEYSTORE_VOLUME_NAME,
             &nifi_name,
             SecretFormat::TlsPem,
-        ))
+        )?)
         .build_template();
 
     let job = Job {
@@ -1453,23 +1501,24 @@ fn build_keystore_volume(
     volume_name: &str,
     nifi_name: &str,
     secret_format: SecretFormat,
-) -> Volume {
+) -> Result<Volume> {
     let mut secret_volume_source_builder = SecretOperatorVolumeSourceBuilder::new("tls");
 
     if secret_format == SecretFormat::TlsPkcs12 {
         secret_volume_source_builder.with_tls_pkcs12_password(STACKABLE_TLS_STORE_PASSWORD);
     }
 
-    VolumeBuilder::new(volume_name)
+    Ok(VolumeBuilder::new(volume_name)
         .ephemeral(
             secret_volume_source_builder
                 .with_node_scope()
                 .with_pod_scope()
                 .with_service_scope(nifi_name)
                 .with_format(secret_format)
-                .build(),
+                .build()
+                .context(TlsCertSecretClassVolumeBuildSnafu)?,
         )
-        .build()
+        .build())
 }
 
 /// Used for the `ZOOKEEPER_HOSTS` and `ZOOKEEPER_CHROOT` env vars.

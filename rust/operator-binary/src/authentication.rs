@@ -1,5 +1,5 @@
 use indoc::{formatdoc, indoc};
-use snafu::{OptionExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::builder::{ContainerBuilder, PodBuilder};
 use stackable_operator::commons::authentication::{ldap, static_};
 use stackable_operator::commons::authentication::{
@@ -25,9 +25,17 @@ pub const STACKABLE_TLS_STORE_PASSWORD: &str = "secret";
 pub enum Error {
     #[snafu(display("Only one authentication mechanism is supported by NiFi."))]
     SingleAuthenticationMechanismSupported,
+
     #[snafu(display("The authentication class provider [{authentication_class_provider}] is not supported by NiFi."))]
     AuthenticationClassProviderNotSupported {
         authentication_class_provider: String,
+    },
+
+    #[snafu(display(
+        "there was an error adding LDAP Volumes and VolumeMounts to the Pod and containers"
+    ))]
+    AddLdapVolumes {
+        source: stackable_operator::commons::authentication::ldap::Error,
     },
 }
 
@@ -141,7 +149,7 @@ impl NifiAuthenticationConfig {
         &self,
         pod_builder: &mut PodBuilder,
         container_builders: Vec<&mut ContainerBuilder>,
-    ) {
+    ) -> Result<(), Error> {
         match &self {
             Self::SingleUser(provider) => {
                 let admin_volume = Volume {
@@ -168,9 +176,12 @@ impl NifiAuthenticationConfig {
                 }
             }
             Self::Ldap(ldap) => {
-                ldap.add_volumes_and_mounts(pod_builder, container_builders);
+                ldap.add_volumes_and_mounts(pod_builder, container_builders)
+                    .context(AddLdapVolumesSnafu)?;
             }
         }
+
+        Ok(())
     }
 
     pub fn try_from(auth_classes: Vec<AuthenticationClass>) -> Result<Self, Error> {
