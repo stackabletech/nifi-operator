@@ -464,7 +464,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         APP_NAME,
         cluster_resources
             .get_required_labels()
-            .context(GetRequiredLabelsSnafu)?
+            .context(GetRequiredLabelsSnafu)?,
     )
     .context(BuildRbacResourcesSnafu)?;
 
