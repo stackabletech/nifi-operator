@@ -15,15 +15,14 @@ This is a Kubernetes operator to manage [Apache NiFi](https://nifi.apache.org/) 
 
 It is part of the Stackable Data Platform, a curated selection of the best open source data apps like Apache Kafka, Apache Druid, Trino or Apache Spark, [all](#our-operators) working together seamlessly. Based on Kubernetes, it runs everywhere – [on prem or in the cloud](#supported-platforms).
 
-## Installation
+## Installation and Getting Started
 
-You can install the operator using [stackablectl or helm](https://docs.stackable.tech/nifi/stable/getting_started/installation.html).
+We have documentation on how to [install](https://docs.stackable.tech/home/stable/nifi/getting_started/installation.html) this operator using our own CLI (stackablectl) or Helm.
 
-Read on to get started with it, or see it in action in one of our [demos](https://stackable.tech/en/demos/).
+Once installed, you can follow our [tutorial](https://docs.stackable.tech/home/stable/nifi/getting_started/first_steps.html) on how to use it and to learn your first steps with our operator.
 
-## Getting Started
+You can also see it in action in one of our [demos](https://stackable.tech/en/demos/).
 
-You can follow this [tutorial](https://docs.stackable.tech/nifi/stable/getting_started/first_steps.html).
 
 ## Documentation
 
