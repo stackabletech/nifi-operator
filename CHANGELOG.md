@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Various documentation of the CRD ([#537]).
+- Document support for Apache Iceberg extensions ([#XXX]).
 
 [#537]: https://github.com/stackabletech/nifi-operator/pull/537
 
