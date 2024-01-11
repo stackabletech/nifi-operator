@@ -199,12 +199,7 @@ impl NifiAuthenticationConfig {
             AuthenticationClassProvider::Ldap(ldap_provider) => {
                 Ok(Self::Ldap(ldap_provider.clone()))
             }
-            AuthenticationClassProvider::Tls(_) => {
-                Err(Error::AuthenticationClassProviderNotSupported {
-                    authentication_class_provider: auth_class.spec.provider.to_string(),
-                })
-            }
-            AuthenticationClassProvider::Oidc(_) => {
+            AuthenticationClassProvider::Tls(_) | AuthenticationClassProvider::Oidc(_) => {
                 Err(Error::AuthenticationClassProviderNotSupported {
                     authentication_class_provider: auth_class.spec.provider.to_string(),
                 })
