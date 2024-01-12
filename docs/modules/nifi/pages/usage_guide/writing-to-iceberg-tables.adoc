@@ -17,7 +17,7 @@ spec:
   clusterConfig:
     # ...
     extraVolumes:
-      # Will be made mounted at /stackable/userdata/nifi-hive-s3-config/
+      # Will be mounted at /stackable/userdata/nifi-hive-s3-config/
       - name: nifi-hive-s3-config
         secret:
           secretName: nifi-hive-s3-config
