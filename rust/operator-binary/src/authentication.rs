@@ -1,9 +1,9 @@
 use indoc::{formatdoc, indoc};
-use snafu::{OptionExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::builder::{ContainerBuilder, PodBuilder};
+use stackable_operator::commons::authentication::{ldap, static_};
 use stackable_operator::commons::authentication::{
-    AuthenticationClass, AuthenticationClassProvider, LdapAuthenticationProvider,
-    StaticAuthenticationProvider,
+    AuthenticationClass, AuthenticationClassProvider,
 };
 use stackable_operator::k8s_openapi::api::core::v1::{KeyToPath, SecretVolumeSource, Volume};
 
@@ -25,16 +25,24 @@ pub const STACKABLE_TLS_STORE_PASSWORD: &str = "secret";
 pub enum Error {
     #[snafu(display("Only one authentication mechanism is supported by NiFi."))]
     SingleAuthenticationMechanismSupported,
+
     #[snafu(display("The authentication class provider [{authentication_class_provider}] is not supported by NiFi."))]
     AuthenticationClassProviderNotSupported {
         authentication_class_provider: String,
+    },
+
+    #[snafu(display(
+        "there was an error adding LDAP Volumes and VolumeMounts to the Pod and containers"
+    ))]
+    AddLdapVolumes {
+        source: stackable_operator::commons::authentication::ldap::Error,
     },
 }
 
 #[allow(clippy::large_enum_variant)]
 pub enum NifiAuthenticationConfig {
-    SingleUser(StaticAuthenticationProvider),
-    Ldap(LdapAuthenticationProvider),
+    SingleUser(static_::AuthenticationProvider),
+    Ldap(ldap::AuthenticationProvider),
 }
 
 impl NifiAuthenticationConfig {
@@ -123,7 +131,7 @@ impl NifiAuthenticationConfig {
                     ]
                     );
                 }
-                if let Some(ca_path) = ldap.tls_ca_cert_mount_path() {
+                if let Some(ca_path) = ldap.tls.tls_ca_cert_mount_path() {
                     commands.extend(vec![
                         "echo Adding LDAP tls cert to global truststore".to_string(),
                         format!("keytool -importcert -file {ca_path} -keystore {STACKABLE_SERVER_TLS_DIR}/truststore.p12 -storetype pkcs12 -noprompt -alias ldap_ca_cert -storepass {STACKABLE_TLS_STORE_PASSWORD}"),
@@ -141,7 +149,7 @@ impl NifiAuthenticationConfig {
         &self,
         pod_builder: &mut PodBuilder,
         container_builders: Vec<&mut ContainerBuilder>,
-    ) {
+    ) -> Result<(), Error> {
         match &self {
             Self::SingleUser(provider) => {
                 let admin_volume = Volume {
@@ -168,9 +176,12 @@ impl NifiAuthenticationConfig {
                 }
             }
             Self::Ldap(ldap) => {
-                ldap.add_volumes_and_mounts(pod_builder, container_builders);
+                ldap.add_volumes_and_mounts(pod_builder, container_builders)
+                    .context(AddLdapVolumesSnafu)?;
             }
         }
+
+        Ok(())
     }
 
     pub fn try_from(auth_classes: Vec<AuthenticationClass>) -> Result<Self, Error> {
@@ -188,7 +199,7 @@ impl NifiAuthenticationConfig {
             AuthenticationClassProvider::Ldap(ldap_provider) => {
                 Ok(Self::Ldap(ldap_provider.clone()))
             }
-            AuthenticationClassProvider::Tls(_) => {
+            AuthenticationClassProvider::Tls(_) | AuthenticationClassProvider::Oidc(_) => {
                 Err(Error::AuthenticationClassProviderNotSupported {
                     authentication_class_provider: auth_class.spec.provider.to_string(),
                 })
@@ -197,7 +208,7 @@ impl NifiAuthenticationConfig {
     }
 }
 
-fn get_ldap_login_identity_provider(ldap: &LdapAuthenticationProvider) -> String {
+fn get_ldap_login_identity_provider(ldap: &ldap::AuthenticationProvider) -> String {
     let mut search_filter = ldap.search_filter.clone();
 
     // If no search_filter is specified we will set a default filter that just searches for the user logging in using the specified uid field name
@@ -237,8 +248,8 @@ fn get_ldap_login_identity_provider(ldap: &LdapAuthenticationProvider) -> String
             <property name="Authentication Expiration">7 days</property>
         </provider>
     "#,
-        authentication_strategy = if ldap.bind_credentials.is_some() {
-            if ldap.tls.is_some() {
+        authentication_strategy = if ldap.bind_credentials_mount_paths().is_some() {
+            if ldap.tls.uses_tls() {
                 "LDAPS"
             } else {
                 "SIMPLE"
@@ -246,19 +257,19 @@ fn get_ldap_login_identity_provider(ldap: &LdapAuthenticationProvider) -> String
         } else {
             "ANONYMOUS"
         },
-        protocol = if ldap.tls.is_some() {
+        protocol = if ldap.tls.uses_tls() {
             "ldaps"
         } else {
             "ldap"
         },
         hostname = ldap.hostname,
-        port = ldap.port.unwrap_or_else(|| ldap.default_port()),
+        port = ldap.port(),
         search_base = ldap.search_base,
         keystore_path = STACKABLE_SERVER_TLS_DIR,
     }
 }
 
-fn get_ldap_authorizer(_ldap: &LdapAuthenticationProvider) -> String {
+fn get_ldap_authorizer(_ldap: &ldap::AuthenticationProvider) -> String {
     formatdoc! {r#"
         <userGroupProvider>
             <identifier>file-user-group-provider</identifier>
