@@ -77,13 +77,13 @@ CREATE TABLE IF NOT EXISTS lakehouse.demo.test (
 
 In NiFi you need to create a `HiveCatalogService` first which allows you to access the Hive Metastore storing the Iceberg metadata.
 Set `Hive Metastore URI` to something like `thrift://hive-iceberg.default.svc.cluster.local:9083`,
-`Default Warehouse Location` to `s3a:://lakehouse`
+`Default Warehouse Location` to `s3a://lakehouse`
 and `Hadoop Configuration Resources` to `/stackable/userdata/nifi-hive-s3-config/core-site.xml`.
 
 Afterwards you can create the `PutIceberg` processor and configure the `HiveCatalogService`.
 Also set `Catalog Namespace` to your schema name and the `Table Name`.
 
-For the `File Format` I personally would choose `PARQUET` over `ORC` or `AVRO` for performance reasons, but you can leave it empty or choose your desired format.
+For the `File Format` it is recommened to use `PARQUET` or `ORC` rather than `AVRO` for performance reasons, but you can leave it empty or choose your desired format.
 
 You should end up with the following `PutIceberg` processor:
 
