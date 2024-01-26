@@ -8,9 +8,11 @@ All notable changes to this project will be documented in this file.
 
 - Various documentation of the CRD ([#537]).
 - Document support for Apache Iceberg extensions ([#556]).
+- Helm: support labels in values.yaml ([#560]).
 
 [#537]: https://github.com/stackabletech/nifi-operator/pull/537
 [#556]: https://github.com/stackabletech/nifi-operator/pull/556
+[#560]: https://github.com/stackabletech/nifi-operator/pull/560
 
 ## [23.11.0] - 2023-11-24
 
