@@ -1,4 +1,8 @@
 = Monitoring
 
-The managed NiFi cluster is automatically configured to export Prometheus metrics. See
-xref:home:operators:monitoring.adoc[] for more details.
+The operator automatically configures NiFi to export Prometheus metrics.
+This is done by creating a https://kubernetes.io/docs/concepts/workloads/controllers/job/[Job] that connects to NiFi and configures a reporting task.
+
+IMPORTANT: network access from the Job to NiFi is required. If you are running a Kubernetes with restrictive NetworkPolicies, make sure to allow access from the Job to NiFi.
+
+See xref:home:operators:monitoring.adoc[] for more details.
