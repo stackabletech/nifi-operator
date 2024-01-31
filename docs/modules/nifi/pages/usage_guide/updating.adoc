@@ -22,10 +22,6 @@ spec:
   nodes:
     roleGroups:
       default:
-        selector:
-          matchLabels:
-            kubernetes.io/os: linux
-        config: {}
         replicas: 3
 ----
 
