@@ -82,7 +82,7 @@ Use the service command of `stackablectl` to get a list of all available endpoin
 
 [source,bash]
 ----
-stackablectl svc list
+stackablectl stacklet list
 ----
 
 which should return something like this:
