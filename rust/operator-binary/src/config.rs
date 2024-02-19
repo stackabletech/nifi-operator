@@ -21,8 +21,8 @@ use stackable_operator::{
 use strum::{Display, EnumIter};
 
 use crate::{
-    authentication::{STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD},
     operations::graceful_shutdown::graceful_shutdown_config_properties,
+    security::authentication::{STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD},
 };
 
 pub const NIFI_CONFIG_DIRECTORY: &str = "/stackable/nifi/conf";

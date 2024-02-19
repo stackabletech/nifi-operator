@@ -4,7 +4,7 @@ use stackable_operator::{
     k8s_openapi::api::core::v1::Volume,
 };
 
-use crate::authentication::STACKABLE_TLS_STORE_PASSWORD;
+use crate::security::authentication::STACKABLE_TLS_STORE_PASSWORD;
 
 pub const KEYSTORE_VOLUME_NAME: &str = "keystore";
 pub const KEYSTORE_NIFI_CONTAINER_MOUNT: &str = "/stackable/keystore";

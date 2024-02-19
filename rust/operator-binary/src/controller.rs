@@ -68,11 +68,6 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
 
 use crate::{
-    authentication::{
-        NifiAuthenticationConfig, AUTHORIZERS_XML_FILE_NAME,
-        LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME, STACKABLE_SERVER_TLS_DIR,
-        STACKABLE_TLS_STORE_PASSWORD,
-    },
     config::{
         self, build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
         validated_product_config, NifiRepository, JVM_SECURITY_PROPERTIES_FILE,
@@ -82,6 +77,11 @@ use crate::{
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
     reporting_task::{self, build_reporting_task, build_reporting_task_service_name},
     security::{
+        authentication::{
+            NifiAuthenticationConfig, AUTHORIZERS_XML_FILE_NAME,
+            LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME, STACKABLE_SERVER_TLS_DIR,
+            STACKABLE_TLS_STORE_PASSWORD,
+        },
         build_tls_volume, check_or_generate_sensitive_key,
         tls::{KEYSTORE_NIFI_CONTAINER_MOUNT, KEYSTORE_VOLUME_NAME, TRUSTSTORE_VOLUME_NAME},
     },
@@ -258,7 +258,7 @@ pub enum Error {
 
     #[snafu(display("Invalid NiFi Authentication Configuration"))]
     InvalidNifiAuthenticationConfig {
-        source: crate::authentication::Error,
+        source: crate::security::authentication::Error,
     },
 
     #[snafu(display("Failed to resolve NiFi Authentication Configuration"))]
@@ -294,7 +294,7 @@ pub enum Error {
 
     #[snafu(display("failed to add Authentication Volumes and VolumeMounts"))]
     AddAuthVolumes {
-        source: crate::authentication::Error,
+        source: crate::security::authentication::Error,
     },
 
     #[snafu(display("security failure"))]

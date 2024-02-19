@@ -39,9 +39,9 @@ use stackable_operator::{
     kvp::Labels,
 };
 
-use crate::{
+use crate::security::{
     authentication::{NifiAuthenticationConfig, STACKABLE_ADMIN_USER_NAME},
-    security::build_tls_volume,
+    build_tls_volume,
 };
 
 use super::controller::{build_recommended_labels, NIFI_UID};
@@ -76,7 +76,7 @@ pub enum Error {
 
     #[snafu(display("failed to add Authentication Volumes and VolumeMounts"))]
     AddAuthVolumes {
-        source: crate::authentication::Error,
+        source: crate::security::authentication::Error,
     },
 
     #[snafu(display("failed to build labels"))]
@@ -112,7 +112,27 @@ pub fn build_reporting_task(
     ))
 }
 
-pub fn label_ordered_for_service_selector(nifi: &NifiCluster) -> BTreeMap<String, String> {
+/// Return the name of the reporting task.
+pub fn build_reporting_task_service_name(nifi_cluster_name: &str) -> String {
+    format!("{nifi_cluster_name}-{REPORTING_TASK_CONTAINER_NAME}")
+}
+
+/// Return the FQDN (with namespace, domain) of the reporting task.
+pub fn build_reporting_task_fqdn_service_name(nifi: &NifiCluster) -> Result<String> {
+    let nifi_cluster_name = nifi.name_any();
+    let nifi_namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
+    let reporting_task_service_name = build_reporting_task_service_name(&nifi_cluster_name);
+
+    Ok(format!(
+        "{reporting_task_service_name}.{nifi_namespace}.svc.cluster.local"
+    ))
+}
+
+/// Return a `statefulset.kubernetes.io/pod-name` label for the first pod of the (sorted,BTreeMap)
+/// first rolegroup containing more than zero replicas. This is required to only select
+/// a single node in the Reporting Task Service.
+/// If no replicas are available or the cluster is stopped, no additional label will be returned.
+fn label_ordered_for_service_selector(nifi: &NifiCluster) -> BTreeMap<String, String> {
     let cluster_name = nifi.name_any();
     let node_name = NifiRole::Node.to_string();
 
@@ -142,20 +162,7 @@ pub fn label_ordered_for_service_selector(nifi: &NifiCluster) -> BTreeMap<String
     extra_service_label
 }
 
-pub fn build_reporting_task_fqdn_service_name(nifi: &NifiCluster) -> Result<String> {
-    let nifi_cluster_name = nifi.name_any();
-    let nifi_namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
-    let reporting_task_service_name = build_reporting_task_service_name(&nifi_cluster_name);
-
-    Ok(format!(
-        "{reporting_task_service_name}.{nifi_namespace}.svc.cluster.local"
-    ))
-}
-
-pub fn build_reporting_task_service_name(nifi_cluster_name: &str) -> String {
-    format!("{nifi_cluster_name}-{REPORTING_TASK_CONTAINER_NAME}")
-}
-
+/// Build the internal Reporting Task Service in order to communicate with a single NiFi node.
 fn build_reporting_task_service(
     nifi: &NifiCluster,
     resolved_product_image: &ResolvedProductImage,

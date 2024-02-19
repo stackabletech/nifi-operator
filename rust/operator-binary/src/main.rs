@@ -1,4 +1,3 @@
-mod authentication;
 mod config;
 mod controller;
 mod operations;
