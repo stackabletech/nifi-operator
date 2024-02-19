@@ -4,7 +4,7 @@ mod controller;
 mod operations;
 mod product_logging;
 
-use clap::{crate_description, crate_version, Parser};
+use clap::Parser;
 use futures::stream::StreamExt;
 use stackable_operator::{
     cli::{Command, ProductOperatorRun},
@@ -27,8 +27,6 @@ const OPERATOR_NAME: &str = "nifi.stackable.tech";
 
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
-    pub const TARGET_PLATFORM: Option<&str> = option_env!("TARGET");
-    pub const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 }
 
 #[derive(Parser)]
@@ -42,7 +40,7 @@ struct Opts {
 async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
-        Command::Crd => NifiCluster::print_yaml_schema(built_info::CARGO_PKG_VERSION)?,
+        Command::Crd => NifiCluster::print_yaml_schema(built_info::PKG_VERSION)?,
         Command::Run(ProductOperatorRun {
             product_config,
             watch_namespace,
@@ -54,10 +52,10 @@ async fn main() -> anyhow::Result<()> {
                 tracing_target,
             );
             stackable_operator::utils::print_startup_string(
-                crate_description!(),
-                crate_version!(),
+                built_info::PKG_DESCRIPTION,
+                built_info::PKG_VERSION,
                 built_info::GIT_VERSION,
-                built_info::TARGET_PLATFORM.unwrap_or("unknown target"),
+                built_info::TARGET,
                 built_info::BUILT_TIME_UTC,
                 built_info::RUSTC_VERSION,
             );
