@@ -224,12 +224,10 @@ fn build_reporting_task_job(
     nifi_auth_config: &NifiAuthenticationConfig,
     sa_name: &str,
 ) -> Result<Job> {
-    let nifi_cluster_name = nifi.name_any();
-    let nifi_namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
-    let reporting_task_service_name = build_reporting_task_service_name(&nifi_cluster_name);
+    let reporting_task_fqdn_service_name = build_reporting_task_fqdn_service_name(nifi)?;
     let product_version = &resolved_product_image.product_version;
     let nifi_connect_url =
-        format!("https://{reporting_task_service_name}.{nifi_namespace}.svc.cluster.local:{HTTPS_PORT}/nifi-api",);
+        format!("https://{reporting_task_fqdn_service_name}:{HTTPS_PORT}/nifi-api",);
 
     let (admin_username_file, admin_password_file) =
         nifi_auth_config.get_user_and_password_file_paths();
