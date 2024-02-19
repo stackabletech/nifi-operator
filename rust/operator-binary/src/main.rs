@@ -3,6 +3,8 @@ mod config;
 mod controller;
 mod operations;
 mod product_logging;
+mod reporting_task;
+mod security;
 
 use clap::{crate_description, crate_version, Parser};
 use futures::stream::StreamExt;
