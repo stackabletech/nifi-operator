@@ -16,6 +16,9 @@
 //!     "iss": "SingleUserLoginIdentityProvider",
 //! }
 //! This caused problems when using the generated JWT against a different node (due to randomness of the service).
+//! 
+//! "An error occurred while attempting to decode the Jwt: Signed JWT rejected: Another algorithm expected, or no matching key(s) found"
+//! 
 //! Therefore, since the support of NiFi 1.25.0, an additional service for the Reporting Task Job containing a
 //! random but deterministic NiFi node to ensure the communication with a single node.
 //!
