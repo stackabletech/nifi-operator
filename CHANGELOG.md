@@ -11,6 +11,10 @@ All notable changes to this project will be documented in this file.
 - Helm: support labels in values.yaml ([#560]).
 - Support for NiFi `1.25.0` ([#571]).
 
+### Changed
+
+- A service for a single NiFi node is created for the reporting task to avoid JWT issues ([#571]).
+
 [#537]: https://github.com/stackabletech/nifi-operator/pull/537
 [#556]: https://github.com/stackabletech/nifi-operator/pull/556
 [#560]: https://github.com/stackabletech/nifi-operator/pull/560
