@@ -8,7 +8,7 @@
 //! Due to changes in the JWT validation in 1.25.0, the issuer refers to the FQDN of the Pod that was created, e.g.:
 //! {
 //!     "sub": "admin",
-//!     "iss": "https://test-nifi-node-default-0.test-nifi-node-default.default.svc.cluster.local:8443",
+//!     "iss": "test-nifi-node-default-0.test-nifi-node-default.default.svc.cluster.local:8443",
 //! }
 //! which was different in e.g. 1.23.2
 //! {
@@ -16,9 +16,9 @@
 //!     "iss": "SingleUserLoginIdentityProvider",
 //! }
 //! This caused problems when using the generated JWT against a different node (due to randomness of the service).
-//! 
+//!
 //! "An error occurred while attempting to decode the Jwt: Signed JWT rejected: Another algorithm expected, or no matching key(s) found"
-//! 
+//!
 //! Therefore, since the support of NiFi 1.25.0, an additional service for the Reporting Task Job containing a
 //! random but deterministic NiFi node to ensure the communication with a single node.
 //!
@@ -217,7 +217,7 @@ fn build_reporting_task_service(
 /// library to authenticate and run the required REST calls to the NiFi REST API.
 ///
 /// In order to authenticate we need the `username` and `password` from the
-/// [`NifiAuthenticationConfig`](`crate::authentication::NifiAuthenticationConfig`)
+/// [`NifiAuthenticationConfig`](`crate::security::authentication::NifiAuthenticationConfig`)
 /// as well as a public certificate provided by the Stackable
 /// [`secret-operator`](https://github.com/stackabletech/secret-operator)
 ///
