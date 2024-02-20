@@ -25,7 +25,7 @@ pub(crate) fn build_tls_volume(
     service_scopes: Vec<&str>,
     secret_format: SecretFormat,
 ) -> Result<Volume> {
-    // TODO: make adaptable?
+    // TODO: Make adaptable (https://github.com/stackabletech/nifi-operator/issues/499)
     let mut secret_volume_source_builder = SecretOperatorVolumeSourceBuilder::new("tls");
 
     if secret_format == SecretFormat::TlsPkcs12 {
