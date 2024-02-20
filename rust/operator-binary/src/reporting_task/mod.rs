@@ -89,6 +89,9 @@ pub enum Error {
 
     #[snafu(display("failed to build secret volume"))]
     SecretVolumeBuildFailure { source: crate::security::Error },
+
+    #[snafu(display("failed to create reporting task service, no role groups defined"))]
+    FailedBuildReportingTaskService,
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -131,11 +134,11 @@ pub fn build_reporting_task_fqdn_service_name(nifi: &NifiCluster) -> Result<Stri
     ))
 }
 
-/// Return a `statefulset.kubernetes.io/pod-name` label for the first pod of the (sorted,BTreeMap)
-/// first rolegroup containing more than zero replicas. This is required to only select
-/// a single node in the Reporting Task Service.
-/// If no replicas are available or the cluster is stopped, no additional label will be returned.
-fn label_ordered_for_service_selector(nifi: &NifiCluster) -> BTreeMap<String, String> {
+/// Return the name of the first pod belonging to the first role group that contains more than 0 replicas.
+/// If no replicas are set in any rolegroup (e.g. HPA -> https://docs.stackable.tech/home/stable/concepts/operations/#_performance)
+/// return the first rolegroup just in case.
+/// This is required to only select a single node in the Reporting Task Service.
+fn get_reporting_task_service_selector_pod(nifi: &NifiCluster) -> Result<String> {
     let cluster_name = nifi.name_any();
     let node_name = NifiRole::Node.to_string();
 
@@ -147,22 +150,25 @@ fn label_ordered_for_service_selector(nifi: &NifiCluster) -> BTreeMap<String, St
         .flat_map(|role| &role.role_groups)
         .collect::<BTreeMap<_, _>>();
 
-    let mut extra_service_label = BTreeMap::new();
-
-    // find the first rolegroup that has any replicas
+    let mut selector_role_group = None;
     for (role_group_name, role_group) in sorted_role_groups {
+        // just pick the first rolegroup in case no replicas are set
+        if selector_role_group.is_none() {
+            selector_role_group = Some(role_group_name);
+        }
+
         if let Some(replicas) = role_group.replicas {
             if replicas > 0 {
-                extra_service_label.insert(
-                    "statefulset.kubernetes.io/pod-name".to_string(),
-                    format!("{cluster_name}-{node_name}-{role_group_name}-0"),
-                );
+                selector_role_group = Some(role_group_name);
                 break;
             }
         }
     }
 
-    extra_service_label
+    Ok(format!(
+        "{cluster_name}-{node_name}-{role_group_name}-0",
+        role_group_name = selector_role_group.context(FailedBuildReportingTaskServiceSnafu)?
+    ))
 }
 
 /// Build the internal Reporting Task Service in order to communicate with a single NiFi node.
@@ -175,9 +181,12 @@ fn build_reporting_task_service(
     let mut selector: BTreeMap<String, String> = Labels::role_selector(nifi, APP_NAME, &role_name)
         .context(LabelBuildSnafu)?
         .into();
-    let extra_service_label = label_ordered_for_service_selector(nifi);
 
-    selector.extend(extra_service_label);
+    let service_selector_pod = get_reporting_task_service_selector_pod(nifi)?;
+    selector.insert(
+        "statefulset.kubernetes.io/pod-name".to_string(),
+        service_selector_pod,
+    );
 
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
