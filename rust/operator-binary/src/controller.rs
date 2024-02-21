@@ -12,7 +12,6 @@ use product_config::{
     writer::{to_java_properties_string, PropertiesWriterError},
     ProductConfigManager,
 };
-use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_nifi_crd::{
     authentication::resolve_authentication_classes, Container, CurrentlySupportedListenerClasses,
@@ -25,7 +24,6 @@ use stackable_operator::{
     builder::{
         resources::ResourceRequirementsBuilder, ConfigMapBuilder, ContainerBuilder,
         ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder, SecretFormat,
-        SecretOperatorVolumeSourceBuilder, VolumeBuilder,
     },
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
@@ -34,10 +32,9 @@ use stackable_operator::{
     k8s_openapi::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec, StatefulSetUpdateStrategy},
-            batch::v1::{Job, JobSpec},
             core::v1::{
                 ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource, EmptyDirVolumeSource,
-                EnvVar, EnvVarSource, Node, ObjectFieldSelector, Probe, Secret, SecretVolumeSource,
+                EnvVar, EnvVarSource, Node, ObjectFieldSelector, Probe, SecretVolumeSource,
                 Service, ServicePort, ServiceSpec, TCPSocketAction, Volume,
             },
         },
@@ -71,11 +68,6 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
 
 use crate::{
-    authentication::{
-        NifiAuthenticationConfig, AUTHORIZERS_XML_FILE_NAME,
-        LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME, STACKABLE_ADMIN_USER_NAME,
-        STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
-    },
     config::{
         self, build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
         validated_product_config, NifiRepository, JVM_SECURITY_PROPERTIES_FILE,
@@ -83,17 +75,21 @@ use crate::{
     },
     operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
+    reporting_task::{self, build_reporting_task, build_reporting_task_service_name},
+    security::{
+        authentication::{
+            NifiAuthenticationConfig, AUTHORIZERS_XML_FILE_NAME,
+            LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME, STACKABLE_SERVER_TLS_DIR,
+            STACKABLE_TLS_STORE_PASSWORD,
+        },
+        build_tls_volume, check_or_generate_sensitive_key,
+        tls::{KEYSTORE_NIFI_CONTAINER_MOUNT, KEYSTORE_VOLUME_NAME, TRUSTSTORE_VOLUME_NAME},
+    },
     OPERATOR_NAME,
 };
 
 pub const NIFI_CONTROLLER_NAME: &str = "nificluster";
 pub const NIFI_UID: i64 = 1000;
-
-const KEYSTORE_VOLUME_NAME: &str = "keystore";
-const KEYSTORE_NIFI_CONTAINER_MOUNT: &str = "/stackable/keystore";
-const KEYSTORE_REPORTING_TASK_MOUNT: &str = "/stackable/cert";
-
-const TRUSTSTORE_VOLUME_NAME: &str = "truststore";
 
 const DOCKER_IMAGE_BASE_NAME: &str = "nifi";
 
@@ -135,18 +131,6 @@ pub enum Error {
         source: stackable_operator::error::Error,
     },
 
-    #[snafu(display("failed to check sensitive property key secret"))]
-    SensitiveKeySecret {
-        source: stackable_operator::error::Error,
-    },
-
-    #[snafu(display(
-        "sensitive key secret [{}/{}] is missing, but auto generation is disabled",
-        name,
-        namespace
-    ))]
-    SensitiveKeySecretMissing { name: String, namespace: String },
-
     #[snafu(display("failed to apply Service for {}", rolegroup))]
     ApplyRoleGroupService {
         source: stackable_operator::error::Error,
@@ -172,6 +156,11 @@ pub enum Error {
     ApplyRoleGroupStatefulSet {
         source: stackable_operator::error::Error,
         rolegroup: RoleGroupRef<NifiCluster>,
+    },
+
+    #[snafu(display("failed to apply create ReportingTask service"))]
+    ApplyCreateReportingTaskService {
+        source: stackable_operator::error::Error,
     },
 
     #[snafu(display("failed to apply create ReportingTask job"))]
@@ -269,7 +258,7 @@ pub enum Error {
 
     #[snafu(display("Invalid NiFi Authentication Configuration"))]
     InvalidNifiAuthenticationConfig {
-        source: crate::authentication::Error,
+        source: crate::security::authentication::Error,
     },
 
     #[snafu(display("Failed to resolve NiFi Authentication Configuration"))]
@@ -303,14 +292,17 @@ pub enum Error {
         source: stackable_operator::kvp::LabelError,
     },
 
-    #[snafu(display("failed to build TLS certificate SecretClass Volume"))]
-    TlsCertSecretClassVolumeBuild {
-        source: stackable_operator::builder::SecretOperatorVolumeSourceBuilderError,
-    },
-
     #[snafu(display("failed to add Authentication Volumes and VolumeMounts"))]
     AddAuthVolumes {
-        source: crate::authentication::Error,
+        source: crate::security::authentication::Error,
+    },
+
+    #[snafu(display("security failure"))]
+    Security { source: crate::security::Error },
+
+    #[snafu(display("reporting task failure"))]
+    ReportingTask {
+        source: crate::reporting_task::Error,
     },
 }
 
@@ -344,7 +336,9 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         .resolve(DOCKER_IMAGE_BASE_NAME, crate::built_info::CARGO_PKG_VERSION);
 
     tracing::info!("Checking for sensitive key configuration");
-    check_or_generate_sensitive_key(client, &nifi).await?;
+    check_or_generate_sensitive_key(client, &nifi)
+        .await
+        .context(SecuritySnafu)?;
 
     // Handle full restarts for a version change
     let version_change = if let Some(deployed_version) = nifi
@@ -566,19 +560,21 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             .context(FailedToCreatePdbSnafu)?;
     }
 
-    let reporting_task_job = build_reporting_task_job(
+    let (reporting_task_job, reporting_task_service) = build_reporting_task(
         &nifi,
         &resolved_product_image,
         &nifi_authentication_config,
         &rbac_sa.name_any(),
-    )?;
+    )
+    .context(ReportingTaskSnafu)?;
 
-    client
-        .apply_patch(
-            NIFI_CONTROLLER_NAME,
-            &reporting_task_job,
-            &reporting_task_job,
-        )
+    cluster_resources
+        .add(client, reporting_task_service)
+        .await
+        .context(ApplyCreateReportingTaskServiceSnafu)?;
+
+    cluster_resources
+        .add(client, reporting_task_job)
         .await
         .context(ApplyCreateReportingTaskJobSnafu)?;
 
@@ -1163,6 +1159,7 @@ async fn build_node_rolegroup_statefulset(
         .context(MetadataBuildSnafu)?
         .build();
 
+    let nifi_cluster_name = nifi.name_any();
     pod_builder
         .metadata(metadata)
         .image_pull_secrets_from_product_image(resolved_product_image)
@@ -1193,11 +1190,17 @@ async fn build_node_rolegroup_statefulset(
             )),
         )
         // One volume for the keystore and truststore data configmap
-        .add_volume(build_keystore_volume(
-            KEYSTORE_VOLUME_NAME,
-            &nifi.name_any(),
-            SecretFormat::TlsPkcs12,
-        )?)
+        .add_volume(
+            build_tls_volume(
+                KEYSTORE_VOLUME_NAME,
+                vec![
+                    &nifi_cluster_name,
+                    &build_reporting_task_service_name(&nifi_cluster_name),
+                ],
+                SecretFormat::TlsPkcs12,
+            )
+            .context(SecuritySnafu)?,
+        )
         .add_empty_dir_volume(TRUSTSTORE_VOLUME_NAME, None)
         .add_volume(Volume {
             name: "sensitiveproperty".to_string(),
@@ -1308,175 +1311,6 @@ async fn build_node_rolegroup_statefulset(
     })
 }
 
-/// Build the [`Job`](`stackable_operator::k8s_openapi::api::batch::v1::Job`) that creates a
-/// NiFi `ReportingTask` in order to enable JVM and NiFi metrics.
-///
-/// The Job is run via the [`tools`](https://github.com/stackabletech/docker-images/tree/main/tools)
-/// docker image and more specifically the `create_nifi_reporting_task.py` Python script.
-///
-/// This script uses the [`nipyapi`](https://nipyapi.readthedocs.io/en/latest/readme.html)
-/// library to authenticate and run the required REST calls to the NiFi REST API.
-///
-/// In order to authenticate we need the `username` and `password` from the
-/// [`NifiAuthenticationConfig`](`crate::authentication::NifiAuthenticationConfig`)
-/// as well as a public certificate provided by the Stackable
-/// [`secret-operator`](https://github.com/stackabletech/secret-operator)
-///
-fn build_reporting_task_job(
-    nifi: &NifiCluster,
-    resolved_product_image: &ResolvedProductImage,
-    nifi_auth_config: &NifiAuthenticationConfig,
-    sa_name: &str,
-) -> Result<Job> {
-    let nifi_name = nifi.name_any();
-    let nifi_namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
-    let product_version = &resolved_product_image.product_version;
-    let nifi_connect_url =
-        format!("https://{nifi_name}.{nifi_namespace}.svc.cluster.local:{HTTPS_PORT}/nifi-api",);
-
-    let (admin_username_file, admin_password_file) =
-        nifi_auth_config.get_user_and_password_file_paths();
-
-    let user_name_command = if admin_username_file.is_empty() {
-        // In case of the username being simple (e.g admin for SingleUser) just use it as is
-        format!("-u {STACKABLE_ADMIN_USER_NAME}")
-    } else {
-        // If the username is a bind dn (e.g. cn=integrationtest,ou=users,dc=example,dc=org) we have to extract the cn/dn/uid (in this case integrationtest)
-        format!(
-            "-u \"$(cat {admin_username_file} | grep -oP '((cn|dn|uid)=\\K[^,]+|.*)' | head -n 1)\""
-        )
-    };
-
-    let args = vec![
-        "/stackable/python/create_nifi_reporting_task.py".to_string(),
-        format!("-n {nifi_connect_url}"),
-        user_name_command,
-        format!("-p \"$(cat {admin_password_file})\""),
-        format!("-v {product_version}"),
-        format!("-m {METRICS_PORT}"),
-        format!("-c {KEYSTORE_REPORTING_TASK_MOUNT}/ca.crt"),
-    ];
-    let mut cb = ContainerBuilder::new("create-reporting-task").with_context(|_| {
-        IllegalContainerNameSnafu {
-            container_name: "create-reporting-task".to_string(),
-        }
-    })?;
-    cb.image_from_product_image(resolved_product_image)
-        .command(vec!["sh".to_string(), "-c".to_string()])
-        .args(vec![args.join(" ")])
-        // The VolumeMount for the secret operator key store certificates
-        .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_REPORTING_TASK_MOUNT)
-        .resources(
-            ResourceRequirementsBuilder::new()
-                .with_cpu_request("100m")
-                .with_cpu_limit("400m")
-                .with_memory_request("512Mi")
-                .with_memory_limit("512Mi")
-                .build(),
-        );
-
-    let job_name = format!(
-        "{}-create-reporting-task-{}",
-        nifi.name_any(),
-        product_version.replace('.', "-")
-    );
-
-    let mut pb = PodBuilder::new();
-    nifi_auth_config
-        .add_volumes_and_mounts(&mut pb, vec![&mut cb])
-        .context(AddAuthVolumesSnafu)?;
-
-    let pod = pb
-        .metadata(
-            ObjectMetaBuilder::new()
-                .name(job_name.clone())
-                .namespace_opt(nifi.namespace())
-                .build(),
-        )
-        .image_pull_secrets_from_product_image(resolved_product_image)
-        .restart_policy("OnFailure")
-        .service_account_name(sa_name)
-        .security_context(
-            PodSecurityContextBuilder::new()
-                .run_as_user(NIFI_UID)
-                .run_as_group(0)
-                .fs_group(1000)
-                .build(),
-        )
-        .add_container(cb.build())
-        .add_volume(build_keystore_volume(
-            KEYSTORE_VOLUME_NAME,
-            &nifi_name,
-            SecretFormat::TlsPem,
-        )?)
-        .build_template();
-
-    let job = Job {
-        metadata: ObjectMetaBuilder::new()
-            .name(job_name)
-            .namespace_opt(nifi.namespace())
-            .ownerreference_from_resource(nifi, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .build(),
-        spec: Some(JobSpec {
-            backoff_limit: Some(100),
-            ttl_seconds_after_finished: Some(120),
-            template: pod,
-            ..JobSpec::default()
-        }),
-        ..Job::default()
-    };
-
-    Ok(job)
-}
-
-async fn check_or_generate_sensitive_key(
-    client: &Client,
-    nifi: &NifiCluster,
-) -> Result<bool, Error> {
-    let sensitive_config = &nifi.spec.cluster_config.sensitive_properties;
-    let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
-
-    match client
-        .get_opt::<Secret>(&sensitive_config.key_secret, namespace)
-        .await
-        .with_context(|_| SensitiveKeySecretSnafu {})?
-    {
-        Some(_) => Ok(false),
-        None => {
-            if !sensitive_config.auto_generate {
-                return Err(Error::SensitiveKeySecretMissing {
-                    name: sensitive_config.key_secret.clone(),
-                    namespace: namespace.to_string(),
-                });
-            }
-            tracing::info!("No existing sensitive properties key found, generating new one");
-            let password: String = rand::thread_rng()
-                .sample_iter(&Alphanumeric)
-                .take(15)
-                .map(char::from)
-                .collect();
-
-            let mut secret_data = BTreeMap::new();
-            secret_data.insert("nifiSensitivePropsKey".to_string(), password);
-
-            let new_secret = Secret {
-                metadata: ObjectMetaBuilder::new()
-                    .namespace(namespace)
-                    .name(&sensitive_config.key_secret.to_string())
-                    .build(),
-                string_data: Some(secret_data),
-                ..Secret::default()
-            };
-            client
-                .create(&new_secret)
-                .await
-                .with_context(|_| SensitiveKeySecretSnafu {})?;
-            Ok(true)
-        }
-    }
-}
-
 fn external_node_port(nifi_service: &Service) -> Result<i32> {
     let external_ports = nifi_service
         .spec
@@ -1494,30 +1328,6 @@ fn external_node_port(nifi_service: &Service) -> Result<i32> {
         .with_context(|| ExternalPortSnafu {})?;
 
     port.node_port.with_context(|| ExternalPortSnafu {})
-}
-
-fn build_keystore_volume(
-    volume_name: &str,
-    nifi_name: &str,
-    secret_format: SecretFormat,
-) -> Result<Volume> {
-    let mut secret_volume_source_builder = SecretOperatorVolumeSourceBuilder::new("tls");
-
-    if secret_format == SecretFormat::TlsPkcs12 {
-        secret_volume_source_builder.with_tls_pkcs12_password(STACKABLE_TLS_STORE_PASSWORD);
-    }
-
-    Ok(VolumeBuilder::new(volume_name)
-        .ephemeral(
-            secret_volume_source_builder
-                .with_node_scope()
-                .with_pod_scope()
-                .with_service_scope(nifi_name)
-                .with_format(secret_format)
-                .build()
-                .context(TlsCertSecretClassVolumeBuildSnafu)?,
-        )
-        .build())
 }
 
 /// Used for the `ZOOKEEPER_HOSTS` and `ZOOKEEPER_CHROOT` env vars.
@@ -1544,9 +1354,12 @@ async fn get_proxy_hosts(
     let node_role_service_fqdn = nifi
         .node_role_service_fqdn()
         .context(NoRoleServiceFqdnSnafu)?;
+    let reporting_task_service_name =
+        reporting_task::build_reporting_task_fqdn_service_name(nifi).context(ReportingTaskSnafu)?;
     let mut proxy_setting = vec![
         node_role_service_fqdn.clone(),
         format!("{node_role_service_fqdn}:{HTTPS_PORT}"),
+        format!("{reporting_task_service_name}:{HTTPS_PORT}"),
     ];
 
     // In case NodePort is used add them as well
@@ -1585,7 +1398,7 @@ pub fn error_policy(_obj: Arc<NifiCluster>, _error: &Error, _ctx: Arc<Ctx>) -> A
     Action::requeue(*Duration::from_secs(10))
 }
 
-fn build_recommended_labels<'a>(
+pub fn build_recommended_labels<'a>(
     owner: &'a NifiCluster,
     app_version: &'a str,
     role: &'a str,
