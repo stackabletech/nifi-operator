@@ -81,11 +81,11 @@ metadata:
   name: simple-zk
 spec:
   image:
-    productVersion: 3.8.3
+    productVersion: 3.9.2
   servers:
     roleGroups:
       default:
-        replicas: 3
+        replicas: 1
 EOF
 # end::install-zookeeper[]
 
@@ -155,7 +155,7 @@ spec:
   nodes:
     roleGroups:
       default:
-        replicas: 2
+        replicas: 1
 EOF
 # end::install-nifi[]
 
@@ -164,8 +164,6 @@ sleep 5
 echo "Awaiting NiFi rollout finish"
 # tag::wait-nifi-rollout[]
 kubectl wait -l statefulset.kubernetes.io/pod-name=simple-nifi-node-default-0 \
---for=condition=ready pod --timeout=1200s && \
-kubectl wait -l statefulset.kubernetes.io/pod-name=simple-nifi-node-default-1 \
 --for=condition=ready pod --timeout=1200s
 # end::wait-nifi-rollout[]
 
