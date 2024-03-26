@@ -15,7 +15,7 @@ xref:getting_started/first_steps.adoc[connect] to the NiFi web interface. Afterw
 xref:usage_guide/index.adoc[] to learn how to configure your NiFi instance to your needs or run some <<demos, demos>> to
 learn more about using NiFi with other components.
 
-== Operator Model
+== Operator model
 
 The Operator manages the _NifiCluster_ custom resource. NiFi only has a single process that it needs to run, so the
 NifiCluster has only a single xref:concepts:roles-and-role-groups.adoc[role]: `node`. This role can be divided in
@@ -40,8 +40,10 @@ xref:kafka:index.adoc[part of the Stackable platform].
 The xref:demos:nifi-kafka-druid-earthquake-data.adoc[] and xref:demos:nifi-kafka-druid-water-level-data.adoc[] demo use
 NiFi in the same way, both demos showcase downloading data from web APIs and ingesting it into Kafka.
 
-== Supported Versions
+== Supported versions
 
-The Stackable Operator for Apache NiFi currently supports the following versions of NiFi:
+The Stackable Operator for Apache NiFi currently supports the NiFi versions listed below.
+To use a specific NiFi version in your NifiCluster, you have to specify an image - this is explained in the xref:concepts:product-image-selection.adoc[] documentation.
+The operator also supports running images from a custom registry or running entirely customized images; both of these cases are explained under xref:concepts:product-image-selection.adoc[] as well.
 
 include::partial$supported-versions.adoc[]
