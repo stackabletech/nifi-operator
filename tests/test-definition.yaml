@@ -42,19 +42,23 @@ tests:
       - nifi_old
       - nifi_new
       - zookeeper-latest
+      - openshift
   - name: orphaned_resources
     dimensions:
       - nifi
       - zookeeper-latest
+      - openshift
   - name: smoke
     dimensions:
       - nifi
       - zookeeper
       - listener-class
+      - openshift
   - name: resources
     dimensions:
       - nifi
       - zookeeper-latest
+      - openshift
   - name: ldap
     dimensions:
       - nifi
@@ -65,10 +69,12 @@ tests:
     dimensions:
       - nifi
       - zookeeper-latest
+      - openshift
   - name: cluster_operation
     dimensions:
       - nifi-latest
       - zookeeper-latest
+      - openshift
 suites:
   - name: nightly
     patch:
