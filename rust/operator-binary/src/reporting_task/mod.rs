@@ -254,7 +254,7 @@ fn build_reporting_task_job(
         )
     };
 
-    let args = vec![
+    let args = [
         "/stackable/python/create_nifi_reporting_task.py".to_string(),
         format!("-n {nifi_connect_url}"),
         user_name_command,
