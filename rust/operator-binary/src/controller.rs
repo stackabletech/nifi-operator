@@ -22,8 +22,12 @@ use stackable_nifi_crd::{
 };
 use stackable_operator::{
     builder::{
-        resources::ResourceRequirementsBuilder, ConfigMapBuilder, ContainerBuilder,
-        ObjectMetaBuilder, PodBuilder, PodSecurityContextBuilder, SecretFormat,
+        configmap::ConfigMapBuilder,
+        meta::ObjectMetaBuilder,
+        pod::{
+            container::ContainerBuilder, resources::ResourceRequirementsBuilder,
+            security::PodSecurityContextBuilder, volume::SecretFormat, PodBuilder,
+        },
     },
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
@@ -113,33 +117,38 @@ pub enum Error {
 
     #[snafu(display("failed to create cluster resources"))]
     CreateClusterResources {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("failed to delete orphaned resources"))]
     DeleteOrphanedResources {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("failed to apply global Service"))]
     ApplyRoleService {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
+    },
+
+    #[snafu(display("failed to fetch deployed StatefulSets"))]
+    FetchStatefulsets {
+        source: stackable_operator::client::Error,
     },
 
     #[snafu(display("failed to update status"))]
     StatusUpdate {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::client::Error,
     },
 
     #[snafu(display("failed to apply Service for {}", rolegroup))]
     ApplyRoleGroupService {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
         rolegroup: RoleGroupRef<NifiCluster>,
     },
 
     #[snafu(display("failed to build ConfigMap for {}", rolegroup))]
     BuildRoleGroupConfig {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::builder::configmap::Error,
         rolegroup: RoleGroupRef<NifiCluster>,
     },
 
@@ -148,29 +157,29 @@ pub enum Error {
 
     #[snafu(display("failed to apply ConfigMap for {}", rolegroup))]
     ApplyRoleGroupConfig {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
         rolegroup: RoleGroupRef<NifiCluster>,
     },
 
     #[snafu(display("failed to apply StatefulSet for {}", rolegroup))]
     ApplyRoleGroupStatefulSet {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
         rolegroup: RoleGroupRef<NifiCluster>,
     },
 
     #[snafu(display("failed to apply create ReportingTask service"))]
     ApplyCreateReportingTaskService {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("failed to apply create ReportingTask job"))]
     ApplyCreateReportingTaskJob {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("object is missing metadata to build owner reference"))]
     ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::builder::meta::Error,
     },
 
     #[snafu(display("Failed to load Product Config"))]
@@ -181,13 +190,13 @@ pub enum Error {
 
     #[snafu(display("Failed to find any nodes in cluster {obj_ref}",))]
     MissingNodes {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::client::Error,
         obj_ref: ObjectRef<NifiCluster>,
     },
 
     #[snafu(display("Failed to find service {obj_ref}"))]
     MissingService {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::client::Error,
         obj_ref: ObjectRef<Service>,
     },
 
@@ -208,7 +217,7 @@ pub enum Error {
 
     #[snafu(display("illegal container name: [{container_name}]"))]
     IllegalContainerName {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::builder::pod::container::Error,
         container_name: String,
     },
 
@@ -234,17 +243,17 @@ pub enum Error {
 
     #[snafu(display("failed to patch service account"))]
     ApplyServiceAccount {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("failed to patch role binding"))]
     ApplyRoleBinding {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("failed to build RBAC resources"))]
     BuildRbacResources {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::commons::rbac::Error,
     },
 
     #[snafu(display(
@@ -278,7 +287,7 @@ pub enum Error {
 
     #[snafu(display("failed to build metadata"))]
     MetadataBuild {
-        source: stackable_operator::builder::ObjectMetaBuilderError,
+        source: stackable_operator::builder::meta::Error,
     },
 
     #[snafu(display("failed to get required labels"))]
@@ -361,7 +370,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             let deployed_statefulsets = client
                 .list_with_label_selector::<StatefulSet>(namespace, &selector)
                 .await
-                .context(ApplyRoleServiceSnafu)?;
+                .context(FetchStatefulsetsSnafu)?;
 
             // Sum target replicas for all statefulsets
             let target_replicas = deployed_statefulsets
