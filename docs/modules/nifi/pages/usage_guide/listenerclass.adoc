@@ -1,8 +1,11 @@
 = Service exposition with ListenerClasses
 
-Apache NiFi offers a web UI and an API. The Operator deploys a service called `<name>` (where `<name>` is the name of the NifiCluster) through which NiFi can be reached.
+Apache NiFi offers a web UI and an API.
+The Operator deploys a service called `<name>` (where `<name>` is the name of the NifiCluster) through which NiFi can be reached.
 
-This service can have either the `cluster-internal` or `external-unstable` type. `external-stable` is not supported for NiFi at the moment. Read more about the types in the xref:concepts:service-exposition.adoc[service exposition] documentation at platform level.
+This service can have either the `cluster-internal` or `external-unstable` type.
+`external-stable` is not supported for NiFi at the moment.
+Read more about the types in the xref:concepts:service-exposition.adoc[service exposition] documentation at platform level.
 
 This is how the listener class is configured:
 
