@@ -67,15 +67,19 @@ impl NifiRepository {
 pub enum Error {
     #[snafu(display("Invalid product config"))]
     InvalidProductConfig {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::product_config_utils::Error,
+    },
+    #[snafu(display("Invalid memory config"))]
+    InvalidMemoryConfig {
+        source: stackable_operator::memory::Error,
     },
     #[snafu(display("Failed to transform product configs"))]
     ProductConfigTransform {
-        source: stackable_operator::product_config_utils::ConfigError,
+        source: stackable_operator::product_config_utils::Error,
     },
     #[snafu(display("failed to calculate storage quota for {repo} repository"))]
     CalculateStorageQuota {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::memory::Error,
         repo: NifiRepository,
     },
 }
@@ -106,13 +110,13 @@ pub fn build_bootstrap_conf(
         tracing::debug!("Read {:?} from crd as memory limit", heap_size_definition);
 
         let heap_size = MemoryQuantity::try_from(heap_size_definition)
-            .context(InvalidProductConfigSnafu)?
+            .context(InvalidMemoryConfigSnafu)?
             .scale_to(BinaryMultiple::Mebi)
             * JAVA_HEAP_FACTOR;
 
         let java_heap = heap_size
             .format_for_java()
-            .context(InvalidProductConfigSnafu)?;
+            .context(InvalidMemoryConfigSnafu)?;
 
         tracing::debug!(
             "Converted {:?} to {} for java heap config",

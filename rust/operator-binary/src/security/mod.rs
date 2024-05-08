@@ -1,7 +1,7 @@
 use snafu::{ResultExt, Snafu};
 use stackable_nifi_crd::NifiCluster;
 use stackable_operator::client::Client;
-use stackable_operator::{builder::SecretFormat, k8s_openapi::api::core::v1::Volume};
+use stackable_operator::{builder::pod::volume::SecretFormat, k8s_openapi::api::core::v1::Volume};
 
 pub mod authentication;
 pub mod sensitive_key;

@@ -30,8 +30,11 @@ use stackable_nifi_crd::{
 };
 use stackable_operator::{
     builder::{
-        resources::ResourceRequirementsBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
-        PodSecurityContextBuilder, SecretFormat,
+        meta::ObjectMetaBuilder,
+        pod::{
+            container::ContainerBuilder, resources::ResourceRequirementsBuilder,
+            security::PodSecurityContextBuilder, volume::SecretFormat, PodBuilder,
+        },
     },
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::api::{
@@ -63,18 +66,18 @@ pub enum Error {
 
     #[snafu(display("failed to build metadata"))]
     MetadataBuild {
-        source: stackable_operator::builder::ObjectMetaBuilderError,
+        source: stackable_operator::builder::meta::Error,
     },
 
     #[snafu(display("illegal container name: [{container_name}]"))]
     IllegalContainerName {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::builder::pod::container::Error,
         container_name: String,
     },
 
     #[snafu(display("object is missing metadata to build owner reference"))]
     ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::builder::meta::Error,
     },
 
     #[snafu(display("failed to add Authentication Volumes and VolumeMounts"))]

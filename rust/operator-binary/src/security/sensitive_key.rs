@@ -4,7 +4,7 @@ use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_nifi_crd::NifiCluster;
 use stackable_operator::{
-    builder::ObjectMetaBuilder, client::Client, k8s_openapi::api::core::v1::Secret,
+    builder::meta::ObjectMetaBuilder, client::Client, k8s_openapi::api::core::v1::Secret,
     kube::ResourceExt,
 };
 
@@ -17,7 +17,7 @@ pub enum Error {
 
     #[snafu(display("failed to check sensitive property key secret"))]
     SensitiveKeySecret {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::client::Error,
     },
 
     #[snafu(display(

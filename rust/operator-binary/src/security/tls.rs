@@ -1,6 +1,6 @@
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::{SecretFormat, SecretOperatorVolumeSourceBuilder, VolumeBuilder},
+    builder::pod::volume::{SecretFormat, SecretOperatorVolumeSourceBuilder, VolumeBuilder},
     k8s_openapi::api::core::v1::Volume,
 };
 
@@ -16,7 +16,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 pub enum Error {
     #[snafu(display("failed to build TLS certificate SecretClass Volume"))]
     TlsCertSecretClassVolumeBuild {
-        source: stackable_operator::builder::SecretOperatorVolumeSourceBuilderError,
+        source: stackable_operator::builder::pod::volume::SecretOperatorVolumeSourceBuilderError,
     },
 }
 
