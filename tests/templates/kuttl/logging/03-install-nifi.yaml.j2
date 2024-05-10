@@ -83,7 +83,12 @@ metadata:
   name: test-nifi
 spec:
   image:
+{% if test_scenario['values']['nifi'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['nifi'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['nifi'].split(',')[0] }}"
+{% else %}
     productVersion: "{{ test_scenario['values']['nifi'] }}"
+{% endif %}
     pullPolicy: IfNotPresent
   clusterConfig:
     authentication:
