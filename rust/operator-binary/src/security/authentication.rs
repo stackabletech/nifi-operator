@@ -1,6 +1,6 @@
 use indoc::{formatdoc, indoc};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::builder::{ContainerBuilder, PodBuilder};
+use stackable_operator::builder::pod::{container::ContainerBuilder, PodBuilder};
 use stackable_operator::commons::authentication::{ldap, static_};
 use stackable_operator::commons::authentication::{
     AuthenticationClass, AuthenticationClassProvider,

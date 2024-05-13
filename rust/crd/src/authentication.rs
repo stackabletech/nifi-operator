@@ -13,7 +13,7 @@ use stackable_operator::{
 pub enum Error {
     #[snafu(display("Failed to retrieve AuthenticationClass {authentication_class}"))]
     AuthenticationClassRetrieval {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::client::Error,
         authentication_class: ObjectRef<AuthenticationClass>,
     },
     #[snafu(display("The nifi-operator does not support running Nifi without any authentication. Please provide a AuthenticationClass to use."))]
