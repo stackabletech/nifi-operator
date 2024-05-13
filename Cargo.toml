@@ -12,7 +12,7 @@ repository = "https://github.com/stackabletech/nifi-operator"
 [workspace.dependencies]
 anyhow = "1.0"
 built = { version = "0.7", features = ["chrono", "git2"] }
-clap = "4.3"
+clap = "4.5"
 fnv = "1.0"
 futures = { version = "0.3", features = ["compat"] }
 indoc = "2.0"
