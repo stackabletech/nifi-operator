@@ -83,11 +83,8 @@ mod tests {
                                         )
                                     ]))
                                 }),
-                                match_label_keys: None,
-                                mismatch_label_keys: None,
-                                namespace_selector: None,
-                                namespaces: None,
                                 topology_key: "kubernetes.io/hostname".to_string(),
+                                ..Default::default()
                             },
                             weight: 70
                         }
