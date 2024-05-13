@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Make it easy to test custom Nifi images ([#616])
+
+[#616]: https://github.com/stackabletech/nifi-operator/pull/616
+
 ## [24.3.0] - 2024-03-20
 
 ### Added
