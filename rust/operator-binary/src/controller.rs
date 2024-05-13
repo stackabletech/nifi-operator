@@ -182,8 +182,11 @@ pub enum Error {
         source: stackable_operator::builder::meta::Error,
     },
 
-    #[snafu(display("Failed to load Product Config"))]
-    ProductConfigLoadFailed { source: config::Error },
+    #[snafu(display("Failed to load product config"))]
+    ProductConfigLoadFailed {
+        #[snafu(source(from(config::Error, Box::new)))]
+        source: Box<config::Error>,
+    },
 
     #[snafu(display("Failed to find information about file [{}] in product config", kind))]
     ProductConfigKindNotSpecified { kind: String },
@@ -207,11 +210,15 @@ pub enum Error {
     NoRoleServiceFqdn,
 
     #[snafu(display("Bootstrap configuration error"))]
-    BoostrapConfig { source: crate::config::Error },
+    BootstrapConfig {
+        #[snafu(source(from(config::Error, Box::new)))]
+        source: Box<config::Error>,
+    },
 
     #[snafu(display("failed to prepare NiFi configuration for rolegroup {rolegroup}"))]
     BuildProductConfig {
-        source: crate::config::Error,
+        #[snafu(source(from(config::Error, Box::new)))]
+        source: Box<config::Error>,
         rolegroup: RoleGroupRef<NifiCluster>,
     },
 
@@ -731,7 +738,7 @@ async fn build_node_rolegroup_config_map(
                     })?
                     .clone(),
             )
-            .context(BoostrapConfigSnafu)?,
+            .context(BootstrapConfigSnafu)?,
         )
         .add_data(
             NIFI_PROPERTIES,
