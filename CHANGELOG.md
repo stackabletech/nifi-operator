@@ -6,13 +6,14 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Support specifying the SecretClass that is used to obtain TLS certificates ([#XXX]).
+- Support specifying the SecretClass that is used to obtain TLS certificates ([#662]).
 
 ### Changed
 
 - Make it easy to test custom Nifi images ([#616])
 
 [#616]: https://github.com/stackabletech/nifi-operator/pull/616
+[#662]: https://github.com/stackabletech/nifi-operator/pull/662
 
 ## [24.3.0] - 2024-03-20
 
