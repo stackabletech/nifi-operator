@@ -116,7 +116,7 @@ pub struct NifiClusterConfig {
     // We don't add `#[serde(default)]` here, as we require authentication
     pub authentication: Vec<NifiAuthenticationClassRef>,
 
-    /// TLS configuration options for server.
+    /// TLS configuration options for the server.
     #[serde(default)]
     pub tls: NifiTls,
 

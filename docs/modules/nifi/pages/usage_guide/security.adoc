@@ -15,7 +15,7 @@ spec:
   # ...
   clusterConfig:
     tls:
-      httpSecretClass: non-default-secret-class # <1>
+      serverSecretClass: non-default-secret-class # <1>
 ----
 
 <1> The name of the `SecretClass` that will be used for certificates for the NiFi UI.
