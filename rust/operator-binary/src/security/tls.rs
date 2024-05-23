@@ -1,4 +1,5 @@
 use snafu::{ResultExt, Snafu};
+use stackable_nifi_crd::NifiCluster;
 use stackable_operator::{
     builder::pod::volume::{SecretFormat, SecretOperatorVolumeSourceBuilder, VolumeBuilder},
     k8s_openapi::api::core::v1::Volume,
@@ -21,12 +22,13 @@ pub enum Error {
 }
 
 pub(crate) fn build_tls_volume(
+    nifi: &NifiCluster,
     volume_name: &str,
     service_scopes: Vec<&str>,
     secret_format: SecretFormat,
 ) -> Result<Volume> {
-    // TODO: Make adaptable (https://github.com/stackabletech/nifi-operator/issues/499)
-    let mut secret_volume_source_builder = SecretOperatorVolumeSourceBuilder::new("tls");
+    let mut secret_volume_source_builder =
+        SecretOperatorVolumeSourceBuilder::new(nifi.server_tls_secret_class());
 
     if secret_format == SecretFormat::TlsPkcs12 {
         secret_volume_source_builder.with_tls_pkcs12_password(STACKABLE_TLS_STORE_PASSWORD);

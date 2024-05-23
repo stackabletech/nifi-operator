@@ -25,9 +25,10 @@ pub async fn check_or_generate_sensitive_key(client: &Client, nifi: &NifiCluster
 }
 
 pub fn build_tls_volume(
+    nifi: &NifiCluster,
     volume_name: &str,
     service_scopes: Vec<&str>,
     secret_format: SecretFormat,
 ) -> Result<Volume> {
-    tls::build_tls_volume(volume_name, service_scopes, secret_format).context(TlsSnafu)
+    tls::build_tls_volume(nifi, volume_name, service_scopes, secret_format).context(TlsSnafu)
 }

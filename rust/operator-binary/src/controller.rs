@@ -1208,6 +1208,7 @@ async fn build_node_rolegroup_statefulset(
         // One volume for the keystore and truststore data configmap
         .add_volume(
             build_tls_volume(
+                nifi,
                 KEYSTORE_VOLUME_NAME,
                 vec![
                     &nifi_cluster_name,

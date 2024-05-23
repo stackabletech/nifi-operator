@@ -1,5 +1,6 @@
 pub mod affinity;
 pub mod authentication;
+pub mod tls;
 
 use crate::authentication::NifiAuthenticationClassRef;
 
@@ -33,6 +34,7 @@ use stackable_operator::{
 };
 use std::collections::BTreeMap;
 use strum::Display;
+use tls::NifiTls;
 
 pub const APP_NAME: &str = "nifi";
 
@@ -113,6 +115,10 @@ pub struct NifiClusterConfig {
     /// Read more about authentication in the [security documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/security).
     // We don't add `#[serde(default)]` here, as we require authentication
     pub authentication: Vec<NifiAuthenticationClassRef>,
+
+    /// TLS configuration options for server.
+    #[serde(default)]
+    pub tls: NifiTls,
 
     // no doc - docs in NifiSensitivePropertiesConfig struct.
     pub sensitive_properties: NifiSensitivePropertiesConfig,
@@ -479,6 +485,11 @@ impl NifiCluster {
         match role {
             NifiRole::Node => self.spec.nodes.as_ref().map(|n| &n.role_config),
         }
+    }
+
+    /// Return user provided server TLS settings
+    pub fn server_tls_secret_class(&self) -> &str {
+        &self.spec.cluster_config.tls.server_secret_class
     }
 
     /// List all pods expected to form the cluster
