@@ -1,5 +1,25 @@
 = Security
 
+== TLS
+
+NiFi sets up TLS encryption for the http endpoints that serve the UI.
+By default, this interface is secured using certificates generated to work with the default SecretClass `tls`.
+
+Nifi can be configured to use a different SecretClass as shown below:
+
+[source, yaml]
+----
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+spec:
+  # ...
+  clusterConfig:
+    tls:
+      httpSecretClass: non-default-secret-class # <1>
+----
+
+<1> The name of the `SecretClass` that will be used for certificates for the NiFi UI.
+
 == Authentication
 
 Every user has to authenticate themselves before using NiFI.

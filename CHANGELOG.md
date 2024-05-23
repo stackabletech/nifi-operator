@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Support specifying the SecretClass that is used to obtain TLS certificates ([#XXX]).
+
 ### Changed
 
 - Make it easy to test custom Nifi images ([#616])
