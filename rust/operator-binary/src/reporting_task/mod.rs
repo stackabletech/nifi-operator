@@ -251,7 +251,7 @@ fn build_reporting_task_job(
         // In case of the username being simple (e.g admin for SingleUser) just use it as is
         format!("-u {STACKABLE_ADMIN_USER_NAME}")
     } else {
-        // If the username is a bind dn (e.g. cn=integrationtest,ou=users,dc=example,dc=org) we have to extract the cn/dn/uid (in this case integrationtest)
+        // If the username is a bind dn (e.g. cn=integrationtest,ou=my users,dc=example,dc=org) we have to extract the cn/dn/uid (in this case integrationtest)
         format!(
             "-u \"$(cat {admin_username_file} | grep -oP '((cn|dn|uid)=\\K[^,]+|.*)' | head -n 1)\""
         )
