@@ -321,6 +321,7 @@ fn build_reporting_task_job(
         .add_container(cb.build())
         .add_volume(
             build_tls_volume(
+                nifi,
                 REPORTING_TASK_CERT_VOLUME_NAME,
                 vec![],
                 SecretFormat::TlsPem,
