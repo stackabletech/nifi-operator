@@ -5,7 +5,7 @@ as well as the commons, secret and listener operator which are required by all S
 
 == Stackable operators
 
-There are two ways to install Stackable Operators:
+There are two ways to install Stackable operators:
 
 * Using xref:management:stackablectl:index.adoc[stackablectl] (recommended)
 * Using Helm
