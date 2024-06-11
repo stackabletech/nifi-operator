@@ -15,7 +15,7 @@ You can extend the official Stackable NiFi image and copy all required _nar_ fil
 The benefit of this method is that there is no need for any config overrides or extra mounts, you can use any ouf our NiFi examples, swap the image and your components will be available.
 But this means you will need to have access to a registry to push your custom image to.
 
-A basic Dockerfile would look like shown in the listing below:
+The basic Dockerfile below shows how to achieve this:
 
 [source,Dockerfile]
 ----
