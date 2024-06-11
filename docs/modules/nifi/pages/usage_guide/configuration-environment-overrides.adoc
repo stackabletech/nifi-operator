@@ -2,7 +2,7 @@
 :nifi-docs: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#system_properties
 :java-security-docs: https://docs.oracle.com/en/java/javase/11/security/java-security-overview1.html
 
-The NiFi cluster definition supports overriding configuration properties, environment variables and Pod attributes, either per role or per role group, where the more specific override (role group) has precedence over the less specific one (role).
+The NiFi cluster definition supports overriding configuration properties, environment variables, and Pod attributes. The configuration overrides can be applied either per role, or per role group where the more specific override (role group) has precedence over the less specific one (role).
 
 IMPORTANT: Do not override port numbers.
 This will lead to cluster malfunction.
