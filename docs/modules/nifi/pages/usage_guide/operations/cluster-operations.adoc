@@ -1,4 +1,4 @@
 = Cluster operation
 
-Apache NiFi installations can be configured with different cluster operations like pausing reconciliation or stopping the cluster.
+Apache NiFi installations can be configured with different cluster operations such as pausing reconciliation or stopping the cluster.
 See xref:concepts:operations/cluster_operations.adoc[cluster operations] for more details.
