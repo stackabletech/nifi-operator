@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Use [config-utils](https://github.com/stackabletech/config-utils/) for text-replacement of variables in configs.
+  This fixes escaping problems, especially when you have special characters in your password ([#XXX]).
+
 ### Added
 
 - Support specifying the SecretClass that is used to obtain TLS certificates ([#662]).

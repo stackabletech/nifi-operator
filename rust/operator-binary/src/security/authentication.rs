@@ -11,10 +11,6 @@ pub const STACKABLE_ADMIN_USER_NAME: &str = "admin";
 
 const STACKABLE_USER_VOLUME_MOUNT_PATH: &str = "/stackable/users";
 
-const STACKABLE_SINGLE_USER_PASSWORD_PLACEHOLDER: &str = "xxx_singleuser_password_xxx";
-const STACKABLE_LDAP_BIND_USER_NAME_PLACEHOLDER: &str = "xxx_ldap_bind_username_xxx";
-const STACKABLE_LDAP_BIND_USER_PASSWORD_PLACEHOLDER: &str = "xxx_ldap_bind_password_xxx";
-
 pub const LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME: &str = "login-identity-providers.xml";
 pub const AUTHORIZERS_XML_FILE_NAME: &str = "authorizers.xml";
 
@@ -31,12 +27,15 @@ pub enum Error {
         authentication_class_provider: String,
     },
 
-    #[snafu(display(
-        "there was an error adding LDAP Volumes and VolumeMounts to the Pod and containers"
-    ))]
+    #[snafu(display("Failed to add LDAP volumes and volumeMounts to the Pod and containers"))]
     AddLdapVolumes {
         source: stackable_operator::commons::authentication::ldap::Error,
     },
+
+    #[snafu(display(
+        "The LDAP AuthenticationClass is missing the bind credentials. Currently nifi-operator only supports connecting to LDAP server using bind credentials"
+    ))]
+    LdapAuthenticationClassMissingBindCredentials {},
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -46,7 +45,7 @@ pub enum NifiAuthenticationConfig {
 }
 
 impl NifiAuthenticationConfig {
-    pub fn get_auth_config(&self) -> (String, String) {
+    pub fn get_auth_config(&self) -> Result<(String, String), Error> {
         let mut login_identity_provider_xml = indoc! {r#"
             <?xml version="1.0" encoding="UTF-8" standalone="no"?>
             <loginIdentityProviders>
@@ -65,9 +64,11 @@ impl NifiAuthenticationConfig {
                         <identifier>login-identity-provider</identifier>
                         <class>org.apache.nifi.authentication.single.user.SingleUserLoginIdentityProvider</class>
                         <property name="Username">{STACKABLE_ADMIN_USER_NAME}</property>
-                        <property name="Password">{STACKABLE_SINGLE_USER_PASSWORD_PLACEHOLDER}</property>
+                        <property name="Password">${{file:UTF-8:{admin_password_file}}}</property>
                     </provider>
-                "#});
+                "#,
+                    admin_password_file = self.get_user_and_password_file_paths().1
+                });
 
                 authorizers_xml.push_str(indoc! {r#"
                     <authorizer>
@@ -77,8 +78,8 @@ impl NifiAuthenticationConfig {
                 "#});
             }
             Self::Ldap(ldap) => {
-                login_identity_provider_xml.push_str(&get_ldap_login_identity_provider(ldap));
-                authorizers_xml.push_str(&get_ldap_authorizer(ldap));
+                login_identity_provider_xml.push_str(&get_ldap_login_identity_provider(ldap)?);
+                authorizers_xml.push_str(&get_ldap_authorizer(ldap)?);
             }
         }
 
@@ -89,7 +90,7 @@ impl NifiAuthenticationConfig {
             </authorizers>
         "#});
 
-        (login_identity_provider_xml, authorizers_xml)
+        Ok((login_identity_provider_xml, authorizers_xml))
     }
 
     pub fn get_user_and_password_file_paths(&self) -> (String, String) {
@@ -113,32 +114,15 @@ impl NifiAuthenticationConfig {
     pub fn get_additional_container_args(&self) -> Vec<String> {
         let mut commands = Vec::new();
         match &self {
-            Self::SingleUser(_) => {
-                let (_, admin_password_file) = self.get_user_and_password_file_paths();
-                commands.extend(vec![
-                    format!("echo 'Replacing {STACKABLE_ADMIN_USER_NAME} password in {LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME} (if configured)'"),
-                    format!("sed -i \"s|{STACKABLE_SINGLE_USER_PASSWORD_PLACEHOLDER}|$(cat {admin_password_file} | java -jar /bin/stackable-bcrypt.jar)|g\" /stackable/nifi/conf/{LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME}"),
-                ]
-                );
-            }
             Self::Ldap(ldap) => {
-                if let Some((username_path, password_path)) = ldap.bind_credentials_mount_paths() {
-                    commands.extend(vec![
-                        format!("echo Replacing ldap bind username and password in {LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME}"),
-                        format!("sed -i \"s|{STACKABLE_LDAP_BIND_USER_NAME_PLACEHOLDER}|$(cat {username_path})|g\" /stackable/nifi/conf/{LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME}"),
-                        format!("sed -i \"s|{STACKABLE_LDAP_BIND_USER_PASSWORD_PLACEHOLDER}|$(cat {password_path})|g\" /stackable/nifi/conf/{LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME}"),
-                        format!("sed -i \"s|{STACKABLE_LDAP_BIND_USER_NAME_PLACEHOLDER}|$(cat {username_path})|g\" /stackable/nifi/conf/{AUTHORIZERS_XML_FILE_NAME}"),
-                    ]
-                    );
-                }
                 if let Some(ca_path) = ldap.tls.tls_ca_cert_mount_path() {
                     commands.extend(vec![
                         "echo Adding LDAP tls cert to global truststore".to_string(),
                         format!("keytool -importcert -file {ca_path} -keystore {STACKABLE_SERVER_TLS_DIR}/truststore.p12 -storetype pkcs12 -noprompt -alias ldap_ca_cert -storepass {STACKABLE_TLS_STORE_PASSWORD}"),
-                    ]
-                    );
+                    ]);
                 }
             }
+            _ => {}
         }
         commands
     }
@@ -208,7 +192,7 @@ impl NifiAuthenticationConfig {
     }
 }
 
-fn get_ldap_login_identity_provider(ldap: &ldap::AuthenticationProvider) -> String {
+fn get_ldap_login_identity_provider(ldap: &ldap::AuthenticationProvider) -> Result<String, Error> {
     let mut search_filter = ldap.search_filter.clone();
 
     // If no search_filter is specified we will set a default filter that just searches for the user logging in using the specified uid field name
@@ -217,14 +201,18 @@ fn get_ldap_login_identity_provider(ldap: &ldap::AuthenticationProvider) -> Stri
             .push_str(format!("{uidField}={{0}}", uidField = ldap.ldap_field_names.uid).as_str());
     }
 
-    formatdoc! {r#"
+    let (username_file, password_file) = ldap
+        .bind_credentials_mount_paths()
+        .context(LdapAuthenticationClassMissingBindCredentialsSnafu)?;
+
+    Ok(formatdoc! {r#"
         <provider>
             <identifier>login-identity-provider</identifier>
             <class>org.apache.nifi.ldap.LdapProvider</class>
             <property name="Authentication Strategy">{authentication_strategy}</property>
 
-            <property name="Manager DN">{STACKABLE_LDAP_BIND_USER_NAME_PLACEHOLDER}</property>
-            <property name="Manager Password">{STACKABLE_LDAP_BIND_USER_PASSWORD_PLACEHOLDER}</property>
+            <property name="Manager DN">${{file:UTF-8:{username_file}}}</property>
+            <property name="Manager Password">${{file:UTF-8:{password_file}}}</property>
 
             <property name="Referral Strategy">THROW</property>
             <property name="Connect Timeout">10 secs</property>
@@ -266,11 +254,15 @@ fn get_ldap_login_identity_provider(ldap: &ldap::AuthenticationProvider) -> Stri
         port = ldap.port(),
         search_base = ldap.search_base,
         keystore_path = STACKABLE_SERVER_TLS_DIR,
-    }
+    })
 }
 
-fn get_ldap_authorizer(_ldap: &ldap::AuthenticationProvider) -> String {
-    formatdoc! {r#"
+fn get_ldap_authorizer(ldap: &ldap::AuthenticationProvider) -> Result<String, Error> {
+    let (username_file, _) = ldap
+        .bind_credentials_mount_paths()
+        .context(LdapAuthenticationClassMissingBindCredentialsSnafu)?;
+
+    Ok(formatdoc! {r#"
         <userGroupProvider>
             <identifier>file-user-group-provider</identifier>
             <class>org.apache.nifi.authorization.FileUserGroupProvider</class>
@@ -278,7 +270,7 @@ fn get_ldap_authorizer(_ldap: &ldap::AuthenticationProvider) -> String {
 
             <!-- As we currently don't have authorization (including admin user) configurable we simply paste in the ldap bind user in here -->
             <!-- In the future the whole authorization may be reworked to OPA -->
-            <property name="Initial User Identity admin">{STACKABLE_LDAP_BIND_USER_NAME_PLACEHOLDER}</property>
+            <property name="Initial User Identity admin">${{file:UTF-8:{username_file}}}</property>
 
             <!-- As the secret-operator provides the NiFi nodes with cert with a common name of "generated certificate for pod" we have to put that here -->
             <property name="Initial User Identity other-nifis">CN=generated certificate for pod</property>
@@ -292,7 +284,7 @@ fn get_ldap_authorizer(_ldap: &ldap::AuthenticationProvider) -> String {
 
             <!-- As we currently don't have authorization (including admin user) configurable we simply paste in the ldap bind user in here -->
             <!-- In the future the whole authorization may be reworked to OPA -->
-            <property name="Initial Admin Identity">{STACKABLE_LDAP_BIND_USER_NAME_PLACEHOLDER}</property>
+            <property name="Initial Admin Identity">${{file:UTF-8:{username_file}}}</property>
 
             <!-- As the secret-operator provides the NiFi nodes with cert with a common name of "generated certificate for pod" we have to put that here -->
             <property name="Node Identity other-nifis">CN=generated certificate for pod</property>
@@ -303,5 +295,5 @@ fn get_ldap_authorizer(_ldap: &ldap::AuthenticationProvider) -> String {
             <class>org.apache.nifi.authorization.StandardManagedAuthorizer</class>
             <property name="Access Policy Provider">file-access-policy-provider</property>
         </authorizer>
-    "#}
+    "#})
 }
