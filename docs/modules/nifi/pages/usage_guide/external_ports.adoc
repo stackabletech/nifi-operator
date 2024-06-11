@@ -38,7 +38,7 @@ spec:
 Depending on the Kubernetes configuration this snippet will request and external ip address and open port 8080 on that ip address.
 Any requests to this port will be forwarded to port 8123 on the NiFi pods - and thus the processor.
 
-If LoadBalancer Services are not available, a NodePort Service would be an alternative:
+If LoadBalancer Services or Ingress resources are not available for use, a NodePort Service would be an alternative:
 
 [source,yaml]
 ----
