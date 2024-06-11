@@ -11,7 +11,7 @@ Please note that building your own Docker image is the recommended solution, as 
 
 == Custom Docker image
 
-You can extend the official Stackable NiFi image and copy all required nar files into the classpath of Nifi.
+You can extend the official Stackable NiFi image and copy all required _nar_ files into the classpath of Nifi.
 The benefit of this method is that there is no need for any config overrides or extra mounts, you can use any ouf our NiFi examples, swap the image and your components will be available.
 But this means you will need to have access to a registry to push your custom image to.
 
