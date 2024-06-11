@@ -1,7 +1,7 @@
 = Installation
 
-On this page you will install the Stackable Operator for Apache NiFi and operators for its dependencies - ZooKeeper -
-as well as the commons, secret and listener operator which are required by all Stackable Operators.
+On this page you will install the Stackable operator for Apache NiFi and operators for its dependencies - ZooKeeper -
+as well as the commons, secret and listener operator which are required by all Stackable operators.
 
 == Stackable operators
 
@@ -47,7 +47,7 @@ You can also use Helm to install the operators. Add the Stackable Helm repositor
 include::example$getting_started/getting_started.sh[tag=helm-add-repo]
 ----
 
-Then install the Stackable Operators:
+Then install the Stackable operators:
 
 [source,bash]
 ----
