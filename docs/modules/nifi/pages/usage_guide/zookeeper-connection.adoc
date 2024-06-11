@@ -10,4 +10,4 @@ spec:
 ----
 
 Configuration happens via a xref:concepts:service-discovery.adoc[discovery ConfigMap], which needs to contain two keys called `ZOOKEEPER_HOSTS` with the value being the ZooKeeper connection string and `ZOOKEEPER_CHROOT` with the value being the ZooKeeper chroot.
-When using the xref:zookeeper:index.adoc[Stackable Operator for Apache ZooKeeper], the operator creates this ConfigMap for every ZNode automatically.
+When using the xref:zookeeper:index.adoc[Stackable operator for Apache ZooKeeper], the operator creates this ConfigMap for every ZNode automatically.
