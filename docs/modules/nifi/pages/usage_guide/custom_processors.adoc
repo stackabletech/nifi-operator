@@ -39,7 +39,7 @@ Also read the xref:guides:custom-images.adoc[Using customized product images] gu
 If you don't want to create a custom image or don't have access to an image registry, you can use the extra volume mount functionality to mount a volume containing your custom components and configure NiFi to read these from the mounted volumes.
 
 For this to work you'll need to prepare a PersistentVolumeClaim (PVC) containing your components.
-Usually the best way to do this will be to mount the PVC into a temporary container and then `kubectl cp` the nar files into that volume.
+Usually the best way to do this will be to mount the PVC into a temporary container and then `kubectl cp` the _nar_ files into that volume.
 
 The following listing shows an example of creating the PVC and the Pod:
 
