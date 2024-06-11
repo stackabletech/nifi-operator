@@ -56,7 +56,7 @@ To cache resolved host names, and thus increase the performance your Nifi cluste
 
 NOTE: The operator configures DNS caching by default as shown in the example above.
 
-For details on the JVM security consult the {java-security-docs}[Java security overview].
+For details on the JVM security, consult the {java-security-docs}[Java security overview].
 
 == Environment variables
 
