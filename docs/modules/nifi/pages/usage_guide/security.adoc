@@ -115,7 +115,7 @@ With this authorization method, a single user has administrator capabilities.
 === LDAP
 
 The operator uses the {nifi-docs-fileusergroupprovider}[`FileUserGroupProvider`] and {nifi-docs-fileaccesspolicyprovider}[FileAccessPolicyProvider] to bind the LDAP user to the NiFi administrator group.
-This user is then able to create and modify groups and polices in the web interface.
+This user is then able to create and modify groups and policies in the web interface.
 These changes local to the Pod running NiFi and are *not* persistent.
 
 [#encrypting-sensitive-properties]
