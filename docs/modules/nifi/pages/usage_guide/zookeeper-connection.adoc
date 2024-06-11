@@ -1,6 +1,6 @@
 = Connecting NiFi to Apache ZooKeeper
 
-NiFi in cluster mode requires an Apache ZooKeeper ensemble for state management and leader election purposes, the Stackable Operator for Apache NiFi does not support single node deployments without ZooKeeper, hence this is a required setting.
+NiFi in cluster mode requires an Apache ZooKeeper ensemble for state management and leader election purposes, the Stackable operator for Apache NiFi does not support single node deployments without ZooKeeper, hence this is a required setting.
 
 [source,yaml]
 ----
