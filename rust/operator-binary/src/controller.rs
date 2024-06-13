@@ -943,7 +943,12 @@ async fn build_node_rolegroup_statefulset(
         "cp /conf/* /stackable/nifi/conf".to_string(),
         "ln -sf /stackable/log_config/logback.xml /stackable/nifi/conf/logback.xml".to_string(),
         format!("export NODE_ADDRESS=\"{node_address}\""),
+    ]);
 
+    // This commands needs to go first, as they might set env variables needed by the templating
+    prepare_args.extend_from_slice(nifi_auth_config.get_additional_container_args().as_slice());
+
+    prepare_args.extend(vec![
         "echo Templating config files".to_string(),
         "config-utils template /stackable/nifi/conf/nifi.properties".to_string(),
         "config-utils template /stackable/nifi/conf/state-management.xml".to_string(),
@@ -951,8 +956,6 @@ async fn build_node_rolegroup_statefulset(
         "config-utils template /stackable/nifi/conf/authorizers.xml".to_string(),
         "config-utils template /stackable/nifi/conf/security.properties".to_string(),
     ]);
-
-    prepare_args.extend_from_slice(nifi_auth_config.get_additional_container_args().as_slice());
 
     let mut container_prepare =
         ContainerBuilder::new(&prepare_container_name).with_context(|_| {

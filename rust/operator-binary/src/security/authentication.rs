@@ -7,7 +7,7 @@ use stackable_operator::commons::authentication::{
 };
 use stackable_operator::k8s_openapi::api::core::v1::{KeyToPath, SecretVolumeSource, Volume};
 
-pub const STACKABLE_ADMIN_USER_NAME: &str = "admin";
+pub const STACKABLE_ADMIN_USERNAME: &str = "admin";
 
 const STACKABLE_USER_VOLUME_MOUNT_PATH: &str = "/stackable/users";
 
@@ -33,7 +33,7 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "The LDAP AuthenticationClass is missing the bind credentials. Currently nifi-operator only supports connecting to LDAP server using bind credentials"
+        "The LDAP AuthenticationClass is missing the bind credentials. Currently nifi-operator only supports connecting to LDAP servers using bind credentials"
     ))]
     LdapAuthenticationClassMissingBindCredentials {},
 }
@@ -63,11 +63,10 @@ impl NifiAuthenticationConfig {
                     <provider>
                         <identifier>login-identity-provider</identifier>
                         <class>org.apache.nifi.authentication.single.user.SingleUserLoginIdentityProvider</class>
-                        <property name="Username">{STACKABLE_ADMIN_USER_NAME}</property>
-                        <property name="Password">${{file:UTF-8:{admin_password_file}}}</property>
+                        <property name="Username">{STACKABLE_ADMIN_USERNAME}</property>
+                        <property name="Password">${{env:STACKABLE_ADMIN_PASSWORD}}</property>
                     </provider>
                 "#,
-                    admin_password_file = self.get_user_and_password_file_paths().1
                 });
 
                 authorizers_xml.push_str(indoc! {r#"
@@ -99,7 +98,7 @@ impl NifiAuthenticationConfig {
         match &self {
             Self::SingleUser(_) => {
                 admin_password_file =
-                    format!("{STACKABLE_USER_VOLUME_MOUNT_PATH}/{STACKABLE_ADMIN_USER_NAME}");
+                    format!("{STACKABLE_USER_VOLUME_MOUNT_PATH}/{STACKABLE_ADMIN_USERNAME}");
             }
             Self::Ldap(ldap) => {
                 if let Some((user_path, password_path)) = ldap.bind_credentials_mount_paths() {
@@ -114,6 +113,12 @@ impl NifiAuthenticationConfig {
     pub fn get_additional_container_args(&self) -> Vec<String> {
         let mut commands = Vec::new();
         match &self {
+            Self::SingleUser(_) => {
+                let (_, admin_password_file) = self.get_user_and_password_file_paths();
+                commands.extend(vec![
+                    format!("export STACKABLE_ADMIN_PASSWORD=\"$(cat {admin_password_file} | java -jar /bin/stackable-bcrypt.jar)\""),
+                ]);
+            }
             Self::Ldap(ldap) => {
                 if let Some(ca_path) = ldap.tls.tls_ca_cert_mount_path() {
                     commands.extend(vec![
@@ -122,7 +127,6 @@ impl NifiAuthenticationConfig {
                     ]);
                 }
             }
-            _ => {}
         }
         commands
     }
@@ -137,13 +141,13 @@ impl NifiAuthenticationConfig {
         match &self {
             Self::SingleUser(provider) => {
                 let admin_volume = Volume {
-                    name: STACKABLE_ADMIN_USER_NAME.to_string(),
+                    name: STACKABLE_ADMIN_USERNAME.to_string(),
                     secret: Some(SecretVolumeSource {
                         secret_name: Some(provider.user_credentials_secret.name.to_string()),
                         optional: Some(false),
                         items: Some(vec![KeyToPath {
-                            key: STACKABLE_ADMIN_USER_NAME.to_string(),
-                            path: STACKABLE_ADMIN_USER_NAME.to_string(),
+                            key: STACKABLE_ADMIN_USERNAME.to_string(),
+                            path: STACKABLE_ADMIN_USERNAME.to_string(),
                             ..KeyToPath::default()
                         }]),
                         ..SecretVolumeSource::default()
@@ -153,10 +157,7 @@ impl NifiAuthenticationConfig {
                 pod_builder.add_volume(admin_volume);
 
                 for cb in container_builders {
-                    cb.add_volume_mount(
-                        STACKABLE_ADMIN_USER_NAME,
-                        STACKABLE_USER_VOLUME_MOUNT_PATH,
-                    );
+                    cb.add_volume_mount(STACKABLE_ADMIN_USERNAME, STACKABLE_USER_VOLUME_MOUNT_PATH);
                 }
             }
             Self::Ldap(ldap) => {

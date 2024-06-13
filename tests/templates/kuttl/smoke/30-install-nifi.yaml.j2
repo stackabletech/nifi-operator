@@ -14,7 +14,8 @@ kind: Secret
 metadata:
   name: simple-nifi-admin-credentials
 stringData:
-  admin: supersecretpassword
+  admin: >
+    passwordWithSpecialCharacter\@<&>"'
 ---
 apiVersion: v1
 kind: Secret
