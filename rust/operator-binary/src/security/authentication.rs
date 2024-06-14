@@ -33,7 +33,7 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "The LDAP AuthenticationClass is missing the bind credentials. Currently nifi-operator only supports connecting to LDAP servers using bind credentials"
+        "The LDAP AuthenticationClass is missing the bind credentials. Currently the NiFi operator only supports connecting to LDAP servers using bind credentials"
     ))]
     LdapAuthenticationClassMissingBindCredentials {},
 }
