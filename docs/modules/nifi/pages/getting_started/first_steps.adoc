@@ -31,7 +31,8 @@ The xref:zookeeper:znodes.adoc[ZNode] makes sure that the NiFi cluster will oper
 
 === Apache NiFi
 
-The NiFi cluster requires authentication. Create a set of credentials for this purpose:
+The NiFi cluster requires authentication.
+Create a set of credentials for this purpose:
 
 [source,bash]
 ----

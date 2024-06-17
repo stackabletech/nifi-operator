@@ -1,6 +1,7 @@
 = Getting started
 
-This guide will get you started with Apache NiFi using the Stackable operator. It will guide you through the installation of the operator and its dependencies, setting up your first NiFi cluster.
+This guide will get you started with Apache NiFi using the Stackable operator.
+It will guide you through the installation of the operator and its dependencies, setting up your first NiFi cluster.
 
 == Prerequisites
 

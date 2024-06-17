@@ -30,7 +30,7 @@ nodes:
 
 In the above example, all nodes in the default group will request `12Gi` of storage the various folders.
 
-== Resource Requests
+== Resource requests
 
 include::home:concepts:stackable_resource_requests.adoc[]
 

@@ -1,6 +1,7 @@
 = Writing to Iceberg tables
+:iceberg: https://iceberg.apache.org/ 
 
-https://iceberg.apache.org/[Apache Iceberg] is a high-performance format for huge analytic tables.
+{iceberg}[Apache Iceberg] is a high-performance format for huge analytic tables.
 Iceberg brings the reliability and simplicity of SQL tables to big data, while making it possible for engines like Spark, Trino, Flink, Presto, Hive and Impala to safely work with the same tables, at the same time.
 
 NiFi supports a `PutIceberg` processor to add rows to an existing Iceberg table https://issues.apache.org/jira/browse/NIFI-10442[starting from version 1.19.0].
