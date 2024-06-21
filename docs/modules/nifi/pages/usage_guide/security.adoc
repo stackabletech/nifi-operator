@@ -1,4 +1,8 @@
 = Security
+:nifi-docs-authorization: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#multi-tenant-authorization
+:nifi-docs-fileusergroupprovider: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#fileusergroupprovider
+:nifi-docs-fileaccesspolicyprovider: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#fileaccesspolicyprovider
+:nifi-docs-sensitive-properties-key: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#nifi_sensitive_props_key
 
 == TLS
 
@@ -28,7 +32,8 @@ All authentication related parameters are configured under `spec.clusterConfig.a
 
 === Single user
 
-The `Single user` allows the creation of one admin user for NiFi. This is a simple authentication method to quickly test and login to the canvas.
+The `Single user` allows the creation of one admin user for NiFi.
+This is a rudimentary authentication method to quickly test and log in to the canvas.
 However, due to it being a single user with all rights, this is not recommended in production.
 
 [source, yaml]
@@ -75,7 +80,8 @@ spec:
 [#authentication-ldap]
 === LDAP
 
-NiFi supports xref:concepts:authentication.adoc[authentication] of users against an LDAP server. This requires setting up an AuthenticationClass for the LDAP server.
+NiFi supports xref:concepts:authentication.adoc[authentication] of users against an LDAP server.
+This requires setting up an AuthenticationClass for the LDAP server.
 The AuthenticationClass is then referenced in the NifiCluster resource as follows:
 
 [source,yaml]
@@ -97,8 +103,7 @@ You can follow the xref:tutorials:authentication_with_openldap.adoc[] tutorial t
 [#authorization]
 == Authorization
 
-NiFi supports multiple authorization methods documented https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#multi-tenant-authorization[here].
-The available authorization methods depend on the chosen authentication method.
+NiFi supports {nifi-docs-authorization}[multiple authorization methods], the available authorization methods depend on the chosen authentication method.
 
 Authorization is not fully implemented by the Stackable Operator for Apache NiFi.
 
@@ -109,19 +114,21 @@ With this authorization method, a single user has administrator capabilities.
 [#authorization-ldap]
 === LDAP
 
-The operator uses the https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#fileusergroupprovider[`FileUserGroupProvider`] and https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#fileaccesspolicyprovider[FileAccessPolicyProvider] to bind the LDAP user to the NiFi administrator group. This user is then able to create and modify groups and polices in the web interface. These changes local to the `Pod` running NiFi and are *not* persistent.
+The operator uses the {nifi-docs-fileusergroupprovider}[`FileUserGroupProvider`] and {nifi-docs-fileaccesspolicyprovider}[FileAccessPolicyProvider] to bind the LDAP user to the NiFi administrator group.
+This user is then able to create and modify groups and policies in the web interface.
+These changes local to the Pod running NiFi and are *not* persistent.
 
 [#encrypting-sensitive-properties]
 == Encrypting sensitive properties on disk
 
 Some flows require storing a sensitive property like a password or access token, which is then stored on disk.
-NiFi https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#nifi_sensitive_props_key[encrypts these properties] in flow files.
+NiFi {nifi-docs-sensitive-properties-key}[encrypts these properties] in flow files.
 
 The sensitive property encryption is configured using the properties `keySecret`, `autoGenerate` and `algorithm` in the {crd-docs}/nifi.stackable.tech/nificluster/v1alpha1/#spec-clusterConfig-sensitiveProperties[`spec.clusterConfig.sensitiveProperties` {external-link-icon}^] configuration section of the NifiCluster resource.
 
 The `keySecret` configures the name of the Secret object that holds the encryption key; it is required to specify a Secret name.
 The Secret needs to contain the key as a value to the `nifiSensitivePropsKey` key.
-You can either specify a key yourself - in which case the key needs to be at least 12 characters long - or just specify the name of the secret and set `autoGenerate` to `true` (the default is false).
+You can either specify a key yourself - in which case the key needs to be at least 12 characters long - or just specify the name of the Secret and set `autoGenerate` to `true` (the default is false).
 If `autoGenerate` is false and no Secret with the given name in `keySecret` is found, the operator will raise an error.
 
 The `algorithm` property configures the encryption algorithm used to encrypt the sensitive properties.

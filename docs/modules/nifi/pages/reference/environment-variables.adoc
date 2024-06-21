@@ -16,7 +16,7 @@ export PRODUCT_CONFIG=/foo/bar/properties.yaml
 stackable-nifi-operator run
 ----
 
-or via docker:
+or via Docker:
 
 ----
 docker run \
@@ -44,7 +44,7 @@ export WATCH_NAMESPACE=test
 stackable-nifi-operator run
 ----
 
-or via docker:
+or via Docker:
 
 [source]
 ----

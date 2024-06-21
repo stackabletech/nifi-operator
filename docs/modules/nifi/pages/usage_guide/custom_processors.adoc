@@ -1,6 +1,7 @@
-= Loading Custom Components
+= Loading custom components
+:nifi-docs-custom-components: https://nifi.apache.org/docs/nifi-docs/html/developer-guide.html#introduction
 
-It is possible to develop https://nifi.apache.org/docs/nifi-docs/html/developer-guide.html#introduction[custom components] for Apache NiFi to extend the available functionality - most often this will probably be custom processors.
+It is possible to develop {nifi-docs-custom-components}[custom components] for Apache NiFi to extend the available functionality - most often this will probably be custom processors.
 
 For these to be available in the NiFi UI, they need to be present in the classpath at startup, so the nar bundles have to be injected into your NiFi instance.
 
@@ -8,13 +9,13 @@ The Stackable Data Platform supports two ways to achive this goal, both of which
 
 Please note that building your own Docker image is the recommended solution, as giving multiple pods access to a shared PVC can often be tricky (see comment on access mode in the second section).
 
-== Custom Docker Image
+== Custom Docker image
 
-You can extend the official Stackable NiFi image and simply copy all required nar files into the classpath of Nifi.
-The benefit of this method is that there is no need for any config overrides or extra mounts, you can simply use any ouf our NiFi examples, swap the image and your components will be available.
+You can extend the official Stackable NiFi image and copy all required _nar_ files into the classpath of Nifi.
+The benefit of this method is that there is no need for any config overrides or extra mounts, you can use any ouf our NiFi examples, swap the image and your components will be available.
 But this means you will need to have access to a registry to push your custom image to.
 
-A simple Dockerfile would look like show in the following listing.
+The basic Dockerfile below shows how to achieve this:
 
 [source,Dockerfile]
 ----
@@ -32,11 +33,13 @@ spec:
     custom: "docker.company.org/nifi:1.25.0-customprocessor"
 ----
 
-== Using the Official Image
-If you don't want to create a custom image, then you can use the extra volume mount functionality to load components and configure NiFi with to read these from the extra volumes.
+Also read the xref:guides:custom-images.adoc[Using customized product images] guide for additional information.
 
-For this to work you'll need to prepare a PVC containing your components.
-Usually the best way to do this will be to mount the PVC into a temporary container and then simply `kubectl cp` the nar files into that volume.
+== Using the official image
+If you don't want to create a custom image or don't have access to an image registry, you can use the extra volume mount functionality to mount a volume containing your custom components and configure NiFi to read these from the mounted volumes.
+
+For this to work you'll need to prepare a PersistentVolumeClaim (PVC) containing your components.
+Usually the best way to do this will be to mount the PVC into a temporary container and then `kubectl cp` the _nar_ files into that volume.
 
 The following listing shows an example of creating the PVC and the Pod:
 
@@ -74,7 +77,7 @@ spec:
           name: nifi-processor
 ----
 
-<1> Please note that this access mode will mean that you can only use this volume with a single NiFi pod. For a distributed scenario, an additional list value of `ReadOnlyMany` could be specified here if this is supported.
+<1> Please note that this access mode will mean that you can only use this volume with a single NiFi Pod. For a distributed scenario, an additional list value of `ReadOnlyMany` could be specified here if this is supported.
 
 The command to then copy the nar bundle into the PVC is:
 
@@ -83,9 +86,9 @@ The command to then copy the nar bundle into the PVC is:
 kubectl cp /path/to/component.nar processorcopy:/volume/
 ----
 
-Now you can mount the extra volume into your NiFi instance as described in xref:nifi:usage_guide/extra-volumes.adoc[] .
+Now you can mount the extra volume into your NiFi instance as described in xref:nifi:usage_guide/extra-volumes.adoc[].
 
-After this is done your components will be available within the NiFi pods and NiFi can be configured to load these at startup by adding an extra directory to the classpath:
+After this is done your components will be available within the NiFi Pods and NiFi can be configured to load these at startup by adding an extra directory to the classpath:
 
 
 [source,yaml]
@@ -120,4 +123,4 @@ spec:
 ----
 
 <1> Specify your prepared PVC here.
-<2> The directory name after `userdata` has to match the name of the volume, while `mycustomlibs` is a name you can freely change.
+<2> The directory name after `userdata` has to match the name of the volume, while `myCustomLibs` is a name you can freely change.

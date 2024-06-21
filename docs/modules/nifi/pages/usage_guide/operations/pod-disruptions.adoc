@@ -1,4 +1,3 @@
-
 = Allowed Pod disruptions
 
 You can configure the permitted Pod disruptions for NiFi nodes as described in xref:concepts:operations/pod_disruptions.adoc[].
