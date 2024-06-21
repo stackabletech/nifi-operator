@@ -4,7 +4,7 @@
 # ldapsearch -H ldap://localhost:1389 -D "cn=admin,dc=example,dc=org" -w admin -b "ou=my users,dc=example,dc=org"
 
 # To check the new user
-# ldapsearch -H ldap://localhost:1389 -D "cn=integrationtest,ou=my users,dc=example,dc=org" -w integrationtest -b "ou=my users,dc=example,dc=org"
+# ldapsearch -H ldap://localhost:1389 -D "cn=integrationtest,ou=my users,dc=example,dc=org" -w 'bindPasswordWithSpecialCharacter\@<&>"'"'" -b "ou=my users,dc=example,dc=org"
 
 cat << 'EOF' | ldapadd -H ldap://localhost:1389 -D "cn=admin,dc=example,dc=org" -w admin
 dn: ou=my users,dc=example,dc=org
@@ -33,4 +33,4 @@ shadowMax: 0
 shadowWarning: 0
 EOF
 
-ldappasswd -H ldap://localhost:1389 -D "cn=admin,dc=example,dc=org" -w admin -s integrationtest "cn=integrationtest,ou=my users,dc=example,dc=org"
+ldappasswd -H ldap://localhost:1389 -D "cn=admin,dc=example,dc=org" -w admin -s 'bindPasswordWithSpecialCharacter\@<&>"'"'" "cn=integrationtest,ou=my users,dc=example,dc=org"

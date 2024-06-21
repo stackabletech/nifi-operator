@@ -14,7 +14,8 @@ metadata:
     secrets.stackable.tech/class: nifi-with-ldap-bind
 stringData:
   user: cn=integrationtest,ou=my users,dc=example,dc=org
-  password: integrationtest
+  password: >
+    bindPasswordWithSpecialCharacter\@<&>"'
 ---
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
@@ -42,6 +43,7 @@ spec:
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
     zookeeperConfigMapName: nifi-with-ldap-znode
+    listenerClass: external-unstable
   nodes:
     config:
       logging:

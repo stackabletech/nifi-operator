@@ -474,10 +474,10 @@ pub fn build_nifi_properties(
     );
 
     //#############################################
-
-    // This will be replaced in the init container, so 0.0.0.0 acts mainly as
-    // marker
-    properties.insert("nifi.web.https.host".to_string(), "0.0.0.0".to_string());
+    properties.insert(
+        "nifi.web.https.host".to_string(),
+        "${env:NODE_ADDRESS}".to_string(),
+    );
     properties.insert("nifi.web.https.port".to_string(), HTTPS_PORT.to_string());
     properties.insert(
         "nifi.web.https.network.interface.default".to_string(),
@@ -492,9 +492,10 @@ pub fn build_nifi_properties(
     properties.insert("nifi.web.proxy.context.path".to_string(), "".to_string());
     properties.insert("nifi.web.proxy.host".to_string(), proxy_hosts.to_string());
 
-    // security properties
-    // this property is later set from a secret, so can remain empty here
-    properties.insert("nifi.sensitive.props.key".to_string(), "".to_string());
+    properties.insert(
+        "nifi.sensitive.props.key".to_string(),
+        "${file:UTF-8:/stackable/sensitiveproperty/nifiSensitivePropsKey}".to_string(),
+    );
     properties.insert(
         "nifi.sensitive.props.key.protected".to_string(),
         "".to_string(),
@@ -562,8 +563,10 @@ pub fn build_nifi_properties(
     );
     // cluster node properties (only configure for cluster nodes)
     properties.insert("nifi.cluster.is.node".to_string(), "true".to_string());
-    // this will be overwritten to the correct FQDN in the container start command
-    properties.insert("nifi.cluster.node.address".to_string(), "".to_string());
+    properties.insert(
+        "nifi.cluster.node.address".to_string(),
+        "${env:NODE_ADDRESS}".to_string(),
+    );
     properties.insert(
         "nifi.cluster.node.protocol.port".to_string(),
         PROTOCOL_PORT.to_string(),
@@ -581,10 +584,13 @@ pub fn build_nifi_properties(
     // this will be replaced via a container command script
     properties.insert(
         "nifi.zookeeper.connect.string".to_string(),
-        "xxxxxx".to_string(),
+        "${env:ZOOKEEPER_HOSTS}".to_string(),
     );
     // this will be replaced via a container command script
-    properties.insert("nifi.zookeeper.root.node".to_string(), "xxxxxx".to_string());
+    properties.insert(
+        "nifi.zookeeper.root.node".to_string(),
+        "${env:ZOOKEEPER_CHROOT}".to_string(),
+    );
 
     // override with config overrides
     properties.extend(overrides);
@@ -593,8 +599,6 @@ pub fn build_nifi_properties(
 }
 
 pub fn build_state_management_xml() -> String {
-    // The "xxxxxx" Connect String is a placeholder and will be replaced via container
-    // command script
     format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
         <stateManagement>
@@ -609,8 +613,8 @@ pub fn build_state_management_xml() -> String {
           <cluster-provider>
             <id>zk-provider</id>
             <class>org.apache.nifi.controller.state.providers.zookeeper.ZooKeeperStateProvider</class>
-            <property name=\"Connect String\">xxxxxx</property>
-            <property name=\"Root Node\">yyyyyy</property>
+            <property name=\"Connect String\">${{env:ZOOKEEPER_HOSTS}}</property>
+            <property name=\"Root Node\">${{env:ZOOKEEPER_CHROOT}}</property>
             <property name=\"Session Timeout\">10 seconds</property>
             <property name=\"Access Control\">Open</property>
           </cluster-provider>

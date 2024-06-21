@@ -46,7 +46,7 @@ use stackable_operator::{
 };
 
 use crate::security::{
-    authentication::{NifiAuthenticationConfig, STACKABLE_ADMIN_USER_NAME},
+    authentication::{NifiAuthenticationConfig, STACKABLE_ADMIN_USERNAME},
     build_tls_volume,
 };
 
@@ -249,7 +249,7 @@ fn build_reporting_task_job(
 
     let user_name_command = if admin_username_file.is_empty() {
         // In case of the username being simple (e.g admin for SingleUser) just use it as is
-        format!("-u {STACKABLE_ADMIN_USER_NAME}")
+        format!("-u {STACKABLE_ADMIN_USERNAME}")
     } else {
         // If the username is a bind dn (e.g. cn=integrationtest,ou=my users,dc=example,dc=org) we have to extract the cn/dn/uid (in this case integrationtest)
         format!(
