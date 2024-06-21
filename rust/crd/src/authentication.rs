@@ -1,95 +1,167 @@
-use serde::{Deserialize, Serialize};
-use snafu::{ResultExt, Snafu};
-use stackable_operator::commons::authentication::AuthenticationClassProvider;
+use std::future::Future;
+
+use snafu::{ensure, ResultExt, Snafu};
+use stackable_operator::commons::authentication::oidc::IdentityProviderHint;
+use stackable_operator::commons::authentication::{
+    ldap, oidc, static_, AuthenticationClassProvider, ClientAuthenticationDetails,
+};
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::{
-    client::Client,
-    commons::authentication::AuthenticationClass,
+    client::Client, commons::authentication::AuthenticationClass,
     kube::runtime::reflector::ObjectRef,
-    schemars::{self, JsonSchema},
 };
+use tracing::info;
+
+// The assumed OIDC provider if no hint is given in the AuthClass
+pub const DEFAULT_OIDC_PROVIDER: IdentityProviderHint = IdentityProviderHint::Keycloak;
+
+const SUPPORTED_OIDC_PROVIDERS: &[IdentityProviderHint] = &[IdentityProviderHint::Keycloak];
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("Failed to retrieve AuthenticationClass {authentication_class}"))]
-    AuthenticationClassRetrieval {
+    #[snafu(display("failed to retrieve AuthenticationClass"))]
+    AuthenticationClassRetrievalFailed {
         source: stackable_operator::client::Error,
-        authentication_class: ObjectRef<AuthenticationClass>,
     },
+
     #[snafu(display("The nifi-operator does not support running Nifi without any authentication. Please provide a AuthenticationClass to use."))]
     NoAuthenticationNotSupported {},
+
     #[snafu(display("The nifi-operator does not support multiple AuthenticationClasses simultaneously. Please provide a single AuthenticationClass to use."))]
     MultipleAuthenticationClassesNotSupported {},
+
     #[snafu(display("The nifi-operator does not support the AuthenticationClass provider [{authentication_class_provider}] from AuthenticationClass [{authentication_class}]."))]
     AuthenticationClassProviderNotSupported {
         authentication_class_provider: String,
         authentication_class: ObjectRef<AuthenticationClass>,
     },
+
     #[snafu(display("Nifi doesn't support skipping the LDAP TLS verification of the AuthenticationClass {authentication_class}"))]
     NoLdapTlsVerificationNotSupported {
         authentication_class: ObjectRef<AuthenticationClass>,
+    },
+    #[snafu(display("invalid OIDC configuration"))]
+    OidcConfigurationInvalid {
+        source: stackable_operator::commons::authentication::Error,
+    },
+    #[snafu(display("the OIDC provider {oidc_provider:?} is not yet supported (AuthenticationClass {auth_class_name:?})"))]
+    OidcProviderNotSupported {
+        auth_class_name: String,
+        oidc_provider: String,
     },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NifiAuthenticationClassRef {
-    /// Name of the [AuthenticationClass](DOCS_BASE_URL_PLACEHOLDER/concepts/authentication) used to authenticate users.
-    /// Supported providers are `static` and `ldap`.
-    /// For `static` the "admin" user needs to be present in the referenced secret, and only this user will be added to NiFi, other users are ignored.
-    pub authentication_class: String,
+#[derive(Clone)]
+pub enum AuthenticationClassResolved {
+    Static {
+        provider: static_::AuthenticationProvider,
+    },
+    Ldap {
+        provider: ldap::AuthenticationProvider,
+    },
+    Oidc {
+        provider: oidc::AuthenticationProvider,
+        oidc: oidc::ClientAuthenticationOptions<()>,
+    },
 }
 
-/// Retrieve all provided `AuthenticationClass` references.
-pub async fn resolve_authentication_classes(
-    client: &Client,
-    authentication_class_refs: &Vec<NifiAuthenticationClassRef>,
-) -> Result<Vec<AuthenticationClass>> {
-    let mut resolved_auth_classes = vec![];
-
-    match authentication_class_refs.len() {
-        0 => NoAuthenticationNotSupportedSnafu.fail()?,
-        1 => {}
-        _ => MultipleAuthenticationClassesNotSupportedSnafu.fail()?,
+impl AuthenticationClassResolved {
+    pub async fn from(
+        auth_details: &[ClientAuthenticationDetails],
+        client: &Client,
+    ) -> Result<Vec<AuthenticationClassResolved>> {
+        let resolve_auth_class = |auth_details: ClientAuthenticationDetails| async move {
+            auth_details.resolve_class(client).await
+        };
+        AuthenticationClassResolved::resolve(auth_details, resolve_auth_class).await
     }
 
-    for auth_class in authentication_class_refs {
-        let resolved_auth_class =
-            AuthenticationClass::resolve(client, &auth_class.authentication_class)
+    /// Retrieve all provided `AuthenticationClass` references.
+    pub async fn resolve<R>(
+        auth_details: &[ClientAuthenticationDetails],
+        resolve_auth_class: impl Fn(ClientAuthenticationDetails) -> R,
+    ) -> Result<Vec<AuthenticationClassResolved>>
+    where
+        R: Future<Output = Result<AuthenticationClass, stackable_operator::client::Error>>,
+    {
+        let mut resolved_auth_classes = vec![];
+
+        match auth_details.len() {
+            0 => NoAuthenticationNotSupportedSnafu.fail()?,
+            1 => {}
+            _ => MultipleAuthenticationClassesNotSupportedSnafu.fail()?,
+        }
+
+        for entry in auth_details {
+            let auth_class = resolve_auth_class(entry.clone())
                 .await
-                .context(AuthenticationClassRetrievalSnafu {
-                    authentication_class: ObjectRef::<AuthenticationClass>::new(
-                        &auth_class.authentication_class,
-                    ),
-                })?;
+                .context(AuthenticationClassRetrievalFailedSnafu)?;
 
-        let resolved_auth_class_name = resolved_auth_class.name_any();
+            let auth_class_name = auth_class.name_any();
 
-        match &resolved_auth_class.spec.provider {
-            AuthenticationClassProvider::Static(_) => {}
-            AuthenticationClassProvider::Ldap(ldap) => {
-                if ldap.tls.uses_tls() && !ldap.tls.uses_tls_verification() {
-                    NoLdapTlsVerificationNotSupportedSnafu {
-                        authentication_class: ObjectRef::<AuthenticationClass>::new(
-                            &resolved_auth_class_name,
-                        ),
-                    }
-                    .fail()?
+            match &auth_class.spec.provider {
+                AuthenticationClassProvider::Static(provider) => {
+                    resolved_auth_classes.push(AuthenticationClassResolved::Static {
+                        provider: provider.to_owned(),
+                    })
                 }
-            }
-            _ => AuthenticationClassProviderNotSupportedSnafu {
-                authentication_class_provider: resolved_auth_class.spec.provider.to_string(),
-                authentication_class: ObjectRef::<AuthenticationClass>::new(
-                    &resolved_auth_class_name,
+                AuthenticationClassProvider::Ldap(provider) => {
+                    if provider.tls.uses_tls() && !provider.tls.uses_tls_verification() {
+                        NoLdapTlsVerificationNotSupportedSnafu {
+                            authentication_class: ObjectRef::<AuthenticationClass>::new(
+                                &auth_class_name,
+                            ),
+                        }
+                        .fail()?
+                    }
+                    resolved_auth_classes.push(AuthenticationClassResolved::Ldap {
+                        provider: provider.to_owned(),
+                    })
+                }
+                AuthenticationClassProvider::Oidc(provider) => resolved_auth_classes.push(
+                    AuthenticationClassResolved::from_oidc(&auth_class_name, provider, entry)?,
                 ),
+                _ => AuthenticationClassProviderNotSupportedSnafu {
+                    authentication_class_provider: auth_class.spec.provider.to_string(),
+                    authentication_class: ObjectRef::<AuthenticationClass>::new(&auth_class_name),
+                }
+                .fail()?,
+            };
+        }
+
+        Ok(resolved_auth_classes)
+    }
+
+    fn from_oidc(
+        auth_class_name: &str,
+        provider: &oidc::AuthenticationProvider,
+        auth_details: &ClientAuthenticationDetails,
+    ) -> Result<AuthenticationClassResolved> {
+        let oidc_provider = match &provider.provider_hint {
+            None => {
+                info!("No OIDC provider hint given in AuthClass {auth_class_name}, assuming {default_oidc_provider_name}",
+                    default_oidc_provider_name = serde_json::to_string(&DEFAULT_OIDC_PROVIDER).unwrap());
+                DEFAULT_OIDC_PROVIDER
             }
-            .fail()?,
+            Some(oidc_provider) => oidc_provider.to_owned(),
         };
 
-        resolved_auth_classes.push(resolved_auth_class);
-    }
+        ensure!(
+            SUPPORTED_OIDC_PROVIDERS.contains(&oidc_provider),
+            OidcProviderNotSupportedSnafu {
+                auth_class_name,
+                oidc_provider: serde_json::to_string(&oidc_provider).unwrap(),
+            }
+        );
 
-    Ok(resolved_auth_classes)
+        Ok(AuthenticationClassResolved::Oidc {
+            provider: provider.to_owned(),
+            oidc: auth_details
+                .oidc_or_error(auth_class_name)
+                .context(OidcConfigurationInvalidSnafu)?
+                .clone(),
+        })
+    }
 }

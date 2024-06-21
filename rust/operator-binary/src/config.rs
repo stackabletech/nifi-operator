@@ -10,7 +10,10 @@ use stackable_nifi_crd::{
     PROTOCOL_PORT,
 };
 use stackable_operator::{
-    commons::resources::Resources,
+    commons::{
+        authentication::oidc::{AuthenticationProvider, DEFAULT_OIDC_WELLKNOWN_PATH},
+        resources::Resources,
+    },
     memory::{BinaryMultiple, MemoryQuantity},
     product_config_utils::{
         transform_all_roles_to_config, validate_all_roles_and_groups_config,
@@ -22,7 +25,9 @@ use strum::{Display, EnumIter};
 
 use crate::{
     operations::graceful_shutdown::graceful_shutdown_config_properties,
-    security::authentication::{STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD},
+    security::authentication::{
+        NifiAuthenticationConfig, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
+    },
 };
 
 pub const NIFI_CONFIG_DIRECTORY: &str = "/stackable/nifi/conf";
@@ -81,6 +86,10 @@ pub enum Error {
     CalculateStorageQuota {
         source: stackable_operator::memory::Error,
         repo: NifiRepository,
+    },
+    #[snafu(display("Invalid OIDC endpoint URL"))]
+    InvalidOidcEndpoint {
+        source: stackable_operator::commons::authentication::oidc::Error,
     },
 }
 
@@ -178,6 +187,7 @@ pub fn build_nifi_properties(
     spec: &NifiSpec,
     resource_config: &Resources<NifiStorageConfig>,
     proxy_hosts: &str,
+    auth_config: &NifiAuthenticationConfig,
     overrides: BTreeMap<String, String>,
 ) -> Result<String, Error> {
     let mut properties = BTreeMap::new();
@@ -474,10 +484,10 @@ pub fn build_nifi_properties(
     );
 
     //#############################################
-
-    // This will be replaced in the init container, so 0.0.0.0 acts mainly as
-    // marker
-    properties.insert("nifi.web.https.host".to_string(), "0.0.0.0".to_string());
+    properties.insert(
+        "nifi.web.https.host".to_string(),
+        "${env:NODE_ADDRESS}".to_string(),
+    );
     properties.insert("nifi.web.https.port".to_string(), HTTPS_PORT.to_string());
     properties.insert(
         "nifi.web.https.network.interface.default".to_string(),
@@ -492,9 +502,10 @@ pub fn build_nifi_properties(
     properties.insert("nifi.web.proxy.context.path".to_string(), "".to_string());
     properties.insert("nifi.web.proxy.host".to_string(), proxy_hosts.to_string());
 
-    // security properties
-    // this property is later set from a secret, so can remain empty here
-    properties.insert("nifi.sensitive.props.key".to_string(), "".to_string());
+    properties.insert(
+        "nifi.sensitive.props.key".to_string(),
+        "${file:UTF-8:/stackable/sensitiveproperty/nifiSensitivePropsKey}".to_string(),
+    );
     properties.insert(
         "nifi.sensitive.props.key.protected".to_string(),
         "".to_string(),
@@ -560,10 +571,49 @@ pub fn build_nifi_properties(
         "nifi.cluster.protocol.is.secure".to_string(),
         "true".to_string(),
     );
+
+    if let NifiAuthenticationConfig::Oidc { provider, oidc } = auth_config {
+        let endpoint_url = provider
+            .endpoint_url()
+            .context(InvalidOidcEndpointSnafu)?
+            .to_string();
+        properties.insert(
+            "nifi.security.user.oidc.discovery.url".to_string(),
+            format!("{endpoint_url}/{DEFAULT_OIDC_WELLKNOWN_PATH}"),
+        );
+
+        let (oidc_client_id_env, oidc_client_secret_env) =
+            AuthenticationProvider::client_credentials_env_names(
+                &oidc.client_credentials_secret_ref,
+            );
+        properties.insert(
+            "nifi.security.user.oidc.client.id".to_string(),
+            format!("${{env:{oidc_client_id_env}}}").to_string(),
+        );
+
+        properties.insert(
+            "nifi.security.user.oidc.client.secret".to_string(),
+            format!("${{env:{oidc_client_secret_env}}}").to_string(),
+        );
+
+        let scopes = provider.scopes.join(",");
+        properties.insert(
+            "nifi.security.user.oidc.additional.scopes".to_string(),
+            format!("[{scopes}]").to_string(),
+        );
+
+        properties.insert(
+            "nifi.security.user.oidc.claim.identifying.user".to_string(),
+            provider.principal_claim.to_string(),
+        );
+    }
+
     // cluster node properties (only configure for cluster nodes)
     properties.insert("nifi.cluster.is.node".to_string(), "true".to_string());
-    // this will be overwritten to the correct FQDN in the container start command
-    properties.insert("nifi.cluster.node.address".to_string(), "".to_string());
+    properties.insert(
+        "nifi.cluster.node.address".to_string(),
+        "${env:NODE_ADDRESS}".to_string(),
+    );
     properties.insert(
         "nifi.cluster.node.protocol.port".to_string(),
         PROTOCOL_PORT.to_string(),
@@ -581,10 +631,13 @@ pub fn build_nifi_properties(
     // this will be replaced via a container command script
     properties.insert(
         "nifi.zookeeper.connect.string".to_string(),
-        "xxxxxx".to_string(),
+        "${env:ZOOKEEPER_HOSTS}".to_string(),
     );
     // this will be replaced via a container command script
-    properties.insert("nifi.zookeeper.root.node".to_string(), "xxxxxx".to_string());
+    properties.insert(
+        "nifi.zookeeper.root.node".to_string(),
+        "${env:ZOOKEEPER_CHROOT}".to_string(),
+    );
 
     // override with config overrides
     properties.extend(overrides);
@@ -593,8 +646,6 @@ pub fn build_nifi_properties(
 }
 
 pub fn build_state_management_xml() -> String {
-    // The "xxxxxx" Connect String is a placeholder and will be replaced via container
-    // command script
     format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
         <stateManagement>
@@ -609,8 +660,8 @@ pub fn build_state_management_xml() -> String {
           <cluster-provider>
             <id>zk-provider</id>
             <class>org.apache.nifi.controller.state.providers.zookeeper.ZooKeeperStateProvider</class>
-            <property name=\"Connect String\">xxxxxx</property>
-            <property name=\"Root Node\">yyyyyy</property>
+            <property name=\"Connect String\">${{env:ZOOKEEPER_HOSTS}}</property>
+            <property name=\"Root Node\">${{env:ZOOKEEPER_CHROOT}}</property>
             <property name=\"Session Timeout\">10 seconds</property>
             <property name=\"Access Control\">Open</property>
           </cluster-provider>

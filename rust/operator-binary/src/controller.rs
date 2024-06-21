@@ -14,7 +14,7 @@ use product_config::{
 };
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_nifi_crd::{
-    authentication::resolve_authentication_classes, Container, CurrentlySupportedListenerClasses,
+    authentication::AuthenticationClassResolved, Container, CurrentlySupportedListenerClasses,
     NifiCluster, NifiConfig, NifiConfigFragment, NifiRole, NifiStatus, APP_NAME, BALANCE_PORT,
     BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, MAX_NIFI_LOG_FILES_SIZE,
     MAX_PREPARE_LOG_FILE_SIZE, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
@@ -459,7 +459,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         })?;
 
     let nifi_authentication_config = NifiAuthenticationConfig::try_from(
-        resolve_authentication_classes(client, &nifi.spec.cluster_config.authentication)
+        AuthenticationClassResolved::from(&nifi.spec.cluster_config.authentication, client)
             .await
             .context(FailedResolveNifiAuthenticationConfigSnafu)?,
     )
@@ -697,7 +697,9 @@ async fn build_node_rolegroup_config_map(
 ) -> Result<ConfigMap> {
     tracing::debug!("building rolegroup configmaps");
 
-    let (login_identity_provider_xml, authorizers_xml) = nifi_auth_config.get_auth_config();
+    let (login_identity_provider_xml, authorizers_xml) = nifi_auth_config
+        .get_auth_config()
+        .context(InvalidNifiAuthenticationConfigSnafu)?;
 
     let jvm_sec_props: BTreeMap<String, Option<String>> = rolegroup_config
         .get(&PropertyNameKind::File(
@@ -746,6 +748,7 @@ async fn build_node_rolegroup_config_map(
                 &nifi.spec,
                 &merged_config.resources,
                 proxy_hosts,
+                nifi_auth_config,
                 rolegroup_config
                     .get(&PropertyNameKind::File(NIFI_PROPERTIES.to_string()))
                     .with_context(|| ProductConfigKindNotSpecifiedSnafu {
@@ -863,9 +866,6 @@ async fn build_node_rolegroup_statefulset(
     tracing::debug!("Building statefulset");
     let role_group = role.role_groups.get(&rolegroup_ref.role_group);
 
-    let zookeeper_host = "ZOOKEEPER_HOSTS";
-    let zookeeper_chroot = "ZOOKEEPER_CHROOT";
-
     // get env vars and env overrides
     let mut env_vars: Vec<EnvVar> = rolegroup_config
         .get(&PropertyNameKind::Env)
@@ -894,12 +894,12 @@ async fn build_node_rolegroup_statefulset(
     });
 
     env_vars.push(zookeeper_env_var(
-        zookeeper_host,
+        "ZOOKEEPER_HOSTS",
         &nifi.spec.cluster_config.zookeeper_config_map_name,
     ));
 
     env_vars.push(zookeeper_env_var(
-        zookeeper_chroot,
+        "ZOOKEEPER_CHROOT",
         &nifi.spec.cluster_config.zookeeper_config_map_name,
     ));
 
@@ -911,7 +911,7 @@ async fn build_node_rolegroup_statefulset(
             .metadata
             .namespace
             .as_ref()
-            .with_context(|| ObjectHasNoNamespaceSnafu {})?
+            .context(ObjectHasNoNamespaceSnafu)?
     );
 
     let sensitive_key_secret = &nifi.spec.cluster_config.sensitive_properties.key_secret;
@@ -943,23 +943,20 @@ async fn build_node_rolegroup_statefulset(
         "echo Replacing config directory".to_string(),
         "cp /conf/* /stackable/nifi/conf".to_string(),
         "ln -sf /stackable/log_config/logback.xml /stackable/nifi/conf/logback.xml".to_string(),
-        "echo Replacing nifi.cluster.node.address in nifi.properties".to_string(),
-        format!("sed -i \"s/nifi.cluster.node.address=/nifi.cluster.node.address={}/g\" /stackable/nifi/conf/nifi.properties", node_address),
-        "echo Replacing nifi.web.https.host in nifi.properties".to_string(),
-        format!("sed -i \"s/nifi.web.https.host=0.0.0.0/nifi.web.https.host={}/g\" /stackable/nifi/conf/nifi.properties", node_address),
-        "echo Replacing nifi.sensitive.props.key in nifi.properties".to_string(),
-        "sed -i \"s|nifi.sensitive.props.key=|nifi.sensitive.props.key=$(cat /stackable/sensitiveproperty/nifiSensitivePropsKey)|g\" /stackable/nifi/conf/nifi.properties".to_string(),
-        "echo Replacing 'nifi.zookeeper.connect.string=xxxxxx' in /stackable/nifi/conf/nifi.properties".to_string(),
-        format!("sed -i \"s|nifi.zookeeper.connect.string=xxxxxx|nifi.zookeeper.connect.string=${{{}}}|g\" /stackable/nifi/conf/nifi.properties", zookeeper_host),
-        "echo Replacing 'nifi.zookeeper.root.node=xxxxxx' in /stackable/nifi/conf/nifi.properties".to_string(),
-        format!("sed -i \"s|nifi.zookeeper.root.node=xxxxxx|nifi.zookeeper.root.node=${{{}}}|g\" /stackable/nifi/conf/nifi.properties", zookeeper_chroot),
-        "echo Replacing connect string 'xxxxxx' in /stackable/nifi/conf/state-management.xml".to_string(),
-        format!("sed -i \"s|xxxxxx|${{{}}}|g\" /stackable/nifi/conf/state-management.xml", zookeeper_host),
-        "echo Replacing root node 'yyyyyy' in /stackable/nifi/conf/state-management.xml".to_string(),
-        format!("sed -i \"s|yyyyyy|${{{}}}|g\" /stackable/nifi/conf/state-management.xml",zookeeper_chroot)
+        format!("export NODE_ADDRESS=\"{node_address}\""),
     ]);
 
+    // This commands needs to go first, as they might set env variables needed by the templating
     prepare_args.extend_from_slice(nifi_auth_config.get_additional_container_args().as_slice());
+
+    prepare_args.extend(vec![
+        "echo Templating config files".to_string(),
+        "config-utils template /stackable/nifi/conf/nifi.properties".to_string(),
+        "config-utils template /stackable/nifi/conf/state-management.xml".to_string(),
+        "config-utils template /stackable/nifi/conf/login-identity-providers.xml".to_string(),
+        "config-utils template /stackable/nifi/conf/authorizers.xml".to_string(),
+        "config-utils template /stackable/nifi/conf/security.properties".to_string(),
+    ]);
 
     let mut container_prepare =
         ContainerBuilder::new(&prepare_container_name).with_context(|_| {
@@ -1404,7 +1401,7 @@ async fn get_proxy_hosts(
                         .addresses
                         .unwrap_or_default()
                 })
-                .map(|node_address| format!("{}:{}", node_address.address, external_port)),
+                .map(|node_address| format!("{}:{external_port}", node_address.address)),
         );
     }
 
