@@ -1,0 +1,22 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test-nifi
+  labels:
+    app: test-nifi
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-nifi
+  template:
+    metadata:
+      labels:
+        app: test-nifi
+    spec:
+      containers:
+        - name: test-nifi
+          image: docker.stackable.tech/stackable/testing-tools:0.2.0-stackable0.0.0-dev
+          command: ["sleep", "infinity"]
+      terminationGracePeriodSeconds: 1

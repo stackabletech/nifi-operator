@@ -1,0 +1,195 @@
+# The environment variables must be replaced.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: $INSTANCE_NAME-realms
+data:
+  test-realm.json: |
+    {
+      "realm": "$REALM",
+      "enabled": true,
+      "users": [
+        {
+          "enabled": true,
+          "username": "$USERNAME",
+          "firstName" : "$FIRST_NAME",
+          "lastName" : "$LAST_NAME",
+          "email" : "$EMAIL",
+          "credentials": [
+            {
+              "type": "password",
+              "value": "$PASSWORD"
+            }
+          ],
+          "realmRoles": [
+            "user"
+          ]
+        }
+      ],
+      "roles": {
+        "realm": [
+          {
+            "name": "user",
+            "description": "User privileges"
+          }
+        ]
+      },
+      "clients": [
+        {
+          "clientId": "$CLIENT_ID",
+          "enabled": true,
+          "clientAuthenticatorType": "client-secret",
+          "secret": "$CLIENT_SECRET",
+          "redirectUris": [
+            "*"
+          ],
+          "webOrigins": [
+            "*"
+          ],
+          "standardFlowEnabled": true,
+          "protocol": "openid-connect"
+        }
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: $INSTANCE_NAME
+  labels:
+    app: $INSTANCE_NAME
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: $INSTANCE_NAME
+  template:
+    metadata:
+      labels:
+        app: $INSTANCE_NAME
+    spec:
+      serviceAccountName: keycloak
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:23.0.4
+          args:
+            - start-dev
+            - --import-realm
+{% if test_scenario['values']['oidc-use-tls'] == 'true' %}
+            - --https-certificate-file=/tls/tls.crt
+            - --https-certificate-key-file=/tls/tls.key
+{% endif %}
+          env:
+            - name: KEYCLOAK_ADMIN
+              value: admin
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              value: admin
+          ports:
+{% if test_scenario['values']['oidc-use-tls'] == 'true' %}
+            - name: https
+              containerPort: 8443
+{% else %}
+            - name: http
+              containerPort: 8080
+{% endif %}
+          volumeMounts:
+            - name: realms
+              mountPath: /opt/keycloak/data/import
+            - name: tls
+              mountPath: /tls
+          readinessProbe:
+            httpGet:
+              path: /realms/$REALM
+{% if test_scenario['values']['oidc-use-tls'] == 'true' %}
+              port: 8443
+              scheme: HTTPS
+{% else %}
+              port: 8080
+              scheme: HTTP
+{% endif %}
+      volumes:
+        - name: realms
+          configMap:
+            name: $INSTANCE_NAME-realms
+        - ephemeral:
+            volumeClaimTemplate:
+              metadata:
+                annotations:
+                  secrets.stackable.tech/class: tls
+                  secrets.stackable.tech/scope: service=$INSTANCE_NAME
+              spec:
+                accessModes:
+                - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: "1"
+                storageClassName: secrets.stackable.tech
+                volumeMode: Filesystem
+          name: tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: $INSTANCE_NAME
+spec:
+  selector:
+    app: $INSTANCE_NAME
+  ports:
+    - protocol: TCP
+{% if test_scenario['values']['oidc-use-tls'] == 'true' %}
+      port: 8443
+{% else %}
+      port: 8080
+{% endif %}
+---
+apiVersion: authentication.stackable.tech/v1alpha1
+kind: AuthenticationClass
+metadata:
+  name: $INSTANCE_NAME-$NAMESPACE
+spec:
+  provider:
+    oidc:
+      hostname: $INSTANCE_NAME.$NAMESPACE.svc.cluster.local
+      port: 8443
+      rootPath: /realms/$REALM
+      scopes:
+        - email
+        - openid
+        - profile
+      principalClaim: preferred_username
+      providerHint: Keycloak
+      tls:
+        verification:
+          server:
+            caCert:
+              secretClass: tls
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: keycloak
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: keycloak
+{% if test_scenario['values']['openshift'] == 'true' %}
+rules:
+- apiGroups: ["security.openshift.io"]
+  resources: ["securitycontextconstraints"]
+  resourceNames: ["privileged"]
+  verbs: ["use"]
+{% endif %}
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: keycloak
+subjects:
+  - kind: ServiceAccount
+    name: keycloak
+roleRef:
+  kind: Role
+  name: keycloak
+  apiGroup: rbac.authorization.k8s.io

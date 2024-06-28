@@ -84,6 +84,12 @@ tests:
       - nifi-latest
       - zookeeper-latest
       - openshift
+  - name: oidc
+    dimensions:
+      - nifi
+      - zookeeper-latest
+      - oidc-use-tls
+      - openshift
 suites:
   - name: nightly
     patch:
