@@ -15,10 +15,10 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Use [config-utils](https://github.com/stackabletech/config-utils/) for text-replacement of variables in configs.
+  This fixes escaping problems, especially when you have special characters in your password ([#627]).
 - Processing of corrupted log events fixed; If errors occur, the error
   messages are added to the log event ([#628]).
-- Use [config-utils](https://github.com/stackabletech/config-utils/) for text-replacement of variables in configs.
-  This fixes escaping problems, especially when you have special characters in your password ([#627]).  
 
 ### Removed
 
