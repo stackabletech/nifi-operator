@@ -19,7 +19,7 @@ The basic Dockerfile below shows how to achieve this:
 
 [source,Dockerfile]
 ----
-FROM docker.stackable.tech/stackable/nifi:1.25.0-stackable0.0.0-dev
+FROM docker.stackable.tech/stackable/nifi:1.26.0-stackable0.0.0-dev
 COPY /path/to/your/nar.file /stackable/nifi/lib/
 ----
 
@@ -29,8 +29,8 @@ You then need to make this image available to your Kubernetes cluster and specif
 ----
 spec:
   image:
-    productVersion: 1.25.0
-    custom: "docker.company.org/nifi:1.25.0-customprocessor"
+    productVersion: 1.26.0
+    custom: "docker.company.org/nifi:1.26.0-customprocessor"
 ----
 
 Also read the xref:guides:custom-images.adoc[Using customized product images] guide for additional information.
@@ -99,7 +99,7 @@ metadata:
   name: simple-nifi
 spec:
   image:
-    productVersion: 1.25.0
+    productVersion: 1.26.0
   clusterConfig:
     authentication:
       - authenticationClass: simple-nifi-admin-user
