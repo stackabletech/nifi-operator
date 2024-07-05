@@ -15,7 +15,7 @@ dimensions:
       - 1.21.0
       - 1.25.0
       - 1.26.0
-      - 2.0.0-M4      
+      - 2.0.0-M4
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
       # - 1.26.0,docker.stackable.tech/sandbox/nifi:1.26.0-stackable0.0.0-dev
