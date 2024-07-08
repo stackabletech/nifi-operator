@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Support specifying the SecretClass that is used to obtain TLS certificates ([#622]).
-- Support for NiFi 1.26.0 and 2.0.0-M4 ([#639]).
+- Support for NiFi `1.27.0` and `2.0.0-M4` ([#639]).
 
 ### Changed
 
@@ -22,7 +22,7 @@ All notable changes to this project will be documented in this file.
 
 ### Removed
 
-- Removed support for 1.23.2 ([#639]).
+- Removed support for `1.23.2` ([#639]).
 
 [#616]: https://github.com/stackabletech/nifi-operator/pull/616
 [#622]: https://github.com/stackabletech/nifi-operator/pull/622

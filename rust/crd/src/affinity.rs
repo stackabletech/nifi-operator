@@ -43,7 +43,7 @@ mod tests {
           name: simple-nifi
         spec:
           image:
-            productVersion: 1.26.0
+            productVersion: 1.27.0
           clusterConfig:
             authentication:
               - authenticationClass: nifi-admin-credentials-simple

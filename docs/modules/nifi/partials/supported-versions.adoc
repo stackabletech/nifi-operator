@@ -3,6 +3,6 @@
 // Stackable Platform documentation.
 
 - 2.0.0-M4 (experimental)
-- 1.26.0 (LTS)
+- 1.27.0 (LTS)
 - 1.25.0
 - 1.21.0 (deprecated)
