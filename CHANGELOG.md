@@ -17,7 +17,7 @@ All notable changes to this project will be documented in this file.
 
 - Bump `stackable-operator` from `0.64.0` to `0.70.0` ([#641]).
 - Bump `product-config` from `0.6.0` to `0.7.0` ([#641]).
-- Make it easy to test custom Nifi images ([#616]).
+- Make it easy to test custom NiFi images ([#616]).
 
 ### Fixed
 
@@ -188,8 +188,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Support for in-place Nifi cluster upgrades ([#323])
-- Added default resource requests (memory and cpu) for Nifi pods ([#353])
+- Support for in-place NiFi cluster upgrades ([#323])
+- Added default resource requests (memory and cpu) for NiFi pods ([#353])
 - Added support for NiFi version 1.18.0 ([#360])
 
 ### Changed
