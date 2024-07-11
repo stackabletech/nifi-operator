@@ -15,8 +15,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Bump `stackable-operator` from `0.64.0` to `0.70.0` ([#xxx]).
-- Bump `product-config` from `0.6.0` to `0.7.0` ([#xxx]).
+- Bump `stackable-operator` from `0.64.0` to `0.70.0` ([#641]).
+- Bump `product-config` from `0.6.0` to `0.7.0` ([#641]).
 - Make it easy to test custom Nifi images ([#616]).
 
 ### Fixed
@@ -28,7 +28,7 @@ All notable changes to this project will be documented in this file.
 [#622]: https://github.com/stackabletech/nifi-operator/pull/622
 [#627]: https://github.com/stackabletech/nifi-operator/pull/627
 [#628]: https://github.com/stackabletech/nifi-operator/pull/628
-[#xxx]: https://github.com/stackabletech/nifi-operator/pull/xxx
+[#641]: https://github.com/stackabletech/nifi-operator/pull/641
 
 ## [24.3.0] - 2024-03-20
 
