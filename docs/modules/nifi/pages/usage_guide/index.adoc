@@ -16,7 +16,7 @@ metadata:
   name: simple-nifi
 spec:
   image:
-    productVersion: 1.25.0
+    productVersion: 1.27.0
   clusterConfig:
     zookeeperConfigMapName: simple-nifi-znode  # <1>
     authentication:  # <2>
