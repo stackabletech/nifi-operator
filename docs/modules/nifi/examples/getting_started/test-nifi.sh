@@ -23,7 +23,7 @@ nifi_jwt_token=$(curl -s -X POST --insecure --header 'content-type: application/
 
 x=1
 retry_interval_seconds=10
-expected_nodes=1
+expected_nodes=2
 
 while [ $x -le 15 ]
 do
