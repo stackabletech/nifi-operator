@@ -38,6 +38,7 @@ do
     cluster_status=$(curl -s --insecure --header "Authorization: Bearer $nifi_jwt_token" "$nifi_host/nifi-api/controller/cluster")
     nodes=$( echo "$cluster_status" | jq .cluster.nodes | jq 'length')
 
+    # shellcheck disable=SC2181 # wont't fix this now, but ideally we should enable bash strict mode so we can avoid success checks.
     if [ "$?" -eq 0 ] && [ "$nodes" -eq "$expected_nodes" ]; then
       echo "yes"
       echo "NiFi cluster started up successfully!"
