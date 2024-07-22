@@ -21,13 +21,15 @@ fi
 echo "Getting NiFi JWT token"
 nifi_jwt_token=$(curl -s -X POST --insecure --header 'content-type: application/x-www-form-urlencoded' -d "username=$nifi_username&password=$nifi_password" "$nifi_host/nifi-api/access/token")
 
-x=1
+# tunables
 retry_interval_seconds=10
+retry_attempts=15
 expected_nodes=1
 
-while [ $x -le 15 ]
+attempt=1
+while [ $attempt -le $retry_attempts ]
 do
-  echo -n "Checking if NiFi cluster is ready ... "
+  echo -n "Checking if NiFi cluster is ready ($attempt/$retry_attempts) ... "
   http_code=$(curl --insecure -s -o /dev/null -w "%{http_code}" --header "Authorization: Bearer $nifi_jwt_token" "$nifi_host/nifi-api/controller/cluster")
 
   if [ "$http_code" -ne "200" ]; then
@@ -38,6 +40,7 @@ do
     cluster_status=$(curl -s --insecure --header "Authorization: Bearer $nifi_jwt_token" "$nifi_host/nifi-api/controller/cluster")
     nodes=$( echo "$cluster_status" | jq .cluster.nodes | jq 'length')
 
+    # shellcheck disable=SC2181 # wont't fix this now, but ideally we should enable bash strict mode so we can avoid success checks.
     if [ "$?" -eq 0 ] && [ "$nodes" -eq "$expected_nodes" ]; then
       echo "yes"
       echo "NiFi cluster started up successfully!"
@@ -48,7 +51,7 @@ do
   fi
 
   echo "Retrying in $retry_interval_seconds seconds..."
-  x=$(( x + 1 ))
+  attempt=$(( attempt + 1 ))
   sleep "$retry_interval_seconds"
 done
 
