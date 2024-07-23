@@ -30,9 +30,7 @@ include::example$getting_started/getting_started.sh[tag=stackablectl-install-ope
 The output should contain the following lines
 
 [source]
-----
-include::example$getting_started/install-operator-output.txt[tag=stackablectl-install-operators-output]
-----
+include::example$getting_started/install_output.txt[]
 
 TIP: Consult the xref:management:stackablectl:quickstart.adoc[] to learn more about how to use `stackablectl`.
 --
