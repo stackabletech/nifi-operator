@@ -291,7 +291,7 @@ fn build_reporting_task_job(
     let job_name = format!(
         "{}-create-reporting-task-{}",
         nifi.name_any(),
-        product_version.replace('.', "-")
+        product_version.replace('.', "-").to_ascii_lowercase()
     );
 
     let mut pb = PodBuilder::new();

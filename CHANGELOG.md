@@ -4,28 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Support specifying the SecretClass that is used to obtain TLS certificates ([#622]).
+- Support for NiFi `1.27.0` and `2.0.0-M4` ([#639]).
+
+### Changed
+
+- Bump `stackable-operator` from `0.64.0` to `0.70.0` ([#641]).
+- Bump `product-config` from `0.6.0` to `0.7.0` ([#641]).
+- Bump other dependencies ([#642]).
+- Make it easy to test custom NiFi images ([#616]).
+
 ### Fixed
 
 - Use [config-utils](https://github.com/stackabletech/config-utils/) for text-replacement of variables in configs.
   This fixes escaping problems, especially when you have special characters in your password ([#627]).
-
-### Added
-
-- Support specifying the SecretClass that is used to obtain TLS certificates ([#622]).
-
-### Changed
-
-- Make it easy to test custom Nifi images ([#616])
-
-### Fixed
-
 - Processing of corrupted log events fixed; If errors occur, the error
   messages are added to the log event ([#628]).
+
+### Removed
+
+- Removed support for `1.23.2` ([#639]).
 
 [#616]: https://github.com/stackabletech/nifi-operator/pull/616
 [#622]: https://github.com/stackabletech/nifi-operator/pull/622
 [#627]: https://github.com/stackabletech/nifi-operator/pull/627
 [#628]: https://github.com/stackabletech/nifi-operator/pull/628
+[#639]: https://github.com/stackabletech/nifi-operator/pull/639
+[#641]: https://github.com/stackabletech/nifi-operator/pull/641
+[#642]: https://github.com/stackabletech/nifi-operator/pull/642
 
 ## [24.3.0] - 2024-03-20
 
@@ -185,8 +193,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Support for in-place Nifi cluster upgrades ([#323])
-- Added default resource requests (memory and cpu) for Nifi pods ([#353])
+- Support for in-place NiFi cluster upgrades ([#323])
+- Added default resource requests (memory and cpu) for NiFi pods ([#353])
 - Added support for NiFi version 1.18.0 ([#360])
 
 ### Changed

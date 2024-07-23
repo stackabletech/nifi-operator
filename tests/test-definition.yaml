@@ -6,33 +6,34 @@
 dimensions:
   - name: zookeeper
     values:
-      - 3.8.3
+      - 3.8.4
   - name: zookeeper-latest
     values:
       - 3.9.2
   - name: nifi
     values:
       - 1.21.0
-      - 1.23.2
       - 1.25.0
+      - 1.27.0
+      - 2.0.0-M4
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
-      # - 1.25.0,docker.stackable.tech/sandbox/nifi:1.25.0-stackable0.0.0-dev
+      # - 1.27.0,docker.stackable.tech/sandbox/nifi:1.27.0-stackable0.0.0-dev
   - name: nifi_old
     values:
-      - 1.21.0
+      - 1.25.0
   - name: nifi_new
     values:
-      - 1.25.0
+      - 1.27.0
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
-      # - 1.25.0,docker.stackable.tech/sandbox/nifi:1.25.0-stackable0.0.0-dev
+      # - 1.27.0,docker.stackable.tech/sandbox/nifi:1.27.0-stackable0.0.0-dev
   - name: nifi-latest
     values:
-      - 1.25.0
+      - 1.27.0
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
-      # - 1.25.0,docker.stackable.tech/sandbox/nifi:1.25.0-stackable0.0.0-dev
+      # - 1.27.0,docker.stackable.tech/sandbox/nifi:1.27.0-stackable0.0.0-dev
   - name: ldap-use-tls
     values:
       - "false"
