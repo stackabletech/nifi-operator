@@ -340,7 +340,7 @@ fn get_oidc_authorizer() -> Result<String, Error> {
 
             <!-- As we currently don't have authorization (including admin user) configurable we simply paste in the ldap bind user in here -->
             <!-- In the future the whole authorization may be reworked to OPA -->
-            <property name="Initial User Identity admin">admin</property>
+            <property name="Initial User Identity 1">nifi-admin</property>
 
             <!-- As the secret-operator provides the NiFi nodes with cert with a common name of "generated certificate for pod" we have to put that here -->
             <property name="Initial User Identity other-nifis">CN=generated certificate for pod</property>
@@ -353,9 +353,9 @@ fn get_oidc_authorizer() -> Result<String, Error> {
             <property name="User Group Provider">file-user-group-provider</property>
             <property name="Authorizations File">./conf/authorizations.xml</property>
 
-            <!-- As we currently don't have authorization (including admin user) configurable we simply paste in the ldap bind user in here -->
+            <!-- As we currently don't have a proper authorization the 'nifi-admin' user has admin permissions-->
             <!-- In the future the whole authorization may be reworked to OPA -->
-            <property name="Initial Admin Identity">admin</property>
+            <property name="Initial Admin Identity">nifi-admin</property>
 
             <!-- As the secret-operator provides the NiFi nodes with cert with a common name of "generated certificate for pod" we have to put that here -->
             <property name="NiFi Identity api_client">CN=api_client, OU=dastc, O=**, L=**, ST=**, C=**</property>

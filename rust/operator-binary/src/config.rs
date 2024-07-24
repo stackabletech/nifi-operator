@@ -555,10 +555,18 @@ pub fn build_nifi_properties(
         "nifi.security.truststorePasswd".to_string(),
         STACKABLE_TLS_STORE_PASSWORD.to_string(),
     );
-    properties.insert(
-        "nifi.security.user.login.identity.provider".to_string(),
-        "login-identity-provider".to_string(),
-    );
+
+    if let NifiAuthenticationConfig::Oidc { .. } = auth_config {
+        properties.insert(
+            "nifi.security.user.login.identity.provider".to_string(),
+            "".to_string(),
+        );
+    } else {
+        properties.insert(
+            "nifi.security.user.login.identity.provider".to_string(),
+            "login-identity-provider".to_string(),
+        );
+    }
     properties.insert(
         "nifi.security.user.authorizer".to_string(),
         "authorizer".to_string(),
@@ -599,12 +607,16 @@ pub fn build_nifi_properties(
         let scopes = provider.scopes.join(",");
         properties.insert(
             "nifi.security.user.oidc.additional.scopes".to_string(),
-            format!("[{scopes}]").to_string(),
+            format!("{scopes}").to_string(),
         );
 
         properties.insert(
             "nifi.security.user.oidc.claim.identifying.user".to_string(),
             provider.principal_claim.to_string(),
+        );
+        properties.insert(
+            "nifi.security.user.oidc.truststore.strategy".to_string(),
+            "NIFI".to_string(),
         );
     }
 

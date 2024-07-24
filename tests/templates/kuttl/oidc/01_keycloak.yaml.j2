@@ -12,6 +12,19 @@ data:
       "users": [
         {
           "enabled": true,
+          "username": "nifi-admin",
+          "credentials": [
+            {
+              "type": "password",
+              "value": "nifi-admin"
+            }
+          ],
+          "realmRoles": [
+            "user"
+          ]
+        },
+        {
+          "enabled": true,
           "username": "$USERNAME",
           "firstName" : "$FIRST_NAME",
           "lastName" : "$LAST_NAME",
@@ -116,8 +129,9 @@ spec:
             volumeClaimTemplate:
               metadata:
                 annotations:
-                  secrets.stackable.tech/class: tls
-                  secrets.stackable.tech/scope: service=$INSTANCE_NAME
+                  secrets.stackable.tech/class: keycloak-tls
+                  # secrets.stackable.tech/scope: service=$INSTANCE_NAME
+                  secrets.stackable.tech/scope: service=$INSTANCE_NAME-nodeport
               spec:
                 accessModes:
                 - ReadWriteOnce
@@ -143,6 +157,27 @@ spec:
       port: 8080
 {% endif %}
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: $INSTANCE_NAME-nodeport
+  labels:
+    app: $INSTANCE_NAME
+spec:
+  type: NodePort
+  selector:
+    app: keycloak
+  ports:
+{% if test_scenario['values']['oidc-use-tls'] == 'true' %}
+    - name: https
+      nodePort: 32539
+      port: 8443
+{% else %}
+    - name: http
+      nodePort: 32539
+      port: 8080
+{% endif %}
+---
 apiVersion: authentication.stackable.tech/v1alpha1
 kind: AuthenticationClass
 metadata:
@@ -163,7 +198,7 @@ spec:
         verification:
           server:
             caCert:
-              secretClass: tls
+              secretClass: keycloak-tls
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -193,3 +228,16 @@ roleRef:
   kind: Role
   name: keycloak
   apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: secrets.stackable.tech/v1alpha1
+kind: SecretClass
+metadata:
+  name: keycloak-tls
+spec:
+  backend:
+    autoTls:
+      ca:
+        autoGenerate: true
+        secret:
+          name: keycloak-tls-ca
+          namespace: $NAMESPACE

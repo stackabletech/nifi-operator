@@ -31,7 +31,10 @@ use stackable_operator::{
     },
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
-    commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
+    commons::{
+        authentication::oidc::AuthenticationProvider,
+        product_image_selection::ResolvedProductImage, rbac::build_rbac_resources,
+    },
     config::fragment,
     k8s_openapi::{
         api::{
@@ -46,11 +49,11 @@ use stackable_operator::{
         DeepMerge,
     },
     kube::{
-        api::ListParams, runtime::controller::Action, runtime::reflector::ObjectRef, Resource,
-        ResourceExt,
+        api::ListParams,
+        runtime::{controller::Action, reflector::ObjectRef},
+        Resource, ResourceExt,
     },
-    kvp::Labels,
-    kvp::{Label, ObjectLabels},
+    kvp::{Label, Labels, ObjectLabels},
     logging::controller::ReconcilerError,
     product_logging::{
         self,
@@ -902,6 +905,12 @@ async fn build_node_rolegroup_statefulset(
         "ZOOKEEPER_CHROOT",
         &nifi.spec.cluster_config.zookeeper_config_map_name,
     ));
+
+    if let NifiAuthenticationConfig::Oidc { oidc, .. } = nifi_auth_config {
+        env_vars.extend(AuthenticationProvider::client_credentials_env_var_mounts(
+            oidc.client_credentials_secret_ref.clone(),
+        ));
+    }
 
     let node_address = format!(
         "$POD_NAME.{}-node-{}.{}.svc.cluster.local",
