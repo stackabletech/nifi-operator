@@ -1,11 +1,14 @@
 use indoc::{formatdoc, indoc};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_nifi_crd::authentication::AuthenticationClassResolved;
+use stackable_nifi_crd::NifiCluster;
 use stackable_operator::builder::pod::{container::ContainerBuilder, PodBuilder};
 use stackable_operator::commons::authentication::oidc::{self, ClientAuthenticationOptions};
 use stackable_operator::commons::authentication::{ldap, static_};
 
 use stackable_operator::k8s_openapi::api::core::v1::{KeyToPath, SecretVolumeSource, Volume};
+
+use super::oidc::build_oidc_admin_password_secret_name;
 
 pub const STACKABLE_ADMIN_USERNAME: &str = "admin";
 
@@ -54,6 +57,7 @@ pub enum NifiAuthenticationConfig {
     Oidc {
         provider: oidc::AuthenticationProvider,
         oidc: ClientAuthenticationOptions,
+        nifi: NifiCluster,
     },
 }
 
@@ -71,7 +75,7 @@ impl NifiAuthenticationConfig {
         .to_string();
 
         match &self {
-            Self::SingleUser { .. } => {
+            Self::SingleUser { .. } | Self::Oidc { .. } => {
                 login_identity_provider_xml.push_str(&formatdoc! {r#"
                     <provider>
                         <identifier>login-identity-provider</identifier>
@@ -92,9 +96,6 @@ impl NifiAuthenticationConfig {
             Self::Ldap { provider } => {
                 login_identity_provider_xml.push_str(&get_ldap_login_identity_provider(&provider)?);
                 authorizers_xml.push_str(&get_ldap_authorizer(&provider)?);
-            }
-            Self::Oidc { .. } => {
-                authorizers_xml.push_str(&get_oidc_authorizer()?);
             }
         }
 
@@ -144,6 +145,10 @@ impl NifiAuthenticationConfig {
                 }
             }
             Self::Oidc { provider, .. } => {
+                let (_, admin_password_file) = self.get_user_and_password_file_paths();
+                commands.extend(vec![
+                format!("export STACKABLE_ADMIN_PASSWORD=\"$(cat {admin_password_file} | java -jar /bin/stackable-bcrypt.jar)\""),
+                ]);
                 if let Some(ca_path) = provider.tls.tls_ca_cert_mount_path() {
                     commands.extend(vec![
                         "echo Adding OIDC tls cert to global truststore".to_string(),
@@ -189,7 +194,27 @@ impl NifiAuthenticationConfig {
                     .add_volumes_and_mounts(pod_builder, container_builders)
                     .context(AddLdapVolumesSnafu)?;
             }
-            Self::Oidc { provider, .. } => {
+            Self::Oidc { provider, nifi, .. } => {
+                let admin_volume = Volume {
+                    name: STACKABLE_ADMIN_USERNAME.to_string(),
+                    secret: Some(SecretVolumeSource {
+                        secret_name: Some(build_oidc_admin_password_secret_name(nifi)),
+                        optional: Some(false),
+                        items: Some(vec![KeyToPath {
+                            key: STACKABLE_ADMIN_USERNAME.to_string(),
+                            path: STACKABLE_ADMIN_USERNAME.to_string(),
+                            ..KeyToPath::default()
+                        }]),
+                        ..SecretVolumeSource::default()
+                    }),
+                    ..Volume::default()
+                };
+                pod_builder.add_volume(admin_volume);
+
+                if let Some(prepare_container) = container_builders.first() {
+                    prepare_container.add_volume_mount(STACKABLE_ADMIN_USERNAME, STACKABLE_USER_VOLUME_MOUNT_PATH);
+                }
+
                 provider
                     .tls
                     .add_volumes_and_mounts(pod_builder, container_builders)
@@ -217,9 +242,10 @@ impl NifiAuthenticationConfig {
             AuthenticationClassResolved::Ldap { provider } => Ok(Self::Ldap {
                 provider: provider.clone(),
             }),
-            AuthenticationClassResolved::Oidc { provider, oidc } => Ok(Self::Oidc {
+            AuthenticationClassResolved::Oidc { provider, oidc, nifi } => Ok(Self::Oidc {
                 provider: provider.clone(),
                 oidc: oidc.clone(),
+                nifi: nifi.clone(),
             }),
         }
     }
@@ -320,45 +346,6 @@ fn get_ldap_authorizer(ldap: &ldap::AuthenticationProvider) -> Result<String, Er
             <property name="Initial Admin Identity">${{file:UTF-8:{username_file}}}</property>
 
             <!-- As the secret-operator provides the NiFi nodes with cert with a common name of "generated certificate for pod" we have to put that here -->
-            <property name="Node Identity other-nifis">CN=generated certificate for pod</property>
-        </accessPolicyProvider>
-
-        <authorizer>
-            <identifier>authorizer</identifier>
-            <class>org.apache.nifi.authorization.StandardManagedAuthorizer</class>
-            <property name="Access Policy Provider">file-access-policy-provider</property>
-        </authorizer>
-    "#})
-}
-
-fn get_oidc_authorizer() -> Result<String, Error> {
-    Ok(formatdoc! {r#"
-        <userGroupProvider>
-            <identifier>file-user-group-provider</identifier>
-            <class>org.apache.nifi.authorization.FileUserGroupProvider</class>
-            <property name="Users File">./conf/users.xml</property>
-
-            <!-- As we currently don't have authorization (including admin user) configurable we simply paste in the ldap bind user in here -->
-            <!-- In the future the whole authorization may be reworked to OPA -->
-            <property name="Initial User Identity 1">nifi-admin</property>
-
-            <!-- As the secret-operator provides the NiFi nodes with cert with a common name of "generated certificate for pod" we have to put that here -->
-            <property name="Initial User Identity other-nifis">CN=generated certificate for pod</property>
-            <property name="Initial User Identity api_client">CN=api_client, OU=**, O=**, ST=**, C=**</property>
-        </userGroupProvider>
-
-        <accessPolicyProvider>
-            <identifier>file-access-policy-provider</identifier>
-            <class>org.apache.nifi.authorization.FileAccessPolicyProvider</class>
-            <property name="User Group Provider">file-user-group-provider</property>
-            <property name="Authorizations File">./conf/authorizations.xml</property>
-
-            <!-- As we currently don't have a proper authorization the 'nifi-admin' user has admin permissions-->
-            <!-- In the future the whole authorization may be reworked to OPA -->
-            <property name="Initial Admin Identity">nifi-admin</property>
-
-            <!-- As the secret-operator provides the NiFi nodes with cert with a common name of "generated certificate for pod" we have to put that here -->
-            <property name="NiFi Identity api_client">CN=api_client, OU=dastc, O=**, L=**, ST=**, C=**</property>
             <property name="Node Identity other-nifis">CN=generated certificate for pod</property>
         </accessPolicyProvider>
 

@@ -89,7 +89,7 @@ use crate::{
             LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME, STACKABLE_SERVER_TLS_DIR,
             STACKABLE_TLS_STORE_PASSWORD,
         },
-        build_tls_volume, check_or_generate_sensitive_key,
+        build_tls_volume, check_or_generate_oidc_admin_password, check_or_generate_sensitive_key,
         tls::{KEYSTORE_NIFI_CONTAINER_MOUNT, KEYSTORE_VOLUME_NAME, TRUSTSTORE_VOLUME_NAME},
     },
     OPERATOR_NAME,
@@ -462,11 +462,18 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         })?;
 
     let nifi_authentication_config = NifiAuthenticationConfig::try_from(
-        AuthenticationClassResolved::from(&nifi.spec.cluster_config.authentication, client)
+        AuthenticationClassResolved::from(&nifi, client)
             .await
             .context(FailedResolveNifiAuthenticationConfigSnafu)?,
     )
     .context(InvalidNifiAuthenticationConfigSnafu)?;
+
+    if let NifiAuthenticationConfig::Oidc { .. } = nifi_authentication_config {
+        tracing::info!("Checking for OIDC admin password configuration");
+        check_or_generate_oidc_admin_password(client, &nifi)
+            .await
+            .context(SecuritySnafu)?;
+    }
 
     let vector_aggregator_address = resolve_vector_aggregator_address(&nifi, client)
         .await

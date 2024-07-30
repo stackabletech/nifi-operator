@@ -12,6 +12,8 @@ use stackable_operator::{
 };
 use tracing::info;
 
+use crate::NifiCluster;
+
 // The assumed OIDC provider if no hint is given in the AuthClass
 pub const DEFAULT_OIDC_PROVIDER: IdentityProviderHint = IdentityProviderHint::Keycloak;
 
@@ -64,29 +66,31 @@ pub enum AuthenticationClassResolved {
     Oidc {
         provider: oidc::AuthenticationProvider,
         oidc: oidc::ClientAuthenticationOptions<()>,
+        nifi: NifiCluster,
     },
 }
 
 impl AuthenticationClassResolved {
     pub async fn from(
-        auth_details: &[ClientAuthenticationDetails],
+        nifi: &NifiCluster,
         client: &Client,
     ) -> Result<Vec<AuthenticationClassResolved>> {
         let resolve_auth_class = |auth_details: ClientAuthenticationDetails| async move {
             auth_details.resolve_class(client).await
         };
-        AuthenticationClassResolved::resolve(auth_details, resolve_auth_class).await
+        AuthenticationClassResolved::resolve(nifi, resolve_auth_class).await
     }
 
     /// Retrieve all provided `AuthenticationClass` references.
     pub async fn resolve<R>(
-        auth_details: &[ClientAuthenticationDetails],
+        nifi: &NifiCluster,
         resolve_auth_class: impl Fn(ClientAuthenticationDetails) -> R,
     ) -> Result<Vec<AuthenticationClassResolved>>
     where
         R: Future<Output = Result<AuthenticationClass, stackable_operator::client::Error>>,
     {
         let mut resolved_auth_classes = vec![];
+        let auth_details = &nifi.spec.cluster_config.authentication;
 
         match auth_details.len() {
             0 => NoAuthenticationNotSupportedSnafu.fail()?,
@@ -120,9 +124,14 @@ impl AuthenticationClassResolved {
                         provider: provider.to_owned(),
                     })
                 }
-                AuthenticationClassProvider::Oidc(provider) => resolved_auth_classes.push(
-                    AuthenticationClassResolved::from_oidc(&auth_class_name, provider, entry)?,
-                ),
+                AuthenticationClassProvider::Oidc(provider) => {
+                    resolved_auth_classes.push(AuthenticationClassResolved::from_oidc(
+                        &auth_class_name,
+                        provider,
+                        entry,
+                        nifi.clone(),
+                    )?)
+                }
                 _ => AuthenticationClassProviderNotSupportedSnafu {
                     authentication_class_provider: auth_class.spec.provider.to_string(),
                     authentication_class: ObjectRef::<AuthenticationClass>::new(&auth_class_name),
@@ -138,6 +147,7 @@ impl AuthenticationClassResolved {
         auth_class_name: &str,
         provider: &oidc::AuthenticationProvider,
         auth_details: &ClientAuthenticationDetails,
+        nifi: NifiCluster,
     ) -> Result<AuthenticationClassResolved> {
         let oidc_provider = match &provider.provider_hint {
             None => {
@@ -162,6 +172,7 @@ impl AuthenticationClassResolved {
                 .oidc_or_error(auth_class_name)
                 .context(OidcConfigurationInvalidSnafu)?
                 .clone(),
+            nifi: nifi,
         })
     }
 }

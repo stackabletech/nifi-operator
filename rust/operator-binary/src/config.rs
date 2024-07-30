@@ -559,7 +559,7 @@ pub fn build_nifi_properties(
     if let NifiAuthenticationConfig::Oidc { .. } = auth_config {
         properties.insert(
             "nifi.security.user.login.identity.provider".to_string(),
-            "".to_string(),
+            "login-identity-provider".to_string(),
         );
     } else {
         properties.insert(
@@ -580,7 +580,7 @@ pub fn build_nifi_properties(
         "true".to_string(),
     );
 
-    if let NifiAuthenticationConfig::Oidc { provider, oidc } = auth_config {
+    if let NifiAuthenticationConfig::Oidc { provider, oidc, .. } = auth_config {
         let endpoint_url = provider
             .endpoint_url()
             .context(InvalidOidcEndpointSnafu)?

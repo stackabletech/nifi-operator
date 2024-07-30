@@ -22,4 +22,10 @@ spec:
           env:
           - name: OIDC_USE_TLS
             value: "{{ test_scenario['values']['oidc-use-tls'] }}"
+          - name: NIFI_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-nifi-oidc-admin-password
+                key: admin
+              
       terminationGracePeriodSeconds: 1
