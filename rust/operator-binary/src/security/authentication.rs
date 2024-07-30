@@ -211,9 +211,15 @@ impl NifiAuthenticationConfig {
                 };
                 pod_builder.add_volume(admin_volume);
 
-                if let Some(prepare_container) = container_builders.first() {
-                    prepare_container.add_volume_mount(STACKABLE_ADMIN_USERNAME, STACKABLE_USER_VOLUME_MOUNT_PATH);
-                }
+                let container_builders = container_builders
+                    .into_iter()
+                    .map(|cb| {
+                        cb.add_volume_mount(
+                            STACKABLE_ADMIN_USERNAME,
+                            STACKABLE_USER_VOLUME_MOUNT_PATH,
+                        )
+                    })
+                    .collect();
 
                 provider
                     .tls
