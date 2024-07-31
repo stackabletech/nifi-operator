@@ -6,9 +6,7 @@ metadata:
 spec:
   provider:
     oidc:
-      # hostname: keycloak.$NAMESPACE.svc.cluster.local
-      hostname: "172.18.0.2"
-      port: 32539
+      hostname: keycloak.$NAMESPACE.svc.cluster.local
       rootPath: /realms/test
       principalClaim: preferred_username
       scopes:
@@ -17,13 +15,13 @@ spec:
         - profile
       providerHint: Keycloak
 {% if test_scenario['values']['oidc-use-tls'] == 'true' %}
-      # port: 8443
+      port: 8443
       tls:
         verification:
           server:
             caCert:
               secretClass: keycloak-tls
 {% else %}
-      # port: 8080
+      port: 8080
       tls: null
 {% endif %}
