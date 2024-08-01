@@ -32,7 +32,7 @@ In the above example, all nodes in the default group will request `12Gi` of stor
 
 == Resource requests
 
-include::home:concepts:stackable_resource_requests.adoc[]
+include::concepts:stackable_resource_requests.adoc[]
 
 A minimal HA setup consisting of 2 NiFi instances has the following https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/[resource requirements]:
 
