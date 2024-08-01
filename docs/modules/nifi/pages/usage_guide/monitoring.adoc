@@ -5,4 +5,4 @@ This is done by creating a https://kubernetes.io/docs/concepts/workloads/control
 
 IMPORTANT: Network access from the Job to NiFi is required. If you are running a Kubernetes with restrictive https://kubernetes.io/docs/concepts/services-networking/network-policies/[NetworkPolicies], make sure to allow access from the Job to NiFi.
 
-See xref:home:operators:monitoring.adoc[] for more details.
+See xref:operators:monitoring.adoc[] for more details.
