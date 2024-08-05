@@ -172,7 +172,7 @@ impl AuthenticationClassResolved {
                 .oidc_or_error(auth_class_name)
                 .context(OidcConfigurationInvalidSnafu)?
                 .clone(),
-            nifi: nifi,
+            nifi,
         })
     }
 }
