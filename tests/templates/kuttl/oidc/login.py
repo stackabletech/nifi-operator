@@ -40,7 +40,6 @@ authenticate_url = login_page_html.form["action"]
 welcome_page = session.post(
     authenticate_url, data={"username": "jane.doe", "password": "T8mn72D9"}, verify=False
 )
-print(welcome_page.url)
 assert welcome_page.ok, "Login failed"
 assert (
     welcome_page.url == f"https://{nifi}:8443/nifi/"

@@ -9,6 +9,9 @@ data:
     {
       "realm": "$REALM",
       "enabled": true,
+      "attributes": {
+      "frontendUrl": "keycloak.$NAMESPACE.svc.cluster.local"
+      },
       "users": [
         {
           "enabled": true,
@@ -151,7 +154,11 @@ spec:
   provider:
     oidc:
       hostname: $INSTANCE_NAME.$NAMESPACE.svc.cluster.local
+{% if test_scenario['values']['oidc-use-tls'] == 'true' %}
       port: 8443
+{% else %}
+      port: 8080
+{% endif %}
       rootPath: /realms/$REALM
       scopes:
         - email

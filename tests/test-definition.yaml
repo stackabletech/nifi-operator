@@ -41,7 +41,7 @@ dimensions:
   - name: oidc-use-tls
     values:
       - "false"
-      # - "true"
+      - "true"
   - name: openshift
     values:
       - "false"
