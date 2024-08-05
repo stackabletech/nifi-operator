@@ -248,7 +248,11 @@ impl NifiAuthenticationConfig {
             AuthenticationClassResolved::Ldap { provider } => Ok(Self::Ldap {
                 provider: provider.clone(),
             }),
-            AuthenticationClassResolved::Oidc { provider, oidc, nifi } => Ok(Self::Oidc {
+            AuthenticationClassResolved::Oidc {
+                provider,
+                oidc,
+                nifi,
+            } => Ok(Self::Oidc {
                 provider: provider.clone(),
                 oidc: oidc.clone(),
                 nifi: nifi.clone(),
