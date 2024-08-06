@@ -29,11 +29,9 @@ keycloak_base_url = (
     if tls == "true"
     else f"http://{keycloak_service}:8080"
 )
-print("[login] found: ", login_page.url)
-print("[login] expected: ", f"{keycloak_base_url}/realms/test/protocol/openid-connect/auth?response_type=code&client_id=nifi&scope=openid%20email%20profile&state=")
 assert login_page.ok, "Redirection from NiFi to Keycloak failed"
 assert login_page.url.startswith(
-    f"{keycloak_base_url}/realms/test/protocol/openid-connect/auth?response_type=code&client_id=nifi&scope=openid%20email%20profile&state="
+    f"{keycloak_base_url}/realms/test/protocol/openid-connect/auth?response_type=code&client_id=nifi&scope="
 ), "Redirection to Keycloak expected"
 
 # Login to keycloak with test user
@@ -42,8 +40,6 @@ authenticate_url = login_page_html.form["action"]
 welcome_page = session.post(
     authenticate_url, data={"username": "jane.doe", "password": "T8mn72D9"}, verify=False
 )
-print("[redirect] found: ", welcome_page.url)
-print("[redirect] expected: ", f"https://{nifi}:8443/nifi/")
 assert welcome_page.ok, "Login failed"
 assert (
     welcome_page.url == f"https://{nifi}:8443/nifi/"

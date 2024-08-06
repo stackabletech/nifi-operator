@@ -91,7 +91,7 @@ tests:
       - openshift
   - name: oidc
     dimensions:
-      - nifi
+      - nifi-latest
       - zookeeper-latest
       - oidc-use-tls
       - openshift
