@@ -12,10 +12,10 @@ dimensions:
       - 3.9.2
   - name: nifi
     values:
-      # - 1.21.0
-      # - 1.25.0
+      - 1.21.0
+      - 1.25.0
       - 1.27.0
-      # - 2.0.0-M4
+      - 2.0.0-M4
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
       # - 1.27.0,docker.stackable.tech/sandbox/nifi:1.27.0-stackable0.0.0-dev
@@ -36,7 +36,7 @@ dimensions:
       # - 1.27.0,docker.stackable.tech/sandbox/nifi:1.27.0-stackable0.0.0-dev
   - name: ldap-use-tls
     values:
-      # - "false"
+      - "false"
       - "true"
   - name: oidc-use-tls
     values:
@@ -51,44 +51,44 @@ dimensions:
       - "cluster-internal"
       - "external-unstable"
 tests:
-  # - name: upgrade
-  #   dimensions:
-  #     - nifi_old
-  #     - nifi_new
-  #     - zookeeper-latest
-  #     - openshift
-  # - name: orphaned_resources
-  #   dimensions:
-  #     - nifi
-  #     - zookeeper-latest
-  #     - openshift
-  # - name: smoke
-  #   dimensions:
-  #     - nifi
-  #     - zookeeper
-  #     - listener-class
-  #     - openshift
-  # - name: resources
-  #   dimensions:
-  #     - nifi
-  #     - zookeeper-latest
-  #     - openshift
-  # - name: ldap
-  #   dimensions:
-  #     - nifi
-  #     - zookeeper-latest
-  #     - ldap-use-tls
-  #     - openshift
-  # - name: logging
-  #   dimensions:
-  #     - nifi
-  #     - zookeeper-latest
-  #     - openshift
-  # - name: cluster_operation
-  #   dimensions:
-  #     - nifi-latest
-  #     - zookeeper-latest
-  #     - openshift
+  - name: upgrade
+    dimensions:
+      - nifi_old
+      - nifi_new
+      - zookeeper-latest
+      - openshift
+  - name: orphaned_resources
+    dimensions:
+      - nifi
+      - zookeeper-latest
+      - openshift
+  - name: smoke
+    dimensions:
+      - nifi
+      - zookeeper
+      - listener-class
+      - openshift
+  - name: resources
+    dimensions:
+      - nifi
+      - zookeeper-latest
+      - openshift
+  - name: ldap
+    dimensions:
+      - nifi
+      - zookeeper-latest
+      - ldap-use-tls
+      - openshift
+  - name: logging
+    dimensions:
+      - nifi
+      - zookeeper-latest
+      - openshift
+  - name: cluster_operation
+    dimensions:
+      - nifi-latest
+      - zookeeper-latest
+      - openshift
   - name: oidc
     dimensions:
       - nifi
@@ -123,4 +123,6 @@ suites:
           - name: zookeeper
             expr: last
           - name: ldap-use-tls
+            expr: "true"
+          - name: oidc-use-tls
             expr: "true"
