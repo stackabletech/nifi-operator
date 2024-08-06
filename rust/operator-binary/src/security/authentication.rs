@@ -94,8 +94,8 @@ impl NifiAuthenticationConfig {
                 "#});
             }
             Self::Ldap { provider } => {
-                login_identity_provider_xml.push_str(&get_ldap_login_identity_provider(&provider)?);
-                authorizers_xml.push_str(&get_ldap_authorizer(&provider)?);
+                login_identity_provider_xml.push_str(&get_ldap_login_identity_provider(provider)?);
+                authorizers_xml.push_str(&get_ldap_authorizer(provider)?);
             }
         }
 

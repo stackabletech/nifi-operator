@@ -607,7 +607,7 @@ pub fn build_nifi_properties(
         let scopes = provider.scopes.join(",");
         properties.insert(
             "nifi.security.user.oidc.additional.scopes".to_string(),
-            format!("{scopes}").to_string(),
+            scopes.to_string(),
         );
 
         properties.insert(

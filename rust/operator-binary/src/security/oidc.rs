@@ -51,13 +51,13 @@ pub(crate) async fn check_or_generate_oidc_admin_password(
                 .into_keys()
                 .collect::<HashSet<_>>();
             if keys.contains(STACKABLE_OIDC_ADMIN_PASSWORD_KEY) {
-                return Ok(false);
+                Ok(false)
             } else {
                 return OidcAdminPasswordKeyMissingSnafu {
                     name: build_oidc_admin_password_secret_name(nifi),
                     namespace,
                 }
-                .fail()?;
+                .fail();
             }
         }
         None => {
