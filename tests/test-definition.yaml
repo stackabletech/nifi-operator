@@ -105,6 +105,8 @@ suites:
             expr: last
           - name: ldap-use-tls
             expr: "true"
+          - name: oidc-use-tls
+            expr: "true"
   - name: smoke-latest
     select:
       - smoke
