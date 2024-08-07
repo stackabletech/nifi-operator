@@ -33,6 +33,7 @@ pub enum Error {
     OidcAdminPasswordKeyMissing { name: String, namespace: String },
 }
 
+/// Generate a secret containing the password for the admin user that can access the API. This admin user is the same as for SingleUser authentication.
 pub(crate) async fn check_or_generate_oidc_admin_password(
     client: &Client,
     nifi: &NifiCluster,
