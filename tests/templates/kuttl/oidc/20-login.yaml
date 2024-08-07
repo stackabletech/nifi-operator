@@ -1,0 +1,7 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: >
+      envsubst '$NAMESPACE' < login.py |
+      kubectl exec -n $NAMESPACE -i test-nifi-0 -- tee /stackable/login.py > /dev/null

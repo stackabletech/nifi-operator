@@ -2,14 +2,13 @@ pub mod affinity;
 pub mod authentication;
 pub mod tls;
 
-use crate::authentication::NifiAuthenticationClassRef;
-
 use affinity::get_affinity;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
+        authentication::ClientAuthenticationDetails,
         cluster_operation::ClusterOperation,
         product_image_selection::ProductImage,
         resources::{
@@ -18,8 +17,7 @@ use stackable_operator::{
         },
     },
     config::{
-        fragment::Fragment,
-        fragment::{self, ValidationError},
+        fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
     k8s_openapi::{api::core::v1::Volume, apimachinery::pkg::api::resource::Quantity},
@@ -114,7 +112,7 @@ pub struct NifiClusterConfig {
     /// Authentication options for NiFi (required).
     /// Read more about authentication in the [security documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/security).
     // We don't add `#[serde(default)]` here, as we require authentication
-    pub authentication: Vec<NifiAuthenticationClassRef>,
+    pub authentication: Vec<ClientAuthenticationDetails>,
 
     /// TLS configuration options for the server.
     #[serde(default)]

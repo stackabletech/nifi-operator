@@ -96,9 +96,56 @@ spec:
       - authenticationClass: ldap # <1>
 ----
 
-<1> The reference to an AuthenticationClass called `ldap`
+<1> The reference to an `AuthenticationClass` called `ldap`
 
-You can follow the xref:tutorials:authentication_with_openldap.adoc[] tutorial to learn how to set up an AuthenticationClass for an LDAP server, as well as consulting the {crd-docs}/authentication.stackable.tech/authenticationclass/v1alpha1/[AuthenticationClass reference {external-link-icon}^].
+You can follow the xref:tutorials:authentication_with_openldap.adoc[] tutorial to learn how to set up an `AuthenticationClass` for an LDAP server, as well as consulting the {crd-docs}/authentication.stackable.tech/authenticationclass/v1alpha1/[AuthenticationClass reference {external-link-icon}^].
+
+[#authentication-oidc]
+=== OIDC
+
+NiFi supports xref:concepts:authentication.adoc[authentication] of users against an OIDC provider.
+This requires setting up an `AuthenticationClass` for the OIDC provider and specifying a secret containing OIDC client and OIDC client secret as part of the NiFi configuration.
+The `AuthenticationClass` and the OIDC client credentials secret are then referenced in the NifiCluster resource:
+
+[source,yaml]
+----
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: test-nifi
+spec:
+  clusterConfig:
+    authentication:
+      - authenticationClass: oidc # <1>
+        oidc:
+          clientCredentialsSecret: nifi-oidc-client # <2>
+----
+
+<1> The reference to an AuthenticationClass called `oidc`
+<2> The reference to an existing secret called `nifi-oidc-client`
+
+[source,yaml]
+----
+apiVersion: authentication.stackable.tech/v1alpha1
+kind: AuthenticationClass
+metadata:
+  name: oidc
+spec:
+  provider:
+    oidc:
+  [...]
+----
+
+[source,yaml]
+----
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nifi-oidc-client
+stringData:
+  clientId: <client-id>
+  clientSecret: <client-secret>
+----
 
 [#authorization]
 == Authorization
@@ -107,6 +154,7 @@ NiFi supports {nifi-docs-authorization}[multiple authorization methods], the ava
 
 Authorization is not fully implemented by the Stackable Operator for Apache NiFi.
 
+[#authorization-single-user]
 === Single user
 
 With this authorization method, a single user has administrator capabilities.
@@ -117,6 +165,14 @@ With this authorization method, a single user has administrator capabilities.
 The operator uses the {nifi-docs-fileusergroupprovider}[`FileUserGroupProvider`] and {nifi-docs-fileaccesspolicyprovider}[FileAccessPolicyProvider] to bind the LDAP user to the NiFi administrator group.
 This user is then able to create and modify groups and policies in the web interface.
 These changes local to the Pod running NiFi and are *not* persistent.
+
+[#authorization-oidc]
+=== OIDC
+
+With this authorization method, all authenticated users have administrator capabilities. 
+
+An admin user with an auto-generated password is created that can access the NiFi API.
+The password for this user is stored in a Kubernetes secret called `<nifi-name>-oidc-admin-password`.
 
 [#encrypting-sensitive-properties]
 == Encrypting sensitive properties on disk

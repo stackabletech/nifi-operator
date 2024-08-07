@@ -33,8 +33,27 @@ spec:
                       items:
                         properties:
                           authenticationClass:
-                            description: Name of the [AuthenticationClass](https://docs.stackable.tech/home/nightly/concepts/authentication) used to authenticate users. Supported providers are `static` and `ldap`. For `static` the "admin" user needs to be present in the referenced secret, and only this user will be added to NiFi, other users are ignored.
+                            description: A name/key which references an authentication class. To get the concrete [`AuthenticationClass`], we must resolve it. This resolution can be achieved by using [`ClientAuthenticationDetails::resolve_class`].
                             type: string
+                          oidc:
+                            description: |-
+                              This field contains authentication provider specific configuration.
+
+                              Use [`ClientAuthenticationDetails::oidc_or_error`] to get the value or report an error to the user.
+                            nullable: true
+                            properties:
+                              clientCredentialsSecret:
+                                description: A reference to the OIDC client credentials secret. The secret contains the client id and secret.
+                                type: string
+                              extraScopes:
+                                default: []
+                                description: An optional list of extra scopes which get merged with the scopes defined in the [`AuthenticationClass`].
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                              - clientCredentialsSecret
+                            type: object
                         required:
                           - authenticationClass
                         type: object

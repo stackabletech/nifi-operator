@@ -1,0 +1,23 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'stackable-nifi-operator'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=stackable-nifi-operator",
+                    "--package=stackable-nifi-operator"
+                ],
+                "filter": {
+                    "name": "stackable-nifi-operator",
+                    "kind": "bin"
+                }
+            },
+            "args": ["run"],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

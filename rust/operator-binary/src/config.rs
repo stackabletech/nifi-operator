@@ -10,7 +10,10 @@ use stackable_nifi_crd::{
     PROTOCOL_PORT,
 };
 use stackable_operator::{
-    commons::resources::Resources,
+    commons::{
+        authentication::oidc::{AuthenticationProvider, DEFAULT_OIDC_WELLKNOWN_PATH},
+        resources::Resources,
+    },
     memory::{BinaryMultiple, MemoryQuantity},
     product_config_utils::{
         transform_all_roles_to_config, validate_all_roles_and_groups_config,
@@ -22,7 +25,9 @@ use strum::{Display, EnumIter};
 
 use crate::{
     operations::graceful_shutdown::graceful_shutdown_config_properties,
-    security::authentication::{STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD},
+    security::authentication::{
+        NifiAuthenticationConfig, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
+    },
 };
 
 pub const NIFI_CONFIG_DIRECTORY: &str = "/stackable/nifi/conf";
@@ -81,6 +86,10 @@ pub enum Error {
     CalculateStorageQuota {
         source: stackable_operator::memory::Error,
         repo: NifiRepository,
+    },
+    #[snafu(display("Invalid OIDC endpoint URL"))]
+    InvalidOidcEndpoint {
+        source: stackable_operator::commons::authentication::oidc::Error,
     },
 }
 
@@ -178,6 +187,7 @@ pub fn build_nifi_properties(
     spec: &NifiSpec,
     resource_config: &Resources<NifiStorageConfig>,
     proxy_hosts: &str,
+    auth_config: &NifiAuthenticationConfig,
     overrides: BTreeMap<String, String>,
 ) -> Result<String, Error> {
     let mut properties = BTreeMap::new();
@@ -561,6 +571,47 @@ pub fn build_nifi_properties(
         "nifi.cluster.protocol.is.secure".to_string(),
         "true".to_string(),
     );
+
+    if let NifiAuthenticationConfig::Oidc { provider, oidc, .. } = auth_config {
+        let endpoint_url = provider
+            .endpoint_url()
+            .context(InvalidOidcEndpointSnafu)?
+            .to_string();
+        properties.insert(
+            "nifi.security.user.oidc.discovery.url".to_string(),
+            format!("{endpoint_url}/{DEFAULT_OIDC_WELLKNOWN_PATH}"),
+        );
+
+        let (oidc_client_id_env, oidc_client_secret_env) =
+            AuthenticationProvider::client_credentials_env_names(
+                &oidc.client_credentials_secret_ref,
+            );
+        properties.insert(
+            "nifi.security.user.oidc.client.id".to_string(),
+            format!("${{env:{oidc_client_id_env}}}").to_string(),
+        );
+
+        properties.insert(
+            "nifi.security.user.oidc.client.secret".to_string(),
+            format!("${{env:{oidc_client_secret_env}}}").to_string(),
+        );
+
+        let scopes = provider.scopes.join(",");
+        properties.insert(
+            "nifi.security.user.oidc.additional.scopes".to_string(),
+            scopes.to_string(),
+        );
+
+        properties.insert(
+            "nifi.security.user.oidc.claim.identifying.user".to_string(),
+            provider.principal_claim.to_string(),
+        );
+        properties.insert(
+            "nifi.security.user.oidc.truststore.strategy".to_string(),
+            "NIFI".to_string(),
+        );
+    }
+
     // cluster node properties (only configure for cluster nodes)
     properties.insert("nifi.cluster.is.node".to_string(), "true".to_string());
     properties.insert(
