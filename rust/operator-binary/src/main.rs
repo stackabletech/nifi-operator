@@ -94,7 +94,7 @@ async fn main() -> anyhow::Result<()> {
                 )
                 .shutdown_on_signal()
                 .watches(
-                    client.get_api::<AuthenticationClass>(&()),
+                    client.get_api::<DeserializeGuard<AuthenticationClass>>(&()),
                     watcher::Config::default(),
                     move |_| {
                         nifi_store_1

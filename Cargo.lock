@@ -1111,6 +1111,7 @@ dependencies = [
 [[package]]
 name = "kube"
 version = "0.93.1"
+source = "git+https://github.com/nightkr/kube-rs.git?branch=bugfix/deserializeguard-error#2c1c79bf5c656633e01de875f6e332de69582c26"
 dependencies = [
  "k8s-openapi",
  "kube-client",
@@ -1122,6 +1123,7 @@ dependencies = [
 [[package]]
 name = "kube-client"
 version = "0.93.1"
+source = "git+https://github.com/nightkr/kube-rs.git?branch=bugfix/deserializeguard-error#2c1c79bf5c656633e01de875f6e332de69582c26"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -1158,6 +1160,7 @@ dependencies = [
 [[package]]
 name = "kube-core"
 version = "0.93.1"
+source = "git+https://github.com/nightkr/kube-rs.git?branch=bugfix/deserializeguard-error#2c1c79bf5c656633e01de875f6e332de69582c26"
 dependencies = [
  "chrono",
  "form_urlencoded",
@@ -1174,6 +1177,7 @@ dependencies = [
 [[package]]
 name = "kube-derive"
 version = "0.93.1"
+source = "git+https://github.com/nightkr/kube-rs.git?branch=bugfix/deserializeguard-error#2c1c79bf5c656633e01de875f6e332de69582c26"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -1185,6 +1189,7 @@ dependencies = [
 [[package]]
 name = "kube-runtime"
 version = "0.93.1"
+source = "git+https://github.com/nightkr/kube-rs.git?branch=bugfix/deserializeguard-error#2c1c79bf5c656633e01de875f6e332de69582c26"
 dependencies = [
  "ahash",
  "async-broadcast",
