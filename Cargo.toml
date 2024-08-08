@@ -31,7 +31,7 @@ tracing = "0.1"
 xml-rs = "0.8"
 
 [patch.crates-io]
-kube = { git = "https://github.com/nightkr/kube-rs.git", branch = "bugfix/deserializeguard-error" }
+kube = { git = "https://github.com/kube-rs/kube.git" }
 
 [patch."https://github.com/stackabletech/operator-rs.git"]
 stackable-operator = { git = "https://github.com/stackabletech//operator-rs.git", branch = "chore/kube-0.93" }
