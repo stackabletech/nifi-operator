@@ -30,5 +30,9 @@ tokio = { version = "1.38", features = ["full"] }
 tracing = "0.1"
 xml-rs = "0.8"
 
-# [patch."https://github.com/stackabletech/operator-rs.git"]
-# stackable-operator = { git = "https://github.com/stackabletech//operator-rs.git", branch = "main" }
+[patch.crates-io]
+# kube = { git = "https://github.com/kube-rs/kube.git" }
+kube = { path = "../../kube-rs/kube" }
+
+[patch."https://github.com/stackabletech/operator-rs.git"]
+stackable-operator = { git = "https://github.com/stackabletech//operator-rs.git", branch = "chore/kube-0.93" }

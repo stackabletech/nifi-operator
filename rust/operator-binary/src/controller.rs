@@ -2,7 +2,6 @@
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap},
-    ops::Deref,
     sync::Arc,
 };
 
@@ -46,11 +45,12 @@ use stackable_operator::{
         DeepMerge,
     },
     kube::{
-        api::ListParams, runtime::controller::Action, runtime::reflector::ObjectRef, Resource,
-        ResourceExt,
+        api::ListParams,
+        core::{error_boundary, DeserializeGuard},
+        runtime::{controller::Action, reflector::ObjectRef},
+        Resource, ResourceExt,
     },
-    kvp::Labels,
-    kvp::{Label, ObjectLabels},
+    kvp::{Label, Labels, ObjectLabels},
     logging::controller::ReconcilerError,
     product_logging::{
         self,
@@ -106,6 +106,11 @@ pub struct Ctx {
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("NifiCluster object is invalid"))]
+    InvalidNifiCluster {
+        source: error_boundary::InvalidObject,
+    },
+
     #[snafu(display("object defines no name"))]
     ObjectHasNoName,
 
@@ -337,8 +342,17 @@ pub enum VersionChangeState {
     NoChange,
 }
 
-pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Action> {
+pub async fn reconcile_nifi(
+    nifi: Arc<DeserializeGuard<NifiCluster>>,
+    ctx: Arc<Ctx>,
+) -> Result<Action> {
     tracing::info!("Starting reconcile");
+    let nifi = nifi
+        .0
+        .as_ref()
+        .map_err(error_boundary::InvalidObject::clone)
+        .context(InvalidNifiClusterSnafu)?;
+
     let client = &ctx.client;
     let namespace = &nifi
         .metadata
@@ -367,7 +381,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             let selector = LabelSelector {
                 match_expressions: None,
                 match_labels: Some(
-                    Labels::role_selector(nifi.deref(), APP_NAME, &NifiRole::Node.to_string())
+                    Labels::role_selector(nifi, APP_NAME, &NifiRole::Node.to_string())
                         .context(LabelBuildSnafu)?
                         .into(),
                 ),
@@ -470,7 +484,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         .context(ResolveVectorAggregatorAddressSnafu)?;
 
     let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
-        nifi.as_ref(),
+        nifi,
         APP_NAME,
         cluster_resources
             .get_required_labels()
@@ -607,10 +621,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
     let cluster_operation_cond_builder =
         ClusterOperationsConditionBuilder::new(&nifi.spec.cluster_operation);
 
-    let conditions = compute_conditions(
-        nifi.as_ref(),
-        &[&ss_cond_builder, &cluster_operation_cond_builder],
-    );
+    let conditions = compute_conditions(nifi, &[&ss_cond_builder, &cluster_operation_cond_builder]);
 
     // Update the deployed product version in the status after everything has been deployed, unless
     // we are still in the process of updating
@@ -1407,8 +1418,17 @@ async fn get_proxy_hosts(
     Ok(proxy_setting.join(","))
 }
 
-pub fn error_policy(_obj: Arc<NifiCluster>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
-    Action::requeue(*Duration::from_secs(10))
+pub fn error_policy(
+    _obj: Arc<DeserializeGuard<NifiCluster>>,
+    error: &Error,
+    _ctx: Arc<Ctx>,
+) -> Action {
+    match error {
+        // root object is invalid, will be requeued when modified anyway
+        Error::InvalidNifiCluster { .. } => Action::await_change(),
+
+        _ => Action::requeue(*Duration::from_secs(10)),
+    }
 }
 
 pub fn build_recommended_labels<'a>(
