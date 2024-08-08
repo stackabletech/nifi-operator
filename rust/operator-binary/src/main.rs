@@ -14,7 +14,10 @@ use stackable_operator::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Service},
     },
-    kube::runtime::{reflector::ObjectRef, watcher, Controller},
+    kube::{
+        core::DeserializeGuard,
+        runtime::{reflector::ObjectRef, watcher, Controller},
+    },
     logging::controller::report_controller_reconciled,
     CustomResourceExt,
 };
@@ -70,7 +73,7 @@ async fn main() -> anyhow::Result<()> {
                 stackable_operator::client::create_client(Some(OPERATOR_NAME.to_string())).await?;
 
             let nifi_controller = Controller::new(
-                watch_namespace.get_api::<NifiCluster>(&client),
+                watch_namespace.get_api::<DeserializeGuard<NifiCluster>>(&client),
                 watcher::Config::default(),
             );
 
@@ -91,7 +94,7 @@ async fn main() -> anyhow::Result<()> {
                 )
                 .shutdown_on_signal()
                 .watches(
-                    client.get_api::<AuthenticationClass>(&()),
+                    client.get_api::<DeserializeGuard<AuthenticationClass>>(&()),
                     watcher::Config::default(),
                     move |_| {
                         nifi_store_1

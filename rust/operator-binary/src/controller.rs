@@ -2,7 +2,6 @@
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap},
-    ops::Deref,
     sync::Arc,
 };
 
@@ -46,11 +45,12 @@ use stackable_operator::{
         DeepMerge,
     },
     kube::{
-        api::ListParams, runtime::controller::Action, runtime::reflector::ObjectRef, Resource,
-        ResourceExt,
+        api::ListParams,
+        core::{error_boundary, DeserializeGuard},
+        runtime::{controller::Action, reflector::ObjectRef},
+        Resource, ResourceExt,
     },
-    kvp::Labels,
-    kvp::{Label, ObjectLabels},
+    kvp::{Label, Labels, ObjectLabels},
     logging::controller::ReconcilerError,
     product_logging::{
         self,
@@ -106,6 +106,11 @@ pub struct Ctx {
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("NifiCluster object is invalid"))]
+    InvalidNifiCluster {
+        source: error_boundary::InvalidObject,
+    },
+
     #[snafu(display("object defines no name"))]
     ObjectHasNoName,
 
@@ -337,8 +342,17 @@ pub enum VersionChangeState {
     NoChange,
 }
 
-pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Action> {
+pub async fn reconcile_nifi(
+    nifi: Arc<DeserializeGuard<NifiCluster>>,
+    ctx: Arc<Ctx>,
+) -> Result<Action> {
     tracing::info!("Starting reconcile");
+    let nifi = nifi
+        .0
+        .as_ref()
+        .map_err(error_boundary::InvalidObject::clone)
+        .context(InvalidNifiClusterSnafu)?;
+
     let client = &ctx.client;
     let namespace = &nifi
         .metadata
@@ -352,7 +366,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         .resolve(DOCKER_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION);
 
     tracing::info!("Checking for sensitive key configuration");
-    check_or_generate_sensitive_key(client, &nifi)
+    check_or_generate_sensitive_key(client, nifi)
         .await
         .context(SecuritySnafu)?;
 
@@ -367,7 +381,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             let selector = LabelSelector {
                 match_expressions: None,
                 match_labels: Some(
-                    Labels::role_selector(nifi.deref(), APP_NAME, &NifiRole::Node.to_string())
+                    Labels::role_selector(nifi, APP_NAME, &NifiRole::Node.to_string())
                         .context(LabelBuildSnafu)?
                         .into(),
                 ),
@@ -423,7 +437,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
     };
 
     let validated_config = validated_product_config(
-        &nifi,
+        nifi,
         &resolved_product_image.product_version,
         nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?,
         &ctx.product_config,
@@ -444,7 +458,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         .map(Cow::Borrowed)
         .unwrap_or_default();
 
-    let node_role_service = build_node_role_service(&nifi, &resolved_product_image)?;
+    let node_role_service = build_node_role_service(nifi, &resolved_product_image)?;
     cluster_resources
         .add(client, node_role_service)
         .await
@@ -465,12 +479,12 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
     )
     .context(InvalidNifiAuthenticationConfigSnafu)?;
 
-    let vector_aggregator_address = resolve_vector_aggregator_address(&nifi, client)
+    let vector_aggregator_address = resolve_vector_aggregator_address(nifi, client)
         .await
         .context(ResolveVectorAggregatorAddressSnafu)?;
 
     let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
-        nifi.as_ref(),
+        nifi,
         APP_NAME,
         cluster_resources
             .get_required_labels()
@@ -503,7 +517,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
                 .context(FailedToResolveConfigSnafu)?;
 
             let rg_service =
-                build_node_rolegroup_service(&nifi, &resolved_product_image, &rolegroup)?;
+                build_node_rolegroup_service(nifi, &resolved_product_image, &rolegroup)?;
 
             let role = nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?;
 
@@ -512,10 +526,10 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             // Since we cannot predict which of the addresses a user might decide to use we will simply
             // add all of them to the setting for now.
             // For more information see <https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#proxy_configuration>
-            let proxy_hosts = get_proxy_hosts(client, &nifi, &updated_role_service).await?;
+            let proxy_hosts = get_proxy_hosts(client, nifi, &updated_role_service).await?;
 
             let rg_configmap = build_node_rolegroup_config_map(
-                &nifi,
+                nifi,
                 &resolved_product_image,
                 &nifi_authentication_config,
                 &rolegroup,
@@ -527,7 +541,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
             .await?;
 
             let rg_statefulset = build_node_rolegroup_statefulset(
-                &nifi,
+                nifi,
                 &resolved_product_image,
                 &rolegroup,
                 role,
@@ -571,13 +585,13 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         pod_disruption_budget: pdb,
     }) = role_config
     {
-        add_pdbs(pdb, &nifi, &nifi_role, client, &mut cluster_resources)
+        add_pdbs(pdb, nifi, &nifi_role, client, &mut cluster_resources)
             .await
             .context(FailedToCreatePdbSnafu)?;
     }
 
     let (reporting_task_job, reporting_task_service) = build_reporting_task(
-        &nifi,
+        nifi,
         &resolved_product_image,
         &nifi_authentication_config,
         &rbac_sa.name_any(),
@@ -607,10 +621,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
     let cluster_operation_cond_builder =
         ClusterOperationsConditionBuilder::new(&nifi.spec.cluster_operation);
 
-    let conditions = compute_conditions(
-        nifi.as_ref(),
-        &[&ss_cond_builder, &cluster_operation_cond_builder],
-    );
+    let conditions = compute_conditions(nifi, &[&ss_cond_builder, &cluster_operation_cond_builder]);
 
     // Update the deployed product version in the status after everything has been deployed, unless
     // we are still in the process of updating
@@ -630,7 +641,7 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
     };
 
     client
-        .apply_patch_status(OPERATOR_NAME, &*nifi, &status)
+        .apply_patch_status(OPERATOR_NAME, nifi, &status)
         .await
         .context(StatusUpdateSnafu)?;
 
@@ -802,7 +813,7 @@ fn build_node_rolegroup_service(
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(nifi)
-            .name(&rolegroup.object_name())
+            .name(rolegroup.object_name())
             .ownerreference_from_resource(nifi, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
@@ -975,24 +986,24 @@ async fn build_node_rolegroup_statefulset(
         .add_env_vars(env_vars.clone())
         .args(vec![prepare_args.join(" && ")])
         .add_volume_mount(
-            &NifiRepository::Flowfile.repository(),
-            &NifiRepository::Flowfile.mount_path(),
+            NifiRepository::Flowfile.repository(),
+            NifiRepository::Flowfile.mount_path(),
         )
         .add_volume_mount(
-            &NifiRepository::Database.repository(),
-            &NifiRepository::Database.mount_path(),
+            NifiRepository::Database.repository(),
+            NifiRepository::Database.mount_path(),
         )
         .add_volume_mount(
-            &NifiRepository::Content.repository(),
-            &NifiRepository::Content.mount_path(),
+            NifiRepository::Content.repository(),
+            NifiRepository::Content.mount_path(),
         )
         .add_volume_mount(
-            &NifiRepository::Provenance.repository(),
-            &NifiRepository::Provenance.mount_path(),
+            NifiRepository::Provenance.repository(),
+            NifiRepository::Provenance.mount_path(),
         )
         .add_volume_mount(
-            &NifiRepository::State.repository(),
-            &NifiRepository::State.mount_path(),
+            NifiRepository::State.repository(),
+            NifiRepository::State.mount_path(),
         )
         .add_volume_mount("conf", "/conf")
         .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_NIFI_CONTAINER_MOUNT)
@@ -1042,24 +1053,24 @@ async fn build_node_rolegroup_statefulset(
         .add_env_vars(env_vars)
         .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_NIFI_CONTAINER_MOUNT)
         .add_volume_mount(
-            &NifiRepository::Flowfile.repository(),
-            &NifiRepository::Flowfile.mount_path(),
+            NifiRepository::Flowfile.repository(),
+            NifiRepository::Flowfile.mount_path(),
         )
         .add_volume_mount(
-            &NifiRepository::Database.repository(),
-            &NifiRepository::Database.mount_path(),
+            NifiRepository::Database.repository(),
+            NifiRepository::Database.mount_path(),
         )
         .add_volume_mount(
-            &NifiRepository::Content.repository(),
-            &NifiRepository::Content.mount_path(),
+            NifiRepository::Content.repository(),
+            NifiRepository::Content.mount_path(),
         )
         .add_volume_mount(
-            &NifiRepository::Provenance.repository(),
-            &NifiRepository::Provenance.mount_path(),
+            NifiRepository::Provenance.repository(),
+            NifiRepository::Provenance.mount_path(),
         )
         .add_volume_mount(
-            &NifiRepository::State.repository(),
-            &NifiRepository::State.mount_path(),
+            NifiRepository::State.repository(),
+            NifiRepository::State.mount_path(),
         )
         .add_volume_mount("activeconf", NIFI_CONFIG_DIRECTORY)
         .add_volume_mount("log-config", STACKABLE_LOG_CONFIG_DIR)
@@ -1259,7 +1270,7 @@ async fn build_node_rolegroup_statefulset(
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(nifi)
-            .name(&rolegroup_ref.object_name())
+            .name(rolegroup_ref.object_name())
             .ownerreference_from_resource(nifi, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
@@ -1407,8 +1418,17 @@ async fn get_proxy_hosts(
     Ok(proxy_setting.join(","))
 }
 
-pub fn error_policy(_obj: Arc<NifiCluster>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
-    Action::requeue(*Duration::from_secs(10))
+pub fn error_policy(
+    _obj: Arc<DeserializeGuard<NifiCluster>>,
+    error: &Error,
+    _ctx: Arc<Ctx>,
+) -> Action {
+    match error {
+        // root object is invalid, will be requeued when modified anyway
+        Error::InvalidNifiCluster { .. } => Action::await_change(),
+
+        _ => Action::requeue(*Duration::from_secs(10)),
+    }
 }
 
 pub fn build_recommended_labels<'a>(
