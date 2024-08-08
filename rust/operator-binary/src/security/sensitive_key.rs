@@ -61,7 +61,7 @@ pub(crate) async fn check_or_generate_sensitive_key(
             let new_secret = Secret {
                 metadata: ObjectMetaBuilder::new()
                     .namespace(namespace)
-                    .name(&sensitive_config.key_secret.to_string())
+                    .name(sensitive_config.key_secret.to_string())
                     .build(),
                 string_data: Some(secret_data),
                 ..Secret::default()
