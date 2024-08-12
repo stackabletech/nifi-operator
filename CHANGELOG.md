@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Reduce CRD size from `637KB` to `105KB` by accepting arbitrary YAML input instead of the underlying schema for the following fields ([#664]):
+  - `podOverrides`
+  - `affinity`
+  - `extraVolumes`
+
+[#664]: https://github.com/stackabletech/nifi-operator/pull/664
+
 ## [24.7.0] - 2024-07-24
 
 ### Added
