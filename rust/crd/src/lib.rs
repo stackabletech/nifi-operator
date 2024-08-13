@@ -31,6 +31,7 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
     time::Duration,
+    utils::crds::raw_object_list_schema,
 };
 use std::collections::BTreeMap;
 use strum::Display;
@@ -136,11 +137,12 @@ pub struct NifiClusterConfig {
     /// to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
     pub zookeeper_config_map_name: String,
 
-    /// Extra volumes to mount into every container, this can be useful to for example make client
-    /// certificates, keytabs or similar things available to processors
-    /// These volumes will be mounted below `/stackable/userdata/{volumename}`.
+    /// Extra volumes similar to `.spec.volumes` on a Pod to mount into every container, this can be useful to for
+    /// example make client certificates, keytabs or similar things available to processors. These volumes will be
+    /// mounted into all pods at `/stackable/userdata/{volumename}`.
     /// See also the [external files usage guide](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/extra-volumes).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[schemars(schema_with = "raw_object_list_schema")]
     pub extra_volumes: Vec<Volume>,
 
     /// This field controls which type of Service the Operator creates for this NifiCluster:
