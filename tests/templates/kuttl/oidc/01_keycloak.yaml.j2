@@ -146,32 +146,6 @@ spec:
       port: 8080
 {% endif %}
 ---
-apiVersion: authentication.stackable.tech/v1alpha1
-kind: AuthenticationClass
-metadata:
-  name: $INSTANCE_NAME-$NAMESPACE
-spec:
-  provider:
-    oidc:
-      hostname: $INSTANCE_NAME.$NAMESPACE.svc.cluster.local
-{% if test_scenario['values']['oidc-use-tls'] == 'true' %}
-      port: 8443
-{% else %}
-      port: 8080
-{% endif %}
-      rootPath: /realms/$REALM
-      scopes:
-        - email
-        - openid
-        - profile
-      principalClaim: preferred_username
-      providerHint: Keycloak
-      tls:
-        verification:
-          server:
-            caCert:
-              secretClass: keycloak-tls
----
 apiVersion: v1
 kind: ServiceAccount
 metadata:

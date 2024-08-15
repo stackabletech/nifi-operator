@@ -469,7 +469,6 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
     .context(InvalidNifiAuthenticationConfigSnafu)?;
 
     if let NifiAuthenticationConfig::Oidc { .. } = nifi_authentication_config {
-        tracing::info!("Checking for OIDC admin password configuration");
         check_or_generate_oidc_admin_password(client, &nifi)
             .await
             .context(SecuritySnafu)?;

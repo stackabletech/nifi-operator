@@ -3,5 +3,4 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
   # We need to replace $NAMESPACE (by KUTTL) in the create-authentication-classes.yaml(.j2)
-  - script: ls
   - script: envsubst < 11_authentication-classes.yaml | kubectl apply -n $NAMESPACE -f -

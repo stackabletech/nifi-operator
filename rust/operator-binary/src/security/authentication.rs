@@ -165,7 +165,7 @@ impl NifiAuthenticationConfig {
     pub fn add_volumes_and_mounts(
         &self,
         pod_builder: &mut PodBuilder,
-        container_builders: Vec<&mut ContainerBuilder>,
+        mut container_builders: Vec<&mut ContainerBuilder>,
     ) -> Result<(), Error> {
         match &self {
             Self::SingleUser { provider } => {
@@ -211,15 +211,9 @@ impl NifiAuthenticationConfig {
                 };
                 pod_builder.add_volume(admin_volume);
 
-                let container_builders = container_builders
-                    .into_iter()
-                    .map(|cb| {
-                        cb.add_volume_mount(
-                            STACKABLE_ADMIN_USERNAME,
-                            STACKABLE_USER_VOLUME_MOUNT_PATH,
-                        )
-                    })
-                    .collect();
+                container_builders.iter_mut().for_each(|cb| {
+                    cb.add_volume_mount(STACKABLE_ADMIN_USERNAME, STACKABLE_USER_VOLUME_MOUNT_PATH);
+                });
 
                 provider
                     .tls

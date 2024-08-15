@@ -39,7 +39,7 @@ pub(crate) async fn check_or_generate_oidc_admin_password(
     nifi: &NifiCluster,
 ) -> Result<bool, Error> {
     let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
-
+    tracing::debug!("Checking for OIDC admin password configuration");
     match client
         .get_opt::<Secret>(&build_oidc_admin_password_secret_name(nifi), namespace)
         .await

@@ -1,7 +1,6 @@
 use std::future::Future;
 
-use snafu::{ensure, ResultExt, Snafu};
-use stackable_operator::commons::authentication::oidc::IdentityProviderHint;
+use snafu::{ResultExt, Snafu};
 use stackable_operator::commons::authentication::{
     ldap, oidc, static_, AuthenticationClassProvider, ClientAuthenticationDetails,
 };
@@ -10,14 +9,8 @@ use stackable_operator::{
     client::Client, commons::authentication::AuthenticationClass,
     kube::runtime::reflector::ObjectRef,
 };
-use tracing::info;
 
 use crate::NifiCluster;
-
-// The assumed OIDC provider if no hint is given in the AuthClass
-pub const DEFAULT_OIDC_PROVIDER: IdentityProviderHint = IdentityProviderHint::Keycloak;
-
-const SUPPORTED_OIDC_PROVIDERS: &[IdentityProviderHint] = &[IdentityProviderHint::Keycloak];
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -42,14 +35,10 @@ pub enum Error {
     NoLdapTlsVerificationNotSupported {
         authentication_class: ObjectRef<AuthenticationClass>,
     },
+
     #[snafu(display("invalid OIDC configuration"))]
     OidcConfigurationInvalid {
         source: stackable_operator::commons::authentication::Error,
-    },
-    #[snafu(display("the OIDC provider {oidc_provider:?} is not yet supported (AuthenticationClass {auth_class_name:?})"))]
-    OidcProviderNotSupported {
-        auth_class_name: String,
-        oidc_provider: String,
     },
 }
 
@@ -125,12 +114,14 @@ impl AuthenticationClassResolved {
                     })
                 }
                 AuthenticationClassProvider::Oidc(provider) => {
-                    resolved_auth_classes.push(AuthenticationClassResolved::from_oidc(
-                        &auth_class_name,
-                        provider,
-                        entry,
-                        nifi.clone(),
-                    )?)
+                    resolved_auth_classes.push(Ok(AuthenticationClassResolved::Oidc {
+                        provider: provider.to_owned(),
+                        oidc: entry
+                            .oidc_or_error(&auth_class_name)
+                            .context(OidcConfigurationInvalidSnafu)?
+                            .clone(),
+                        nifi: nifi.clone(),
+                    })?)
                 }
                 _ => AuthenticationClassProviderNotSupportedSnafu {
                     authentication_class_provider: auth_class.spec.provider.to_string(),
@@ -141,38 +132,5 @@ impl AuthenticationClassResolved {
         }
 
         Ok(resolved_auth_classes)
-    }
-
-    fn from_oidc(
-        auth_class_name: &str,
-        provider: &oidc::AuthenticationProvider,
-        auth_details: &ClientAuthenticationDetails,
-        nifi: NifiCluster,
-    ) -> Result<AuthenticationClassResolved> {
-        let oidc_provider = match &provider.provider_hint {
-            None => {
-                info!("No OIDC provider hint given in AuthClass {auth_class_name}, assuming {default_oidc_provider_name}",
-                    default_oidc_provider_name = serde_json::to_string(&DEFAULT_OIDC_PROVIDER).unwrap());
-                DEFAULT_OIDC_PROVIDER
-            }
-            Some(oidc_provider) => oidc_provider.to_owned(),
-        };
-
-        ensure!(
-            SUPPORTED_OIDC_PROVIDERS.contains(&oidc_provider),
-            OidcProviderNotSupportedSnafu {
-                auth_class_name,
-                oidc_provider: serde_json::to_string(&oidc_provider).unwrap(),
-            }
-        );
-
-        Ok(AuthenticationClassResolved::Oidc {
-            provider: provider.to_owned(),
-            oidc: auth_details
-                .oidc_or_error(auth_class_name)
-                .context(OidcConfigurationInvalidSnafu)?
-                .clone(),
-            nifi,
-        })
     }
 }
