@@ -1,8 +1,11 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-metadata:
-  name: login
 timeout: 300
-commands:
-  - script: kubectl exec -n $NAMESPACE test-nifi-0 -- python /stackable/login.py $NAMESPACE
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: oidc-login-test
+status:
+  succeeded: 1

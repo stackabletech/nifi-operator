@@ -1,5 +1,3 @@
-# $NAMESPACE will be replaced with the namespace of the test case.
-
 import logging
 import os
 import requests
@@ -10,7 +8,7 @@ logging.basicConfig(
     level="DEBUG", format="%(asctime)s %(levelname)s: %(message)s", stream=sys.stdout
 )
 
-namespace = sys.argv[1]
+namespace = os.environ["NAMESPACE"]
 tls = os.environ["OIDC_USE_TLS"]
 
 session = requests.Session()

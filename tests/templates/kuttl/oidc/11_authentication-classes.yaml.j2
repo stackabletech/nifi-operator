@@ -7,7 +7,7 @@ spec:
   provider:
     oidc:
       hostname: keycloak.$NAMESPACE.svc.cluster.local
-      rootPath: /realms/test
+      rootPath: /realms/test/
       principalClaim: preferred_username
       scopes:
         - openid
@@ -19,7 +19,7 @@ spec:
         verification:
           server:
             caCert:
-              secretClass: keycloak-tls
+              secretClass: keycloak-tls-$NAMESPACE
 {% else %}
       port: 8080
       tls: null

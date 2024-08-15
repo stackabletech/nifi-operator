@@ -133,8 +133,19 @@ metadata:
 spec:
   provider:
     oidc:
+      hostname: keycloak.example.com
+      rootPath: /realms/test/ # <1>
+      principalClaim: preferred_username
+      scopes:
+        - openid
+        - email
+        - profile
+      port: 8080
+      tls: null
   [...]
 ----
+
+<1> A trailing slash in `rootPath` is necessary.
 
 [source,yaml]
 ----
