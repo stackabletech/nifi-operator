@@ -1,0 +1,7 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+metadata:
+  name: oidc-login-test-logs
+commands:
+  - script: kubectl logs job/oidc-login-test -n $NAMESPACE -f

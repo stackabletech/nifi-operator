@@ -91,7 +91,7 @@ tests:
       - openshift
   - name: oidc
     dimensions:
-      - nifi-latest # it looks like there are compatibility issues with NiFi 2.0.0-M4
+      - nifi
       - zookeeper-latest
       - oidc-use-tls
       - openshift

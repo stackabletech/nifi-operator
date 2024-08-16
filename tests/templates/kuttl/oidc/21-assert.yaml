@@ -1,11 +1,11 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-timeout: 300
+timeout: 30
 ---
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: oidc-login-test
 status:
-  ready: 1
+  succeeded: 1
