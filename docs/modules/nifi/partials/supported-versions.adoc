@@ -2,7 +2,5 @@
 // This is a separate file, since it is used by both the direct NiFi-Operator documentation, and the overarching
 // Stackable Platform documentation.
 
-- 2.0.0-M4 (experimental)
+- 2.0.0-M4 (experimental) - Please note that you need to upgrade to at least 1.27.x before upgrading to 2.0.x!
 - 1.27.0 (LTS)
-- 1.25.0
-- 1.21.0 (deprecated)
