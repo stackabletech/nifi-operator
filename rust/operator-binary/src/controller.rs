@@ -1,7 +1,7 @@
 //! Ensures that `Pod`s are configured and running for each [`NifiCluster`]
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     ops::Deref,
     sync::Arc,
 };
@@ -1364,16 +1364,25 @@ async fn get_proxy_hosts(
     nifi: &NifiCluster,
     nifi_service: &Service,
 ) -> Result<String> {
+    let host_header_check = nifi.spec.cluster_config.host_header_check.clone();
+
+    if host_header_check.allow_all == true {
+        tracing::info!("spec.clusterConfig.hostHeaderCheck.allowAll is set to true. Adding just \"*\" to allowed proxy hosts.");
+        return Ok("*".to_string());
+    }
+
     let node_role_service_fqdn = nifi
         .node_role_service_fqdn()
         .context(NoRoleServiceFqdnSnafu)?;
     let reporting_task_service_name =
         reporting_task::build_reporting_task_fqdn_service_name(nifi).context(ReportingTaskSnafu)?;
-    let mut proxy_setting = vec![
+    let mut proxy_hosts_set = HashSet::from([
         node_role_service_fqdn.clone(),
         format!("{node_role_service_fqdn}:{HTTPS_PORT}"),
         format!("{reporting_task_service_name}:{HTTPS_PORT}"),
-    ];
+    ]);
+
+    proxy_hosts_set.extend(host_header_check.additional_allowed_hosts);
 
     // In case NodePort is used add them as well
     if nifi.spec.cluster_config.listener_class
@@ -1391,7 +1400,7 @@ async fn get_proxy_hosts(
         // We need the addresses of all nodes to add these to the NiFi proxy setting
         // Since there is no real convention about how to label these addresses we will simply
         // take all published addresses for now to be on the safe side.
-        proxy_setting.extend(
+        proxy_hosts_set.extend(
             cluster_nodes
                 .into_iter()
                 .flat_map(|node| {
@@ -1404,7 +1413,10 @@ async fn get_proxy_hosts(
         );
     }
 
-    Ok(proxy_setting.join(","))
+    let mut proxy_hosts = Vec::from_iter(proxy_hosts_set);
+    proxy_hosts.sort();
+
+    Ok(proxy_hosts.join(","))
 }
 
 pub fn error_policy(_obj: Arc<NifiCluster>, _error: &Error, _ctx: Arc<Ctx>) -> Action {

@@ -45,6 +45,20 @@ spec:
                         type: object
                         x-kubernetes-preserve-unknown-fields: true
                       type: array
+                    hostHeaderCheck:
+                      default:
+                        additionalAllowedHosts: []
+                        allowAll: true
+                      properties:
+                        additionalAllowedHosts:
+                          default: []
+                          items:
+                            type: string
+                          type: array
+                        allowAll:
+                          default: true
+                          type: boolean
+                      type: object
                     listenerClass:
                       default: cluster-internal
                       description: |-
