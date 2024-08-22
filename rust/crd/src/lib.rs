@@ -167,6 +167,7 @@ pub struct NifiClusterConfig {
 #[serde(rename_all = "camelCase")]
 pub struct HostHeaderCheckConfig {
     /// Allow all proxy hosts by turning off host header validation.
+    /// See <https://github.com/stackabletech/docker-images/pull/694>
     #[serde(default = "default_allow_all")]
     pub allow_all: bool,
     /// List of proxy hosts to add to the default allow list deployed by SDP containing Kubernetes Services utilized by NiFi.
