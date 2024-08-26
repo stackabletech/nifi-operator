@@ -42,6 +42,10 @@ spec:
     listenerClass: {{ test_scenario['values']['listener-class'] }}
     authentication:
       - authenticationClass: simple-nifi-users
+    hostHeaderCheck:
+      allowAll: false
+      additionalAllowedHosts:
+      - example.com:1234
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
