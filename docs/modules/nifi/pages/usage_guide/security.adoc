@@ -104,7 +104,7 @@ You can follow the xref:tutorials:authentication_with_openldap.adoc[] tutorial t
 === OIDC
 
 NiFi supports xref:concepts:authentication.adoc[authentication] of users against an OIDC provider.
-This requires setting up an AuthenticationClass for the OIDC provider and specifying a Secret containing OIDC client and OIDC client Secret as part of the NiFi configuration.
+This requires setting up an AuthenticationClass for the OIDC provider and specifying a Secret containing the OIDC client id and client secret as part of the NiFi configuration.
 The AuthenticationClass and the OIDC client credentials Secret are then referenced in the NifiCluster resource:
 
 [source,yaml]
