@@ -49,14 +49,17 @@ spec:
                       default:
                         additionalAllowedHosts: []
                         allowAll: true
+                      description: Configuration of allowed proxies e.g. load balancers or Kubernetes Ingress. Using a proxy that is not allowed by NiFi results in a failed host header check.
                       properties:
                         additionalAllowedHosts:
                           default: []
+                          description: List of proxy hosts to add to the default allow list deployed by SDP containing Kubernetes Services utilized by NiFi.
                           items:
                             type: string
                           type: array
                         allowAll:
                           default: true
+                          description: Allow all proxy hosts by turning off host header validation. See <https://github.com/stackabletech/docker-images/pull/694>
                           type: boolean
                       type: object
                     listenerClass:

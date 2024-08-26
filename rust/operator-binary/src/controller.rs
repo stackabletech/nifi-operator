@@ -1366,7 +1366,7 @@ async fn get_proxy_hosts(
 ) -> Result<String> {
     let host_header_check = nifi.spec.cluster_config.host_header_check.clone();
 
-    if host_header_check.allow_all == true {
+    if host_header_check.allow_all {
         tracing::info!("spec.clusterConfig.hostHeaderCheck.allowAll is set to true. Adding just \"*\" to allowed proxy hosts.");
         return Ok("*".to_string());
     }
