@@ -14,7 +14,7 @@ use product_config::{
 };
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_nifi_crd::{
-    authentication::resolve_authentication_classes, Container, CurrentlySupportedListenerClasses,
+    authentication::AuthenticationClassResolved, Container, CurrentlySupportedListenerClasses,
     NifiCluster, NifiConfig, NifiConfigFragment, NifiRole, NifiStatus, APP_NAME, BALANCE_PORT,
     BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, MAX_NIFI_LOG_FILES_SIZE,
     MAX_PREPARE_LOG_FILE_SIZE, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
@@ -31,7 +31,10 @@ use stackable_operator::{
     },
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
-    commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
+    commons::{
+        authentication::oidc::AuthenticationProvider,
+        product_image_selection::ResolvedProductImage, rbac::build_rbac_resources,
+    },
     config::fragment,
     k8s_openapi::{
         api::{
@@ -46,11 +49,11 @@ use stackable_operator::{
         DeepMerge,
     },
     kube::{
-        api::ListParams, runtime::controller::Action, runtime::reflector::ObjectRef, Resource,
-        ResourceExt,
+        api::ListParams,
+        runtime::{controller::Action, reflector::ObjectRef},
+        Resource, ResourceExt,
     },
-    kvp::Labels,
-    kvp::{Label, ObjectLabels},
+    kvp::{Label, Labels, ObjectLabels},
     logging::controller::ReconcilerError,
     product_logging::{
         self,
@@ -86,7 +89,7 @@ use crate::{
             LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME, STACKABLE_SERVER_TLS_DIR,
             STACKABLE_TLS_STORE_PASSWORD,
         },
-        build_tls_volume, check_or_generate_sensitive_key,
+        build_tls_volume, check_or_generate_oidc_admin_password, check_or_generate_sensitive_key,
         tls::{KEYSTORE_NIFI_CONTAINER_MOUNT, KEYSTORE_VOLUME_NAME, TRUSTSTORE_VOLUME_NAME},
     },
     OPERATOR_NAME,
@@ -459,11 +462,17 @@ pub async fn reconcile_nifi(nifi: Arc<NifiCluster>, ctx: Arc<Ctx>) -> Result<Act
         })?;
 
     let nifi_authentication_config = NifiAuthenticationConfig::try_from(
-        resolve_authentication_classes(client, &nifi.spec.cluster_config.authentication)
+        AuthenticationClassResolved::from(&nifi, client)
             .await
             .context(FailedResolveNifiAuthenticationConfigSnafu)?,
     )
     .context(InvalidNifiAuthenticationConfigSnafu)?;
+
+    if let NifiAuthenticationConfig::Oidc { .. } = nifi_authentication_config {
+        check_or_generate_oidc_admin_password(client, &nifi)
+            .await
+            .context(SecuritySnafu)?;
+    }
 
     let vector_aggregator_address = resolve_vector_aggregator_address(&nifi, client)
         .await
@@ -748,6 +757,7 @@ async fn build_node_rolegroup_config_map(
                 &nifi.spec,
                 &merged_config.resources,
                 proxy_hosts,
+                nifi_auth_config,
                 rolegroup_config
                     .get(&PropertyNameKind::File(NIFI_PROPERTIES.to_string()))
                     .with_context(|| ProductConfigKindNotSpecifiedSnafu {
@@ -901,6 +911,12 @@ async fn build_node_rolegroup_statefulset(
         "ZOOKEEPER_CHROOT",
         &nifi.spec.cluster_config.zookeeper_config_map_name,
     ));
+
+    if let NifiAuthenticationConfig::Oidc { oidc, .. } = nifi_auth_config {
+        env_vars.extend(AuthenticationProvider::client_credentials_env_var_mounts(
+            oidc.client_credentials_secret_ref.clone(),
+        ));
+    }
 
     let node_address = format!(
         "$POD_NAME.{}-node-{}.{}.svc.cluster.local",

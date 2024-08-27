@@ -36,6 +36,10 @@ dimensions:
     values:
       - "false"
       - "true"
+  - name: oidc-use-tls
+    values:
+      - "false"
+      - "true"
   - name: openshift
     values:
       - "false"
@@ -83,6 +87,12 @@ tests:
       - nifi-latest
       - zookeeper-latest
       - openshift
+  - name: oidc
+    dimensions:
+      - nifi
+      - zookeeper-latest
+      - oidc-use-tls
+      - openshift
 suites:
   - name: nightly
     patch:
@@ -92,6 +102,8 @@ suites:
           - name: zookeeper
             expr: last
           - name: ldap-use-tls
+            expr: "true"
+          - name: oidc-use-tls
             expr: "true"
   - name: smoke-latest
     select:
@@ -111,4 +123,6 @@ suites:
           - name: zookeeper
             expr: last
           - name: ldap-use-tls
+            expr: "true"
+          - name: oidc-use-tls
             expr: "true"

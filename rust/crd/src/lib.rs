@@ -2,14 +2,13 @@ pub mod affinity;
 pub mod authentication;
 pub mod tls;
 
-use crate::authentication::NifiAuthenticationClassRef;
-
 use affinity::get_affinity;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
+        authentication::ClientAuthenticationDetails,
         cluster_operation::ClusterOperation,
         product_image_selection::ProductImage,
         resources::{
@@ -18,8 +17,7 @@ use stackable_operator::{
         },
     },
     config::{
-        fragment::Fragment,
-        fragment::{self, ValidationError},
+        fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
     k8s_openapi::{api::core::v1::Volume, apimachinery::pkg::api::resource::Quantity},
@@ -66,10 +64,13 @@ const DEFAULT_NODE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_minutes_
 pub enum Error {
     #[snafu(display("object has no namespace associated"))]
     NoNamespace,
+
     #[snafu(display("the NiFi role [{role}] is missing from spec"))]
     MissingNifiRole { role: String },
+
     #[snafu(display("the NiFi node role group [{role_group}] is missing from spec"))]
     MissingNifiRoleGroup { role_group: String },
+
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
 }
@@ -115,7 +116,7 @@ pub struct NifiClusterConfig {
     /// Authentication options for NiFi (required).
     /// Read more about authentication in the [security documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/security).
     // We don't add `#[serde(default)]` here, as we require authentication
-    pub authentication: Vec<NifiAuthenticationClassRef>,
+    pub authentication: Vec<ClientAuthenticationDetails>,
 
     /// Configuration of allowed proxies e.g. load balancers or Kubernetes Ingress. Using a proxy that is not allowed by NiFi results
     /// in a failed host header check.
