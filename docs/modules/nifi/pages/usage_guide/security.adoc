@@ -22,7 +22,7 @@ spec:
       serverSecretClass: non-default-secret-class # <1>
 ----
 
-<1> The name of the `SecretClass` that will be used for certificates for the NiFi UI.
+<1> The name of the SecretClass that will be used for certificates for the NiFi UI.
 
 == Authentication
 
@@ -49,8 +49,8 @@ spec:
         name: nifi-admin-credentials # <2>
 ----
 
-<1> The name of the `AuthenticationClass` that will be referenced in the NiFi cluster.
-<2> The name of the `Secret` containing the admin credentials.
+<1> The name of the AuthenticationClass that will be referenced in the NiFi cluster.
+<2> The name of the Secret containing the admin credentials.
 
 [source,yaml]
 ----
@@ -63,9 +63,9 @@ stringData:
   bob: bob # <3>
 ----
 
-<1> The name of the `Secret` containing the admin user credentials.
-<2> The user and password combination of the admin user. The username *must* be "admin" and cannot be changed. The NiFi pods will not start if they cannot mount the "admin" entry from the secret. The password can be adapted.
-<3> The secret maybe used by other products of the Stackable Data Platform that allow more than one user. The Stackable Operator for Apache NiFi will ignore all users except for "admin".
+<1> The name of the Secret containing the admin user credentials.
+<2> The user and password combination of the admin user. The username *must* be "admin" and cannot be changed. The NiFi pods will not start if they cannot mount the "admin" entry from the Secret. The password can be adapted.
+<3> The Secret maybe used by other products of the Stackable Data Platform that allow more than one user. The Stackable Operator for Apache NiFi will ignore all users except for "admin".
 
 [source,yaml]
 ----
@@ -75,7 +75,7 @@ spec:
       - authenticationClass: simple-nifi-users # <1>
 ----
 
-<1> The reference to an `AuthenticationClass`. NiFi only supports one authentication mechanism at a time.
+<1> The reference to an AuthenticationClass. NiFi only supports one authentication mechanism at a time.
 
 [#authentication-ldap]
 === LDAP
@@ -100,6 +100,64 @@ spec:
 
 You can follow the xref:tutorials:authentication_with_openldap.adoc[] tutorial to learn how to set up an AuthenticationClass for an LDAP server, as well as consulting the {crd-docs}/authentication.stackable.tech/authenticationclass/v1alpha1/[AuthenticationClass reference {external-link-icon}^].
 
+[#authentication-oidc]
+=== OIDC
+
+NiFi supports xref:concepts:authentication.adoc[authentication] of users against an OIDC provider.
+This requires setting up an AuthenticationClass for the OIDC provider and specifying a Secret containing the OIDC client id and client secret as part of the NiFi configuration.
+The AuthenticationClass and the OIDC client credentials Secret are then referenced in the NifiCluster resource:
+
+[source,yaml]
+----
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: test-nifi
+spec:
+  clusterConfig:
+    authentication:
+      - authenticationClass: oidc # <1>
+        oidc:
+          clientCredentialsSecret: nifi-oidc-client # <2>
+----
+
+<1> The reference to an AuthenticationClass called `oidc`
+<2> The reference to an existing Secret called `nifi-oidc-client`
+
+[source,yaml]
+----
+apiVersion: authentication.stackable.tech/v1alpha1
+kind: AuthenticationClass
+metadata:
+  name: oidc
+spec:
+  provider:
+    oidc:
+      hostname: keycloak.example.com
+      rootPath: /realms/test/ # <1>
+      principalClaim: preferred_username
+      scopes:
+        - openid
+        - email
+        - profile
+      port: 8080
+      tls: null
+  [...]
+----
+
+<1> A trailing slash in `rootPath` is necessary.
+
+[source,yaml]
+----
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nifi-oidc-client
+stringData:
+  clientId: <client-id>
+  clientSecret: <client-secret>
+----
+
 [#authorization]
 == Authorization
 
@@ -107,6 +165,7 @@ NiFi supports {nifi-docs-authorization}[multiple authorization methods], the ava
 
 Authorization is not fully implemented by the Stackable Operator for Apache NiFi.
 
+[#authorization-single-user]
 === Single user
 
 With this authorization method, a single user has administrator capabilities.
@@ -117,6 +176,14 @@ With this authorization method, a single user has administrator capabilities.
 The operator uses the {nifi-docs-fileusergroupprovider}[`FileUserGroupProvider`] and {nifi-docs-fileaccesspolicyprovider}[FileAccessPolicyProvider] to bind the LDAP user to the NiFi administrator group.
 This user is then able to create and modify groups and policies in the web interface.
 These changes local to the Pod running NiFi and are *not* persistent.
+
+[#authorization-oidc]
+=== OIDC
+
+With this authorization method, all authenticated users have administrator capabilities. 
+
+An admin user with an auto-generated password is created that can access the NiFi API.
+The password for this user is stored in a Kubernetes Secret called `<nifi-name>-oidc-admin-password`.
 
 [#encrypting-sensitive-properties]
 == Encrypting sensitive properties on disk

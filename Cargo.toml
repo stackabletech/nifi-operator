@@ -28,6 +28,7 @@ stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git",
 strum = { version = "0.26", features = ["derive"] }
 tokio = { version = "1.39", features = ["full"] }
 tracing = "0.1"
+url = { version = "2.5.2" }
 xml-rs = "0.8"
 
 # [patch."https://github.com/stackabletech/operator-rs.git"]

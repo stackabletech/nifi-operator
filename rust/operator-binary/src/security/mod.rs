@@ -4,6 +4,7 @@ use stackable_operator::client::Client;
 use stackable_operator::{builder::pod::volume::SecretFormat, k8s_openapi::api::core::v1::Volume};
 
 pub mod authentication;
+pub mod oidc;
 pub mod sensitive_key;
 pub mod tls;
 
@@ -16,12 +17,24 @@ pub enum Error {
 
     #[snafu(display("sensistive key failure"))]
     SensitiveKey { source: sensitive_key::Error },
+
+    #[snafu(display("failed to ensure OIDC admin password exists"))]
+    OidcAdminPassword { source: oidc::Error },
 }
 
 pub async fn check_or_generate_sensitive_key(client: &Client, nifi: &NifiCluster) -> Result<bool> {
     sensitive_key::check_or_generate_sensitive_key(client, nifi)
         .await
         .context(SensitiveKeySnafu)
+}
+
+pub async fn check_or_generate_oidc_admin_password(
+    client: &Client,
+    nifi: &NifiCluster,
+) -> Result<bool> {
+    oidc::check_or_generate_oidc_admin_password(client, nifi)
+        .await
+        .context(OidcAdminPasswordSnafu)
 }
 
 pub fn build_tls_volume(

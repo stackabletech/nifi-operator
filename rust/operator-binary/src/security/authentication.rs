@@ -1,11 +1,14 @@
 use indoc::{formatdoc, indoc};
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_nifi_crd::authentication::AuthenticationClassResolved;
+use stackable_nifi_crd::NifiCluster;
 use stackable_operator::builder::pod::{container::ContainerBuilder, PodBuilder};
+use stackable_operator::commons::authentication::oidc::{self, ClientAuthenticationOptions};
 use stackable_operator::commons::authentication::{ldap, static_};
-use stackable_operator::commons::authentication::{
-    AuthenticationClass, AuthenticationClassProvider,
-};
+
 use stackable_operator::k8s_openapi::api::core::v1::{KeyToPath, SecretVolumeSource, Volume};
+
+use super::oidc::build_oidc_admin_password_secret_name;
 
 pub const STACKABLE_ADMIN_USERNAME: &str = "admin";
 
@@ -32,6 +35,11 @@ pub enum Error {
         source: stackable_operator::commons::authentication::ldap::Error,
     },
 
+    #[snafu(display("Failed to add OIDC volumes and volumeMounts to the Pod and containers"))]
+    AddOidcVolumes {
+        source: stackable_operator::commons::authentication::tls::TlsClientDetailsError,
+    },
+
     #[snafu(display(
         "The LDAP AuthenticationClass is missing the bind credentials. Currently the NiFi operator only supports connecting to LDAP servers using bind credentials"
     ))]
@@ -40,8 +48,17 @@ pub enum Error {
 
 #[allow(clippy::large_enum_variant)]
 pub enum NifiAuthenticationConfig {
-    SingleUser(static_::AuthenticationProvider),
-    Ldap(ldap::AuthenticationProvider),
+    SingleUser {
+        provider: static_::AuthenticationProvider,
+    },
+    Ldap {
+        provider: ldap::AuthenticationProvider,
+    },
+    Oidc {
+        provider: oidc::AuthenticationProvider,
+        oidc: ClientAuthenticationOptions,
+        nifi: NifiCluster,
+    },
 }
 
 impl NifiAuthenticationConfig {
@@ -58,7 +75,7 @@ impl NifiAuthenticationConfig {
         .to_string();
 
         match &self {
-            Self::SingleUser(_) => {
+            Self::SingleUser { .. } | Self::Oidc { .. } => {
                 login_identity_provider_xml.push_str(&formatdoc! {r#"
                     <provider>
                         <identifier>login-identity-provider</identifier>
@@ -76,9 +93,9 @@ impl NifiAuthenticationConfig {
                     </authorizer>
                 "#});
             }
-            Self::Ldap(ldap) => {
-                login_identity_provider_xml.push_str(&get_ldap_login_identity_provider(ldap)?);
-                authorizers_xml.push_str(&get_ldap_authorizer(ldap)?);
+            Self::Ldap { provider } => {
+                login_identity_provider_xml.push_str(&get_ldap_login_identity_provider(provider)?);
+                authorizers_xml.push_str(&get_ldap_authorizer(provider)?);
             }
         }
 
@@ -96,12 +113,12 @@ impl NifiAuthenticationConfig {
         let mut admin_username_file = String::new();
         let mut admin_password_file = String::new();
         match &self {
-            Self::SingleUser(_) => {
+            Self::SingleUser { .. } | Self::Oidc { .. } => {
                 admin_password_file =
                     format!("{STACKABLE_USER_VOLUME_MOUNT_PATH}/{STACKABLE_ADMIN_USERNAME}");
             }
-            Self::Ldap(ldap) => {
-                if let Some((user_path, password_path)) = ldap.bind_credentials_mount_paths() {
+            Self::Ldap { provider } => {
+                if let Some((user_path, password_path)) = provider.bind_credentials_mount_paths() {
                     admin_username_file = user_path;
                     admin_password_file = password_path;
                 }
@@ -113,17 +130,29 @@ impl NifiAuthenticationConfig {
     pub fn get_additional_container_args(&self) -> Vec<String> {
         let mut commands = Vec::new();
         match &self {
-            Self::SingleUser(_) => {
+            Self::SingleUser { .. } => {
                 let (_, admin_password_file) = self.get_user_and_password_file_paths();
                 commands.extend(vec![
                     format!("export STACKABLE_ADMIN_PASSWORD=\"$(cat {admin_password_file} | java -jar /bin/stackable-bcrypt.jar)\""),
                 ]);
             }
-            Self::Ldap(ldap) => {
-                if let Some(ca_path) = ldap.tls.tls_ca_cert_mount_path() {
+            Self::Ldap { provider } => {
+                if let Some(ca_path) = provider.tls.tls_ca_cert_mount_path() {
                     commands.extend(vec![
                         "echo Adding LDAP tls cert to global truststore".to_string(),
                         format!("keytool -importcert -file {ca_path} -keystore {STACKABLE_SERVER_TLS_DIR}/truststore.p12 -storetype pkcs12 -noprompt -alias ldap_ca_cert -storepass {STACKABLE_TLS_STORE_PASSWORD}"),
+                    ]);
+                }
+            }
+            Self::Oidc { provider, .. } => {
+                let (_, admin_password_file) = self.get_user_and_password_file_paths();
+                commands.extend(vec![
+                format!("export STACKABLE_ADMIN_PASSWORD=\"$(cat {admin_password_file} | java -jar /bin/stackable-bcrypt.jar)\""),
+                ]);
+                if let Some(ca_path) = provider.tls.tls_ca_cert_mount_path() {
+                    commands.extend(vec![
+                        "echo Adding OIDC tls cert to global truststore".to_string(),
+                        format!("keytool -importcert -file {ca_path} -keystore {STACKABLE_SERVER_TLS_DIR}/truststore.p12 -storetype pkcs12 -noprompt -alias oidc_ca_cert -storepass {STACKABLE_TLS_STORE_PASSWORD}"),
                     ]);
                 }
             }
@@ -136,10 +165,10 @@ impl NifiAuthenticationConfig {
     pub fn add_volumes_and_mounts(
         &self,
         pod_builder: &mut PodBuilder,
-        container_builders: Vec<&mut ContainerBuilder>,
+        mut container_builders: Vec<&mut ContainerBuilder>,
     ) -> Result<(), Error> {
         match &self {
-            Self::SingleUser(provider) => {
+            Self::SingleUser { provider } => {
                 let admin_volume = Volume {
                     name: STACKABLE_ADMIN_USERNAME.to_string(),
                     secret: Some(SecretVolumeSource {
@@ -160,35 +189,68 @@ impl NifiAuthenticationConfig {
                     cb.add_volume_mount(STACKABLE_ADMIN_USERNAME, STACKABLE_USER_VOLUME_MOUNT_PATH);
                 }
             }
-            Self::Ldap(ldap) => {
-                ldap.add_volumes_and_mounts(pod_builder, container_builders)
+            Self::Ldap { provider } => {
+                provider
+                    .add_volumes_and_mounts(pod_builder, container_builders)
                     .context(AddLdapVolumesSnafu)?;
+            }
+            Self::Oidc { provider, nifi, .. } => {
+                let admin_volume = Volume {
+                    name: STACKABLE_ADMIN_USERNAME.to_string(),
+                    secret: Some(SecretVolumeSource {
+                        secret_name: Some(build_oidc_admin_password_secret_name(nifi)),
+                        optional: Some(false),
+                        items: Some(vec![KeyToPath {
+                            key: STACKABLE_ADMIN_USERNAME.to_string(),
+                            path: STACKABLE_ADMIN_USERNAME.to_string(),
+                            ..KeyToPath::default()
+                        }]),
+                        ..SecretVolumeSource::default()
+                    }),
+                    ..Volume::default()
+                };
+                pod_builder.add_volume(admin_volume);
+
+                container_builders.iter_mut().for_each(|cb| {
+                    cb.add_volume_mount(STACKABLE_ADMIN_USERNAME, STACKABLE_USER_VOLUME_MOUNT_PATH);
+                });
+
+                provider
+                    .tls
+                    .add_volumes_and_mounts(pod_builder, container_builders)
+                    .context(AddOidcVolumesSnafu)?;
             }
         }
 
         Ok(())
     }
 
-    pub fn try_from(auth_classes: Vec<AuthenticationClass>) -> Result<Self, Error> {
+    pub fn try_from(
+        auth_classes_resolved: Vec<AuthenticationClassResolved>,
+    ) -> Result<Self, Error> {
         // Currently only one auth mechanism is supported in NiFi. This is checked in
         // rust/crd/src/authentication.rs and just a fail-safe here. For Future changes,
         // this is not just a "from" without error handling
-        let auth_class = auth_classes
+        let auth_class_resolved = auth_classes_resolved
             .first()
             .context(SingleAuthenticationMechanismSupportedSnafu)?;
 
-        match &auth_class.spec.provider {
-            AuthenticationClassProvider::Static(static_provider) => {
-                Ok(Self::SingleUser(static_provider.clone()))
-            }
-            AuthenticationClassProvider::Ldap(ldap_provider) => {
-                Ok(Self::Ldap(ldap_provider.clone()))
-            }
-            AuthenticationClassProvider::Tls(_) | AuthenticationClassProvider::Oidc(_) => {
-                Err(Error::AuthenticationClassProviderNotSupported {
-                    authentication_class_provider: auth_class.spec.provider.to_string(),
-                })
-            }
+        match &auth_class_resolved {
+            AuthenticationClassResolved::Static { provider } => Ok(Self::SingleUser {
+                provider: provider.clone(),
+            }),
+            AuthenticationClassResolved::Ldap { provider } => Ok(Self::Ldap {
+                provider: provider.clone(),
+            }),
+            AuthenticationClassResolved::Oidc {
+                provider,
+                oidc,
+                nifi,
+            } => Ok(Self::Oidc {
+                provider: provider.clone(),
+                oidc: oidc.clone(),
+                nifi: nifi.clone(),
+            }),
         }
     }
 }
