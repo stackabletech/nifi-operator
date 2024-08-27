@@ -1368,7 +1368,7 @@ async fn get_proxy_hosts(
 
     if host_header_check.allow_all {
         tracing::info!("spec.clusterConfig.hostHeaderCheck.allowAll is set to true. All proxy hosts will be allowed.");
-        if host_header_check.additional_allowed_hosts.len() > 0 {
+        if !host_header_check.additional_allowed_hosts.is_empty() {
             tracing::info!("spec.clusterConfig.hostHeaderCheck.additionalAllowedHosts is ignored and only '*' is added to the allow-list.")
         }
         return Ok("*".to_string());
