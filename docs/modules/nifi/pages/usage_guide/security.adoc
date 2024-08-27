@@ -172,7 +172,7 @@ sensitiveProperties:
 == Host Header Check
 NiFi checks the Host header of incoming requests and rejects them if they are passing through a proxy that is not on an allow-list configured in the `nifi.web.proxy.host` property.
 
-A https://github.com/stackabletech/docker-images/pull/694[patch] applied during the build of the SDP container image for NiFi allows turning off this check by adding `nifi.web.proxy.host=*` to the properties. The Host header check for NiFi clusters created by the operator is turned off by default but can be turned in the NiFi configuration. In this case the list of allowed hosts will default to Kubernetes Services used by Nifi and can be extended with custom entries.
+A https://github.com/stackabletech/docker-images/pull/694[patch] applied during the build of the SDP container image for NiFi allows turning off this check by adding `nifi.web.proxy.host=*` to the properties. The Host header check for NiFi clusters created by the operator is disabled by default but can be enabled in the NiFi configuration. In this case the list of allowed hosts will default to Kubernetes Services used by NiFi and can be extended with custom entries.
 
 [source,yaml]
 ----
