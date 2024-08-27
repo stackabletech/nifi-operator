@@ -171,25 +171,21 @@ pub struct HostHeaderCheckConfig {
     #[serde(default = "default_allow_all")]
     pub allow_all: bool,
     /// List of proxy hosts to add to the default allow list deployed by SDP containing Kubernetes Services utilized by NiFi.
-    #[serde(default = "default_additional_allowed_hosts")]
+    #[serde(default)]
     pub additional_allowed_hosts: Vec<String>,
 }
 
 impl Default for HostHeaderCheckConfig {
     fn default() -> Self {
         Self {
-            allow_all: true,
-            additional_allowed_hosts: vec![],
+            allow_all: default_allow_all(),
+            additional_allowed_hosts: Vec::default(),
         }
     }
 }
 
 pub fn default_allow_all() -> bool {
     true
-}
-
-pub fn default_additional_allowed_hosts() -> Vec<String> {
-    vec![]
 }
 
 // TODO: Temporary solution until listener-operator is finished
