@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Allow configuring proxy host behaviour ([#668]).
+- Allow configuring proxy host behavior ([#668]).
 
 ### Changed
 
