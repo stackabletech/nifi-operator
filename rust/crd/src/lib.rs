@@ -118,6 +118,11 @@ pub struct NifiClusterConfig {
     // We don't add `#[serde(default)]` here, as we require authentication
     pub authentication: Vec<ClientAuthenticationDetails>,
 
+    /// Configuration of allowed proxies e.g. load balancers or Kubernetes Ingress. Using a proxy that is not allowed by NiFi results
+    /// in a failed host header check.
+    #[serde(default)]
+    pub host_header_check: HostHeaderCheckConfig,
+
     /// TLS configuration options for the server.
     #[serde(default)]
     pub tls: NifiTls,
@@ -157,6 +162,31 @@ pub struct NifiClusterConfig {
     /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
     #[serde(default)]
     pub listener_class: CurrentlySupportedListenerClasses,
+}
+
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostHeaderCheckConfig {
+    /// Allow all proxy hosts by turning off host header validation.
+    /// See <https://github.com/stackabletech/docker-images/pull/694>
+    #[serde(default = "default_allow_all")]
+    pub allow_all: bool,
+    /// List of proxy hosts to add to the default allow list deployed by SDP containing Kubernetes Services utilized by NiFi.
+    #[serde(default)]
+    pub additional_allowed_hosts: Vec<String>,
+}
+
+impl Default for HostHeaderCheckConfig {
+    fn default() -> Self {
+        Self {
+            allow_all: default_allow_all(),
+            additional_allowed_hosts: Vec::default(),
+        }
+    }
+}
+
+pub fn default_allow_all() -> bool {
+    true
 }
 
 // TODO: Temporary solution until listener-operator is finished
