@@ -50,7 +50,7 @@ pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
 pub const STACKABLE_LOG_CONFIG_DIR: &str = "/stackable/log_config";
 
 pub const MAX_NIFI_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity {
-    value: 10.0,
+    value: 150.0,
     unit: BinaryMultiple::Mebi,
 };
 pub const MAX_PREPARE_LOG_FILE_SIZE: MemoryQuantity = MemoryQuantity {
