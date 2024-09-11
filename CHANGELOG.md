@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
   - `podOverrides`
   - `affinity`
   - `extraVolumes`
+- Increase `log` Volume size from 33 MiB to 500 MiB ([#671]).
 
 ### Removed
 
@@ -22,6 +23,7 @@ All notable changes to this project will be documented in this file.
 [#664]: https://github.com/stackabletech/nifi-operator/pull/664
 [#665]: https://github.com/stackabletech/nifi-operator/pull/665
 [#668]: https://github.com/stackabletech/nifi-operator/pull/668
+[#671]: https://github.com/stackabletech/nifi-operator/pull/671
 
 ## [24.7.0] - 2024-07-24
 
