@@ -16,9 +16,8 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_nifi_crd::{
     authentication::AuthenticationClassResolved, Container, CurrentlySupportedListenerClasses,
     NifiCluster, NifiConfig, NifiConfigFragment, NifiRole, NifiStatus, APP_NAME, BALANCE_PORT,
-    BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, MAX_NIFI_LOG_FILES_SIZE,
-    MAX_PREPARE_LOG_FILE_SIZE, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
-    STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
+    BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT,
+    PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
 };
 use stackable_operator::{
     builder::{
@@ -55,6 +54,7 @@ use stackable_operator::{
     },
     kvp::{Label, Labels, ObjectLabels},
     logging::controller::ReconcilerError,
+    memory::{BinaryMultiple, MemoryQuantity},
     product_logging::{
         self,
         framework::{create_vector_shutdown_file_command, remove_vector_shutdown_file_command},
@@ -1213,9 +1213,14 @@ async fn build_node_rolegroup_statefulset(
         })
         .add_empty_dir_volume(
             "log",
-            Some(product_logging::framework::calculate_log_volume_size_limit(
-                &[MAX_NIFI_LOG_FILES_SIZE, MAX_PREPARE_LOG_FILE_SIZE],
-            )),
+            // Set volume size to higher than theoretically necessary to avoid running out of disk space as log rotation triggers are only checked by Logback every 5s.
+            Some(
+                MemoryQuantity {
+                    value: 500.0,
+                    unit: BinaryMultiple::Mebi,
+                }
+                .into(),
+            ),
         )
         // One volume for the keystore and truststore data configmap
         .add_volume(
