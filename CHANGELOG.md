@@ -19,11 +19,13 @@ All notable changes to this project will be documented in this file.
 ### Removed
 
 - Removed support for NiFi versions 1.21.0 and 1.25.0 ([#665]).
+- test: Remove ZooKeeper 3.8.4 ([#672]).
 
 [#664]: https://github.com/stackabletech/nifi-operator/pull/664
 [#665]: https://github.com/stackabletech/nifi-operator/pull/665
 [#668]: https://github.com/stackabletech/nifi-operator/pull/668
 [#671]: https://github.com/stackabletech/nifi-operator/pull/671
+[#672]: https://github.com/stackabletech/nifi-operator/pull/672
 
 ## [24.7.0] - 2024-07-24
 
