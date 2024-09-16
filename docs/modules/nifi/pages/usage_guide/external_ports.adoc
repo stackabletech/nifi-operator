@@ -1,4 +1,5 @@
 = Exposing NiFi processor ports
+:description: Expose NiFi processor ports by creating Service or Ingress objects, allowing external tools to trigger workflows or send data via Kubernetes.
 
 Some NiFi processors allow external tools to connect to them to trigger workflows or send data.
 For this to work from outside the Kubernetes cluster NiFi has been deployed to, it is necessary to create Service or Ingress objects to configure Kubernetes routes for these ports.

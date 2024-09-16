@@ -1,4 +1,5 @@
 = Loading custom components
+:description: Load custom NiFi components by using custom Docker images or mounting external volumes with nar files for enhanced functionality.
 :nifi-docs-custom-components: https://nifi.apache.org/docs/nifi-docs/html/developer-guide.html#introduction
 
 It is possible to develop {nifi-docs-custom-components}[custom components] for Apache NiFi to extend the available functionality - most often this will probably be custom processors.

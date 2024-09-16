@@ -1,4 +1,5 @@
 = Updating NiFi
+:description: Easily update or downgrade Apache NiFi on Kubernetes by changing the CRD version.
 
 Updating (or downgrading for that matter) the deployed version of NiFi is as simple as changing the version stated in the CRD.
 Continuing the example above, to change the deployed version from `1.25.0` to `1.27.0` you'd simply deploy the following CRD.

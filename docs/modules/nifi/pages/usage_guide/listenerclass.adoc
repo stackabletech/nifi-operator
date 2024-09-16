@@ -1,4 +1,5 @@
 = Service exposition with ListenerClasses
+:description: Configure Apache NiFi service exposure with cluster-internal or external-unstable listener classes.
 
 Apache NiFi offers a web UI and an API.
 The Operator deploys a service called `<name>` (where `<name>` is the name of the NifiCluster) through which NiFi can be reached.

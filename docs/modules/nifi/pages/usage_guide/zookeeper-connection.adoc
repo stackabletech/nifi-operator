@@ -1,4 +1,5 @@
 = Connecting NiFi to Apache ZooKeeper
+:description: Connect NiFi to Apache ZooKeeper using the Stackable operator for cluster management, requiring a ZooKeeper ensemble for state management and leader election.
 
 NiFi in cluster mode requires an Apache ZooKeeper ensemble for state management and leader election purposes, the Stackable operator for Apache NiFi does not support single node deployments without ZooKeeper, hence this is a required setting.
 

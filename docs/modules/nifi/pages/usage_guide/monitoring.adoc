@@ -1,8 +1,12 @@
 = Monitoring
+:description: The Stackable Operator for Apache NiFi automatically configures NiFi to export Prometheus metrics.
+:k8s-job: https://kubernetes.io/docs/concepts/workloads/controllers/job/
+:k8s-network-policies: https://kubernetes.io/docs/concepts/services-networking/network-policies/
 
 The operator automatically configures NiFi to export Prometheus metrics.
-This is done by creating a https://kubernetes.io/docs/concepts/workloads/controllers/job/[Job] that connects to NiFi and configures a reporting task.
+This is done by creating a {k8s-job}[Job] that connects to NiFi and configures a reporting task.
 
-IMPORTANT: Network access from the Job to NiFi is required. If you are running a Kubernetes with restrictive https://kubernetes.io/docs/concepts/services-networking/network-policies/[NetworkPolicies], make sure to allow access from the Job to NiFi.
+IMPORTANT: Network access from the Job to NiFi is required.
+If you are running a Kubernetes with restrictive {k8s-network-policies}[NetworkPolicies], make sure to allow access from the Job to NiFi.
 
 See xref:operators:monitoring.adoc[] for more details.

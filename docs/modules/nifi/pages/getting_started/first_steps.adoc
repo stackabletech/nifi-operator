@@ -1,4 +1,5 @@
 = First steps
+:description: Deploy Apache NiFi and ZooKeeper on Kubernetes using manifest files. Verify setup and access NiFi's web interface with stackablectl or kubectl.
 
 After going through the xref:getting_started/installation.adoc[] section and having installed all the operators, you will now deploy a NiFi cluster and the required dependencies. Afterwards you can <<_verify_that_it_works, verify that it works>> by querying the REST API.
 
