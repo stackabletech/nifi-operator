@@ -1,7 +1,3 @@
-# These tests can run against an OpenShift cluster, provided you note the following:
-#
-# 1. Set the "openshift" dimension below to "true" (with quotes)
-#
 ---
 dimensions:
   - name: zookeeper
@@ -19,16 +15,16 @@ dimensions:
       # - 1.27.0,docker.stackable.tech/sandbox/nifi:1.27.0-stackable0.0.0-dev
   - name: nifi_old
     values:
-      - 1.25.0
+      - 1.27.0
   - name: nifi_new
     values:
-      - 1.27.0
+      - 2.0.0-M4
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
       # - 1.27.0,docker.stackable.tech/sandbox/nifi:1.27.0-stackable0.0.0-dev
   - name: nifi-latest
     values:
-      - 1.27.0
+      - 2.0.0-M4
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
       # - 1.27.0,docker.stackable.tech/sandbox/nifi:1.27.0-stackable0.0.0-dev
