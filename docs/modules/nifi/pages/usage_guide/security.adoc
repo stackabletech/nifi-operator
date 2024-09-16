@@ -181,7 +181,7 @@ These changes local to the Pod running NiFi and are *not* persistent.
 [#authorization-oidc]
 === OIDC
 
-With this authorization method, all authenticated users have administrator capabilities. 
+With this authorization method, all authenticated users have administrator capabilities.
 
 An admin user with an auto-generated password is created that can access the NiFi API.
 The password for this user is stored in a Kubernetes Secret called `<nifi-name>-oidc-admin-password`.
