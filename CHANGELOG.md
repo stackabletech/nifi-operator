@@ -18,7 +18,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Switch from flow.xml.gz to flow.json.gz to allow seamless upgrades to version 2.0 ([#675]).
+- Switch from `flow.xml.gz` to `flow.json.gz` to allow seamless upgrades to version 2.0 ([#675]).
 
 ### Removed
 
