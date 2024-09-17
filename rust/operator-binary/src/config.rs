@@ -201,7 +201,7 @@ pub fn build_nifi_properties(
     // Core Properties
     properties.insert(
         "nifi.flow.configuration.file".to_string(),
-        NifiRepository::Database.mount_path() + "/flow.xml.gz",
+        NifiRepository::Database.mount_path() + "/flow.json.gz",
     );
     properties.insert(
         "nifi.flow.configuration.archive.enabled".to_string(),
