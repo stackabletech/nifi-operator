@@ -1,7 +1,7 @@
 = Updating NiFi
 
 Updating (or downgrading for that matter) the deployed version of NiFi is as simple as changing the version stated in the CRD.
-Continuing the example above, to change the deployed version from `1.25.0` to `1.27.0` you'd simply deploy the following CRD.
+Continuing the example above, to change the deployed version from `1.27.0` to `2.0.0-M4` you'd simply deploy the following CRD.
 
 [source,yaml]
 ----
@@ -11,7 +11,7 @@ metadata:
   name: simple-nifi
 spec:
   image:
-    productVersion: 1.27.0 # <1>
+    productVersion: 2.0.0-M4 # <1>
 ----
 
 <1> Change the NiFi version here
@@ -19,3 +19,7 @@ spec:
 WARNING: Due to a limitation in NiFi itself it is not possible to upgrade or downgrade a NiFi cluster in a rolling fashion.
 So any change to the NiFi version you make in this CRD will result in a full cluster restart with a short downtime.
 This does not affect the Stackable image version, this can be changed in a rolling fashion, as long as the underlying NiFi version remains unchanged.
+
+== NiFi 2.0.0-M4
+
+Before you can upgrade to `2.0.0-M4` you https://cwiki.apache.org/confluence/display/NIFI/Migration+Guidance[need to update] to at least version 1.27.x!
