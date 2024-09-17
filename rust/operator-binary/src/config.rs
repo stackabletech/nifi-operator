@@ -196,12 +196,18 @@ pub fn build_nifi_properties(
     proxy_hosts: &str,
     auth_config: &NifiAuthenticationConfig,
     overrides: BTreeMap<String, String>,
+    product_version: &str,
 ) -> Result<String, Error> {
     let mut properties = BTreeMap::new();
     // Core Properties
+    let flow_file_name = if product_version.starts_with("2") {
+        "flow.json.gz"
+    } else {
+        "flow.xml.gz"
+    };
     properties.insert(
         "nifi.flow.configuration.file".to_string(),
-        NifiRepository::Database.mount_path() + "/flow.json.gz",
+        NifiRepository::Database.mount_path() + "/" + flow_file_name,
     );
     properties.insert(
         "nifi.flow.configuration.archive.enabled".to_string(),

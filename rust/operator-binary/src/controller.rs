@@ -764,6 +764,7 @@ async fn build_node_rolegroup_config_map(
                         kind: NIFI_PROPERTIES.to_string(),
                     })?
                     .clone(),
+                resolved_product_image.product_version.as_ref(),
             )
             .with_context(|_| BuildProductConfigSnafu {
                 rolegroup: rolegroup.clone(),
