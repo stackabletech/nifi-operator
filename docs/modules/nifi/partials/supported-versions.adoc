@@ -4,3 +4,5 @@
 
 - 2.0.0-M4 (experimental) - Please note that you need to upgrade to at least 1.27.x before upgrading to 2.0.x!
 - 1.27.0 (LTS)
+
+For details on how to upgrade your NiFi version, please read on xref:usage_guide/updating.adoc[].

@@ -196,12 +196,22 @@ pub fn build_nifi_properties(
     proxy_hosts: &str,
     auth_config: &NifiAuthenticationConfig,
     overrides: BTreeMap<String, String>,
+    product_version: &str,
 ) -> Result<String, Error> {
     let mut properties = BTreeMap::new();
     // Core Properties
+    // According to https://cwiki.apache.org/confluence/display/NIFI/Migration+Guidance#MigrationGuidance-Migratingto2.0.0-M1
+    // The nifi.flow.configuration.file property in nifi.properties must be changed to reference
+    // "flow.json.gz" instead of "flow.xml.gz"
+    // TODO: Remove once we dropped support for all 1.x.x versions
+    let flow_file_name = if product_version.starts_with("1.") {
+        "flow.xml.gz"
+    } else {
+        "flow.json.gz"
+    };
     properties.insert(
         "nifi.flow.configuration.file".to_string(),
-        NifiRepository::Database.mount_path() + "/flow.xml.gz",
+        NifiRepository::Database.mount_path() + "/" + flow_file_name,
     );
     properties.insert(
         "nifi.flow.configuration.archive.enabled".to_string(),

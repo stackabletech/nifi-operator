@@ -764,6 +764,7 @@ async fn build_node_rolegroup_config_map(
                         kind: NIFI_PROPERTIES.to_string(),
                     })?
                     .clone(),
+                resolved_product_image.product_version.as_ref(),
             )
             .with_context(|_| BuildProductConfigSnafu {
                 rolegroup: rolegroup.clone(),
@@ -812,7 +813,7 @@ fn build_node_rolegroup_service(
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(nifi)
-            .name(&rolegroup.object_name())
+            .name(rolegroup.object_name())
             .ownerreference_from_resource(nifi, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
@@ -991,24 +992,24 @@ async fn build_node_rolegroup_statefulset(
         .add_env_vars(env_vars.clone())
         .args(vec![prepare_args.join(" && ")])
         .add_volume_mount(
-            &NifiRepository::Flowfile.repository(),
-            &NifiRepository::Flowfile.mount_path(),
+            NifiRepository::Flowfile.repository(),
+            NifiRepository::Flowfile.mount_path(),
         )
         .add_volume_mount(
-            &NifiRepository::Database.repository(),
-            &NifiRepository::Database.mount_path(),
+            NifiRepository::Database.repository(),
+            NifiRepository::Database.mount_path(),
         )
         .add_volume_mount(
-            &NifiRepository::Content.repository(),
-            &NifiRepository::Content.mount_path(),
+            NifiRepository::Content.repository(),
+            NifiRepository::Content.mount_path(),
         )
         .add_volume_mount(
-            &NifiRepository::Provenance.repository(),
-            &NifiRepository::Provenance.mount_path(),
+            NifiRepository::Provenance.repository(),
+            NifiRepository::Provenance.mount_path(),
         )
         .add_volume_mount(
-            &NifiRepository::State.repository(),
-            &NifiRepository::State.mount_path(),
+            NifiRepository::State.repository(),
+            NifiRepository::State.mount_path(),
         )
         .add_volume_mount("conf", "/conf")
         .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_NIFI_CONTAINER_MOUNT)
@@ -1058,24 +1059,24 @@ async fn build_node_rolegroup_statefulset(
         .add_env_vars(env_vars)
         .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_NIFI_CONTAINER_MOUNT)
         .add_volume_mount(
-            &NifiRepository::Flowfile.repository(),
-            &NifiRepository::Flowfile.mount_path(),
+            NifiRepository::Flowfile.repository(),
+            NifiRepository::Flowfile.mount_path(),
         )
         .add_volume_mount(
-            &NifiRepository::Database.repository(),
-            &NifiRepository::Database.mount_path(),
+            NifiRepository::Database.repository(),
+            NifiRepository::Database.mount_path(),
         )
         .add_volume_mount(
-            &NifiRepository::Content.repository(),
-            &NifiRepository::Content.mount_path(),
+            NifiRepository::Content.repository(),
+            NifiRepository::Content.mount_path(),
         )
         .add_volume_mount(
-            &NifiRepository::Provenance.repository(),
-            &NifiRepository::Provenance.mount_path(),
+            NifiRepository::Provenance.repository(),
+            NifiRepository::Provenance.mount_path(),
         )
         .add_volume_mount(
-            &NifiRepository::State.repository(),
-            &NifiRepository::State.mount_path(),
+            NifiRepository::State.repository(),
+            NifiRepository::State.mount_path(),
         )
         .add_volume_mount("activeconf", NIFI_CONFIG_DIRECTORY)
         .add_volume_mount("log-config", STACKABLE_LOG_CONFIG_DIR)
@@ -1280,7 +1281,7 @@ async fn build_node_rolegroup_statefulset(
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(nifi)
-            .name(&rolegroup_ref.object_name())
+            .name(rolegroup_ref.object_name())
             .ownerreference_from_resource(nifi, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
