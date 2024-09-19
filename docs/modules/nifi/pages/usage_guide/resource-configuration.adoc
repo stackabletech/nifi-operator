@@ -1,5 +1,5 @@
-
 = Resource configuration
+:description: Configure NiFi storage and resource requests for optimal performance. Set PVC sizes and resource requests for CPU, memory, and persistent storage.
 
 == Volume storage
 

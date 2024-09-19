@@ -1,5 +1,5 @@
 = Stackable Operator for Apache NiFi
-:description: The Stackable operator for Apache NiFi is a Kubernetes operator that can manage Apache NiFi clusters. Learn about its features, resources, dependencies and demos, and see the list of supported NiFi versions.
+:description: Manage NiFi clusters on Kubernetes with the Stackable operator. Explore features, dependencies, and supported versions for efficient data flow management.
 :keywords: k8s, Kubernetes, Stackable operator, Apache NiFi, open source, operator, data science, data exploration, big data
 :nifi: https://nifi.apache.org/
 :github: https://github.com/stackabletech/nifi-operator/

@@ -1,4 +1,5 @@
 = Adding external files to the NiFi servers
+:description: Add external files to NiFi Pods by specifying extra volumes, such as client certificates or keytabs.
 
 Since Apache NiFi allows executing arbitrary workflows depending on which processors are used, it may become necessary to add external files to the Pods.
 These could for example be client certificates used to configure a `PollHTTP` processor, a keytab to obtain a Kerberos ticket, or similar things.
