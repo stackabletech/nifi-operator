@@ -33,13 +33,10 @@ spec:
                       items:
                         properties:
                           authenticationClass:
-                            description: A name/key which references an authentication class. To get the concrete [`AuthenticationClass`], we must resolve it. This resolution can be achieved by using [`ClientAuthenticationDetails::resolve_class`].
+                            description: Name of the [AuthenticationClass](https://docs.stackable.tech/home/nightly/concepts/authentication) used to authenticate users.
                             type: string
                           oidc:
-                            description: |-
-                              This field contains authentication provider specific configuration.
-
-                              Use [`ClientAuthenticationDetails::oidc_or_error`] to get the value or report an error to the user.
+                            description: This field contains OIDC-specific configuration. It is only required in case OIDC is used.
                             nullable: true
                             properties:
                               clientCredentialsSecret:
@@ -199,8 +196,10 @@ spec:
                         description: LocalObjectReference contains enough information to let you locate the referenced object inside the same namespace.
                         properties:
                           name:
-                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
+                            description: 'Name of the referent. This field is effectively required, but due to backwards compatibility is allowed to be empty. Instances of this type with an empty value here are almost certainly wrong. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
                             type: string
+                        required:
+                          - name
                         type: object
                       nullable: true
                       type: array
@@ -254,10 +253,6 @@ spec:
                               nullable: true
                               type: object
                               x-kubernetes-preserve-unknown-fields: true
-                          required:
-                            - nodeAffinity
-                            - podAffinity
-                            - podAntiAffinity
                           type: object
                         gracefulShutdownTimeout:
                           description: Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
@@ -715,10 +710,6 @@ spec:
                                     nullable: true
                                     type: object
                                     x-kubernetes-preserve-unknown-fields: true
-                                required:
-                                  - nodeAffinity
-                                  - podAffinity
-                                  - podAntiAffinity
                                 type: object
                               gracefulShutdownTimeout:
                                 description: Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
