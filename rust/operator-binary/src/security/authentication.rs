@@ -37,7 +37,7 @@ pub enum Error {
 
     #[snafu(display("Failed to add OIDC volumes and volumeMounts to the Pod and containers"))]
     AddOidcVolumes {
-        source: stackable_operator::commons::authentication::tls::TlsClientDetailsError,
+        source: stackable_operator::commons::tls_verification::TlsClientDetailsError,
     },
 
     #[snafu(display(
