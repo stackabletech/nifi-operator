@@ -17,9 +17,9 @@ spec:
 
 <1> Change the NiFi version here
 
-WARNING: Due to a limitation in NiFi itself it is not possible to upgrade or downgrade a NiFi cluster in a rolling fashion.
-So any change to the NiFi version you make in this CRD will result in a full cluster restart with a short downtime.
-This does not affect the Stackable image version, this can be changed in a rolling fashion, as long as the underlying NiFi version remains unchanged.
+WARNING: NiFi clusters cannot be upgraded or downgraded in a rolling fashion due to a limitation in NiFi.
+Any change to the NiFi version in the CRD triggers a full cluster restart with brief downtime.
+However, the Stackable image version can be updated in a rolling manner, provided the NiFi version remains unchanged.
 
 == NiFi 2.0.0-M4
 

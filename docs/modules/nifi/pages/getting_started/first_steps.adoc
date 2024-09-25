@@ -1,7 +1,8 @@
 = First steps
 :description: Deploy Apache NiFi and ZooKeeper on Kubernetes using manifest files. Verify setup and access NiFi's web interface with stackablectl or kubectl.
 
-After going through the xref:getting_started/installation.adoc[] section and having installed all the operators, you will now deploy a NiFi cluster and the required dependencies. Afterwards you can <<_verify_that_it_works, verify that it works>> by querying the REST API.
+After going through the xref:getting_started/installation.adoc[] section and having installed all the operators, you deploy a NiFi cluster and the required dependencies.
+Afterward you can <<_verify_that_it_works, verify that it works>> by querying the REST API.
 
 == Setup
 
@@ -10,7 +11,8 @@ Two things need to be installed to create a NiFi cluster:
 * A ZooKeeper cluster for internal use by NiFi
 * The NiFi cluster itself
 
-We will create them in this order, each one is created by applying a manifest file. The operators you just installed will then create the resources according to the manifest.
+Create them in this order, each one is created by applying a manifest file.
+The operators create the resources according to the manifest.
 
 === Apache ZooKeeper
 
@@ -28,7 +30,7 @@ Create a Znode object:
 include::example$getting_started/getting_started.sh[tag=install-znode]
 ----
 
-The xref:zookeeper:znodes.adoc[ZNode] makes sure that the NiFi cluster will operate in its own separated directory in ZooKeeper.
+The xref:zookeeper:znodes.adoc[ZNode] makes sure that the NiFi cluster operates in its own separated directory in ZooKeeper.
 
 === Apache NiFi
 

@@ -2,8 +2,7 @@
 :description: Load custom NiFi components by using custom Docker images or mounting external volumes with nar files for enhanced functionality.
 :nifi-docs-custom-components: https://nifi.apache.org/docs/nifi-docs/html/developer-guide.html#introduction
 
-It is possible to develop {nifi-docs-custom-components}[custom components] for Apache NiFi to extend the available functionality - most often this will probably be custom processors.
-
+You can develop {nifi-docs-custom-components}[custom components] for Apache NiFi, typically custom processors, to extend its functionality.
 For these to be available in the NiFi UI, they need to be present in the classpath at startup, so the nar bundles have to be injected into your NiFi instance.
 
 The Stackable Data Platform supports two ways to achive this goal, both of which are described below.
@@ -12,8 +11,8 @@ Please note that building your own Docker image is the recommended solution, as 
 
 == Custom Docker image
 
-You can extend the official Stackable NiFi image and copy all required _nar_ files into the classpath of Nifi.
-The benefit of this method is that there is no need for any config overrides or extra mounts, you can use any of our NiFi examples, swap the image and your components will be available.
+You can extend the official Stackable NiFi image by copying the required _nar_ files into NiFi's classpath.
+The benefit of this method is that there is no need for any config overrides or extra mounts, you can use any of the NiFi examples, swap the image and your components will be available.
 But this means you will need to have access to a registry to push your custom image to.
 
 The basic Dockerfile below shows how to achieve this:
@@ -40,7 +39,7 @@ Also read the xref:guides:custom-images.adoc[Using customized product images] gu
 If you don't want to create a custom image or don't have access to an image registry, you can use the extra volume mount functionality to mount a volume containing your custom components and configure NiFi to read these from the mounted volumes.
 
 For this to work you'll need to prepare a PersistentVolumeClaim (PVC) containing your components.
-Usually the best way to do this will be to mount the PVC into a temporary container and then `kubectl cp` the _nar_ files into that volume.
+Usually the best way to do this is to mount the PVC into a temporary container and then `kubectl cp` the _nar_ files into that volume.
 
 The following listing shows an example of creating the PVC and the Pod:
 
@@ -78,7 +77,8 @@ spec:
           name: nifi-processor
 ----
 
-<1> Please note that this access mode will mean that you can only use this volume with a single NiFi Pod. For a distributed scenario, an additional list value of `ReadOnlyMany` could be specified here if this is supported.
+<1> Please note that this access mode means that you can only use this volume with a single NiFi Pod.
+    For a distributed scenario, an additional list value of `ReadOnlyMany` could be specified here if this is supported.
 
 The command to then copy the nar bundle into the PVC is:
 
@@ -89,7 +89,7 @@ kubectl cp /path/to/component.nar processorcopy:/volume/
 
 Now you can mount the extra volume into your NiFi instance as described in xref:nifi:usage_guide/extra-volumes.adoc[].
 
-After this is done your components will be available within the NiFi Pods and NiFi can be configured to load these at startup by adding an extra directory to the classpath:
+After this is done your components are available within the NiFi Pods and NiFi can be configured to load these at startup by adding an extra directory to the classpath:
 
 
 [source,yaml]
