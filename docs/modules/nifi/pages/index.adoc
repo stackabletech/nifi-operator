@@ -49,7 +49,7 @@ The xref:demos:nifi-kafka-druid-earthquake-data.adoc[] and xref:demos:nifi-kafka
 == Supported versions
 
 The Stackable operator for Apache NiFi currently supports the NiFi versions listed below.
-To use a specific NiFi version in your NifiCluster, you have to specify an image - this is explained in the xref:concepts:product-image-selection.adoc[] documentation.
+To use a specific NiFi version in your NifiCluster, you have to specify an image -- this is explained in the xref:concepts:product-image-selection.adoc[] documentation.
 The operator also supports running images from a custom registry or running entirely customized images; both of these cases are explained under xref:concepts:product-image-selection.adoc[] as well.
 
 include::partial$supported-versions.adoc[]
