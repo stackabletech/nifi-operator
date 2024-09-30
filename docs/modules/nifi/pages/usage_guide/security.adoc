@@ -23,7 +23,7 @@ spec:
       serverSecretClass: non-default-secret-class # <1>
 ----
 
-<1> The name of the SecretClass that will be used for certificates for the NiFi UI.
+<1> The name of the SecretClass used for certificates for the NiFi UI.
 
 == Authentication
 
@@ -50,7 +50,7 @@ spec:
         name: nifi-admin-credentials # <2>
 ----
 
-<1> The name of the AuthenticationClass that will be referenced in the NiFi cluster.
+<1> The name of the AuthenticationClass referenced in the NiFi cluster.
 <2> The name of the Secret containing the admin credentials.
 
 [source,yaml]
@@ -65,8 +65,12 @@ stringData:
 ----
 
 <1> The name of the Secret containing the admin user credentials.
-<2> The user and password combination of the admin user. The username *must* be "admin" and cannot be changed. The NiFi pods will not start if they cannot mount the "admin" entry from the Secret. The password can be adapted.
-<3> The Secret maybe used by other products of the Stackable Data Platform that allow more than one user. The Stackable Operator for Apache NiFi will ignore all users except for "admin".
+<2> The user and password combination of the admin user.
+    The username *must* be "admin" and cannot be changed.
+    The NiFi Pods will not start if they cannot mount the "admin" entry from the Secret.
+    The password can be adapted.
+<3> The Secret maybe used by other products of the Stackable Data Platform that allow more than one user.
+    The Stackable operator for Apache NiFi will ignore all users except for "admin".
 
 [source,yaml]
 ----
@@ -197,7 +201,7 @@ The sensitive property encryption is configured using the properties `keySecret`
 The `keySecret` configures the name of the Secret object that holds the encryption key; it is required to specify a Secret name.
 The Secret needs to contain the key as a value to the `nifiSensitivePropsKey` key.
 You can either specify a key yourself - in which case the key needs to be at least 12 characters long - or just specify the name of the Secret and set `autoGenerate` to `true` (the default is false).
-If `autoGenerate` is false and no Secret with the given name in `keySecret` is found, the operator will raise an error.
+If `autoGenerate` is false and no Secret with the given name in `keySecret` is found, the operator raises an error.
 
 The `algorithm` property configures the encryption algorithm used to encrypt the sensitive properties.
 Consult the {crd-docs}/nifi.stackable.tech/nificluster/v1alpha1/#spec-clusterConfig-sensitiveProperties-algorithm[reference documentation {external-link-icon}^] for a list of supported algorithms.
@@ -242,7 +246,7 @@ NiFi checks the host header of incoming requests and rejects them if they are pa
 
 A https://github.com/stackabletech/docker-images/pull/694[patch] applied during the build of the SDP container image for NiFi allows turning off this check by adding `nifi.web.proxy.host=*` to the properties.
 The Host header check for NiFi clusters created by the operator is disabled by default but can be enabled in the NiFi configuration.
-In this case the list of allowed hosts will default to Kubernetes Services used by NiFi and can be extended with custom entries.
+In this case the list of allowed hosts defaults to Kubernetes Services used by NiFi and can be extended with custom entries.
 
 [source,yaml]
 ----

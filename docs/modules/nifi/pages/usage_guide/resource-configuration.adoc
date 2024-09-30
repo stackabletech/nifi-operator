@@ -3,7 +3,7 @@
 
 == Volume storage
 
-By default, a NiFi cluster will create five different persistent volume claims for flow files, provenance, database, content and state folders.
+By default, a NiFi Stacklet creates five different persistent volume claims for flow files, provenance, database, content and state directories.
 You can find the default sizes of the PVCs in the {crd-docs}/nifi.stackable.tech/NifiCluster/v1alpha1/#spec-nodes-config-resources-storage[NifiCluster reference docs {external-link-icon}^], it is recommended that you configure these volume requests according to your needs.
 
 Storage requests can be configured at role or group level, for one or more of the persistent volumes as follows:
@@ -28,7 +28,7 @@ nodes:
               capacity: 12Gi
 ----
 
-In the above example, all nodes in the default group will request `12Gi` of storage the various folders.
+In the above example, all nodes in the default group request `12Gi` of storage the various directories.
 
 == Resource requests
 
