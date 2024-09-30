@@ -5,7 +5,7 @@ On this page you install the Stackable operator for Apache NiFi and operators fo
 as well as the commons, secret and listener operator which are required by all Stackable operators.
 
 There are multiple ways to install the Stackable operators.
-xref:management:stackablectl:index.adoc[] is the preferred way but Helm is also supported.
+xref:management:stackablectl:index.adoc[] is the preferred way, but Helm is also supported.
 OpenShift users may prefer installing the operator from the RedHat Certified Operator catalog using the OpenShift web console.
 
 [tabs]
@@ -49,7 +49,7 @@ Then install the Stackable operators:
 include::example$getting_started/getting_started.sh[tag=helm-install-operators]
 ----
 
-Helm deploys the operators in a Kubernetes Deployment and apply the CRDs for the Apache NiFi service (as well as the CRDs for the required operators).
+Helm deploys the operators in a Kubernetes Deployment and applies the CRDs for the Apache NiFi service (as well as the CRDs for the required operators).
 --
 ====
 

@@ -89,7 +89,7 @@ kubectl cp /path/to/component.nar processorcopy:/volume/
 
 Now you can mount the extra volume into your NiFi instance as described in xref:nifi:usage_guide/extra-volumes.adoc[].
 
-After this is done your components are available within the NiFi Pods and NiFi can be configured to load these at startup by adding an extra directory to the classpath:
+After this is done, your components are available within the NiFi Pods and NiFi can be configured to load these at startup by adding an extra directory to the classpath:
 
 
 [source,yaml]

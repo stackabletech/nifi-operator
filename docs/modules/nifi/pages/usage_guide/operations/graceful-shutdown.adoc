@@ -8,7 +8,7 @@ As a default, NiFi nodes have `5 minutes` to shut down gracefully.
 
 The NiFi node process receives a `SIGTERM` signal when Kubernetes wants to terminate the Pod.
 It logs the received signal as shown in the log below and initiate a graceful shutdown.
-After the graceful shutdown timeout runs out, and the process still didn't exit, Kubernetes issues a `SIGKILL` signal.
+After the graceful shutdown timeout runs out, and the process still did not exit, Kubernetes issues a `SIGKILL` signal.
 
 [source,text]
 ----
