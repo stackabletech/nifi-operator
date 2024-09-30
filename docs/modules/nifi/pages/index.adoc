@@ -20,7 +20,7 @@ It supports a wide range of data sources, formats and features such as data prov
 
 Get started with Apache NiFi and the Stackable operator by following the xref:getting_started/index.adoc[] guide.
 It guides you through the xref:getting_started/installation.adoc[installation] process and xref:getting_started/first_steps.adoc[connect] to the NiFi web interface.
-Afterwards have a look at the xref:usage_guide/index.adoc[] to learn how to configure your NiFi instance to your needs or run some <<demos, demos>> to learn more about using NiFi with other components.
+Afterward, have a look at the xref:usage_guide/index.adoc[] to learn how to configure your NiFi instance to your needs or run some <<demos, demos>> to learn more about using NiFi with other components.
 
 == Operator model
 
