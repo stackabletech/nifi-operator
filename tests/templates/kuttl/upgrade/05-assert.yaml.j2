@@ -19,5 +19,5 @@ status:
 {% if test_scenario['values']['nifi_new'].find(",") > 0 %}
   deployed_version: "{{ test_scenario['values']['nifi_new'].split(',')[0] }}"
 {% else %}
-  deployed_version: {{ test_scenario['values']['nifi_new'].split("-")[0]  }}
+  deployed_version: {{ test_scenario['values']['nifi_new'] }}
 {% endif %}

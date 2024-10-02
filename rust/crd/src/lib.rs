@@ -2,14 +2,13 @@ pub mod affinity;
 pub mod authentication;
 pub mod tls;
 
-use crate::authentication::NifiAuthenticationClassRef;
-
 use affinity::get_affinity;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
+        authentication::ClientAuthenticationDetails,
         cluster_operation::ClusterOperation,
         product_image_selection::ProductImage,
         resources::{
@@ -18,8 +17,7 @@ use stackable_operator::{
         },
     },
     config::{
-        fragment::Fragment,
-        fragment::{self, ValidationError},
+        fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
     k8s_openapi::{api::core::v1::Volume, apimachinery::pkg::api::resource::Quantity},
@@ -31,6 +29,7 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
     time::Duration,
+    utils::crds::raw_object_list_schema,
 };
 use std::collections::BTreeMap;
 use strum::Display;
@@ -65,10 +64,13 @@ const DEFAULT_NODE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_minutes_
 pub enum Error {
     #[snafu(display("object has no namespace associated"))]
     NoNamespace,
+
     #[snafu(display("the NiFi role [{role}] is missing from spec"))]
     MissingNifiRole { role: String },
+
     #[snafu(display("the NiFi node role group [{role_group}] is missing from spec"))]
     MissingNifiRoleGroup { role_group: String },
+
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
 }
@@ -114,7 +116,12 @@ pub struct NifiClusterConfig {
     /// Authentication options for NiFi (required).
     /// Read more about authentication in the [security documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/security).
     // We don't add `#[serde(default)]` here, as we require authentication
-    pub authentication: Vec<NifiAuthenticationClassRef>,
+    pub authentication: Vec<ClientAuthenticationDetails>,
+
+    /// Configuration of allowed proxies e.g. load balancers or Kubernetes Ingress. Using a proxy that is not allowed by NiFi results
+    /// in a failed host header check.
+    #[serde(default)]
+    pub host_header_check: HostHeaderCheckConfig,
 
     /// TLS configuration options for the server.
     #[serde(default)]
@@ -136,11 +143,12 @@ pub struct NifiClusterConfig {
     /// to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
     pub zookeeper_config_map_name: String,
 
-    /// Extra volumes to mount into every container, this can be useful to for example make client
-    /// certificates, keytabs or similar things available to processors
-    /// These volumes will be mounted below `/stackable/userdata/{volumename}`.
+    /// Extra volumes similar to `.spec.volumes` on a Pod to mount into every container, this can be useful to for
+    /// example make client certificates, keytabs or similar things available to processors. These volumes will be
+    /// mounted into all pods at `/stackable/userdata/{volumename}`.
     /// See also the [external files usage guide](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/extra-volumes).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[schemars(schema_with = "raw_object_list_schema")]
     pub extra_volumes: Vec<Volume>,
 
     /// This field controls which type of Service the Operator creates for this NifiCluster:
@@ -154,6 +162,31 @@ pub struct NifiClusterConfig {
     /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
     #[serde(default)]
     pub listener_class: CurrentlySupportedListenerClasses,
+}
+
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostHeaderCheckConfig {
+    /// Allow all proxy hosts by turning off host header validation.
+    /// See <https://github.com/stackabletech/docker-images/pull/694>
+    #[serde(default = "default_allow_all")]
+    pub allow_all: bool,
+    /// List of proxy hosts to add to the default allow list deployed by SDP containing Kubernetes Services utilized by NiFi.
+    #[serde(default)]
+    pub additional_allowed_hosts: Vec<String>,
+}
+
+impl Default for HostHeaderCheckConfig {
+    fn default() -> Self {
+        Self {
+            allow_all: default_allow_all(),
+            additional_allowed_hosts: Vec::default(),
+        }
+    }
+}
+
+pub fn default_allow_all() -> bool {
+    true
 }
 
 // TODO: Temporary solution until listener-operator is finished

@@ -11,21 +11,3 @@ spec:
 {% else %}
     productVersion: "{{ test_scenario['values']['nifi_new'] }}"
 {% endif %}
-    pullPolicy: IfNotPresent
-  clusterConfig:
-    authentication:
-      - authenticationClass: simple-nifi-users
-    sensitiveProperties:
-      keySecret: nifi-sensitive-property-key
-{% if lookup('env', 'VECTOR_AGGREGATOR') %}
-    vectorAggregatorConfigMapName: vector-aggregator-discovery
-{% endif %}
-    zookeeperConfigMapName: test-nifi-znode
-  nodes:
-    config:
-      logging:
-        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-    roleGroups:
-      default:
-        config: {}
-        replicas: 3

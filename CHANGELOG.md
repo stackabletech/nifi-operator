@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Allow configuring proxy host behavior ([#668]).
+
+### Changed
+
+- Reduce CRD size from `637KB` to `105KB` by accepting arbitrary YAML input instead of the underlying schema for the following fields ([#664]):
+  - `podOverrides`
+  - `affinity`
+  - `extraVolumes`
+- Increase `log` Volume size from 33 MiB to 500 MiB ([#671]).
+
+### Fixed
+
+- Switch from `flow.xml.gz` to `flow.json.gz` to allow seamless upgrades to version 2.0 ([#675]).
+
+### Removed
+
+- Removed support for NiFi versions 1.21.0 and 1.25.0 ([#665]).
+- test: Remove ZooKeeper 3.8.4 ([#672]).
+
+[#664]: https://github.com/stackabletech/nifi-operator/pull/664
+[#665]: https://github.com/stackabletech/nifi-operator/pull/665
+[#668]: https://github.com/stackabletech/nifi-operator/pull/668
+[#671]: https://github.com/stackabletech/nifi-operator/pull/671
+[#672]: https://github.com/stackabletech/nifi-operator/pull/672
+[#675]: https://github.com/stackabletech/nifi-operator/pull/675
+
 ## [24.7.0] - 2024-07-24
 
 ### Added

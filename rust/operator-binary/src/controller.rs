@@ -1,7 +1,7 @@
 //! Ensures that `Pod`s are configured and running for each [`NifiCluster`]
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     sync::Arc,
 };
 
@@ -13,11 +13,10 @@ use product_config::{
 };
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_nifi_crd::{
-    authentication::resolve_authentication_classes, Container, CurrentlySupportedListenerClasses,
+    authentication::AuthenticationClassResolved, Container, CurrentlySupportedListenerClasses,
     NifiCluster, NifiConfig, NifiConfigFragment, NifiRole, NifiStatus, APP_NAME, BALANCE_PORT,
-    BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, MAX_NIFI_LOG_FILES_SIZE,
-    MAX_PREPARE_LOG_FILE_SIZE, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
-    STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
+    BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT,
+    PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
 };
 use stackable_operator::{
     builder::{
@@ -30,7 +29,10 @@ use stackable_operator::{
     },
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
-    commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
+    commons::{
+        authentication::oidc::AuthenticationProvider,
+        product_image_selection::ResolvedProductImage, rbac::build_rbac_resources,
+    },
     config::fragment,
     k8s_openapi::{
         api::{
@@ -52,6 +54,7 @@ use stackable_operator::{
     },
     kvp::{Label, Labels, ObjectLabels},
     logging::controller::ReconcilerError,
+    memory::{BinaryMultiple, MemoryQuantity},
     product_logging::{
         self,
         framework::{create_vector_shutdown_file_command, remove_vector_shutdown_file_command},
@@ -86,7 +89,7 @@ use crate::{
             LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME, STACKABLE_SERVER_TLS_DIR,
             STACKABLE_TLS_STORE_PASSWORD,
         },
-        build_tls_volume, check_or_generate_sensitive_key,
+        build_tls_volume, check_or_generate_oidc_admin_password, check_or_generate_sensitive_key,
         tls::{KEYSTORE_NIFI_CONTAINER_MOUNT, KEYSTORE_VOLUME_NAME, TRUSTSTORE_VOLUME_NAME},
     },
     OPERATOR_NAME,
@@ -473,11 +476,17 @@ pub async fn reconcile_nifi(
         })?;
 
     let nifi_authentication_config = NifiAuthenticationConfig::try_from(
-        resolve_authentication_classes(client, &nifi.spec.cluster_config.authentication)
+        AuthenticationClassResolved::from(nifi, client)
             .await
             .context(FailedResolveNifiAuthenticationConfigSnafu)?,
     )
     .context(InvalidNifiAuthenticationConfigSnafu)?;
+
+    if let NifiAuthenticationConfig::Oidc { .. } = nifi_authentication_config {
+        check_or_generate_oidc_admin_password(client, nifi)
+            .await
+            .context(SecuritySnafu)?;
+    }
 
     let vector_aggregator_address = resolve_vector_aggregator_address(nifi, client)
         .await
@@ -759,12 +768,14 @@ async fn build_node_rolegroup_config_map(
                 &nifi.spec,
                 &merged_config.resources,
                 proxy_hosts,
+                nifi_auth_config,
                 rolegroup_config
                     .get(&PropertyNameKind::File(NIFI_PROPERTIES.to_string()))
                     .with_context(|| ProductConfigKindNotSpecifiedSnafu {
                         kind: NIFI_PROPERTIES.to_string(),
                     })?
                     .clone(),
+                resolved_product_image.product_version.as_ref(),
             )
             .with_context(|_| BuildProductConfigSnafu {
                 rolegroup: rolegroup.clone(),
@@ -912,6 +923,12 @@ async fn build_node_rolegroup_statefulset(
         "ZOOKEEPER_CHROOT",
         &nifi.spec.cluster_config.zookeeper_config_map_name,
     ));
+
+    if let NifiAuthenticationConfig::Oidc { oidc, .. } = nifi_auth_config {
+        env_vars.extend(AuthenticationProvider::client_credentials_env_var_mounts(
+            oidc.client_credentials_secret_ref.clone(),
+        ));
+    }
 
     let node_address = format!(
         "$POD_NAME.{}-node-{}.{}.svc.cluster.local",
@@ -1134,7 +1151,7 @@ async fn build_node_rolegroup_statefulset(
         pod_builder.add_volume(Volume {
             name: "log-config".to_string(),
             config_map: Some(ConfigMapVolumeSource {
-                name: Some(config_map.into()),
+                name: config_map.clone(),
                 ..ConfigMapVolumeSource::default()
             }),
             ..Volume::default()
@@ -1143,7 +1160,7 @@ async fn build_node_rolegroup_statefulset(
         pod_builder.add_volume(Volume {
             name: "log-config".to_string(),
             config_map: Some(ConfigMapVolumeSource {
-                name: Some(rolegroup_ref.object_name()),
+                name: rolegroup_ref.object_name(),
                 ..ConfigMapVolumeSource::default()
             }),
             ..Volume::default()
@@ -1193,7 +1210,7 @@ async fn build_node_rolegroup_statefulset(
         .add_volume(stackable_operator::k8s_openapi::api::core::v1::Volume {
             name: "config".to_string(),
             config_map: Some(ConfigMapVolumeSource {
-                name: Some(rolegroup_ref.object_name()),
+                name: rolegroup_ref.object_name(),
                 ..Default::default()
             }),
             ..Default::default()
@@ -1201,16 +1218,21 @@ async fn build_node_rolegroup_statefulset(
         .add_volume(Volume {
             name: "conf".to_string(),
             config_map: Some(ConfigMapVolumeSource {
-                name: Some(rolegroup_ref.object_name()),
+                name: rolegroup_ref.object_name(),
                 ..ConfigMapVolumeSource::default()
             }),
             ..Volume::default()
         })
         .add_empty_dir_volume(
             "log",
-            Some(product_logging::framework::calculate_log_volume_size_limit(
-                &[MAX_NIFI_LOG_FILES_SIZE, MAX_PREPARE_LOG_FILE_SIZE],
-            )),
+            // Set volume size to higher than theoretically necessary to avoid running out of disk space as log rotation triggers are only checked by Logback every 5s.
+            Some(
+                MemoryQuantity {
+                    value: 500.0,
+                    unit: BinaryMultiple::Mebi,
+                }
+                .into(),
+            ),
         )
         // One volume for the keystore and truststore data configmap
         .add_volume(
@@ -1360,7 +1382,7 @@ fn zookeeper_env_var(name: &str, configmap_name: &str) -> EnvVar {
         name: name.to_string(),
         value_from: Some(EnvVarSource {
             config_map_key_ref: Some(ConfigMapKeySelector {
-                name: Some(configmap_name.to_string()),
+                name: configmap_name.to_string(),
                 key: name.to_string(),
                 ..ConfigMapKeySelector::default()
             }),
@@ -1375,16 +1397,28 @@ async fn get_proxy_hosts(
     nifi: &NifiCluster,
     nifi_service: &Service,
 ) -> Result<String> {
+    let host_header_check = nifi.spec.cluster_config.host_header_check.clone();
+
+    if host_header_check.allow_all {
+        tracing::info!("spec.clusterConfig.hostHeaderCheck.allowAll is set to true. All proxy hosts will be allowed.");
+        if !host_header_check.additional_allowed_hosts.is_empty() {
+            tracing::info!("spec.clusterConfig.hostHeaderCheck.additionalAllowedHosts is ignored and only '*' is added to the allow-list.")
+        }
+        return Ok("*".to_string());
+    }
+
     let node_role_service_fqdn = nifi
         .node_role_service_fqdn()
         .context(NoRoleServiceFqdnSnafu)?;
     let reporting_task_service_name =
         reporting_task::build_reporting_task_fqdn_service_name(nifi).context(ReportingTaskSnafu)?;
-    let mut proxy_setting = vec![
+    let mut proxy_hosts_set = HashSet::from([
         node_role_service_fqdn.clone(),
         format!("{node_role_service_fqdn}:{HTTPS_PORT}"),
         format!("{reporting_task_service_name}:{HTTPS_PORT}"),
-    ];
+    ]);
+
+    proxy_hosts_set.extend(host_header_check.additional_allowed_hosts);
 
     // In case NodePort is used add them as well
     if nifi.spec.cluster_config.listener_class
@@ -1402,7 +1436,7 @@ async fn get_proxy_hosts(
         // We need the addresses of all nodes to add these to the NiFi proxy setting
         // Since there is no real convention about how to label these addresses we will simply
         // take all published addresses for now to be on the safe side.
-        proxy_setting.extend(
+        proxy_hosts_set.extend(
             cluster_nodes
                 .into_iter()
                 .flat_map(|node| {
@@ -1415,7 +1449,10 @@ async fn get_proxy_hosts(
         );
     }
 
-    Ok(proxy_setting.join(","))
+    let mut proxy_hosts = Vec::from_iter(proxy_hosts_set);
+    proxy_hosts.sort();
+
+    Ok(proxy_hosts.join(","))
 }
 
 pub fn error_policy(

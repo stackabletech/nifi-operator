@@ -1,5 +1,5 @@
 = Stackable Operator for Apache NiFi
-:description: The Stackable operator for Apache NiFi is a Kubernetes operator that can manage Apache NiFi clusters. Learn about its features, resources, dependencies and demos, and see the list of supported NiFi versions.
+:description: Manage NiFi clusters on Kubernetes with the Stackable operator. Explore features, dependencies, and supported versions for efficient data flow management.
 :keywords: k8s, Kubernetes, Stackable operator, Apache NiFi, open source, operator, data science, data exploration, big data
 :nifi: https://nifi.apache.org/
 :github: https://github.com/stackabletech/nifi-operator/
@@ -19,8 +19,8 @@ It supports a wide range of data sources, formats and features such as data prov
 == Getting started
 
 Get started with Apache NiFi and the Stackable operator by following the xref:getting_started/index.adoc[] guide.
-It will guide you through the xref:getting_started/installation.adoc[installation] process and xref:getting_started/first_steps.adoc[connect] to the NiFi web interface.
-Afterwards have a look at the xref:usage_guide/index.adoc[] to learn how to configure your NiFi instance to your needs or run some <<demos, demos>> to learn more about using NiFi with other components.
+It guides you through the xref:getting_started/installation.adoc[installation] process and xref:getting_started/first_steps.adoc[connect] to the NiFi web interface.
+Afterward, have a look at the xref:usage_guide/index.adoc[] to learn how to configure your NiFi instance to your needs or run some <<demos, demos>> to learn more about using NiFi with other components.
 
 == Operator model
 
@@ -49,7 +49,7 @@ The xref:demos:nifi-kafka-druid-earthquake-data.adoc[] and xref:demos:nifi-kafka
 == Supported versions
 
 The Stackable operator for Apache NiFi currently supports the NiFi versions listed below.
-To use a specific NiFi version in your NifiCluster, you have to specify an image - this is explained in the xref:concepts:product-image-selection.adoc[] documentation.
+To use a specific NiFi version in your NifiCluster, you have to specify an image -- this is explained in the xref:concepts:product-image-selection.adoc[] documentation.
 The operator also supports running images from a custom registry or running entirely customized images; both of these cases are explained under xref:concepts:product-image-selection.adoc[] as well.
 
 include::partial$supported-versions.adoc[]

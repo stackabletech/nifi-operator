@@ -1,0 +1,15 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: |
+      INSTANCE_NAME=keycloak \
+      REALM=test \
+      USERNAME=jane.doe \
+      FIRST_NAME=Jane \
+      LAST_NAME=Doe \
+      EMAIL=jane.doe@stackable.tech \
+      PASSWORD=T8mn72D9 \
+      CLIENT_ID=nifi \
+      CLIENT_SECRET=R1bxHUD569vHeQdw \
+      envsubst < 01_keycloak.yaml | kubectl apply -n $NAMESPACE -f -
