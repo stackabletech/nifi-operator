@@ -19,12 +19,14 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Switch from `flow.xml.gz` to `flow.json.gz` to allow seamless upgrades to version 2.0 ([#675]).
+- Failing to parse one `NifiCluster`/`AuthenticationClass` should no longer cause the whole operator to stop functioning ([#662]).
 
 ### Removed
 
 - Removed support for NiFi versions 1.21.0 and 1.25.0 ([#665]).
 - test: Remove ZooKeeper 3.8.4 ([#672]).
 
+[#662]: https://github.com/stackabletech/nifi-operator/pull/662
 [#664]: https://github.com/stackabletech/nifi-operator/pull/664
 [#665]: https://github.com/stackabletech/nifi-operator/pull/665
 [#668]: https://github.com/stackabletech/nifi-operator/pull/668
