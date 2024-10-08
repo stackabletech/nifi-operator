@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Support OpenID Connect authentication ([#660]).
 - Allow configuring proxy host behavior ([#668]).
 
 ### Changed
@@ -26,6 +27,7 @@ All notable changes to this project will be documented in this file.
 - Removed support for NiFi versions 1.21.0 and 1.25.0 ([#665]).
 - test: Remove ZooKeeper 3.8.4 ([#672]).
 
+[#660]: https://github.com/stackabletech/nifi-operator/pull/660
 [#662]: https://github.com/stackabletech/nifi-operator/pull/662
 [#664]: https://github.com/stackabletech/nifi-operator/pull/664
 [#665]: https://github.com/stackabletech/nifi-operator/pull/665
