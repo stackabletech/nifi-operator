@@ -13,6 +13,7 @@ use stackable_operator::{
     commons::{
         authentication::oidc::{AuthenticationProvider, DEFAULT_OIDC_WELLKNOWN_PATH},
         resources::Resources,
+        tls_verification::{CaCert, TlsVerification},
     },
     memory::{BinaryMultiple, MemoryQuantity},
     product_config_utils::{
@@ -621,10 +622,31 @@ pub fn build_nifi_properties(
             "nifi.security.user.oidc.claim.identifying.user".to_string(),
             provider.principal_claim.to_string(),
         );
-        properties.insert(
-            "nifi.security.user.oidc.truststore.strategy".to_string(),
-            "NIFI".to_string(),
-        );
+        if let Some(tls) = &provider.tls.tls {
+            if let TlsVerification::Server(verification) = &tls.verification {
+                if let CaCert::WebPki {} = verification.ca_cert {
+                    properties.insert(
+                        "nifi.security.user.oidc.truststore.strategy".to_string(),
+                        "JDK".to_string(),
+                    );
+                } else {
+                    properties.insert(
+                        "nifi.security.user.oidc.truststore.strategy".to_string(),
+                        "NIFI".to_string(),
+                    );
+                }
+            } else {
+                properties.insert(
+                    "nifi.security.user.oidc.truststore.strategy".to_string(),
+                    "NIFI".to_string(),
+                );
+            }
+        } else {
+            properties.insert(
+                "nifi.security.user.oidc.truststore.strategy".to_string(),
+                "NIFI".to_string(),
+            );
+        }
     }
 
     // cluster node properties (only configure for cluster nodes)
