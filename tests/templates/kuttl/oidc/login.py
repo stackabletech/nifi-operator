@@ -32,7 +32,7 @@ if nifi_version.startswith("2"):
     auth_config_page = session.get(
         f"https://{nifi}:8443/nifi-api/authentication/configuration",
         verify=False,
-        headers={"Content-type": "application/json"}
+        headers={"Content-type": "application/json"},
     )
     assert auth_config_page.ok, "Could not fetch auth config from NiFi"
     auth_config = json.loads(auth_config_page.text)
@@ -48,7 +48,10 @@ login_page = session.get(
 )
 
 print("actual: ", login_page.url)
-print("expected: ", f"{keycloak_base_url}/realms/test/protocol/openid-connect/auth?response_type=code&client_id=nifi&scope=")
+print(
+    "expected: ",
+    f"{keycloak_base_url}/realms/test/protocol/openid-connect/auth?response_type=code&client_id=nifi&scope=",
+)
 assert login_page.ok, "Redirection from NiFi to Keycloak failed"
 assert login_page.url.startswith(
     f"{keycloak_base_url}/realms/test/protocol/openid-connect/auth?response_type=code&client_id=nifi&scope="
@@ -58,7 +61,9 @@ assert login_page.url.startswith(
 login_page_html = BeautifulSoup(login_page.text, "html.parser")
 authenticate_url = login_page_html.form["action"]
 welcome_page = session.post(
-    authenticate_url, data={"username": "jane.doe", "password": "T8mn72D9"}, verify=False
+    authenticate_url,
+    data={"username": "jane.doe", "password": "T8mn72D9"},
+    verify=False,
 )
 assert welcome_page.ok, "Login failed"
 assert (
