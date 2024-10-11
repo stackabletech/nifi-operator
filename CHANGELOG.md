@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - Support OpenID Connect authentication ([#660]).
 - Allow configuring proxy host behavior ([#668]).
+- Support podOverrides on the `create-reporting-task` Job using the field `spec.clusterConfig.createReportingTaskJobPodOverrides` ([#690]).
 
 ### Changed
 
@@ -35,6 +36,7 @@ All notable changes to this project will be documented in this file.
 [#671]: https://github.com/stackabletech/nifi-operator/pull/671
 [#672]: https://github.com/stackabletech/nifi-operator/pull/672
 [#675]: https://github.com/stackabletech/nifi-operator/pull/675
+[#690]: https://github.com/stackabletech/nifi-operator/pull/690
 
 ## [24.7.0] - 2024-07-24
 
