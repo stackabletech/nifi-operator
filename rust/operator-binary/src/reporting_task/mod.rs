@@ -37,9 +37,12 @@ use stackable_operator::{
         },
     },
     commons::product_image_selection::ResolvedProductImage,
-    k8s_openapi::api::{
-        batch::v1::{Job, JobSpec},
-        core::v1::{Service, ServicePort, ServiceSpec},
+    k8s_openapi::{
+        api::{
+            batch::v1::{Job, JobSpec},
+            core::v1::{Service, ServicePort, ServiceSpec},
+        },
+        DeepMerge,
     },
     kube::ResourceExt,
     kvp::Labels,
@@ -299,7 +302,7 @@ fn build_reporting_task_job(
         .add_volumes_and_mounts(&mut pb, vec![&mut cb])
         .context(AddAuthVolumesSnafu)?;
 
-    let pod = pb
+    let mut pod_template = pb
         .metadata(
             ObjectMetaBuilder::new()
                 .name_and_namespace(nifi)
@@ -330,6 +333,13 @@ fn build_reporting_task_job(
         )
         .build_template();
 
+    pod_template.merge_from(
+        nifi.spec
+            .cluster_config
+            .create_reporting_task_job_pod_overrides
+            .clone(),
+    );
+
     let job = Job {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(nifi)
@@ -347,7 +357,7 @@ fn build_reporting_task_job(
         spec: Some(JobSpec {
             backoff_limit: Some(100),
             ttl_seconds_after_finished: Some(120),
-            template: pod,
+            template: pod_template,
             ..JobSpec::default()
         }),
         ..Job::default()

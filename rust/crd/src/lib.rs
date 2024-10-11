@@ -2,6 +2,8 @@ pub mod affinity;
 pub mod authentication;
 pub mod tls;
 
+use std::collections::BTreeMap;
+
 use affinity::get_affinity;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -20,7 +22,10 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
-    k8s_openapi::{api::core::v1::Volume, apimachinery::pkg::api::resource::Quantity},
+    k8s_openapi::{
+        api::core::v1::{PodTemplateSpec, Volume},
+        apimachinery::pkg::api::resource::Quantity,
+    },
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
     memory::{BinaryMultiple, MemoryQuantity},
     product_config_utils::{self, Configuration},
@@ -29,9 +34,8 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
     time::Duration,
-    utils::crds::raw_object_list_schema,
+    utils::crds::{raw_object_list_schema, raw_object_schema},
 };
-use std::collections::BTreeMap;
 use strum::Display;
 use tls::NifiTls;
 
@@ -162,6 +166,16 @@ pub struct NifiClusterConfig {
     /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
     #[serde(default)]
     pub listener_class: CurrentlySupportedListenerClasses,
+
+    /// Here you can define a
+    /// [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core)
+    /// to override any property that can be set on the Pod of the create-reporting-task Kubernetes Job.
+    /// Read the
+    /// [Pod overrides documentation](DOCS_BASE_URL_PLACEHOLDER/concepts/overrides#pod-overrides)
+    /// for more information.
+    #[serde(default)]
+    #[schemars(schema_with = "raw_object_schema")]
+    pub create_reporting_task_job_pod_overrides: PodTemplateSpec,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]

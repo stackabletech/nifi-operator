@@ -55,6 +55,11 @@ spec:
                           - authenticationClass
                         type: object
                       type: array
+                    createReportingTaskJobPodOverrides:
+                      default: {}
+                      description: Here you can define a [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core) to override any property that can be set on the Pod of the create-reporting-task Kubernetes Job. Read the [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides) for more information.
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
                     extraVolumes:
                       description: Extra volumes similar to `.spec.volumes` on a Pod to mount into every container, this can be useful to for example make client certificates, keytabs or similar things available to processors. These volumes will be mounted into all pods at `/stackable/userdata/{volumename}`. See also the [external files usage guide](https://docs.stackable.tech/home/nightly/nifi/usage_guide/extra-volumes).
                       items:
