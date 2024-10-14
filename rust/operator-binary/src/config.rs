@@ -13,7 +13,7 @@ use stackable_operator::{
     commons::{
         authentication::oidc::{AuthenticationProvider, DEFAULT_OIDC_WELLKNOWN_PATH},
         resources::Resources,
-        tls_verification::{CaCert, TlsVerification},
+        tls_verification::{CaCert, TlsServerVerification, TlsVerification},
     },
     memory::{BinaryMultiple, MemoryQuantity},
     product_config_utils::{
@@ -99,6 +99,9 @@ pub enum Error {
 
     #[snafu(display("failed to build the OIDC wellkown path"))]
     InvalidOidcWellknownPath { source: url::ParseError },
+
+    #[snafu(display("Nifi doesn't support skipping the OIDC TLS verification"))]
+    NoOidcTlsVerificationNotSupported {},
 }
 
 /// Create the NiFi bootstrap.conf
@@ -625,9 +628,7 @@ pub fn build_nifi_properties(
 
         if let Some(tls) = &provider.tls.tls {
             let truststore_strategy = match tls.verification {
-                TlsVerification::None {} => {
-                    todo!("Does Nifi really support not checking the cert? If not please raise an error")
-                }
+                TlsVerification::None {} => NoOidcTlsVerificationNotSupportedSnafu.fail()?,
                 TlsVerification::Server(TlsServerVerification {
                     ca_cert: CaCert::SecretClass(_),
                 }) => "NiFi", // The cert get's added to the stackable truststore
@@ -639,7 +640,6 @@ pub fn build_nifi_properties(
                 "nifi.security.user.oidc.truststore.strategy".to_owned(),
                 truststore_strategy.to_owned(),
             );
-        }
         }
     }
 
