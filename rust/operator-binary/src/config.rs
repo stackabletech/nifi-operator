@@ -622,30 +622,24 @@ pub fn build_nifi_properties(
             "nifi.security.user.oidc.claim.identifying.user".to_string(),
             provider.principal_claim.to_string(),
         );
+
         if let Some(tls) = &provider.tls.tls {
-            if let TlsVerification::Server(verification) = &tls.verification {
-                if let CaCert::WebPki {} = verification.ca_cert {
-                    properties.insert(
-                        "nifi.security.user.oidc.truststore.strategy".to_string(),
-                        "JDK".to_string(),
-                    );
-                } else {
-                    properties.insert(
-                        "nifi.security.user.oidc.truststore.strategy".to_string(),
-                        "NIFI".to_string(),
-                    );
+            let truststore_strategy = match tls.verification {
+                TlsVerification::None {} => {
+                    todo!("Does Nifi really support not checking the cert? If not please raise an error")
                 }
-            } else {
-                properties.insert(
-                    "nifi.security.user.oidc.truststore.strategy".to_string(),
-                    "NIFI".to_string(),
-                );
-            }
-        } else {
+                TlsVerification::Server(TlsServerVerification {
+                    ca_cert: CaCert::SecretClass(_),
+                }) => "NiFi", // The cert get's added to the stackable truststore
+                TlsVerification::Server(TlsServerVerification {
+                    ca_cert: CaCert::WebPki {},
+                }) => "JDK", // The cert needs to be in the system truststore
+            };
             properties.insert(
-                "nifi.security.user.oidc.truststore.strategy".to_string(),
-                "NIFI".to_string(),
+                "nifi.security.user.oidc.truststore.strategy".to_owned(),
+                truststore_strategy.to_owned(),
             );
+        }
         }
     }
 
