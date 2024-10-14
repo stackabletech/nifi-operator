@@ -336,7 +336,8 @@ fn build_reporting_task_job(
     pod_template.merge_from(
         nifi.spec
             .cluster_config
-            .create_reporting_task_job_pod_overrides
+            .create_reporting_task_job
+            .pod_overrides
             .clone(),
     );
 

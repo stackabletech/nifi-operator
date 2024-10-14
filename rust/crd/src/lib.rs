@@ -167,15 +167,7 @@ pub struct NifiClusterConfig {
     #[serde(default)]
     pub listener_class: CurrentlySupportedListenerClasses,
 
-    /// Here you can define a
-    /// [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core)
-    /// to override any property that can be set on the Pod of the create-reporting-task Kubernetes Job.
-    /// Read the
-    /// [Pod overrides documentation](DOCS_BASE_URL_PLACEHOLDER/concepts/overrides#pod-overrides)
-    /// for more information.
-    #[serde(default)]
-    #[schemars(schema_with = "raw_object_schema")]
-    pub create_reporting_task_job_pod_overrides: PodTemplateSpec,
+    pub create_reporting_task_job: CreateReportingTaskJob,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -300,6 +292,34 @@ pub enum StoreType {
 impl Default for StoreType {
     fn default() -> Self {
         Self::JKS
+    }
+}
+
+/// This section creates a `create-reporting-task` Kubernetes Job, which enables the export of
+/// Prometheus metrics within NiFi.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+
+pub struct CreateReportingTaskJob {
+    /// Wether the Kubernetes Job should be created, defaults to true. It can be helpful to disable
+    /// the Job, e.g. when you configOverride an authentication mechanism, which the Job currently
+    /// can't use to authenticate against NiFi.
+    #[serde(default = "CreateReportingTaskJob::default_enabled")]
+    pub enabled: bool,
+
+    /// Here you can define a
+    /// [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core)
+    /// to override any property that can be set on the Pod of the create-reporting-task Kubernetes Job.
+    /// Read the
+    /// [Pod overrides documentation](DOCS_BASE_URL_PLACEHOLDER/concepts/overrides#pod-overrides)
+    /// for more information.
+    #[serde(default)]
+    #[schemars(schema_with = "raw_object_schema")]
+    pub pod_overrides: PodTemplateSpec,
+}
+
+impl CreateReportingTaskJob {
+    const fn default_enabled() -> bool {
+        true
     }
 }
 
