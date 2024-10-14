@@ -167,6 +167,8 @@ pub struct NifiClusterConfig {
     #[serde(default)]
     pub listener_class: CurrentlySupportedListenerClasses,
 
+    // Docs are on the struct
+    #[serde(default)]
     pub create_reporting_task_job: CreateReportingTaskJob,
 }
 
@@ -315,6 +317,15 @@ pub struct CreateReportingTaskJob {
     #[serde(default)]
     #[schemars(schema_with = "raw_object_schema")]
     pub pod_overrides: PodTemplateSpec,
+}
+
+impl Default for CreateReportingTaskJob {
+    fn default() -> Self {
+        Self {
+            enabled: Self::default_enabled(),
+            pod_overrides: Default::default(),
+        }
+    }
 }
 
 impl CreateReportingTaskJob {

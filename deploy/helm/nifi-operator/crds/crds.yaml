@@ -56,6 +56,9 @@ spec:
                         type: object
                       type: array
                     createReportingTaskJob:
+                      default:
+                        enabled: true
+                        pod_overrides: {}
                       description: This section creates a `create-reporting-task` Kubernetes Job, which enables the export of Prometheus metrics within NiFi.
                       properties:
                         enabled:
@@ -159,7 +162,6 @@ spec:
                       type: string
                   required:
                     - authentication
-                    - createReportingTaskJob
                     - sensitiveProperties
                     - zookeeperConfigMapName
                   type: object
