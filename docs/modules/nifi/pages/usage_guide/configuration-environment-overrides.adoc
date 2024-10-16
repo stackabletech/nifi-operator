@@ -98,7 +98,7 @@ Read the xref:concepts:overrides.adoc#pod-overrides[Pod overrides concepts page]
 
 === Pod overrides on create-reporting-task Job
 
-In addition to podOverrides on the created StatefulSet we also support podOverriding the created Kubernetes Job, which enables the export of Prometheus metrics within NiFi.
+In addition to podOverrides on the created StatefulSet we also support podOverrides on the created Kubernetes Job, which enables the export of Prometheus metrics within NiFi.
 
 [source,yaml]
 ----
