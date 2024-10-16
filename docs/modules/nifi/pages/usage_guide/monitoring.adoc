@@ -10,3 +10,17 @@ IMPORTANT: Network access from the Job to NiFi is required.
 If you are running a Kubernetes with restrictive {k8s-network-policies}[NetworkPolicies], make sure to allow access from the Job to NiFi.
 
 See xref:operators:monitoring.adoc[] for more details.
+
+== Disabling create-reporting-task Job
+
+It can be helpful to disable the Job, e.g. when you configOverride an authentication mechanism, which the Job currently cannot use to authenticate against NiFi.
+
+To achieve this use the following configuration:
+
+[source,yaml]
+----
+spec:
+  clusterConfig:
+    createReportingTaskJob:
+      enabled: false
+----
