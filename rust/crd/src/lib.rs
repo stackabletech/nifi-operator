@@ -300,7 +300,7 @@ impl Default for StoreType {
 /// This section creates a `create-reporting-task` Kubernetes Job, which enables the export of
 /// Prometheus metrics within NiFi.
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
-
+#[serde(rename_all = "camelCase")]
 pub struct CreateReportingTaskJob {
     /// Wether the Kubernetes Job should be created, defaults to true. It can be helpful to disable
     /// the Job, e.g. when you configOverride an authentication mechanism, which the Job currently
