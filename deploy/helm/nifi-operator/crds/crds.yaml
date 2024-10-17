@@ -55,6 +55,22 @@ spec:
                           - authenticationClass
                         type: object
                       type: array
+                    createReportingTaskJob:
+                      default:
+                        enabled: true
+                        podOverrides: {}
+                      description: This section creates a `create-reporting-task` Kubernetes Job, which enables the export of Prometheus metrics within NiFi.
+                      properties:
+                        enabled:
+                          default: true
+                          description: Wether the Kubernetes Job should be created, defaults to true. It can be helpful to disable the Job, e.g. when you configOverride an authentication mechanism, which the Job currently can't use to authenticate against NiFi.
+                          type: boolean
+                        podOverrides:
+                          default: {}
+                          description: Here you can define a [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core) to override any property that can be set on the Pod of the create-reporting-task Kubernetes Job. Read the [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides) for more information.
+                          type: object
+                          x-kubernetes-preserve-unknown-fields: true
+                      type: object
                     extraVolumes:
                       description: Extra volumes similar to `.spec.volumes` on a Pod to mount into every container, this can be useful to for example make client certificates, keytabs or similar things available to processors. These volumes will be mounted into all pods at `/stackable/userdata/{volumename}`. See also the [external files usage guide](https://docs.stackable.tech/home/nightly/nifi/usage_guide/extra-volumes).
                       items:

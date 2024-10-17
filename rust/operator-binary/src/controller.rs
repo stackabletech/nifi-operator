@@ -599,23 +599,26 @@ pub async fn reconcile_nifi(
             .context(FailedToCreatePdbSnafu)?;
     }
 
-    let (reporting_task_job, reporting_task_service) = build_reporting_task(
-        nifi,
-        &resolved_product_image,
-        &nifi_authentication_config,
-        &rbac_sa.name_any(),
-    )
-    .context(ReportingTaskSnafu)?;
+    // Only add the reporting task in case it is enabled.
+    if nifi.spec.cluster_config.create_reporting_task_job.enabled {
+        let (reporting_task_job, reporting_task_service) = build_reporting_task(
+            nifi,
+            &resolved_product_image,
+            &nifi_authentication_config,
+            &rbac_sa.name_any(),
+        )
+        .context(ReportingTaskSnafu)?;
 
-    cluster_resources
-        .add(client, reporting_task_service)
-        .await
-        .context(ApplyCreateReportingTaskServiceSnafu)?;
+        cluster_resources
+            .add(client, reporting_task_service)
+            .await
+            .context(ApplyCreateReportingTaskServiceSnafu)?;
 
-    cluster_resources
-        .add(client, reporting_task_job)
-        .await
-        .context(ApplyCreateReportingTaskJobSnafu)?;
+        cluster_resources
+            .add(client, reporting_task_job)
+            .await
+            .context(ApplyCreateReportingTaskJobSnafu)?;
+    }
 
     // Remove any orphaned resources that still exist in k8s, but have not been added to
     // the cluster resources during the reconciliation
