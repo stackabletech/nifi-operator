@@ -34,7 +34,10 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
     time::Duration,
-    utils::crds::{raw_object_list_schema, raw_object_schema},
+    utils::{
+        cluster_domain::KUBERNETES_CLUSTER_DOMAIN,
+        crds::{raw_object_list_schema, raw_object_schema},
+    },
 };
 use strum::Display;
 use tls::NifiTls;
@@ -543,10 +546,14 @@ impl NifiCluster {
 
     /// The fully-qualified domain name of the role-level load-balanced Kubernetes `Service`
     pub fn node_role_service_fqdn(&self) -> Option<String> {
+        let cluster_domain = KUBERNETES_CLUSTER_DOMAIN
+            .get()
+            .expect("KUBERNETES_CLUSTER_DOMAIN must first be set by calling initialize_operator");
         Some(format!(
-            "{}.{}.svc.cluster.local",
+            "{}.{}.svc.{}",
             self.node_role_service_name(),
-            self.metadata.namespace.as_ref()?
+            self.metadata.namespace.as_ref()?,
+            cluster_domain
         ))
     }
 
@@ -638,9 +645,12 @@ pub struct PodRef {
 
 impl PodRef {
     pub fn fqdn(&self) -> String {
+        let cluster_domain = KUBERNETES_CLUSTER_DOMAIN
+            .get()
+            .expect("KUBERNETES_CLUSTER_DOMAIN must first be set by calling initialize_operator");
         format!(
-            "{}.{}.{}.svc.cluster.local",
-            self.pod_name, self.role_group_service_name, self.namespace
+            "{}.{}.{}.svc.{}",
+            self.pod_name, self.role_group_service_name, self.namespace, cluster_domain
         )
     }
 }

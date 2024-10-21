@@ -30,6 +30,7 @@ use stackable_nifi_crd::{
 };
 use stackable_operator::{
     builder::{
+        self,
         meta::ObjectMetaBuilder,
         pod::{
             container::ContainerBuilder, resources::ResourceRequirementsBuilder,
@@ -46,6 +47,7 @@ use stackable_operator::{
     },
     kube::ResourceExt,
     kvp::Labels,
+    utils::cluster_domain::KUBERNETES_CLUSTER_DOMAIN,
 };
 
 use crate::security::{
@@ -98,6 +100,14 @@ pub enum Error {
 
     #[snafu(display("failed to create reporting task service, no role groups defined"))]
     FailedBuildReportingTaskService,
+
+    #[snafu(display("failed to add needed volume"))]
+    AddVolume { source: builder::pod::Error },
+
+    #[snafu(display("failed to add needed volumeMount"))]
+    AddVolumeMount {
+        source: builder::pod::container::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -134,9 +144,11 @@ pub fn build_reporting_task_fqdn_service_name(nifi: &NifiCluster) -> Result<Stri
     let nifi_cluster_name = nifi.name_any();
     let nifi_namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
     let reporting_task_service_name = build_reporting_task_service_name(&nifi_cluster_name);
-
+    let cluster_domain = KUBERNETES_CLUSTER_DOMAIN
+        .get()
+        .expect("KUBERNETES_CLUSTER_DOMAIN must first be set by calling initialize_operator");
     Ok(format!(
-        "{reporting_task_service_name}.{nifi_namespace}.svc.cluster.local"
+        "{reporting_task_service_name}.{nifi_namespace}.svc.{cluster_domain}"
     ))
 }
 
@@ -282,6 +294,7 @@ fn build_reporting_task_job(
             REPORTING_TASK_CERT_VOLUME_NAME,
             REPORTING_TASK_CERT_VOLUME_MOUNT,
         )
+        .context(AddVolumeMountSnafu)?
         .resources(
             ResourceRequirementsBuilder::new()
                 .with_cpu_request("100m")
@@ -331,6 +344,7 @@ fn build_reporting_task_job(
             )
             .context(SecretVolumeBuildFailureSnafu)?,
         )
+        .context(AddVolumeSnafu)?
         .build_template();
 
     pod_template.merge_from(

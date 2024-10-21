@@ -20,6 +20,7 @@ use stackable_nifi_crd::{
 };
 use stackable_operator::{
     builder::{
+        self,
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{
@@ -57,7 +58,9 @@ use stackable_operator::{
     memory::{BinaryMultiple, MemoryQuantity},
     product_logging::{
         self,
-        framework::{create_vector_shutdown_file_command, remove_vector_shutdown_file_command},
+        framework::{
+            create_vector_shutdown_file_command, remove_vector_shutdown_file_command, LoggingError,
+        },
         spec::{
             ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
             CustomContainerLogConfig,
@@ -69,7 +72,7 @@ use stackable_operator::{
         statefulset::StatefulSetConditionBuilder,
     },
     time::Duration,
-    utils::COMMON_BASH_TRAP_FUNCTIONS,
+    utils::{cluster_domain::KUBERNETES_CLUSTER_DOMAIN, COMMON_BASH_TRAP_FUNCTIONS},
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
@@ -327,6 +330,17 @@ pub enum Error {
     #[snafu(display("reporting task failure"))]
     ReportingTask {
         source: crate::reporting_task::Error,
+    },
+
+    #[snafu(display("failed to configure logging"))]
+    ConfigureLogging { source: LoggingError },
+
+    #[snafu(display("failed to add needed volume"))]
+    AddVolume { source: builder::pod::Error },
+
+    #[snafu(display("failed to add needed volumeMount"))]
+    AddVolumeMount {
+        source: builder::pod::container::Error,
     },
 }
 
@@ -933,15 +947,19 @@ async fn build_node_rolegroup_statefulset(
         ));
     }
 
+    let cluster_domain = KUBERNETES_CLUSTER_DOMAIN
+        .get()
+        .expect("KUBERNETES_CLUSTER_DOMAIN must first be set by calling initialize_operator");
     let node_address = format!(
-        "$POD_NAME.{}-node-{}.{}.svc.cluster.local",
+        "$POD_NAME.{}-node-{}.{}.svc.{}",
         rolegroup_ref.cluster.name,
         rolegroup_ref.role_group,
         &nifi
             .metadata
             .namespace
             .as_ref()
-            .context(ObjectHasNoNamespaceSnafu)?
+            .context(ObjectHasNoNamespaceSnafu)?,
+        cluster_domain
     );
 
     let sensitive_key_secret = &nifi.spec.cluster_config.sensitive_properties.key_secret;
@@ -1009,28 +1027,39 @@ async fn build_node_rolegroup_statefulset(
             NifiRepository::Flowfile.repository(),
             NifiRepository::Flowfile.mount_path(),
         )
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(
             NifiRepository::Database.repository(),
             NifiRepository::Database.mount_path(),
         )
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(
             NifiRepository::Content.repository(),
             NifiRepository::Content.mount_path(),
         )
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(
             NifiRepository::Provenance.repository(),
             NifiRepository::Provenance.mount_path(),
         )
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(
             NifiRepository::State.repository(),
             NifiRepository::State.mount_path(),
         )
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount("conf", "/conf")
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_NIFI_CONTAINER_MOUNT)
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount("activeconf", NIFI_CONFIG_DIRECTORY)
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount("sensitiveproperty", "/stackable/sensitiveproperty")
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount("log", STACKABLE_LOG_DIR)
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(TRUSTSTORE_VOLUME_NAME, STACKABLE_SERVER_TLS_DIR)
+        .context(AddVolumeMountSnafu)?
         .resources(
             ResourceRequirementsBuilder::new()
                 .with_cpu_request("500m")
@@ -1072,30 +1101,40 @@ async fn build_node_rolegroup_statefulset(
         .args(nifi_args)
         .add_env_vars(env_vars)
         .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_NIFI_CONTAINER_MOUNT)
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(
             NifiRepository::Flowfile.repository(),
             NifiRepository::Flowfile.mount_path(),
         )
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(
             NifiRepository::Database.repository(),
             NifiRepository::Database.mount_path(),
         )
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(
             NifiRepository::Content.repository(),
             NifiRepository::Content.mount_path(),
         )
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(
             NifiRepository::Provenance.repository(),
             NifiRepository::Provenance.mount_path(),
         )
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(
             NifiRepository::State.repository(),
             NifiRepository::State.mount_path(),
         )
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount("activeconf", NIFI_CONFIG_DIRECTORY)
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount("log-config", STACKABLE_LOG_CONFIG_DIR)
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount("log", STACKABLE_LOG_DIR)
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(TRUSTSTORE_VOLUME_NAME, STACKABLE_SERVER_TLS_DIR)
+        .context(AddVolumeMountSnafu)?
         .add_container_port(HTTPS_PORT_NAME, HTTPS_PORT.into())
         .add_container_port(PROTOCOL_PORT_NAME, PROTOCOL_PORT.into())
         .add_container_port(BALANCE_PORT_NAME, BALANCE_PORT.into())
@@ -1137,8 +1176,12 @@ async fn build_node_rolegroup_statefulset(
             ?role,
             "Adding user specified extra volume",
         );
-        pod_builder.add_volume(volume.clone());
-        container_nifi.add_volume_mount(volume_name, mount_point);
+        pod_builder
+            .add_volume(volume.clone())
+            .context(AddVolumeSnafu)?;
+        container_nifi
+            .add_volume_mount(volume_name, mount_point)
+            .context(AddVolumeMountSnafu)?;
     }
 
     // We want to add nifi container first for easier defaulting into this container
@@ -1151,38 +1194,45 @@ async fn build_node_rolegroup_statefulset(
             })),
     }) = merged_config.logging.containers.get(&Container::Nifi)
     {
-        pod_builder.add_volume(Volume {
-            name: "log-config".to_string(),
-            config_map: Some(ConfigMapVolumeSource {
-                name: config_map.clone(),
-                ..ConfigMapVolumeSource::default()
-            }),
-            ..Volume::default()
-        });
+        pod_builder
+            .add_volume(Volume {
+                name: "log-config".to_string(),
+                config_map: Some(ConfigMapVolumeSource {
+                    name: config_map.clone(),
+                    ..ConfigMapVolumeSource::default()
+                }),
+                ..Volume::default()
+            })
+            .context(AddVolumeSnafu)?;
     } else {
-        pod_builder.add_volume(Volume {
-            name: "log-config".to_string(),
-            config_map: Some(ConfigMapVolumeSource {
-                name: rolegroup_ref.object_name(),
-                ..ConfigMapVolumeSource::default()
-            }),
-            ..Volume::default()
-        });
+        pod_builder
+            .add_volume(Volume {
+                name: "log-config".to_string(),
+                config_map: Some(ConfigMapVolumeSource {
+                    name: rolegroup_ref.object_name(),
+                    ..ConfigMapVolumeSource::default()
+                }),
+                ..Volume::default()
+            })
+            .context(AddVolumeSnafu)?;
     }
 
     if merged_config.logging.enable_vector_agent {
-        pod_builder.add_container(product_logging::framework::vector_container(
-            resolved_product_image,
-            "config",
-            "log",
-            merged_config.logging.containers.get(&Container::Vector),
-            ResourceRequirementsBuilder::new()
-                .with_cpu_request("250m")
-                .with_cpu_limit("500m")
-                .with_memory_request("128Mi")
-                .with_memory_limit("128Mi")
-                .build(),
-        ));
+        pod_builder.add_container(
+            product_logging::framework::vector_container(
+                resolved_product_image,
+                "config",
+                "log",
+                merged_config.logging.containers.get(&Container::Vector),
+                ResourceRequirementsBuilder::new()
+                    .with_cpu_request("250m")
+                    .with_cpu_limit("500m")
+                    .with_memory_request("128Mi")
+                    .with_memory_limit("128Mi")
+                    .build(),
+            )
+            .context(ConfigureLoggingSnafu)?,
+        );
     }
 
     nifi_auth_config
@@ -1218,6 +1268,7 @@ async fn build_node_rolegroup_statefulset(
             }),
             ..Default::default()
         })
+        .context(AddVolumeSnafu)?
         .add_volume(Volume {
             name: "conf".to_string(),
             config_map: Some(ConfigMapVolumeSource {
@@ -1226,6 +1277,7 @@ async fn build_node_rolegroup_statefulset(
             }),
             ..Volume::default()
         })
+        .context(AddVolumeSnafu)?
         .add_empty_dir_volume(
             "log",
             // Set volume size to higher than theoretically necessary to avoid running out of disk space as log rotation triggers are only checked by Logback every 5s.
@@ -1237,6 +1289,7 @@ async fn build_node_rolegroup_statefulset(
                 .into(),
             ),
         )
+        .context(AddVolumeSnafu)?
         // One volume for the keystore and truststore data configmap
         .add_volume(
             build_tls_volume(
@@ -1250,7 +1303,9 @@ async fn build_node_rolegroup_statefulset(
             )
             .context(SecuritySnafu)?,
         )
+        .context(AddVolumeSnafu)?
         .add_empty_dir_volume(TRUSTSTORE_VOLUME_NAME, None)
+        .context(AddVolumeSnafu)?
         .add_volume(Volume {
             name: "sensitiveproperty".to_string(),
             secret: Some(SecretVolumeSource {
@@ -1259,6 +1314,7 @@ async fn build_node_rolegroup_statefulset(
             }),
             ..Volume::default()
         })
+        .context(AddVolumeSnafu)?
         .add_volume(Volume {
             empty_dir: Some(EmptyDirVolumeSource {
                 medium: None,
@@ -1267,6 +1323,7 @@ async fn build_node_rolegroup_statefulset(
             name: "activeconf".to_string(),
             ..Volume::default()
         })
+        .context(AddVolumeSnafu)?
         .service_account_name(sa_name)
         .security_context(
             PodSecurityContextBuilder::new()

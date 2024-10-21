@@ -2,11 +2,18 @@ use indoc::{formatdoc, indoc};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_nifi_crd::authentication::AuthenticationClassResolved;
 use stackable_nifi_crd::NifiCluster;
-use stackable_operator::builder::pod::{container::ContainerBuilder, PodBuilder};
-use stackable_operator::commons::authentication::oidc::{self, ClientAuthenticationOptions};
-use stackable_operator::commons::authentication::{ldap, static_};
-
-use stackable_operator::k8s_openapi::api::core::v1::{KeyToPath, SecretVolumeSource, Volume};
+use stackable_operator::{
+    builder::{
+        self,
+        pod::{container::ContainerBuilder, PodBuilder},
+    },
+    commons::authentication::{
+        ldap,
+        oidc::{self, ClientAuthenticationOptions},
+        static_,
+    },
+    k8s_openapi::api::core::v1::{KeyToPath, SecretVolumeSource, Volume},
+};
 
 use super::oidc::build_oidc_admin_password_secret_name;
 
@@ -44,6 +51,14 @@ pub enum Error {
         "The LDAP AuthenticationClass is missing the bind credentials. Currently the NiFi operator only supports connecting to LDAP servers using bind credentials"
     ))]
     LdapAuthenticationClassMissingBindCredentials {},
+
+    #[snafu(display("failed to add needed volume"))]
+    AddVolume { source: builder::pod::Error },
+
+    #[snafu(display("failed to add needed volumeMount"))]
+    AddVolumeMount {
+        source: builder::pod::container::Error,
+    },
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -183,10 +198,13 @@ impl NifiAuthenticationConfig {
                     }),
                     ..Volume::default()
                 };
-                pod_builder.add_volume(admin_volume);
+                pod_builder
+                    .add_volume(admin_volume)
+                    .context(AddVolumeSnafu)?;
 
                 for cb in container_builders {
-                    cb.add_volume_mount(STACKABLE_ADMIN_USERNAME, STACKABLE_USER_VOLUME_MOUNT_PATH);
+                    cb.add_volume_mount(STACKABLE_ADMIN_USERNAME, STACKABLE_USER_VOLUME_MOUNT_PATH)
+                        .context(AddVolumeMountSnafu)?;
                 }
             }
             Self::Ldap { provider } => {
@@ -209,11 +227,14 @@ impl NifiAuthenticationConfig {
                     }),
                     ..Volume::default()
                 };
-                pod_builder.add_volume(admin_volume);
+                pod_builder
+                    .add_volume(admin_volume)
+                    .context(AddVolumeSnafu)?;
 
-                container_builders.iter_mut().for_each(|cb| {
-                    cb.add_volume_mount(STACKABLE_ADMIN_USERNAME, STACKABLE_USER_VOLUME_MOUNT_PATH);
-                });
+                for cb in &mut container_builders {
+                    cb.add_volume_mount(STACKABLE_ADMIN_USERNAME, STACKABLE_USER_VOLUME_MOUNT_PATH)
+                        .context(AddVolumeMountSnafu)?;
+                }
 
                 provider
                     .tls
