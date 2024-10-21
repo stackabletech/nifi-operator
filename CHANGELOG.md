@@ -12,7 +12,7 @@ All notable changes to this project will be documented in this file.
 - Support podOverrides on the `create-reporting-task` Job using the field `spec.clusterConfig.createReportingTaskJob.podOverrides` ([#690]).
 - The operator can now run on Kubernetes clusters using a non-default cluster domain. It should automatically detect the
   correct domain to use, but you can also use the env var `KUBERNETES_CLUSTER_DOMAIN` to set the domain explicitly
-  or use the helm-chart property `kubernetesClusterDomain` ([#694]). 
+  or use the helm-chart property `kubernetesClusterDomain` ([#694]).
 
 ### Changed
 
