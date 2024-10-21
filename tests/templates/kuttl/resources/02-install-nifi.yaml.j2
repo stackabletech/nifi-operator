@@ -47,6 +47,7 @@ spec:
     zookeeperConfigMapName: test-nifi-znode
   nodes:
     config:
+      gracefulShutdownTimeout: 1m
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
       resources:
