@@ -72,7 +72,7 @@ use stackable_operator::{
         statefulset::StatefulSetConditionBuilder,
     },
     time::Duration,
-    utils::{cluster_domain::KUBERNETES_CLUSTER_DOMAIN, COMMON_BASH_TRAP_FUNCTIONS},
+    utils::{cluster_info::KubernetesClusterInfo, COMMON_BASH_TRAP_FUNCTIONS},
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
@@ -566,6 +566,7 @@ pub async fn reconcile_nifi(
             let rg_statefulset = build_node_rolegroup_statefulset(
                 nifi,
                 &resolved_product_image,
+                &client.kubernetes_cluster_info,
                 &rolegroup,
                 role,
                 rolegroup_config,
@@ -618,6 +619,7 @@ pub async fn reconcile_nifi(
         let (reporting_task_job, reporting_task_service) = build_reporting_task(
             nifi,
             &resolved_product_image,
+            &client.kubernetes_cluster_info,
             &nifi_authentication_config,
             &rbac_sa.name_any(),
         )
@@ -893,6 +895,7 @@ const USERDATA_MOUNTPOINT: &str = "/stackable/userdata";
 async fn build_node_rolegroup_statefulset(
     nifi: &NifiCluster,
     resolved_product_image: &ResolvedProductImage,
+    cluster_info: &KubernetesClusterInfo,
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
     role: &Role<NifiConfigFragment>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
@@ -947,9 +950,6 @@ async fn build_node_rolegroup_statefulset(
         ));
     }
 
-    let cluster_domain = KUBERNETES_CLUSTER_DOMAIN
-        .get()
-        .expect("KUBERNETES_CLUSTER_DOMAIN must first be set by calling initialize_operator");
     let node_address = format!(
         "$POD_NAME.{}-node-{}.{}.svc.{}",
         rolegroup_ref.cluster.name,
@@ -959,7 +959,7 @@ async fn build_node_rolegroup_statefulset(
             .namespace
             .as_ref()
             .context(ObjectHasNoNamespaceSnafu)?,
-        cluster_domain
+        cluster_info.cluster_domain,
     );
 
     let sensitive_key_secret = &nifi.spec.cluster_config.sensitive_properties.key_secret;
@@ -1468,10 +1468,13 @@ async fn get_proxy_hosts(
     }
 
     let node_role_service_fqdn = nifi
-        .node_role_service_fqdn()
+        .node_role_service_fqdn(&client.kubernetes_cluster_info)
         .context(NoRoleServiceFqdnSnafu)?;
-    let reporting_task_service_name =
-        reporting_task::build_reporting_task_fqdn_service_name(nifi).context(ReportingTaskSnafu)?;
+    let reporting_task_service_name = reporting_task::build_reporting_task_fqdn_service_name(
+        nifi,
+        &client.kubernetes_cluster_info,
+    )
+    .context(ReportingTaskSnafu)?;
     let mut proxy_hosts_set = HashSet::from([
         node_role_service_fqdn.clone(),
         format!("{node_role_service_fqdn}:{HTTPS_PORT}"),

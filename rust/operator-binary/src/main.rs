@@ -49,6 +49,7 @@ async fn main() -> anyhow::Result<()> {
             product_config,
             watch_namespace,
             tracing_target,
+            kubernetes_cluster_domain,
         }) => {
             stackable_operator::logging::initialize_logging(
                 "NIFI_OPERATOR_LOG",
@@ -69,9 +70,11 @@ async fn main() -> anyhow::Result<()> {
                 "/etc/stackable/nifi-operator/config-spec/properties.yaml",
             ])?;
 
-            let client =
-                stackable_operator::client::initialize_operator(Some(OPERATOR_NAME.to_string()))
-                    .await?;
+            let client = stackable_operator::client::initialize_operator(
+                &kubernetes_cluster_domain,
+                Some(OPERATOR_NAME.to_string()),
+            )
+            .await?;
 
             let nifi_controller = Controller::new(
                 watch_namespace.get_api::<DeserializeGuard<NifiCluster>>(&client),

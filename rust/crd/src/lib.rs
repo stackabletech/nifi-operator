@@ -35,7 +35,7 @@ use stackable_operator::{
     status::condition::{ClusterCondition, HasStatusCondition},
     time::Duration,
     utils::{
-        cluster_domain::KUBERNETES_CLUSTER_DOMAIN,
+        cluster_info::KubernetesClusterInfo,
         crds::{raw_object_list_schema, raw_object_schema},
     },
 };
@@ -545,15 +545,12 @@ impl NifiCluster {
     }
 
     /// The fully-qualified domain name of the role-level load-balanced Kubernetes `Service`
-    pub fn node_role_service_fqdn(&self) -> Option<String> {
-        let cluster_domain = KUBERNETES_CLUSTER_DOMAIN
-            .get()
-            .expect("KUBERNETES_CLUSTER_DOMAIN must first be set by calling initialize_operator");
+    pub fn node_role_service_fqdn(&self, cluster_info: &KubernetesClusterInfo) -> Option<String> {
         Some(format!(
             "{}.{}.svc.{}",
             self.node_role_service_name(),
             self.metadata.namespace.as_ref()?,
-            cluster_domain
+            cluster_info.cluster_domain,
         ))
     }
 
@@ -644,13 +641,13 @@ pub struct PodRef {
 }
 
 impl PodRef {
-    pub fn fqdn(&self) -> String {
-        let cluster_domain = KUBERNETES_CLUSTER_DOMAIN
-            .get()
-            .expect("KUBERNETES_CLUSTER_DOMAIN must first be set by calling initialize_operator");
+    pub fn fqdn(&self, cluster_info: &KubernetesClusterInfo) -> String {
         format!(
             "{}.{}.{}.svc.{}",
-            self.pod_name, self.role_group_service_name, self.namespace, cluster_domain
+            self.pod_name,
+            self.role_group_service_name,
+            self.namespace,
+            cluster_info.cluster_domain
         )
     }
 }
