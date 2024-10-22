@@ -643,11 +643,11 @@ pub struct PodRef {
 impl PodRef {
     pub fn fqdn(&self, cluster_info: &KubernetesClusterInfo) -> String {
         format!(
-            "{}.{}.{}.svc.{}",
-            self.pod_name,
-            self.role_group_service_name,
-            self.namespace,
-            cluster_info.cluster_domain
+            "{pod_name}.{service_name}.{namespace}.svc.{cluster_domain}",
+            pod_name = self.pod_name,
+            service_name = self.role_group_service_name,
+            namespace = self.namespace,
+            cluster_domain = cluster_info.cluster_domain
         )
     }
 }
