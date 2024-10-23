@@ -98,6 +98,8 @@ spec:
     vectorAggregatorConfigMapName: nifi-vector-aggregator-discovery
     zookeeperConfigMapName: test-nifi-znode
   nodes:
+    config:
+      gracefulShutdownTimeout: 1m
     roleGroups:
       automatic-log-config:
         replicas: 1
