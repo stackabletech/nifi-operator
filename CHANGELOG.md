@@ -10,6 +10,8 @@ All notable changes to this project will be documented in this file.
 - Allow configuring proxy host behavior ([#668]).
 - Support disabling the `create-reporting-task` Job ([#690]).
 - Support podOverrides on the `create-reporting-task` Job using the field `spec.clusterConfig.createReportingTaskJob.podOverrides` ([#690]).
+- The operator can now run on Kubernetes clusters using a non-default cluster domain.
+  Use the env var `KUBERNETES_CLUSTER_DOMAIN` or the operator Helm chart property `kubernetesClusterDomain` to set a non-default cluster domain ([#694]).
 
 ### Changed
 
@@ -40,6 +42,7 @@ All notable changes to this project will be documented in this file.
 [#675]: https://github.com/stackabletech/nifi-operator/pull/675
 [#686]: https://github.com/stackabletech/nifi-operator/pull/686
 [#690]: https://github.com/stackabletech/nifi-operator/pull/690
+[#694]: https://github.com/stackabletech/nifi-operator/pull/694
 
 ## [24.7.0] - 2024-07-24
 

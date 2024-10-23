@@ -30,6 +30,7 @@ use stackable_nifi_crd::{
 };
 use stackable_operator::{
     builder::{
+        self,
         meta::ObjectMetaBuilder,
         pod::{
             container::ContainerBuilder, resources::ResourceRequirementsBuilder,
@@ -46,6 +47,7 @@ use stackable_operator::{
     },
     kube::ResourceExt,
     kvp::Labels,
+    utils::cluster_info::KubernetesClusterInfo,
 };
 
 use crate::security::{
@@ -98,6 +100,14 @@ pub enum Error {
 
     #[snafu(display("failed to create reporting task service, no role groups defined"))]
     FailedBuildReportingTaskService,
+
+    #[snafu(display("failed to add needed volume"))]
+    AddVolume { source: builder::pod::Error },
+
+    #[snafu(display("failed to add needed volumeMount"))]
+    AddVolumeMount {
+        source: builder::pod::container::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -115,11 +125,18 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 pub fn build_reporting_task(
     nifi: &NifiCluster,
     resolved_product_image: &ResolvedProductImage,
+    cluster_info: &KubernetesClusterInfo,
     nifi_auth_config: &NifiAuthenticationConfig,
     sa_name: &str,
 ) -> Result<(Job, Service)> {
     Ok((
-        build_reporting_task_job(nifi, resolved_product_image, nifi_auth_config, sa_name)?,
+        build_reporting_task_job(
+            nifi,
+            resolved_product_image,
+            cluster_info,
+            nifi_auth_config,
+            sa_name,
+        )?,
         build_reporting_task_service(nifi, resolved_product_image)?,
     ))
 }
@@ -130,13 +147,16 @@ pub fn build_reporting_task_service_name(nifi_cluster_name: &str) -> String {
 }
 
 /// Return the FQDN (with namespace, domain) of the reporting task.
-pub fn build_reporting_task_fqdn_service_name(nifi: &NifiCluster) -> Result<String> {
+pub fn build_reporting_task_fqdn_service_name(
+    nifi: &NifiCluster,
+    cluster_info: &KubernetesClusterInfo,
+) -> Result<String> {
     let nifi_cluster_name = nifi.name_any();
     let nifi_namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
     let reporting_task_service_name = build_reporting_task_service_name(&nifi_cluster_name);
-
+    let cluster_domain = &cluster_info.cluster_domain;
     Ok(format!(
-        "{reporting_task_service_name}.{nifi_namespace}.svc.cluster.local"
+        "{reporting_task_service_name}.{nifi_namespace}.svc.{cluster_domain}"
     ))
 }
 
@@ -239,10 +259,12 @@ fn build_reporting_task_service(
 fn build_reporting_task_job(
     nifi: &NifiCluster,
     resolved_product_image: &ResolvedProductImage,
+    cluster_info: &KubernetesClusterInfo,
     nifi_auth_config: &NifiAuthenticationConfig,
     sa_name: &str,
 ) -> Result<Job> {
-    let reporting_task_fqdn_service_name = build_reporting_task_fqdn_service_name(nifi)?;
+    let reporting_task_fqdn_service_name =
+        build_reporting_task_fqdn_service_name(nifi, cluster_info)?;
     let product_version = &resolved_product_image.product_version;
     let nifi_connect_url =
         format!("https://{reporting_task_fqdn_service_name}:{HTTPS_PORT}/nifi-api",);
@@ -282,6 +304,7 @@ fn build_reporting_task_job(
             REPORTING_TASK_CERT_VOLUME_NAME,
             REPORTING_TASK_CERT_VOLUME_MOUNT,
         )
+        .context(AddVolumeMountSnafu)?
         .resources(
             ResourceRequirementsBuilder::new()
                 .with_cpu_request("100m")
@@ -331,6 +354,7 @@ fn build_reporting_task_job(
             )
             .context(SecretVolumeBuildFailureSnafu)?,
         )
+        .context(AddVolumeSnafu)?
         .build_template();
 
     pod_template.merge_from(
