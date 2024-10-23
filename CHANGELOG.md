@@ -10,9 +10,8 @@ All notable changes to this project will be documented in this file.
 - Allow configuring proxy host behavior ([#668]).
 - Support disabling the `create-reporting-task` Job ([#690]).
 - Support podOverrides on the `create-reporting-task` Job using the field `spec.clusterConfig.createReportingTaskJob.podOverrides` ([#690]).
-- The operator can now run on Kubernetes clusters using a non-default cluster domain. It should automatically detect the
-  correct domain to use, but you can also use the env var `KUBERNETES_CLUSTER_DOMAIN` to set the domain explicitly
-  or use the helm-chart property `kubernetesClusterDomain` ([#694]).
+- The operator can now run on Kubernetes clusters using a non-default cluster domain.
+  Use the env var `KUBERNETES_CLUSTER_DOMAIN` or the operator Helm chart property `kubernetesClusterDomain` to set a non-default cluster domain ([#694]).
 
 ### Changed
 
