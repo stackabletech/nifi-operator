@@ -49,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
             product_config,
             watch_namespace,
             tracing_target,
-            kubernetes_cluster_domain,
+            cluster_info_opts,
         }) => {
             stackable_operator::logging::initialize_logging(
                 "NIFI_OPERATOR_LOG",
@@ -71,8 +71,8 @@ async fn main() -> anyhow::Result<()> {
             ])?;
 
             let client = stackable_operator::client::initialize_operator(
-                &kubernetes_cluster_domain,
                 Some(OPERATOR_NAME.to_string()),
+                &cluster_info_opts,
             )
             .await?;
 
