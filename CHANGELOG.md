@@ -25,7 +25,7 @@ All notable changes to this project will be documented in this file.
 
 - Switch from `flow.xml.gz` to `flow.json.gz` to allow seamless upgrades to version 2.0 ([#675]).
 - Failing to parse one `NifiCluster`/`AuthenticationClass` should no longer cause the whole operator to stop functioning ([#662]).
-- NiFi will now use the JDK trust store when an OIDC provider uses WebPKI as CA ([#686], [#XXX]).
+- NiFi will now use the JDK trust store when an OIDC provider uses WebPKI as CA ([#686], [#698]).
 
 ### Removed
 
@@ -43,6 +43,7 @@ All notable changes to this project will be documented in this file.
 [#686]: https://github.com/stackabletech/nifi-operator/pull/686
 [#690]: https://github.com/stackabletech/nifi-operator/pull/690
 [#694]: https://github.com/stackabletech/nifi-operator/pull/694
+[#698]: https://github.com/stackabletech/nifi-operator/pull/698
 
 ## [24.7.0] - 2024-07-24
 
