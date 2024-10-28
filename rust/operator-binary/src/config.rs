@@ -631,7 +631,7 @@ pub fn build_nifi_properties(
                 TlsVerification::None {} => NoOidcTlsVerificationNotSupportedSnafu.fail()?,
                 TlsVerification::Server(TlsServerVerification {
                     ca_cert: CaCert::SecretClass(_),
-                }) => "NiFi", // The cert get's added to the stackable truststore
+                }) => "NIFI", // The cert get's added to the stackable truststore
                 TlsVerification::Server(TlsServerVerification {
                     ca_cert: CaCert::WebPki {},
                 }) => "JDK", // The cert needs to be in the system truststore
