@@ -27,7 +27,7 @@ keycloak_base_url = (
 # startswith instead of an exact check to
 # a) hit all 2.x versions and
 # b) to allow for custom images because `nifi_version` will contain the whole custom image string
-# e.g. 2.0.0-M4,localhost:5000/stackable/nifi:2.0.0-M4-stackable0.0.0-dev
+# e.g. 2.0.0,localhost:5000/stackable/nifi:2.0.0-stackable0.0.0-dev
 if not nifi_version.startswith("1."):
     auth_config_page = session.get(
         f"https://{nifi}:8443/nifi-api/authentication/configuration",

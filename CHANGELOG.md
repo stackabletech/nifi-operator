@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file.
   - `affinity`
   - `extraVolumes`
 - Increase `log` Volume size from 33 MiB to 500 MiB ([#671]).
+- Replaced experimental NiFi `2.0.0-M4` with `2.0.0` ([#xxx]).
 
 ### Fixed
 
@@ -44,6 +45,7 @@ All notable changes to this project will be documented in this file.
 [#690]: https://github.com/stackabletech/nifi-operator/pull/690
 [#694]: https://github.com/stackabletech/nifi-operator/pull/694
 [#698]: https://github.com/stackabletech/nifi-operator/pull/698
+[#xxx]: https://github.com/stackabletech/nifi-operator/pull/xxx
 
 ## [24.7.0] - 2024-07-24
 
