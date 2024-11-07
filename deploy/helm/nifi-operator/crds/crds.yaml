@@ -57,13 +57,16 @@ spec:
                       type: array
                     createReportingTaskJob:
                       default:
-                        enabled: true
+                        enabled: null
                         podOverrides: {}
                       description: This section creates a `create-reporting-task` Kubernetes Job, which enables the export of Prometheus metrics within NiFi.
                       properties:
                         enabled:
-                          default: true
-                          description: Wether the Kubernetes Job should be created, defaults to true. It can be helpful to disable the Job, e.g. when you configOverride an authentication mechanism, which the Job currently can't use to authenticate against NiFi.
+                          description: |-
+                            Wether the Kubernetes Job should be created. The default value depends on the NiFi version, 1.x defaults to true, NiFi 2.x and above enable Prometheus by default, so there is no need for this Job.
+
+                            It can be helpful to disable the Job, e.g. when you configOverride an authentication mechanism, which the Job currently can't use to authenticate against NiFi.
+                          nullable: true
                           type: boolean
                         podOverrides:
                           default: {}

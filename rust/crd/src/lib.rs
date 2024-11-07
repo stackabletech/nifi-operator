@@ -305,11 +305,14 @@ impl Default for StoreType {
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateReportingTaskJob {
-    /// Wether the Kubernetes Job should be created, defaults to true. It can be helpful to disable
-    /// the Job, e.g. when you configOverride an authentication mechanism, which the Job currently
-    /// can't use to authenticate against NiFi.
-    #[serde(default = "CreateReportingTaskJob::default_enabled")]
-    pub enabled: bool,
+    /// Wether the Kubernetes Job should be created. The default value depends on the NiFi version,
+    /// 1.x defaults to true, NiFi 2.x and above enable Prometheus by default, so there is no need
+    /// for this Job.
+    ///
+    /// It can be helpful to disable the Job, e.g. when you configOverride an authentication
+    /// mechanism, which the Job currently can't use to authenticate against NiFi.
+    #[serde(default)]
+    pub enabled: Option<bool>,
 
     /// Here you can define a
     /// [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core)
@@ -325,15 +328,9 @@ pub struct CreateReportingTaskJob {
 impl Default for CreateReportingTaskJob {
     fn default() -> Self {
         Self {
-            enabled: Self::default_enabled(),
+            enabled: None,
             pod_overrides: Default::default(),
         }
-    }
-}
-
-impl CreateReportingTaskJob {
-    const fn default_enabled() -> bool {
-        true
     }
 }
 

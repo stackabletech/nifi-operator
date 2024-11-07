@@ -112,6 +112,11 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
+// NiFi version 2.x and above have native support for  Prometheus metrics and enable them by default
+pub fn has_native_metrics(product_version: &str) -> bool {
+    !product_version.starts_with("1.0")
+}
+
 /// Build required resources to create the reporting task in NiFi.
 /// This will return
 /// * a Job that creates and runs the reporting task via the NiFi Rest API.
