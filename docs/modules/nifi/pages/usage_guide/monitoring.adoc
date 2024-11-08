@@ -3,6 +3,8 @@
 :k8s-job: https://kubernetes.io/docs/concepts/workloads/controllers/job/
 :k8s-network-policies: https://kubernetes.io/docs/concepts/services-networking/network-policies/
 
+TODO: Update docs
+
 The operator automatically configures NiFi to export Prometheus metrics.
 This is done by creating a {k8s-job}[Job] that connects to NiFi and configures a reporting task.
 
