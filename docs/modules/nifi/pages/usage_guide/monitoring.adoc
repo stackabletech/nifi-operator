@@ -33,16 +33,7 @@ spec:
 
 == Configure metrics in NiFi `2.x.x`
 
-The Prometheus Reporting Task was removed in NiFi `2.x.x`. Metrics now are exposed automatically and can be scraped using the NiFi pod FQDN and the route `/nifi-api/flow/metrics/prometheus`.
-This means automatic depoloyment of the ProtheusReportingTask should be disabled:
-
-[source,yaml]
-----
-spec:
-  clusterConfig:
-    createReportingTaskJob:
-      enabled: false
-----
+The Prometheus Reporting Task was removed in NiFi `2.x.x`. Metrics are now exposed automatically and can be scraped using the NiFi pod FQDN and the route `/nifi-api/flow/metrics/prometheus`.
 
 For a deployed single node NiFi cluster called `simple-nifi`, containing a rolegroup called `default`, the metrics endpoint is reachable under:
 
@@ -50,4 +41,4 @@ For a deployed single node NiFi cluster called `simple-nifi`, containing a roleg
 https://simple-nifi-node-default-0.simple-nifi-node-default.<namespace>.svc.cluster.local:8443/nifi-api/flow/metrics/prometheus
 ```
 
-IMPORTANT: If NiFi is configured to use any Authentication, requests to the metric endpoint must be authenticated and authorized as well.
+IMPORTANT: If NiFi is configured to use any Authentication, requests to the metric endpoint must be authenticated and authorized.
