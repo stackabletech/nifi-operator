@@ -21,7 +21,7 @@ All notable changes to this project will be documented in this file.
   - `extraVolumes`
 - Increase `log` Volume size from 33 MiB to 500 MiB ([#671]).
 - Replaced experimental NiFi `2.0.0-M4` with `2.0.0` ([#702]).
-- Remove the automatic deployment of the PrometheusReportingTask for NiFi versions `2.x.x` and up ([#708]).
+- Don't deploy the `PrometheusReportingTask` Job for NiFi versions `2.x.x` and up ([#708]).
 
 ### Fixed
 
