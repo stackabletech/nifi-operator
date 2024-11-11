@@ -21,6 +21,7 @@ All notable changes to this project will be documented in this file.
   - `extraVolumes`
 - Increase `log` Volume size from 33 MiB to 500 MiB ([#671]).
 - Replaced experimental NiFi `2.0.0-M4` with `2.0.0` ([#702]).
+- Remove the automatic deployment of the PrometheusReportingTask for NiFi versions `2.x.x` and up ([#708]).
 
 ### Fixed
 
@@ -46,6 +47,7 @@ All notable changes to this project will be documented in this file.
 [#694]: https://github.com/stackabletech/nifi-operator/pull/694
 [#698]: https://github.com/stackabletech/nifi-operator/pull/698
 [#702]: https://github.com/stackabletech/nifi-operator/pull/702
+[#708]: https://github.com/stackabletech/nifi-operator/pull/708
 
 ## [24.7.0] - 2024-07-24
 
