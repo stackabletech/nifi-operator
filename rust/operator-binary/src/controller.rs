@@ -85,7 +85,7 @@ use crate::{
     },
     operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
-    reporting_task::{self, build_reporting_task, build_reporting_task_service_name},
+    reporting_task::{self, build_maybe_reporting_task, build_reporting_task_service_name},
     security::{
         authentication::{
             NifiAuthenticationConfig, AUTHORIZERS_XML_FILE_NAME,
@@ -616,24 +616,25 @@ pub async fn reconcile_nifi(
 
     // Only add the reporting task in case it is enabled.
     if nifi.spec.cluster_config.create_reporting_task_job.enabled {
-        let (reporting_task_job, reporting_task_service) = build_reporting_task(
+        if let Some((reporting_task_job, reporting_task_service)) = build_maybe_reporting_task(
             nifi,
             &resolved_product_image,
             &client.kubernetes_cluster_info,
             &nifi_authentication_config,
             &rbac_sa.name_any(),
         )
-        .context(ReportingTaskSnafu)?;
+        .context(ReportingTaskSnafu)?
+        {
+            cluster_resources
+                .add(client, reporting_task_service)
+                .await
+                .context(ApplyCreateReportingTaskServiceSnafu)?;
 
-        cluster_resources
-            .add(client, reporting_task_service)
-            .await
-            .context(ApplyCreateReportingTaskServiceSnafu)?;
-
-        cluster_resources
-            .add(client, reporting_task_job)
-            .await
-            .context(ApplyCreateReportingTaskJobSnafu)?;
+            cluster_resources
+                .add(client, reporting_task_job)
+                .await
+                .context(ApplyCreateReportingTaskJobSnafu)?;
+        }
     }
 
     // Remove any orphaned resources that still exist in k8s, but have not been added to

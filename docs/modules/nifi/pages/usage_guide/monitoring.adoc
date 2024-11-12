@@ -3,8 +3,15 @@
 :k8s-job: https://kubernetes.io/docs/concepts/workloads/controllers/job/
 :k8s-network-policies: https://kubernetes.io/docs/concepts/services-networking/network-policies/
 
-The operator automatically configures NiFi to export Prometheus metrics.
-This is done by creating a {k8s-job}[Job] that connects to NiFi and configures a reporting task.
+In November 2024, Apache NiFi released a new major version https://cwiki.apache.org/confluence/display/NIFI/Release+Notes#ReleaseNotes-Version2.0.0[`2.0.0`].
+
+The NiFi `2.0.0` release changed the way of exposing Prometheus metrics significantly.
+The following steps explain on how to expose Metrics in NiFi versions `1.x.x` and `2.x.x`.
+
+== Configure metrics in NiFi `1.x.x`
+
+For NiFi versions `1.x.x`, the operator automatically configures NiFi to export Prometheus metrics.
+This is done by creating a {k8s-job}[Job] that connects to NiFi and configures a https://nifi.apache.org/docs/nifi-docs/components/org.apache.nifi/nifi-prometheus-nar/1.26.0/org.apache.nifi.reporting.prometheus.PrometheusReportingTask/index.html[Prometheus Reporting Task].
 
 IMPORTANT: Network access from the Job to NiFi is required.
 If you are running a Kubernetes with restrictive {k8s-network-policies}[NetworkPolicies], make sure to allow access from the Job to NiFi.
@@ -24,3 +31,16 @@ spec:
     createReportingTaskJob:
       enabled: false
 ----
+
+== Configure metrics in NiFi `2.x.x`
+
+The Prometheus Reporting Task was removed in NiFi `2.x.x` in https://issues.apache.org/jira/browse/NIFI-13507[NIFI-13507].
+Metrics are now always exposed and can be scraped using the NiFi Pod FQDN and the HTTP path `/nifi-api/flow/metrics/prometheus`.
+
+For a deployed single node NiFi cluster called `simple-nifi`, containing a rolegroup called `default`, the metrics endpoint is reachable under:
+
+```
+https://simple-nifi-node-default-0.simple-nifi-node-default.<namespace>.svc.cluster.local:8443/nifi-api/flow/metrics/prometheus
+```
+
+IMPORTANT: If NiFi is configured to do any user authentication, requests to the metric endpoint must be authenticated and authorized.
