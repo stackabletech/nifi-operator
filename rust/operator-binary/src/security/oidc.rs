@@ -7,14 +7,14 @@ use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     client::Client,
     commons::{
-        authentication::oidc::{AuthenticationProvider, DEFAULT_OIDC_WELLKNOWN_PATH},
+        authentication::oidc::{self, AuthenticationProvider, ClientAuthenticationOptions},
         tls_verification::{CaCert, TlsServerVerification, TlsVerification},
     },
     k8s_openapi::api::core::v1::Secret,
     kube::{runtime::reflector::ObjectRef, ResourceExt},
 };
 
-use super::authentication::{NifiAuthenticationConfig, STACKABLE_ADMIN_USERNAME};
+use super::authentication::STACKABLE_ADMIN_USERNAME;
 
 const STACKABLE_OIDC_ADMIN_PASSWORD_KEY: &str = STACKABLE_ADMIN_USERNAME;
 
@@ -35,8 +35,8 @@ pub enum Error {
     ))]
     OidcAdminPasswordKeyMissing { secret: ObjectRef<Secret> },
 
-    #[snafu(display("invalid OIDC endpoint URL"))]
-    InvalidOidcEndpoint {
+    #[snafu(display("invalid OIDC well known URL"))]
+    InvalidOidcWellKnownUrl {
         source: stackable_operator::commons::authentication::oidc::Error,
     },
 
@@ -109,21 +109,17 @@ pub fn build_oidc_admin_password_secret_name(nifi: &NifiCluster) -> String {
 }
 
 pub fn add_oidc_config(
-    auth_config: &NifiAuthenticationConfig,
+    provider: &oidc::AuthenticationProvider,
+    oidc: &ClientAuthenticationOptions,
     properties: &mut BTreeMap<String, String>,
 ) -> Result<(), Error> {
-    let NifiAuthenticationConfig::Oidc { provider, oidc, .. } = auth_config else {
-        return Ok(());
-    };
+    let well_known_url = provider
+        .well_known_url()
+        .context(InvalidOidcWellKnownUrlSnafu)?;
 
-    let endpoint_url = provider
-        .endpoint_url()
-        .context(InvalidOidcEndpointSnafu)?
-        .join(DEFAULT_OIDC_WELLKNOWN_PATH)
-        .context(InvalidOidcWellknownPathSnafu)?;
     properties.insert(
         "nifi.security.user.oidc.discovery.url".to_string(),
-        endpoint_url.to_string(),
+        well_known_url.to_string(),
     );
     let (oidc_client_id_env, oidc_client_secret_env) =
         AuthenticationProvider::client_credentials_env_names(&oidc.client_credentials_secret_ref);
@@ -162,4 +158,65 @@ pub fn add_oidc_config(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use rstest::rstest;
+    use stackable_operator::commons::tls_verification::{Tls, TlsClientDetails};
+
+    use super::*;
+
+    #[rstest]
+    #[case("/realms/sdp")]
+    #[case("/realms/sdp/")]
+    #[case("/realms/sdp/////")]
+    fn test_add_oidc_config(#[case] root_path: String) {
+        let mut properties = BTreeMap::new();
+        let provider = oidc::AuthenticationProvider::new(
+            "keycloak.mycorp.org".to_owned().try_into().unwrap(),
+            Some(443),
+            root_path,
+            TlsClientDetails {
+                tls: Some(Tls {
+                    verification: TlsVerification::Server(TlsServerVerification {
+                        ca_cert: CaCert::WebPki {},
+                    }),
+                }),
+            },
+            "preferred_username".to_owned(),
+            vec!["openid".to_owned()],
+            None,
+        );
+        let oidc = ClientAuthenticationOptions {
+            client_credentials_secret_ref: "nifi-keycloak-client".to_owned(),
+            extra_scopes: vec![],
+            product_specific_fields: (),
+        };
+
+        add_oidc_config(&provider, &oidc, &mut properties).expect("OIDC config adding failed");
+
+        assert_eq!(
+            properties.get("nifi.security.user.oidc.additional.scopes"),
+            Some(&"openid".to_owned())
+        );
+        assert_eq!(
+            properties.get("nifi.security.user.oidc.claim.identifying.user"),
+            Some(&"preferred_username".to_owned())
+        );
+        assert_eq!(
+            properties.get("nifi.security.user.oidc.discovery.url"),
+            Some(
+                &"https://keycloak.mycorp.org/realms/sdp/.well-known/openid-configuration"
+                    .to_owned()
+            )
+        );
+        assert_eq!(
+            properties.get("nifi.security.user.oidc.truststore.strategy"),
+            Some(&"JDK".to_owned())
+        );
+
+        assert!(properties.contains_key("nifi.security.user.oidc.client.id"));
+        assert!(properties.contains_key("nifi.security.user.oidc.client.secret"));
+    }
 }

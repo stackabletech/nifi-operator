@@ -584,7 +584,9 @@ pub fn build_nifi_properties(
         "true".to_string(),
     );
 
-    add_oidc_config(auth_config, &mut properties).context(GenerateOidcConfigSnafu)?;
+    if let NifiAuthenticationConfig::Oidc { provider, oidc, .. } = auth_config {
+        add_oidc_config(provider, oidc, &mut properties).context(GenerateOidcConfigSnafu)?;
+    };
 
     // cluster node properties (only configure for cluster nodes)
     properties.insert("nifi.cluster.is.node".to_string(), "true".to_string());
