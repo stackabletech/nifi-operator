@@ -114,7 +114,7 @@ pub fn add_oidc_config(
     properties: &mut BTreeMap<String, String>,
 ) -> Result<(), Error> {
     let well_known_url = provider
-        .well_known_url()
+        .well_known_config_url()
         .context(InvalidOidcWellKnownUrlSnafu)?;
 
     properties.insert(
