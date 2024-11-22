@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix OIDC endpoint calculation in case the `rootPath` does not have a trailing slash ([#718]).
+
+[#718]: https://github.com/stackabletech/nifi-operator/pull/718
+
 ## [24.11.0] - 2024-11-18
 
 ### Added
