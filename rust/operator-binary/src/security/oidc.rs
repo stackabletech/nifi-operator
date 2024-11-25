@@ -41,7 +41,7 @@ pub enum Error {
     },
 
     #[snafu(display("Nifi doesn't support skipping the OIDC TLS verification"))]
-    NoOidcTlsVerificationNotSupported {},
+    SkippingTlsVerificationNotSupported {},
 }
 
 /// Generate a secret containing the password for the admin user that can access the API.
@@ -144,7 +144,7 @@ pub fn add_oidc_config_to_properties(
 
     if let Some(tls) = &provider.tls.tls {
         let truststore_strategy = match tls.verification {
-            TlsVerification::None {} => NoOidcTlsVerificationNotSupportedSnafu.fail()?,
+            TlsVerification::None {} => SkippingTlsVerificationNotSupportedSnafu.fail()?,
             TlsVerification::Server(TlsServerVerification {
                 ca_cert: CaCert::SecretClass(_),
             }) => "NIFI", // The cert get's added to the stackable truststore
