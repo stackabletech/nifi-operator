@@ -40,9 +40,6 @@ pub enum Error {
         source: stackable_operator::commons::authentication::oidc::Error,
     },
 
-    #[snafu(display("failed to build the OIDC wellknown path"))]
-    InvalidOidcWellknownPath { source: url::ParseError },
-
     #[snafu(display("Nifi doesn't support skipping the OIDC TLS verification"))]
     NoOidcTlsVerificationNotSupported {},
 }
