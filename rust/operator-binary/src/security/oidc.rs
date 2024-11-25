@@ -68,7 +68,7 @@ pub(crate) async fn check_or_generate_oidc_admin_password(
             if admin_password_present {
                 Ok(false)
             } else {
-                OidcAdminPasswordKeyMissingSnafu {
+                MissingAdminPasswordKeySnafu {
                     secret: ObjectRef::from_obj(&secret),
                 }
                 .fail()?
@@ -113,14 +113,16 @@ pub fn add_oidc_config(
 ) -> Result<(), Error> {
     let well_known_url = provider
         .well_known_config_url()
-        .context(InvalidOidcWellKnownUrlSnafu)?;
+        .context(InvalidWellKnownConfigUrlSnafu)?;
 
     properties.insert(
         "nifi.security.user.oidc.discovery.url".to_string(),
         well_known_url.to_string(),
     );
     let (oidc_client_id_env, oidc_client_secret_env) =
-        AuthenticationProvider::client_credentials_env_names(&oidc.client_credentials_secret_ref);
+        AuthenticationProvider::client_credentials_env_names(
+            &client_auth_options.client_credentials_secret_ref,
+        );
     properties.insert(
         "nifi.security.user.oidc.client.id".to_string(),
         format!("${{env:{oidc_client_id_env}}}").to_string(),
