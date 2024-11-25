@@ -30,7 +30,7 @@ spec:
   clusterConfig:
     authentication:
       - authenticationClass: nifi-oidc-auth-class-$NAMESPACE
-        oidc: 
+        oidc:
           clientCredentialsSecret: nifi-oidc-client
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
