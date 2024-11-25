@@ -33,10 +33,10 @@ pub enum Error {
     #[snafu(display(
         "found existing admin password secret {secret:?}, but the key {STACKABLE_OIDC_ADMIN_PASSWORD_KEY} is missing",
     ))]
-    OidcAdminPasswordKeyMissing { secret: ObjectRef<Secret> },
+    MissingAdminPasswordKey { secret: ObjectRef<Secret> },
 
-    #[snafu(display("invalid OIDC well known URL"))]
-    InvalidOidcWellKnownUrl {
+    #[snafu(display("invalid well-known OIDC configuration URL"))]
+    InvalidWellKnownConfigUrl {
         source: stackable_operator::commons::authentication::oidc::Error,
     },
 
@@ -44,8 +44,9 @@ pub enum Error {
     NoOidcTlsVerificationNotSupported {},
 }
 
-/// Generate a secret containing the password for the admin user that can access the API. This admin
-/// user is the same as for SingleUser authentication.
+/// Generate a secret containing the password for the admin user that can access the API.
+///
+/// This admin user is the same as for SingleUser authentication.
 pub(crate) async fn check_or_generate_oidc_admin_password(
     client: &Client,
     nifi: &NifiCluster,
@@ -107,7 +108,7 @@ pub fn build_oidc_admin_password_secret_name(nifi: &NifiCluster) -> String {
 
 pub fn add_oidc_config(
     provider: &oidc::AuthenticationProvider,
-    oidc: &ClientAuthenticationOptions,
+    client_auth_options: &ClientAuthenticationOptions,
     properties: &mut BTreeMap<String, String>,
 ) -> Result<(), Error> {
     let well_known_url = provider
