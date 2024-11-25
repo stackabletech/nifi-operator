@@ -10,11 +10,7 @@ use stackable_nifi_crd::{
     PROTOCOL_PORT,
 };
 use stackable_operator::{
-    commons::{
-        authentication::oidc::{AuthenticationProvider, DEFAULT_OIDC_WELLKNOWN_PATH},
-        resources::Resources,
-        tls_verification::{CaCert, TlsServerVerification, TlsVerification},
-    },
+    commons::resources::Resources,
     memory::{BinaryMultiple, MemoryQuantity},
     product_config_utils::{
         transform_all_roles_to_config, validate_all_roles_and_groups_config,
@@ -26,8 +22,11 @@ use strum::{Display, EnumIter};
 
 use crate::{
     operations::graceful_shutdown::graceful_shutdown_config_properties,
-    security::authentication::{
-        NifiAuthenticationConfig, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
+    security::{
+        authentication::{
+            NifiAuthenticationConfig, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
+        },
+        oidc::{self, add_oidc_config_to_properties},
     },
 };
 
@@ -92,16 +91,8 @@ pub enum Error {
         repo: NifiRepository,
     },
 
-    #[snafu(display("invalid OIDC endpoint URL"))]
-    InvalidOidcEndpoint {
-        source: stackable_operator::commons::authentication::oidc::Error,
-    },
-
-    #[snafu(display("failed to build the OIDC wellkown path"))]
-    InvalidOidcWellknownPath { source: url::ParseError },
-
-    #[snafu(display("Nifi doesn't support skipping the OIDC TLS verification"))]
-    NoOidcTlsVerificationNotSupported {},
+    #[snafu(display("failed to generate OIDC config"))]
+    GenerateOidcConfig { source: oidc::Error },
 }
 
 /// Create the NiFi bootstrap.conf
@@ -593,55 +584,10 @@ pub fn build_nifi_properties(
         "true".to_string(),
     );
 
-    // OIDC config
     if let NifiAuthenticationConfig::Oidc { provider, oidc, .. } = auth_config {
-        let endpoint_url = provider
-            .endpoint_url()
-            .context(InvalidOidcEndpointSnafu)?
-            .join(DEFAULT_OIDC_WELLKNOWN_PATH)
-            .context(InvalidOidcWellknownPathSnafu)?;
-        properties.insert(
-            "nifi.security.user.oidc.discovery.url".to_string(),
-            endpoint_url.to_string(),
-        );
-        let (oidc_client_id_env, oidc_client_secret_env) =
-            AuthenticationProvider::client_credentials_env_names(
-                &oidc.client_credentials_secret_ref,
-            );
-        properties.insert(
-            "nifi.security.user.oidc.client.id".to_string(),
-            format!("${{env:{oidc_client_id_env}}}").to_string(),
-        );
-        properties.insert(
-            "nifi.security.user.oidc.client.secret".to_string(),
-            format!("${{env:{oidc_client_secret_env}}}").to_string(),
-        );
-        let scopes = provider.scopes.join(",");
-        properties.insert(
-            "nifi.security.user.oidc.additional.scopes".to_string(),
-            scopes.to_string(),
-        );
-        properties.insert(
-            "nifi.security.user.oidc.claim.identifying.user".to_string(),
-            provider.principal_claim.to_string(),
-        );
-
-        if let Some(tls) = &provider.tls.tls {
-            let truststore_strategy = match tls.verification {
-                TlsVerification::None {} => NoOidcTlsVerificationNotSupportedSnafu.fail()?,
-                TlsVerification::Server(TlsServerVerification {
-                    ca_cert: CaCert::SecretClass(_),
-                }) => "NIFI", // The cert get's added to the stackable truststore
-                TlsVerification::Server(TlsServerVerification {
-                    ca_cert: CaCert::WebPki {},
-                }) => "JDK", // The cert needs to be in the system truststore
-            };
-            properties.insert(
-                "nifi.security.user.oidc.truststore.strategy".to_owned(),
-                truststore_strategy.to_owned(),
-            );
-        }
-    }
+        add_oidc_config_to_properties(provider, oidc, &mut properties)
+            .context(GenerateOidcConfigSnafu)?;
+    };
 
     // cluster node properties (only configure for cluster nodes)
     properties.insert("nifi.cluster.is.node".to_string(), "true".to_string());
