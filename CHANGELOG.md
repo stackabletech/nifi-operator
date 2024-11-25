@@ -30,7 +30,7 @@ All notable changes to this project will be documented in this file.
 - Switch from `flow.xml.gz` to `flow.json.gz` to allow seamless upgrades to version 2.0 ([#675]).
 - Failing to parse one `NifiCluster`/`AuthenticationClass` should no longer cause the whole operator to stop functioning ([#662]).
 - NiFi will now use the JDK trust store when an OIDC provider uses WebPKI as CA ([#686], [#698]).
-- Fix OIDC endpoint calculation in case the `rootPath` does not have a trailing slash ([#718]).
+- Fix OIDC endpoint construction in case the `rootPath` does not have a trailing slash ([#718]).
 
 ### Removed
 
