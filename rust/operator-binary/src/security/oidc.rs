@@ -106,7 +106,8 @@ pub fn build_oidc_admin_password_secret_name(nifi: &NifiCluster) -> String {
     format!("{}-oidc-admin-password", nifi.name_any())
 }
 
-pub fn add_oidc_config(
+/// Adds all the needed configuration properties that are needed to enable OIDC authentication.
+pub fn add_oidc_config_to_properties(
     provider: &oidc::AuthenticationProvider,
     client_auth_options: &ClientAuthenticationOptions,
     properties: &mut BTreeMap<String, String>,
@@ -194,7 +195,8 @@ mod tests {
             product_specific_fields: (),
         };
 
-        add_oidc_config(&provider, &oidc, &mut properties).expect("OIDC config adding failed");
+        add_oidc_config_to_properties(&provider, &oidc, &mut properties)
+            .expect("OIDC config adding failed");
 
         assert_eq!(
             properties.get("nifi.security.user.oidc.additional.scopes"),

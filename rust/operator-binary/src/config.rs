@@ -26,7 +26,7 @@ use crate::{
         authentication::{
             NifiAuthenticationConfig, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
         },
-        oidc::{self, add_oidc_config},
+        oidc::{self, add_oidc_config_to_properties},
     },
 };
 
@@ -585,7 +585,8 @@ pub fn build_nifi_properties(
     );
 
     if let NifiAuthenticationConfig::Oidc { provider, oidc, .. } = auth_config {
-        add_oidc_config(provider, oidc, &mut properties).context(GenerateOidcConfigSnafu)?;
+        add_oidc_config_to_properties(provider, oidc, &mut properties)
+            .context(GenerateOidcConfigSnafu)?;
     };
 
     // cluster node properties (only configure for cluster nodes)
