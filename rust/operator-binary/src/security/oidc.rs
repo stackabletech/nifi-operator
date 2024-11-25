@@ -106,7 +106,7 @@ pub fn build_oidc_admin_password_secret_name(nifi: &NifiCluster) -> String {
     format!("{}-oidc-admin-password", nifi.name_any())
 }
 
-/// Adds all the needed configuration properties that are needed to enable OIDC authentication.
+/// Adds all the required configuration properties to enable OIDC authentication.
 pub fn add_oidc_config_to_properties(
     provider: &oidc::AuthenticationProvider,
     client_auth_options: &ClientAuthenticationOptions,
