@@ -8,4 +8,4 @@ kind: Job
 metadata:
   name: oidc-login-test
 status:
-  ready: 1 # wait for the test job to start before streaming its logs in the next test step
+  succeeded: 1 # wait for the test job to start before streaming its logs in the next test step

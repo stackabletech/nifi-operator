@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix OIDC endpoint construction in case the `rootPath` does not have a trailing slash ([#718]).
+- BREAKING: Use distinct ServiceAccounts for the Stacklets, so that multiple Stacklets can be
+  deployed in one namespace. Existing Stacklets will use the newly created ServiceAccounts after
+  restart ([#717]).
+
+[#717]: https://github.com/stackabletech/nifi-operator/pull/717
+[#718]: https://github.com/stackabletech/nifi-operator/pull/718
+
 ## [24.11.0] - 2024-11-18
 
 ### Added
