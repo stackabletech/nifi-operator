@@ -1,11 +1,11 @@
+use crate::security::authentication::STACKABLE_TLS_STORE_PASSWORD;
 use snafu::{ResultExt, Snafu};
 use stackable_nifi_crd::NifiCluster;
+use stackable_operator::time::Duration;
 use stackable_operator::{
     builder::pod::volume::{SecretFormat, SecretOperatorVolumeSourceBuilder, VolumeBuilder},
     k8s_openapi::api::core::v1::Volume,
 };
-
-use crate::security::authentication::STACKABLE_TLS_STORE_PASSWORD;
 
 pub const KEYSTORE_VOLUME_NAME: &str = "keystore";
 pub const KEYSTORE_NIFI_CONTAINER_MOUNT: &str = "/stackable/keystore";
@@ -26,6 +26,7 @@ pub(crate) fn build_tls_volume(
     volume_name: &str,
     service_scopes: Vec<&str>,
     secret_format: SecretFormat,
+    requested_secret_lifetime: &Duration,
 ) -> Result<Volume> {
     let mut secret_volume_source_builder =
         SecretOperatorVolumeSourceBuilder::new(nifi.server_tls_secret_class());
@@ -44,6 +45,7 @@ pub(crate) fn build_tls_volume(
                 .with_node_scope()
                 .with_pod_scope()
                 .with_format(secret_format)
+                .with_auto_tls_cert_lifetime(*requested_secret_lifetime)
                 .build()
                 .context(TlsCertSecretClassVolumeBuildSnafu)?,
         )

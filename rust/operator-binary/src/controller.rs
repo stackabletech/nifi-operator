@@ -112,6 +112,9 @@ pub struct Ctx {
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("missing secret lifetime"))]
+    MissingSecretLifetime,
+
     #[snafu(display("NifiCluster object is invalid"))]
     InvalidNifiCluster {
         source: error_boundary::InvalidObject,
@@ -1253,6 +1256,9 @@ async fn build_node_rolegroup_statefulset(
         .context(MetadataBuildSnafu)?
         .build();
 
+    let requested_secret_lifetime = merged_config
+        .requested_secret_lifetime
+        .context(MissingSecretLifetimeSnafu)?;
     let nifi_cluster_name = nifi.name_any();
     pod_builder
         .metadata(metadata)
@@ -1301,6 +1307,7 @@ async fn build_node_rolegroup_statefulset(
                     &build_reporting_task_service_name(&nifi_cluster_name),
                 ],
                 SecretFormat::TlsPkcs12,
+                &requested_secret_lifetime,
             )
             .context(SecuritySnafu)?,
         )
