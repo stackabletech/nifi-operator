@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - The lifetime of auto generated TLS certificates is now configurable with the role and roleGroup
-  config property `requestedSecretLifetime`. This helps reducing frequent Pod restarts ([#721]).
+  config property `requestedSecretLifetime`. This helps reducing frequent Pod restarts ([#722]).
 
 ### Fixed
 
@@ -18,7 +18,7 @@ All notable changes to this project will be documented in this file.
 
 [#717]: https://github.com/stackabletech/nifi-operator/pull/717
 [#718]: https://github.com/stackabletech/nifi-operator/pull/718
-[#721]: https://github.com/stackabletech/nifi-operator/pull/721
+[#722]: https://github.com/stackabletech/nifi-operator/pull/722
 
 ## [24.11.0] - 2024-11-18
 
