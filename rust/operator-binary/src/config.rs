@@ -6,8 +6,8 @@ use std::{
 use product_config::{types::PropertyNameKind, ProductConfigManager};
 use snafu::{ResultExt, Snafu};
 use stackable_nifi_crd::{
-    NifiCluster, NifiConfig, NifiConfigFragment, NifiRole, NifiSpec, NifiStorageConfig, HTTPS_PORT,
-    PROTOCOL_PORT,
+    JvmArgument, NifiCluster, NifiConfig, NifiConfigFragment, NifiRole, NifiSpec,
+    NifiStorageConfig, HTTPS_PORT, PROTOCOL_PORT,
 };
 use stackable_operator::{
     commons::resources::Resources,
@@ -97,7 +97,7 @@ pub enum Error {
 
 /// Create the NiFi bootstrap.conf
 pub fn build_bootstrap_conf(
-    nifi_config: &NifiConfig,
+    merged_config: &NifiConfig,
     overrides: BTreeMap<String, String>,
 ) -> Result<String, Error> {
     let mut bootstrap = BTreeMap::new();
@@ -105,20 +105,75 @@ pub fn build_bootstrap_conf(
     bootstrap.insert("java".to_string(), "java".to_string());
     // Username to use when running NiFi. This value will be ignored on Windows.
     bootstrap.insert("run.as".to_string(), "".to_string());
-    // Preserve shell environment while runnning as "run.as" user
+    // Preserve shell environment while ruining as "run.as" user
     bootstrap.insert("preserve.environment".to_string(), "false".to_string());
     // Configure where NiFi's lib and conf directories live
     bootstrap.insert("lib.dir".to_string(), "./lib".to_string());
     bootstrap.insert("conf.dir".to_string(), "./conf".to_string());
-    bootstrap.extend(graceful_shutdown_config_properties(nifi_config));
+    bootstrap.extend(graceful_shutdown_config_properties(merged_config));
 
-    let mut java_args = Vec::with_capacity(18);
-    // Disable JSR 199 so that we can use JSP's without running a JDK
-    java_args.push("-Dorg.apache.jasper.compiler.disablejsr199=true".to_string());
+    let mut jvm_args = BTreeMap::from([
+        // Disable JSR 199 so that we can use JSP's without running a JDK
+        (
+            "-Dorg.apache.jasper.compiler.disablejsr199".to_owned(),
+            JvmArgument(Some(true.to_string())),
+        ),
+        // Note(sbernauer): This has been here since ages, leaving it here for compatibility reasons.
+        // That being said: IPV6 rocks :rocket:!
+        (
+            "-Djava.net.preferIPv4Stack".to_owned(),
+            JvmArgument(Some(true.to_string())),
+        ),
+        // allowRestrictedHeaders is required for Cluster/Node communications to work properly
+        (
+            "-Dsun.net.http.allowRestrictedHeaders".to_owned(),
+            JvmArgument(Some(true.to_string())),
+        ),
+        (
+            "-Djava.protocol.handler.pkgs".to_owned(),
+            JvmArgument(Some("sun.net.www.protocol".to_owned())),
+        ),
+        // The G1GC is known to cause some problems in Java 8 and earlier, but the issues were addressed in Java 9. If using Java 8 or earlier,
+        // it is recommended that G1GC not be used, especially in conjunction with the Write Ahead Provenance Repository. However, if using a newer
+        // version of Java, it can result in better performance without significant \"stop-the-world\" delays.
+        ("-XX:+UseG1GC".to_owned(), JvmArgument(None)),
+        // Set headless mode by default
+        (
+            "-Djava.awt.headless".to_owned(),
+            JvmArgument(Some(true.to_string())),
+        ),
+        // Sets the provider of SecureRandom to /dev/urandom to prevent blocking on VMs
+        (
+            "-Djava.security.egd".to_owned(),
+            JvmArgument(Some("file:/dev/urandom".to_owned())),
+        ),
+        // Requires JAAS to use only the provided JAAS configuration to authenticate a Subject, without using any "fallback" methods (such as prompting for username/password)
+        // Please see https://docs.oracle.com/javase/8/docs/technotes/guides/security/jgss/single-signon.html, section "EXCEPTIONS TO THE MODEL"
+        (
+            "-Djavax.security.auth.useSubjectCredsOnly".to_owned(),
+            JvmArgument(Some(true.to_string())),
+        ),
+        // Zookeeper 3.5 now includes an Admin Server that starts on port 8080, since NiFi is already using that port disable by default.
+        // Please see https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_adminserver_config for configuration options.
+        (
+            "-Dzookeeper.admin.enableServer".to_owned(),
+            JvmArgument(Some(false.to_string())),
+        ),
+        // JVM security properties include especially TTL values for the positive and negative DNS caches.
+        (
+            "-Djava.security.properties".to_owned(),
+            JvmArgument(Some(format!(
+                "{NIFI_CONFIG_DIRECTORY}/{JVM_SECURITY_PROPERTIES_FILE}"
+            ))),
+        ),
+    ]);
 
     // Read memory limits from config
-    if let Some(heap_size_definition) = &nifi_config.resources.memory.limit {
-        tracing::debug!("Read {:?} from crd as memory limit", heap_size_definition);
+    if let Some(heap_size_definition) = &merged_config.resources.memory.limit {
+        tracing::debug!(
+            ?heap_size_definition,
+            "Read heap size definition from CRD as memory limit"
+        );
 
         let heap_size = MemoryQuantity::try_from(heap_size_definition)
             .context(InvalidMemoryConfigSnafu)?
@@ -130,55 +185,32 @@ pub fn build_bootstrap_conf(
             .context(InvalidMemoryConfigSnafu)?;
 
         tracing::debug!(
-            "Converted {:?} to {} for java heap config",
-            &heap_size_definition,
-            java_heap
+            ?heap_size_definition,
+            ?java_heap,
+            "Converted head size definition to java heap config",
         );
+
         // Push heap size config as max and min size to java args
-        java_args.push(format!("-Xmx{}", java_heap));
-        java_args.push(format!("-Xms{}", java_heap));
+        jvm_args.insert(format!("-Xmx{java_heap}"), JvmArgument(None));
+        jvm_args.insert(format!("-Xms{java_heap}"), JvmArgument(None));
     } else {
-        tracing::debug!("No memory limits defined");
+        tracing::warn!("No memory limits defined");
     }
 
-    java_args.push("-Djava.net.preferIPv4Stack=true".to_string());
+    jvm_args.extend(merged_config.experimental_additional_jvm_arguments.clone());
 
-    // allowRestrictedHeaders is required for Cluster/Node communications to work properly
-    java_args.push("-Dsun.net.http.allowRestrictedHeaders=true".to_string());
-    java_args.push("-Djava.protocol.handler.pkgs=sun.net.www.protocol".to_string());
+    for (index, (key, JvmArgument(value))) in jvm_args.into_iter().enumerate() {
+        match value {
+            Some(value) => {
+                bootstrap.insert(format!("java.arg.{}", index + 1), format!("{key}={value}"));
+            }
+            None => {
+                bootstrap.insert(format!("java.arg.{}", index + 1), key);
+            }
+        }
+    }
 
-    // The G1GC is known to cause some problems in Java 8 and earlier, but the issues were addressed in Java 9. If using Java 8 or earlier,
-    // it is recommended that G1GC not be used, especially in conjunction with the Write Ahead Provenance Repository. However, if using a newer
-    // version of Java, it can result in better performance without significant \"stop-the-world\" delays.
-    java_args.push("-XX:+UseG1GC".to_string());
-
-    // Set headless mode by default
-    java_args.push("-Djava.awt.headless=true".to_string());
-    // Root key in hexadecimal format for encrypted sensitive configuration values
-    //bootstrap.insert("nifi.bootstrap.sensitive.key=".to_string(), "".to_string());
-    // Sets the provider of SecureRandom to /dev/urandom to prevent blocking on VMs
-    java_args.push("-Djava.security.egd=file:/dev/urandom".to_string());
-    // Requires JAAS to use only the provided JAAS configuration to authenticate a Subject, without using any "fallback" methods (such as prompting for username/password)
-    // Please see https://docs.oracle.com/javase/8/docs/technotes/guides/security/jgss/single-signon.html, section "EXCEPTIONS TO THE MODEL"
-    java_args.push("-Djavax.security.auth.useSubjectCredsOnly=true".to_string());
-
-    // Zookeeper 3.5 now includes an Admin Server that starts on port 8080, since NiFi is already using that port disable by default.
-    // Please see https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_adminserver_config for configuration options.
-    java_args.push("-Dzookeeper.admin.enableServer=false".to_string());
-
-    // JVM security properties include especially TTL values for the positive and negative DNS caches.
-    java_args.push(format!(
-        "-Djava.security.properties={NIFI_CONFIG_DIRECTORY}/{JVM_SECURITY_PROPERTIES_FILE}"
-    ));
-
-    // add java args
-    bootstrap.extend(
-        java_args
-            .into_iter()
-            .enumerate()
-            .map(|(i, a)| (format!("java.arg.{}", i + 1), a)),
-    );
-    // override with config overrides
+    // configOverrides come last
     bootstrap.extend(overrides);
 
     Ok(format_properties(bootstrap))
@@ -713,4 +745,80 @@ fn storage_quantity_to_nifi(quantity: MemoryQuantity) -> String {
             .scale_to(stackable_operator::memory::BinaryMultiple::Mebi)
             .value
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use indoc::indoc;
+    use serde_yaml;
+
+    #[test]
+    fn test_build_bootstrap_conf() {
+        let input = r#"
+        apiVersion: nifi.stackable.tech/v1alpha1
+        kind: NifiCluster
+        metadata:
+          name: simple-nifi
+        spec:
+          image:
+            productVersion: 1.27.0
+          clusterConfig:
+            authentication:
+              - authenticationClass: nifi-admin-credentials-simple
+            sensitiveProperties:
+              keySecret: simple-nifi-sensitive-property-key
+              autoGenerate: true
+            zookeeperConfigMapName: simple-nifi-znode
+          nodes:
+            config:
+              resources:
+                memory:
+                  limit: 42Gi
+              experimentalAdditionalJvmArguments:
+                -Dhttps.proxyHost: proxy.my.corp
+                -Dhttps.proxyPort: "1234"
+                -Dhttp.nonProxyHosts: localhost
+                -Djava.net.preferIPv4Stack: "true"
+                -XX:+ExitOnOutOfMemoryError: null
+                -Djava.security.egd: file:overwritten-by-user
+            roleGroups:
+              default:
+                replicas: 1
+        "#;
+        let nifi: NifiCluster = serde_yaml::from_str(input).expect("illegal test input");
+
+        let role = NifiRole::Node;
+        let merged_config = nifi.merged_config(&role, "default").unwrap();
+        let bootstrap_conf = build_bootstrap_conf(&merged_config, BTreeMap::new()).unwrap();
+
+        assert_eq!(
+            bootstrap_conf,
+            indoc! {"
+                conf.dir=./conf
+                graceful.shutdown.seconds=300
+                java=java
+                java.arg.1=-Dhttp.nonProxyHosts=localhost
+                java.arg.10=-Dorg.apache.jasper.compiler.disablejsr199=true
+                java.arg.11=-Dsun.net.http.allowRestrictedHeaders=true
+                java.arg.12=-Dzookeeper.admin.enableServer=false
+                java.arg.13=-XX:+ExitOnOutOfMemoryError
+                java.arg.14=-XX:+UseG1GC
+                java.arg.15=-Xms34406m
+                java.arg.16=-Xmx34406m
+                java.arg.2=-Dhttps.proxyHost=proxy.my.corp
+                java.arg.3=-Dhttps.proxyPort=1234
+                java.arg.4=-Djava.awt.headless=true
+                java.arg.5=-Djava.net.preferIPv4Stack=true
+                java.arg.6=-Djava.protocol.handler.pkgs=sun.net.www.protocol
+                java.arg.7=-Djava.security.egd=file:overwritten-by-user
+                java.arg.8=-Djava.security.properties=/stackable/nifi/conf/security.properties
+                java.arg.9=-Djavax.security.auth.useSubjectCredsOnly=true
+                lib.dir=./lib
+                preserve.environment=false
+                run.as=
+            "}
+        );
+    }
 }

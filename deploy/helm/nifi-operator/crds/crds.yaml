@@ -270,6 +270,16 @@ spec:
                               type: object
                               x-kubernetes-preserve-unknown-fields: true
                           type: object
+                        experimentalAdditionalJvmArguments:
+                          additionalProperties:
+                            nullable: true
+                            type: string
+                          default: {}
+                          description: |-
+                            Experimental way of adding JVM arguments.
+
+                            Please note that this is a temporary solution, a proper CRD change will be implemented in <https://github.com/stackabletech/issues/issues/584>. The current solution adds the JVM arguments on top of the ones the operator generated (similar to how configOverrides and podOverrides are working). This allows you to override arguments set by the operator - although it currently does not allow you to remove an argument the operator sets.
+                          type: object
                         gracefulShutdownTimeout:
                           description: Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
                           nullable: true
@@ -726,6 +736,16 @@ spec:
                                     nullable: true
                                     type: object
                                     x-kubernetes-preserve-unknown-fields: true
+                                type: object
+                              experimentalAdditionalJvmArguments:
+                                additionalProperties:
+                                  nullable: true
+                                  type: string
+                                default: {}
+                                description: |-
+                                  Experimental way of adding JVM arguments.
+
+                                  Please note that this is a temporary solution, a proper CRD change will be implemented in <https://github.com/stackabletech/issues/issues/584>. The current solution adds the JVM arguments on top of the ones the operator generated (similar to how configOverrides and podOverrides are working). This allows you to override arguments set by the operator - although it currently does not allow you to remove an argument the operator sets.
                                 type: object
                               gracefulShutdownTimeout:
                                 description: Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.

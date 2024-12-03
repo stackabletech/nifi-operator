@@ -20,7 +20,7 @@ use stackable_operator::{
     },
     config::{
         fragment::{self, Fragment, ValidationError},
-        merge::Merge,
+        merge::{Atomic, Merge},
     },
     k8s_openapi::{
         api::core::v1::{PodTemplateSpec, Volume},
@@ -411,6 +411,20 @@ pub struct NifiConfig {
     /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
     #[fragment_attrs(serde(default))]
     pub graceful_shutdown_timeout: Option<Duration>,
+
+    /// Experimental way of adding JVM arguments.
+    ///
+    /// Please note that this is a temporary solution, a proper CRD change will be implemented in
+    /// <https://github.com/stackabletech/issues/issues/584>.
+    /// The current solution adds the JVM arguments on top of the ones the operator generated
+    /// (similar to how configOverrides and podOverrides are working). This allows you to override
+    /// arguments set by the operator - although it currently does not allow you to remove an
+    /// argument the operator sets.
+    //
+    // Please note that the value is [`Option<String>`], as JVM arguments *can* have a value, or
+    // - in case the value is absent - are just an JVM flag.
+    #[fragment_attrs(serde(default))]
+    pub experimental_additional_jvm_arguments: BTreeMap<String, JvmArgument>,
 }
 
 impl NifiConfig {
@@ -458,6 +472,7 @@ impl NifiConfig {
             },
             affinity: get_affinity(cluster_name, role),
             graceful_shutdown_timeout: Some(DEFAULT_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
+            experimental_additional_jvm_arguments: BTreeMap::new(),
         }
     }
 }
@@ -488,6 +503,15 @@ impl Configuration for NifiConfigFragment {
         _file: &str,
     ) -> Result<BTreeMap<String, Option<String>>, product_config_utils::Error> {
         Ok(BTreeMap::new())
+    }
+}
+
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+pub struct JvmArgument(pub Option<String>);
+impl Atomic for JvmArgument {}
+impl Merge for JvmArgument {
+    fn merge(&mut self, defaults: &Self) {
+        *self = defaults.clone();
     }
 }
 
