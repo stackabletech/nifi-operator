@@ -66,7 +66,7 @@ use stackable_operator::{
             CustomContainerLogConfig,
         },
     },
-    role_utils::{GenericRoleConfig, Role, RoleGroupRef},
+    role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroupRef},
     status::condition::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
         statefulset::StatefulSetConditionBuilder,
@@ -341,6 +341,11 @@ pub enum Error {
     AddVolumeMount {
         source: builder::pod::container::Error,
     },
+
+    #[snafu(display("failed to get merged jvmArgumentOverrides"))]
+    GetMergedJvmArgumentOverrides {
+        source: stackable_operator::role_utils::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -550,6 +555,9 @@ pub async fn reconcile_nifi(
             // For more information see <https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#proxy_configuration>
             let proxy_hosts = get_proxy_hosts(client, nifi, &updated_role_service).await?;
 
+            let java_common_config = role
+                .merged_product_specific_common_config(rolegroup_name)
+                .context(GetMergedJvmArgumentOverridesSnafu)?;
             let rg_configmap = build_node_rolegroup_config_map(
                 nifi,
                 &resolved_product_image,
@@ -559,6 +567,7 @@ pub async fn reconcile_nifi(
                 &merged_config,
                 vector_aggregator_address.as_deref(),
                 &proxy_hosts,
+                &java_common_config,
             )
             .await?;
 
@@ -733,6 +742,7 @@ async fn build_node_rolegroup_config_map(
     merged_config: &NifiConfig,
     vector_aggregator_address: Option<&str>,
     proxy_hosts: &str,
+    java_common_config: &JavaCommonConfig,
 ) -> Result<ConfigMap> {
     tracing::debug!("building rolegroup configmaps");
 
@@ -778,6 +788,7 @@ async fn build_node_rolegroup_config_map(
                         kind: NIFI_BOOTSTRAP_CONF.to_string(),
                     })?
                     .clone(),
+                java_common_config,
             )
             .context(BootstrapConfigSnafu)?,
         )
@@ -897,7 +908,7 @@ async fn build_node_rolegroup_statefulset(
     resolved_product_image: &ResolvedProductImage,
     cluster_info: &KubernetesClusterInfo,
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
-    role: &Role<NifiConfigFragment>,
+    role: &Role<NifiConfigFragment, GenericRoleConfig, JavaCommonConfig>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &NifiConfig,
     nifi_auth_config: &NifiAuthenticationConfig,
