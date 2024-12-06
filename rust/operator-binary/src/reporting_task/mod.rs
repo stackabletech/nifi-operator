@@ -24,10 +24,15 @@
 //!
 use std::collections::BTreeMap;
 
+use crate::security::{
+    authentication::{NifiAuthenticationConfig, STACKABLE_ADMIN_USERNAME},
+    build_tls_volume,
+};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_nifi_crd::{
     NifiCluster, NifiRole, APP_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT,
 };
+use stackable_operator::time::Duration;
 use stackable_operator::{
     builder::{
         self,
@@ -48,11 +53,6 @@ use stackable_operator::{
     kube::ResourceExt,
     kvp::Labels,
     utils::cluster_info::KubernetesClusterInfo,
-};
-
-use crate::security::{
-    authentication::{NifiAuthenticationConfig, STACKABLE_ADMIN_USERNAME},
-    build_tls_volume,
 };
 
 use super::controller::{build_recommended_labels, NIFI_UID};
@@ -359,6 +359,10 @@ fn build_reporting_task_job(
                 REPORTING_TASK_CERT_VOLUME_NAME,
                 vec![],
                 SecretFormat::TlsPem,
+                // The certificate is only used for the REST API call, so a short lifetime is sufficient.
+                // There is no correct way to configure this job since it's an implementation detail.
+                // Also it will be dropped when support for 1.x is removed.
+                &Duration::from_days_unchecked(1),
             )
             .context(SecretVolumeBuildFailureSnafu)?,
         )
