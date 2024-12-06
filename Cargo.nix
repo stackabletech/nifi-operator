@@ -6678,7 +6678,7 @@ rec {
       };
       "stackable-nifi-crd" = rec {
         crateName = "stackable-nifi-crd";
-        version = "24.11.0";
+        version = "24.11.1-rc1";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./rust/crd; };
         libName = "stackable_nifi_crd";
@@ -6731,7 +6731,7 @@ rec {
       };
       "stackable-nifi-operator" = rec {
         crateName = "stackable-nifi-operator";
-        version = "24.11.0";
+        version = "24.11.1-rc1";
         edition = "2021";
         crateBin = [
           {
