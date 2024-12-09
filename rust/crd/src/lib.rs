@@ -30,7 +30,7 @@ use stackable_operator::{
     memory::{BinaryMultiple, MemoryQuantity},
     product_config_utils::{self, Configuration},
     product_logging::{self, spec::Logging},
-    role_utils::{GenericRoleConfig, Role, RoleGroupRef},
+    role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroupRef},
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
     time::Duration,
@@ -107,7 +107,7 @@ pub struct NifiSpec {
 
     // no doc - docs in Role struct.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub nodes: Option<Role<NifiConfigFragment>>,
+    pub nodes: Option<Role<NifiConfigFragment, GenericRoleConfig, JavaCommonConfig>>,
 
     // no doc - docs in ProductImage struct.
     pub image: ProductImage,
