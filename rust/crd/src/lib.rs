@@ -420,7 +420,7 @@ pub struct NifiConfig {
 
 impl NifiConfig {
     // Auto TLS certificate lifetime
-    const DEFAULT_NODE_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(7);
+    const DEFAULT_NODE_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(1);
 
     pub fn default_config(cluster_name: &str, role: &NifiRole) -> NifiConfigFragment {
         NifiConfigFragment {
