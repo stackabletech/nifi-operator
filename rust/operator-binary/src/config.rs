@@ -200,9 +200,7 @@ pub fn build_bootstrap_conf(
     }
 
     let mut merged_java_config = java_common_config.clone();
-    merged_java_config.merge(&JavaCommonConfig {
-        jvm_argument_overrides: jvm_args,
-    });
+    merged_java_config.merge(&JavaCommonConfig::new(jvm_args));
 
     for (index, (key, value)) in merged_java_config
         .effective_jvm_config()

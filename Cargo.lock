@@ -2378,7 +2378,7 @@ dependencies = [
 [[package]]
 name = "stackable-operator"
 version = "0.83.0"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat/jvm-arguments#3462c9e9b670d17b07150e4a4a617bb944bb1b5a"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat/jvm-arguments#a7ae846f88c2cc0e4f0f41f2664f6c807f702b4c"
 dependencies = [
  "chrono",
  "clap",
@@ -2416,7 +2416,7 @@ dependencies = [
 [[package]]
 name = "stackable-operator-derive"
 version = "0.3.1"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat/jvm-arguments#3462c9e9b670d17b07150e4a4a617bb944bb1b5a"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat/jvm-arguments#a7ae846f88c2cc0e4f0f41f2664f6c807f702b4c"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -2427,7 +2427,7 @@ dependencies = [
 [[package]]
 name = "stackable-shared"
 version = "0.0.1"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat/jvm-arguments#3462c9e9b670d17b07150e4a4a617bb944bb1b5a"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat/jvm-arguments#a7ae846f88c2cc0e4f0f41f2664f6c807f702b4c"
 dependencies = [
  "kube",
  "semver",
