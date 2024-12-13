@@ -85,7 +85,7 @@ use crate::{
     },
     operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
-    reporting_task::{self, build_reporting_task, build_reporting_task_service_name},
+    reporting_task::{self, build_maybe_reporting_task, build_reporting_task_service_name},
     security::{
         authentication::{
             NifiAuthenticationConfig, AUTHORIZERS_XML_FILE_NAME,
@@ -112,6 +112,9 @@ pub struct Ctx {
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("missing secret lifetime"))]
+    MissingSecretLifetime,
+
     #[snafu(display("NifiCluster object is invalid"))]
     InvalidNifiCluster {
         source: error_boundary::InvalidObject,
@@ -616,24 +619,25 @@ pub async fn reconcile_nifi(
 
     // Only add the reporting task in case it is enabled.
     if nifi.spec.cluster_config.create_reporting_task_job.enabled {
-        let (reporting_task_job, reporting_task_service) = build_reporting_task(
+        if let Some((reporting_task_job, reporting_task_service)) = build_maybe_reporting_task(
             nifi,
             &resolved_product_image,
             &client.kubernetes_cluster_info,
             &nifi_authentication_config,
             &rbac_sa.name_any(),
         )
-        .context(ReportingTaskSnafu)?;
+        .context(ReportingTaskSnafu)?
+        {
+            cluster_resources
+                .add(client, reporting_task_service)
+                .await
+                .context(ApplyCreateReportingTaskServiceSnafu)?;
 
-        cluster_resources
-            .add(client, reporting_task_service)
-            .await
-            .context(ApplyCreateReportingTaskServiceSnafu)?;
-
-        cluster_resources
-            .add(client, reporting_task_job)
-            .await
-            .context(ApplyCreateReportingTaskJobSnafu)?;
+            cluster_resources
+                .add(client, reporting_task_job)
+                .await
+                .context(ApplyCreateReportingTaskJobSnafu)?;
+        }
     }
 
     // Remove any orphaned resources that still exist in k8s, but have not been added to
@@ -1252,6 +1256,9 @@ async fn build_node_rolegroup_statefulset(
         .context(MetadataBuildSnafu)?
         .build();
 
+    let requested_secret_lifetime = merged_config
+        .requested_secret_lifetime
+        .context(MissingSecretLifetimeSnafu)?;
     let nifi_cluster_name = nifi.name_any();
     pod_builder
         .metadata(metadata)
@@ -1300,6 +1307,7 @@ async fn build_node_rolegroup_statefulset(
                     &build_reporting_task_service_name(&nifi_cluster_name),
                 ],
                 SecretFormat::TlsPkcs12,
+                &requested_secret_lifetime,
             )
             .context(SecuritySnafu)?,
         )

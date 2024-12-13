@@ -24,10 +24,15 @@
 //!
 use std::collections::BTreeMap;
 
+use crate::security::{
+    authentication::{NifiAuthenticationConfig, STACKABLE_ADMIN_USERNAME},
+    build_tls_volume,
+};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_nifi_crd::{
     NifiCluster, NifiRole, APP_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT,
 };
+use stackable_operator::time::Duration;
 use stackable_operator::{
     builder::{
         self,
@@ -48,11 +53,6 @@ use stackable_operator::{
     kube::ResourceExt,
     kvp::Labels,
     utils::cluster_info::KubernetesClusterInfo,
-};
-
-use crate::security::{
-    authentication::{NifiAuthenticationConfig, STACKABLE_ADMIN_USERNAME},
-    build_tls_volume,
 };
 
 use super::controller::{build_recommended_labels, NIFI_UID};
@@ -112,7 +112,8 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Build required resources to create the reporting task in NiFi.
+/// Build required resources to create the reporting task in NiFi versions 1.x.
+///
 /// This will return
 /// * a Job that creates and runs the reporting task via the NiFi Rest API.
 /// * a Service that contains of one single NiFi node.
@@ -122,23 +123,30 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// from SingleUserLoginIdentityProvider to the FQDN of the pod.
 /// The NiFi role service will randomly delegate to different NiFi nodes which will
 /// then fail requests to other nodes.
-pub fn build_reporting_task(
+///
+/// NiFi 2.x and above automatically server Prometheus metrics via the API, but as of 2024-11-08
+/// requires authentication.
+pub fn build_maybe_reporting_task(
     nifi: &NifiCluster,
     resolved_product_image: &ResolvedProductImage,
     cluster_info: &KubernetesClusterInfo,
     nifi_auth_config: &NifiAuthenticationConfig,
     sa_name: &str,
-) -> Result<(Job, Service)> {
-    Ok((
-        build_reporting_task_job(
-            nifi,
-            resolved_product_image,
-            cluster_info,
-            nifi_auth_config,
-            sa_name,
-        )?,
-        build_reporting_task_service(nifi, resolved_product_image)?,
-    ))
+) -> Result<Option<(Job, Service)>> {
+    if resolved_product_image.product_version.starts_with("1.") {
+        Ok(Some((
+            build_reporting_task_job(
+                nifi,
+                resolved_product_image,
+                cluster_info,
+                nifi_auth_config,
+                sa_name,
+            )?,
+            build_reporting_task_service(nifi, resolved_product_image)?,
+        )))
+    } else {
+        Ok(None)
+    }
 }
 
 /// Return the name of the reporting task.
@@ -351,6 +359,10 @@ fn build_reporting_task_job(
                 REPORTING_TASK_CERT_VOLUME_NAME,
                 vec![],
                 SecretFormat::TlsPem,
+                // The certificate is only used for the REST API call, so a short lifetime is sufficient.
+                // There is no correct way to configure this job since it's an implementation detail.
+                // Also it will be dropped when support for 1.x is removed.
+                &Duration::from_days_unchecked(1),
             )
             .context(SecretVolumeBuildFailureSnafu)?,
         )

@@ -6,6 +6,24 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- The lifetime of auto generated TLS certificates is now configurable with the role and roleGroup
+  config property `requestedSecretLifetime`. This helps reducing frequent Pod restarts ([#722]).
+
+### Fixed
+
+- Fix OIDC endpoint construction in case the `rootPath` does not have a trailing slash ([#718]).
+- BREAKING: Use distinct ServiceAccounts for the Stacklets, so that multiple Stacklets can be
+  deployed in one namespace. Existing Stacklets will use the newly created ServiceAccounts after
+  restart ([#717]).
+
+[#717]: https://github.com/stackabletech/nifi-operator/pull/717
+[#718]: https://github.com/stackabletech/nifi-operator/pull/718
+[#722]: https://github.com/stackabletech/nifi-operator/pull/722
+
+## [24.11.0] - 2024-11-18
+
+### Added
+
 - Support OpenID Connect authentication ([#660]).
 - Allow configuring proxy host behavior ([#668]).
 - Support disabling the `create-reporting-task` Job ([#690]).
@@ -20,6 +38,8 @@ All notable changes to this project will be documented in this file.
   - `affinity`
   - `extraVolumes`
 - Increase `log` Volume size from 33 MiB to 500 MiB ([#671]).
+- Replaced experimental NiFi `2.0.0-M4` with `2.0.0` ([#702]).
+- Don't deploy the `PrometheusReportingTask` Job for NiFi versions `2.x.x` and up ([#708]).
 
 ### Fixed
 
@@ -44,6 +64,8 @@ All notable changes to this project will be documented in this file.
 [#690]: https://github.com/stackabletech/nifi-operator/pull/690
 [#694]: https://github.com/stackabletech/nifi-operator/pull/694
 [#698]: https://github.com/stackabletech/nifi-operator/pull/698
+[#702]: https://github.com/stackabletech/nifi-operator/pull/702
+[#708]: https://github.com/stackabletech/nifi-operator/pull/708
 
 ## [24.7.0] - 2024-07-24
 
