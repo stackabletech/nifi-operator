@@ -1,6 +1,7 @@
 use snafu::{ResultExt, Snafu};
 use stackable_nifi_crd::NifiCluster;
 use stackable_operator::client::Client;
+use stackable_operator::time::Duration;
 use stackable_operator::{builder::pod::volume::SecretFormat, k8s_openapi::api::core::v1::Volume};
 
 pub mod authentication;
@@ -42,6 +43,14 @@ pub fn build_tls_volume(
     volume_name: &str,
     service_scopes: Vec<&str>,
     secret_format: SecretFormat,
+    requested_secret_lifetime: &Duration,
 ) -> Result<Volume> {
-    tls::build_tls_volume(nifi, volume_name, service_scopes, secret_format).context(TlsSnafu)
+    tls::build_tls_volume(
+        nifi,
+        volume_name,
+        service_scopes,
+        secret_format,
+        requested_secret_lifetime,
+    )
+    .context(TlsSnafu)
 }
