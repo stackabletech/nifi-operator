@@ -570,8 +570,8 @@ pub async fn reconcile_nifi(
                 &merged_config,
                 vector_aggregator_address.as_deref(),
                 &proxy_hosts,
-                &role_java_common_config,
-                &role_group_java_common_config,
+                role_java_common_config,
+                role_group_java_common_config,
             )
             .await?;
 
