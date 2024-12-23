@@ -558,8 +558,8 @@ pub async fn reconcile_nifi(
             // For more information see <https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#proxy_configuration>
             let proxy_hosts = get_proxy_hosts(client, nifi, &updated_role_service).await?;
 
-            let java_common_config = role
-                .merged_product_specific_common_config(rolegroup_name)
+            let (role_java_common_config, role_group_java_common_config) = role
+                .merged_product_specific_common_configs(rolegroup_name)
                 .context(GetMergedJvmArgumentOverridesSnafu)?;
             let rg_configmap = build_node_rolegroup_config_map(
                 nifi,
@@ -570,7 +570,8 @@ pub async fn reconcile_nifi(
                 &merged_config,
                 vector_aggregator_address.as_deref(),
                 &proxy_hosts,
-                &java_common_config,
+                &role_java_common_config,
+                &role_group_java_common_config,
             )
             .await?;
 
@@ -745,7 +746,8 @@ async fn build_node_rolegroup_config_map(
     merged_config: &NifiConfig,
     vector_aggregator_address: Option<&str>,
     proxy_hosts: &str,
-    java_common_config: &JavaCommonConfig,
+    role_java_common_config: &JavaCommonConfig,
+    role_group_java_common_config: &JavaCommonConfig,
 ) -> Result<ConfigMap> {
     tracing::debug!("building rolegroup configmaps");
 
@@ -791,7 +793,8 @@ async fn build_node_rolegroup_config_map(
                         kind: NIFI_BOOTSTRAP_CONF.to_string(),
                     })?
                     .clone(),
-                java_common_config,
+                role_java_common_config,
+                role_group_java_common_config,
             )
             .context(BootstrapConfigSnafu)?,
         )
