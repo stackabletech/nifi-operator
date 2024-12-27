@@ -179,9 +179,8 @@ pub fn build_bootstrap_conf(
         jvm_argument_overrides: JvmArgumentOverrides::new_with_only_additions(jvm_args),
     };
 
-    // Please note that merge order is different than we normally do!
-    // This is not trivial, as the merge operation is not purely additive (as it is with e.g.
-    // PodTemplateSpec).
+    // Please note that the merge order is different than we normally do!
+    // This is not trivial, as the merge operation is not purely additive (as it is with e.g. `PodTemplateSpec).
     let mut role = role_java_common_config.clone();
     role.merge(&operator_generated);
     let mut role_group = role_group_java_common_config.clone();
@@ -764,21 +763,7 @@ mod tests {
               default:
                 replicas: 1
         "#;
-        let nifi: NifiCluster = serde_yaml::from_str(input).expect("illegal test input");
-
-        let role = NifiRole::Node;
-        let merged_config = nifi.merged_config(&role, "default").unwrap();
-        let nodes = nifi.spec.nodes.unwrap();
-        let (role_java_common_config, role_group_java_common_config) = nodes
-            .merged_product_specific_common_configs("default")
-            .unwrap();
-        let bootstrap_conf = build_bootstrap_conf(
-            &merged_config,
-            BTreeMap::new(),
-            role_java_common_config,
-            role_group_java_common_config,
-        )
-        .unwrap();
+        let bootstrap_conf = construct_bootstrap_conf(input);
 
         assert_eq!(
             bootstrap_conf,
@@ -846,25 +831,7 @@ mod tests {
                     - -Xmx40000m
                     - -Dhttps.proxyPort=1234
         "#;
-        let nifi: NifiCluster = serde_yaml::from_str(input).expect("illegal test input");
-
-        let role = NifiRole::Node;
-        let merged_config = nifi.merged_config(&role, "default").unwrap();
-        let nodes = nifi.spec.nodes.unwrap();
-        let (role_java_common_config, role_group_java_common_config) = nodes
-            .merged_product_specific_common_configs("default")
-            .unwrap();
-
-        dbg!(&role_java_common_config);
-        dbg!(&role_group_java_common_config);
-
-        let bootstrap_conf = build_bootstrap_conf(
-            &merged_config,
-            BTreeMap::new(),
-            role_java_common_config,
-            role_group_java_common_config,
-        )
-        .unwrap();
+        let bootstrap_conf = construct_bootstrap_conf(input);
 
         assert_eq!(
             bootstrap_conf,
@@ -891,5 +858,24 @@ mod tests {
                 run.as=
             "}
         );
+    }
+
+    fn construct_bootstrap_conf(nifi_cluster: &str) -> String {
+        let nifi: NifiCluster = serde_yaml::from_str(nifi_cluster).expect("illegal test input");
+
+        let role = NifiRole::Node;
+        let merged_config = nifi.merged_config(&role, "default").unwrap();
+        let nodes = nifi.spec.nodes.unwrap();
+        let (role_java_common_config, role_group_java_common_config) = nodes
+            .merged_product_specific_common_configs("default")
+            .unwrap();
+
+        build_bootstrap_conf(
+            &merged_config,
+            BTreeMap::new(),
+            role_java_common_config,
+            role_group_java_common_config,
+        )
+        .unwrap()
     }
 }
