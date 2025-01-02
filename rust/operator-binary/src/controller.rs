@@ -559,7 +559,7 @@ pub async fn reconcile_nifi(
             let proxy_hosts = get_proxy_hosts(client, nifi, &updated_role_service).await?;
 
             let (role_java_common_config, role_group_java_common_config) = role
-                .merged_product_specific_common_configs(rolegroup_name)
+                .get_product_specific_common_configs(rolegroup_name)
                 .context(GetMergedJvmArgumentOverridesSnafu)?;
             let rg_configmap = build_node_rolegroup_config_map(
                 nifi,

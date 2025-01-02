@@ -867,7 +867,7 @@ mod tests {
         let merged_config = nifi.merged_config(&role, "default").unwrap();
         let nodes = nifi.spec.nodes.unwrap();
         let (role_java_common_config, role_group_java_common_config) = nodes
-            .merged_product_specific_common_configs("default")
+            .get_product_specific_common_configs("default")
             .unwrap();
 
         build_bootstrap_conf(

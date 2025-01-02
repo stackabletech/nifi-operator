@@ -660,7 +660,7 @@ spec:
                         add: []
                         remove: []
                         removeRegex: []
-                      description: Allows overriding JVM arguments.
+                      description: Allows overriding JVM arguments. Please read on the [JVM argument overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#jvm-argument-overrides) for details on the usage.
                       properties:
                         add:
                           default: []
@@ -1144,7 +1144,7 @@ spec:
                               add: []
                               remove: []
                               removeRegex: []
-                            description: Allows overriding JVM arguments.
+                            description: Allows overriding JVM arguments. Please read on the [JVM argument overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#jvm-argument-overrides) for details on the usage.
                             properties:
                               add:
                                 default: []
