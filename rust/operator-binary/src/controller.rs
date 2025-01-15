@@ -938,6 +938,13 @@ async fn build_node_rolegroup_statefulset(
         ..EnvVar::default()
     });
 
+    // Needed for the `containerdebug` process to log it's tracing information to.
+    env_vars.push(EnvVar {
+        name: "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+        value: Some(format!("{STACKABLE_LOG_DIR}/containerdebug")),
+        value_from: None,
+    });
+
     env_vars.push(zookeeper_env_var(
         "ZOOKEEPER_HOSTS",
         &nifi.spec.cluster_config.zookeeper_config_map_name,
@@ -1084,6 +1091,7 @@ async fn build_node_rolegroup_statefulset(
             {COMMON_BASH_TRAP_FUNCTIONS}
             {remove_vector_shutdown_file_command}
             prepare_signal_handlers
+            containerdebug --output={STACKABLE_LOG_DIR}/containerdebug-state.json --loop &
             bin/nifi.sh run &
             wait_for_termination $!
             {create_vector_shutdown_file_command}
