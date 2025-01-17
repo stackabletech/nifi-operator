@@ -12,7 +12,7 @@ dimensions:
       - 2.0.0
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
-      # - 1.27.0,docker.stackable.tech/sandbox/nifi:1.27.0-stackable0.0.0-dev
+      # - 1.27.0,oci.stackable.tech/sandbox/nifi:1.27.0-stackable0.0.0-dev
   - name: nifi_old
     values:
       - 1.27.0
@@ -21,13 +21,13 @@ dimensions:
       - 2.0.0
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
-      # - 1.27.0,docker.stackable.tech/sandbox/nifi:1.27.0-stackable0.0.0-dev
+      # - 1.27.0,oci.stackable.tech/sandbox/nifi:1.27.0-stackable0.0.0-dev
   - name: nifi-latest
     values:
       - 2.0.0
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
-      # - 1.27.0,docker.stackable.tech/sandbox/nifi:1.27.0-stackable0.0.0-dev
+      # - 1.27.0,oci.stackable.tech/sandbox/nifi:1.27.0-stackable0.0.0-dev
   - name: ldap-use-tls
     values:
       - "false"

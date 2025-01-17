@@ -19,7 +19,7 @@ The basic Dockerfile below shows how to achieve this:
 
 [source,Dockerfile]
 ----
-FROM docker.stackable.tech/stackable/nifi:1.27.0-stackable0.0.0-dev
+FROM oci.stackable.tech/sdp/nifi:1.27.0-stackable0.0.0-dev
 COPY /path/to/your/nar.file /stackable/nifi/lib/
 ----
 
