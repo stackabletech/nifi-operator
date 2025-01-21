@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - The lifetime of auto generated TLS certificates is now configurable with the role and roleGroup
   config property `requestedSecretLifetime`. This helps reducing frequent Pod restarts ([#722]).
-- Run a `containerdebug` process in the background of each Airflow container to collect debugging information ([#730]).
+- Run a `containerdebug` process in the background of each Nifi container to collect debugging information ([#730]).
 
 ### Fixed
 
