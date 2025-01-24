@@ -16,7 +16,11 @@ use stackable_operator::{
     },
     kube::{
         core::DeserializeGuard,
-        runtime::{reflector::ObjectRef, watcher, Controller},
+        runtime::{
+            events::{Recorder, Reporter},
+            reflector::ObjectRef,
+            watcher, Controller,
+        },
     },
     logging::controller::report_controller_reconciled,
     CustomResourceExt,
@@ -25,7 +29,7 @@ use std::sync::Arc;
 
 use stackable_nifi_crd::NifiCluster;
 
-use crate::controller::NIFI_CONTROLLER_NAME;
+use crate::controller::NIFI_FULL_CONTROLLER_NAME;
 
 const OPERATOR_NAME: &str = "nifi.stackable.tech";
 
@@ -76,6 +80,14 @@ async fn main() -> anyhow::Result<()> {
             )
             .await?;
 
+            let event_recorder = Arc::new(Recorder::new(
+                client.as_kube_client(),
+                Reporter {
+                    controller: NIFI_FULL_CONTROLLER_NAME.to_string(),
+                    instance: None,
+                },
+            ));
+
             let nifi_controller = Controller::new(
                 watch_namespace.get_api::<DeserializeGuard<NifiCluster>>(&client),
                 watcher::Config::default(),
@@ -115,14 +127,23 @@ async fn main() -> anyhow::Result<()> {
                         product_config,
                     }),
                 )
-                .map(|res| {
-                    report_controller_reconciled(
-                        &client,
-                        &format!("{NIFI_CONTROLLER_NAME}.{OPERATOR_NAME}"),
-                        &res,
-                    )
-                })
-                .collect::<()>()
+                // We can let the reporting happen in the background
+                .for_each_concurrent(
+                    16, // concurrency limit
+                    move |result| {
+                        // The event_recorder needs to be shared across all invocations, so that
+                        // events are correctly aggregated
+                        let event_recorder = event_recorder.clone();
+                        async move {
+                            report_controller_reconciled(
+                                &event_recorder,
+                                NIFI_FULL_CONTROLLER_NAME,
+                                &result,
+                            )
+                            .await;
+                        }
+                    },
+                )
                 .await;
         }
     }

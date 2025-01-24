@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - The lifetime of auto generated TLS certificates is now configurable with the role and roleGroup
   config property `requestedSecretLifetime`. This helps reducing frequent Pod restarts ([#722]).
 - Run a `containerdebug` process in the background of each Nifi container to collect debugging information ([#730]).
+- Aggregate emitted Kubernetes events on the CustomResources ([#742]).
 
 ### Fixed
 
@@ -21,6 +22,7 @@ All notable changes to this project will be documented in this file.
 [#718]: https://github.com/stackabletech/nifi-operator/pull/718
 [#722]: https://github.com/stackabletech/nifi-operator/pull/722
 [#730]: https://github.com/stackabletech/nifi-operator/pull/730
+[#742]: https://github.com/stackabletech/nifi-operator/pull/742
 
 ## [24.11.0] - 2024-11-18
 
