@@ -11,10 +11,6 @@ All notable changes to this project will be documented in this file.
 - Run a `containerdebug` process in the background of each Airflow container to collect debugging information ([#730]).
 - Aggregate emitted Kubernetes events on the CustomResources ([#742]).
 
-### Changed
-
-- Append a dot (`.`) to the default cluster domain to reduce DNS requests ([#742]).
-
 ### Fixed
 
 - Fix OIDC endpoint construction in case the `rootPath` does not have a trailing slash ([#718]).
