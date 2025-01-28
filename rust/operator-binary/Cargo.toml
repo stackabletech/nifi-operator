@@ -13,6 +13,7 @@ stackable-nifi-crd = { path = "../crd" }
 
 anyhow.workspace = true
 clap.workspace = true
+const_format.workspace = true
 fnv.workspace = true
 futures.workspace = true
 indoc.workspace = true

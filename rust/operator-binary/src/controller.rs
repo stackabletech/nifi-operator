@@ -5,6 +5,7 @@ use std::{
     sync::Arc,
 };
 
+use const_format::concatcp;
 use indoc::formatdoc;
 use product_config::{
     types::PropertyNameKind,
@@ -99,6 +100,7 @@ use crate::{
 };
 
 pub const NIFI_CONTROLLER_NAME: &str = "nificluster";
+pub const NIFI_FULL_CONTROLLER_NAME: &str = concatcp!(NIFI_CONTROLLER_NAME, '.', OPERATOR_NAME);
 pub const NIFI_UID: i64 = 1000;
 
 const DOCKER_IMAGE_BASE_NAME: &str = "nifi";
