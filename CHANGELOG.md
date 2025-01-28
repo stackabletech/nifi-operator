@@ -12,6 +12,13 @@ All notable changes to this project will be documented in this file.
 - Support configuring JVM arguments ([#724]).
 - Aggregate emitted Kubernetes events on the CustomResources ([#742]).
 
+[#722]: https://github.com/stackabletech/nifi-operator/pull/722
+[#724]: https://github.com/stackabletech/nifi-operator/pull/724
+[#730]: https://github.com/stackabletech/nifi-operator/pull/730
+[#742]: https://github.com/stackabletech/nifi-operator/pull/742
+
+## [24.11.1] - 2025-01-10
+
 ### Fixed
 
 - Fix OIDC endpoint construction in case the `rootPath` does not have a trailing slash ([#718]).
@@ -21,10 +28,6 @@ All notable changes to this project will be documented in this file.
 
 [#717]: https://github.com/stackabletech/nifi-operator/pull/717
 [#718]: https://github.com/stackabletech/nifi-operator/pull/718
-[#722]: https://github.com/stackabletech/nifi-operator/pull/722
-[#724]: https://github.com/stackabletech/nifi-operator/pull/724
-[#730]: https://github.com/stackabletech/nifi-operator/pull/730
-[#742]: https://github.com/stackabletech/nifi-operator/pull/742
 
 ## [24.11.0] - 2024-11-18
 
