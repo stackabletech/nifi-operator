@@ -32,6 +32,7 @@ url.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true
+serde_yaml.workspace = true
 
 [build-dependencies]
 built.workspace = true

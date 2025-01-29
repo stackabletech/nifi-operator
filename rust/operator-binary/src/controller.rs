@@ -67,7 +67,7 @@ use stackable_operator::{
             CustomContainerLogConfig,
         },
     },
-    role_utils::{GenericRoleConfig, Role, RoleGroupRef},
+    role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroupRef},
     status::condition::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
         statefulset::StatefulSetConditionBuilder,
@@ -560,6 +560,7 @@ pub async fn reconcile_nifi(
                 nifi,
                 &resolved_product_image,
                 &nifi_authentication_config,
+                role,
                 &rolegroup,
                 rolegroup_config,
                 &merged_config,
@@ -734,6 +735,7 @@ async fn build_node_rolegroup_config_map(
     nifi: &NifiCluster,
     resolved_product_image: &ResolvedProductImage,
     nifi_auth_config: &NifiAuthenticationConfig,
+    role: &Role<NifiConfigFragment, GenericRoleConfig, JavaCommonConfig>,
     rolegroup: &RoleGroupRef<NifiCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &NifiConfig,
@@ -784,6 +786,8 @@ async fn build_node_rolegroup_config_map(
                         kind: NIFI_BOOTSTRAP_CONF.to_string(),
                     })?
                     .clone(),
+                role,
+                &rolegroup.role_group,
             )
             .context(BootstrapConfigSnafu)?,
         )
@@ -903,7 +907,7 @@ async fn build_node_rolegroup_statefulset(
     resolved_product_image: &ResolvedProductImage,
     cluster_info: &KubernetesClusterInfo,
     rolegroup_ref: &RoleGroupRef<NifiCluster>,
-    role: &Role<NifiConfigFragment>,
+    role: &Role<NifiConfigFragment, GenericRoleConfig, JavaCommonConfig>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &NifiConfig,
     nifi_auth_config: &NifiAuthenticationConfig,

@@ -12,7 +12,7 @@
 ** xref:nifi:usage_guide/log-aggregation.adoc[]
 ** xref:nifi:usage_guide/monitoring.adoc[]
 ** xref:nifi:usage_guide/updating.adoc[]
-** xref:nifi:usage_guide/configuration-environment-overrides.adoc[]
+** xref:nifi:usage_guide/overrides.adoc[]
 ** xref:nifi:usage_guide/writing-to-iceberg-tables.adoc[]
 ** xref:nifi:usage_guide/operations/index.adoc[]
 *** xref:nifi:usage_guide/operations/cluster-operations.adoc[]
