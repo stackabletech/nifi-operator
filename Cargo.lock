@@ -2362,6 +2362,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "serde_yaml",
  "snafu 0.8.5",
  "stackable-nifi-crd",
  "stackable-operator",
