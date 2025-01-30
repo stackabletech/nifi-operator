@@ -1,7 +1,7 @@
 # Default values for nifi-operator.
 ---
 image:
-  repository: docker.stackable.tech/stackable/nifi-operator
+  repository: oci.stackable.tech/sdp/nifi-operator
   pullPolicy: IfNotPresent
   pullSecrets: []
 

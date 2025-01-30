@@ -12,9 +12,14 @@ All notable changes to this project will be documented in this file.
 - Support configuring JVM arguments ([#724]).
 - Aggregate emitted Kubernetes events on the CustomResources ([#742]).
 
+### Changed
+
+- Default to OCI for image metadata and product image selection ([#741]).
+
 [#722]: https://github.com/stackabletech/nifi-operator/pull/722
 [#724]: https://github.com/stackabletech/nifi-operator/pull/724
 [#730]: https://github.com/stackabletech/nifi-operator/pull/730
+[#741]: https://github.com/stackabletech/nifi-operator/pull/741
 [#742]: https://github.com/stackabletech/nifi-operator/pull/742
 
 ## [24.11.1] - 2025-01-10
