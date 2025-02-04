@@ -5,8 +5,11 @@ mod product_logging;
 mod reporting_task;
 mod security;
 
+use std::sync::Arc;
+
 use clap::{crate_description, crate_version, Parser};
 use futures::stream::StreamExt;
+use stackable_nifi_crd::NifiCluster;
 use stackable_operator::{
     cli::{Command, ProductOperatorRun},
     commons::authentication::AuthenticationClass,
@@ -25,9 +28,6 @@ use stackable_operator::{
     logging::controller::report_controller_reconciled,
     CustomResourceExt,
 };
-use std::sync::Arc;
-
-use stackable_nifi_crd::NifiCluster;
 
 use crate::controller::NIFI_FULL_CONTROLLER_NAME;
 

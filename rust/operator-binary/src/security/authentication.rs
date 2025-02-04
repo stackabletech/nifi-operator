@@ -1,7 +1,6 @@
 use indoc::{formatdoc, indoc};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_nifi_crd::authentication::AuthenticationClassResolved;
-use stackable_nifi_crd::NifiCluster;
+use stackable_nifi_crd::{authentication::AuthenticationClassResolved, NifiCluster};
 use stackable_operator::{
     builder::{
         self,

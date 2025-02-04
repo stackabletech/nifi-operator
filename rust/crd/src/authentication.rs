@@ -1,13 +1,13 @@
 use std::future::Future;
 
 use snafu::{ResultExt, Snafu};
-use stackable_operator::commons::authentication::{
-    ldap, oidc, static_, AuthenticationClassProvider, ClientAuthenticationDetails,
-};
-use stackable_operator::kube::ResourceExt;
 use stackable_operator::{
-    client::Client, commons::authentication::AuthenticationClass,
-    kube::runtime::reflector::ObjectRef,
+    client::Client,
+    commons::authentication::{
+        ldap, oidc, static_, AuthenticationClass, AuthenticationClassProvider,
+        ClientAuthenticationDetails,
+    },
+    kube::{runtime::reflector::ObjectRef, ResourceExt},
 };
 
 use crate::NifiCluster;
