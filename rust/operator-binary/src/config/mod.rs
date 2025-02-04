@@ -666,12 +666,11 @@ fn storage_quantity_to_nifi(quantity: MemoryQuantity) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::build_bootstrap_conf;
-
-    use super::*;
-
     use indoc::indoc;
     use stackable_nifi_crd::NifiCluster;
+
+    use super::*;
+    use crate::config::build_bootstrap_conf;
 
     #[test]
     fn test_build_bootstrap_conf_defaults() {

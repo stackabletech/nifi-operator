@@ -21,11 +21,8 @@ pub fn get_affinity(cluster_name: &str, role: &NifiRole) -> StackableAffinityFra
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use std::collections::BTreeMap;
 
-    use crate::NifiCluster;
     use stackable_operator::{
         commons::affinity::StackableAffinity,
         k8s_openapi::{
@@ -33,6 +30,9 @@ mod tests {
             apimachinery::pkg::apis::meta::v1::LabelSelector,
         },
     };
+
+    use super::*;
+    use crate::NifiCluster;
 
     #[test]
     fn test_affinity_defaults() {

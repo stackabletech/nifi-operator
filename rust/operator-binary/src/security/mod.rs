@@ -1,8 +1,9 @@
 use snafu::{ResultExt, Snafu};
 use stackable_nifi_crd::NifiCluster;
-use stackable_operator::client::Client;
-use stackable_operator::time::Duration;
-use stackable_operator::{builder::pod::volume::SecretFormat, k8s_openapi::api::core::v1::Volume};
+use stackable_operator::{
+    builder::pod::volume::SecretFormat, client::Client, k8s_openapi::api::core::v1::Volume,
+    time::Duration,
+};
 
 pub mod authentication;
 pub mod oidc;
