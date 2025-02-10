@@ -1,4 +1,5 @@
-//! Ensures that `Pod`s are configured and running for each [`NifiCluster`]
+//! Ensures that `Pod`s are configured and running for each [`v1alpha1::NifiCluster`].
+
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},
