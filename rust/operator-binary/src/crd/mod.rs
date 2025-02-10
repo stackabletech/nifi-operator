@@ -97,7 +97,7 @@ pub mod versioned {
     pub struct NifiClusterSpec {
         /// Settings that affect all roles and role groups.
         /// The settings in the `clusterConfig` are cluster wide settings that do not need to be configurable at role or role group level.
-        pub cluster_config: NifiClusterConfig,
+        pub cluster_config: v1alpha1::NifiClusterConfig,
 
         // no doc - docs in Role struct.
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -110,64 +110,64 @@ pub mod versioned {
         #[serde(default)]
         pub cluster_operation: ClusterOperation,
     }
-}
 
-#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NifiClusterConfig {
-    /// Authentication options for NiFi (required).
-    /// Read more about authentication in the [security documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/security).
-    // We don't add `#[serde(default)]` here, as we require authentication
-    pub authentication: Vec<ClientAuthenticationDetails>,
+    #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct NifiClusterConfig {
+        /// Authentication options for NiFi (required).
+        /// Read more about authentication in the [security documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/security).
+        // We don't add `#[serde(default)]` here, as we require authentication
+        pub authentication: Vec<ClientAuthenticationDetails>,
 
-    /// Configuration of allowed proxies e.g. load balancers or Kubernetes Ingress. Using a proxy that is not allowed by NiFi results
-    /// in a failed host header check.
-    #[serde(default)]
-    pub host_header_check: HostHeaderCheckConfig,
+        /// Configuration of allowed proxies e.g. load balancers or Kubernetes Ingress. Using a proxy that is not allowed by NiFi results
+        /// in a failed host header check.
+        #[serde(default)]
+        pub host_header_check: HostHeaderCheckConfig,
 
-    /// TLS configuration options for the server.
-    #[serde(default)]
-    pub tls: NifiTls,
+        /// TLS configuration options for the server.
+        #[serde(default)]
+        pub tls: NifiTls,
 
-    // no doc - docs in NifiSensitivePropertiesConfig struct.
-    pub sensitive_properties: NifiSensitivePropertiesConfig,
+        // no doc - docs in NifiSensitivePropertiesConfig struct.
+        pub sensitive_properties: NifiSensitivePropertiesConfig,
 
-    /// Name of the Vector aggregator [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
-    /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
-    /// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
-    /// to learn how to configure log aggregation with Vector.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub vector_aggregator_config_map_name: Option<String>,
+        /// Name of the Vector aggregator [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
+        /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
+        /// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
+        /// to learn how to configure log aggregation with Vector.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub vector_aggregator_config_map_name: Option<String>,
 
-    /// NiFi requires a ZooKeeper cluster connection to run.
-    /// Provide the name of the ZooKeeper [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery)
-    /// here. When using the [Stackable operator for Apache ZooKeeper](DOCS_BASE_URL_PLACEHOLDER/zookeeper/)
-    /// to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
-    pub zookeeper_config_map_name: String,
+        /// NiFi requires a ZooKeeper cluster connection to run.
+        /// Provide the name of the ZooKeeper [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery)
+        /// here. When using the [Stackable operator for Apache ZooKeeper](DOCS_BASE_URL_PLACEHOLDER/zookeeper/)
+        /// to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
+        pub zookeeper_config_map_name: String,
 
-    /// Extra volumes similar to `.spec.volumes` on a Pod to mount into every container, this can be useful to for
-    /// example make client certificates, keytabs or similar things available to processors. These volumes will be
-    /// mounted into all pods at `/stackable/userdata/{volumename}`.
-    /// See also the [external files usage guide](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/extra-volumes).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[schemars(schema_with = "raw_object_list_schema")]
-    pub extra_volumes: Vec<Volume>,
+        /// Extra volumes similar to `.spec.volumes` on a Pod to mount into every container, this can be useful to for
+        /// example make client certificates, keytabs or similar things available to processors. These volumes will be
+        /// mounted into all pods at `/stackable/userdata/{volumename}`.
+        /// See also the [external files usage guide](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/extra-volumes).
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        #[schemars(schema_with = "raw_object_list_schema")]
+        pub extra_volumes: Vec<Volume>,
 
-    /// This field controls which type of Service the Operator creates for this NifiCluster:
-    ///
-    /// * cluster-internal: Use a ClusterIP service
-    ///
-    /// * external-unstable: Use a NodePort service
-    ///
-    /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
-    /// In the future, this setting will control which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html)
-    /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
-    #[serde(default)]
-    pub listener_class: CurrentlySupportedListenerClasses,
+        /// This field controls which type of Service the Operator creates for this NifiCluster:
+        ///
+        /// * cluster-internal: Use a ClusterIP service
+        ///
+        /// * external-unstable: Use a NodePort service
+        ///
+        /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
+        /// In the future, this setting will control which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html)
+        /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
+        #[serde(default)]
+        pub listener_class: CurrentlySupportedListenerClasses,
 
-    // Docs are on the struct
-    #[serde(default)]
-    pub create_reporting_task_job: CreateReportingTaskJob,
+        // Docs are on the struct
+        #[serde(default)]
+        pub create_reporting_task_job: CreateReportingTaskJob,
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
