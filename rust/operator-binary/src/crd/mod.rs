@@ -170,6 +170,108 @@ pub mod versioned {
     }
 }
 
+impl HasStatusCondition for v1alpha1::NifiCluster {
+    fn conditions(&self) -> Vec<ClusterCondition> {
+        match &self.status {
+            Some(status) => status.conditions.clone(),
+            None => vec![],
+        }
+    }
+}
+
+impl v1alpha1::NifiCluster {
+    /// The name of the role-level load-balanced Kubernetes `Service`
+    pub fn node_role_service_name(&self) -> String {
+        self.name_any()
+    }
+
+    /// The fully-qualified domain name of the role-level load-balanced Kubernetes `Service`
+    pub fn node_role_service_fqdn(&self, cluster_info: &KubernetesClusterInfo) -> Option<String> {
+        Some(format!(
+            "{}.{}.svc.{}",
+            self.node_role_service_name(),
+            self.metadata.namespace.as_ref()?,
+            cluster_info.cluster_domain,
+        ))
+    }
+
+    /// Metadata about a metastore rolegroup
+    pub fn node_rolegroup_ref(&self, group_name: impl Into<String>) -> RoleGroupRef<Self> {
+        RoleGroupRef {
+            cluster: ObjectRef::from_obj(self),
+            role: NifiRole::Node.to_string(),
+            role_group: group_name.into(),
+        }
+    }
+
+    pub fn role_config(&self, role: &NifiRole) -> Option<&GenericRoleConfig> {
+        match role {
+            NifiRole::Node => self.spec.nodes.as_ref().map(|n| &n.role_config),
+        }
+    }
+
+    /// Return user provided server TLS settings
+    pub fn server_tls_secret_class(&self) -> &str {
+        &self.spec.cluster_config.tls.server_secret_class
+    }
+
+    /// List all pods expected to form the cluster
+    ///
+    /// We try to predict the pods here rather than looking at the current cluster state in order to
+    /// avoid instance churn.
+    pub fn pods(&self) -> Result<impl Iterator<Item = PodRef> + '_, Error> {
+        let ns = self.metadata.namespace.clone().context(NoNamespaceSnafu)?;
+        Ok(self
+            .spec
+            .nodes
+            .iter()
+            .flat_map(|role| &role.role_groups)
+            // Order rolegroups consistently, to avoid spurious downstream rewrites
+            .collect::<BTreeMap<_, _>>()
+            .into_iter()
+            .flat_map(move |(rolegroup_name, rolegroup)| {
+                let rolegroup_ref = self.node_rolegroup_ref(rolegroup_name);
+                let ns = ns.clone();
+                (0..rolegroup.replicas.unwrap_or(0)).map(move |i| PodRef {
+                    namespace: ns.clone(),
+                    role_group_service_name: rolegroup_ref.object_name(),
+                    pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
+                })
+            }))
+    }
+
+    /// Retrieve and merge resource configs for role and role groups
+    pub fn merged_config(&self, role: &NifiRole, role_group: &str) -> Result<NifiConfig, Error> {
+        // Initialize the result with all default values as baseline
+        let conf_defaults = NifiConfig::default_config(&self.name_any(), role);
+
+        let role = self.spec.nodes.as_ref().context(MissingNifiRoleSnafu {
+            role: role.to_string(),
+        })?;
+
+        // Retrieve role resource config
+        let mut conf_role = role.config.config.to_owned();
+
+        // Retrieve rolegroup specific resource config
+        let mut conf_rolegroup = role
+            .role_groups
+            .get(role_group)
+            .map(|rg| rg.config.config.clone())
+            .unwrap_or_default();
+
+        // Merge more specific configs into default config
+        // Hierarchy is:
+        // 1. RoleGroup
+        // 2. Role
+        // 3. Default
+        conf_role.merge(&conf_defaults);
+        conf_rolegroup.merge(&conf_role);
+
+        tracing::debug!("Merged config: {:?}", conf_rolegroup);
+        fragment::validate(conf_rolegroup).context(FragmentValidationFailureSnafu)
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostHeaderCheckConfig {
@@ -344,15 +446,6 @@ pub struct NifiStatus {
     pub deployed_version: Option<String>,
     #[serde(default)]
     pub conditions: Vec<ClusterCondition>,
-}
-
-impl HasStatusCondition for v1alpha1::NifiCluster {
-    fn conditions(&self) -> Vec<ClusterCondition> {
-        match &self.status {
-            Some(status) => status.conditions.clone(),
-            None => vec![],
-        }
-    }
 }
 
 #[derive(
@@ -538,99 +631,6 @@ pub struct NifiStorageConfig {
     /// Default size: 1GB
     #[fragment_attrs(serde(default))]
     pub state_repo: PvcConfig,
-}
-
-impl v1alpha1::NifiCluster {
-    /// The name of the role-level load-balanced Kubernetes `Service`
-    pub fn node_role_service_name(&self) -> String {
-        self.name_any()
-    }
-
-    /// The fully-qualified domain name of the role-level load-balanced Kubernetes `Service`
-    pub fn node_role_service_fqdn(&self, cluster_info: &KubernetesClusterInfo) -> Option<String> {
-        Some(format!(
-            "{}.{}.svc.{}",
-            self.node_role_service_name(),
-            self.metadata.namespace.as_ref()?,
-            cluster_info.cluster_domain,
-        ))
-    }
-
-    /// Metadata about a metastore rolegroup
-    pub fn node_rolegroup_ref(&self, group_name: impl Into<String>) -> RoleGroupRef<Self> {
-        RoleGroupRef {
-            cluster: ObjectRef::from_obj(self),
-            role: NifiRole::Node.to_string(),
-            role_group: group_name.into(),
-        }
-    }
-
-    pub fn role_config(&self, role: &NifiRole) -> Option<&GenericRoleConfig> {
-        match role {
-            NifiRole::Node => self.spec.nodes.as_ref().map(|n| &n.role_config),
-        }
-    }
-
-    /// Return user provided server TLS settings
-    pub fn server_tls_secret_class(&self) -> &str {
-        &self.spec.cluster_config.tls.server_secret_class
-    }
-
-    /// List all pods expected to form the cluster
-    ///
-    /// We try to predict the pods here rather than looking at the current cluster state in order to
-    /// avoid instance churn.
-    pub fn pods(&self) -> Result<impl Iterator<Item = PodRef> + '_, Error> {
-        let ns = self.metadata.namespace.clone().context(NoNamespaceSnafu)?;
-        Ok(self
-            .spec
-            .nodes
-            .iter()
-            .flat_map(|role| &role.role_groups)
-            // Order rolegroups consistently, to avoid spurious downstream rewrites
-            .collect::<BTreeMap<_, _>>()
-            .into_iter()
-            .flat_map(move |(rolegroup_name, rolegroup)| {
-                let rolegroup_ref = self.node_rolegroup_ref(rolegroup_name);
-                let ns = ns.clone();
-                (0..rolegroup.replicas.unwrap_or(0)).map(move |i| PodRef {
-                    namespace: ns.clone(),
-                    role_group_service_name: rolegroup_ref.object_name(),
-                    pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
-                })
-            }))
-    }
-
-    /// Retrieve and merge resource configs for role and role groups
-    pub fn merged_config(&self, role: &NifiRole, role_group: &str) -> Result<NifiConfig, Error> {
-        // Initialize the result with all default values as baseline
-        let conf_defaults = NifiConfig::default_config(&self.name_any(), role);
-
-        let role = self.spec.nodes.as_ref().context(MissingNifiRoleSnafu {
-            role: role.to_string(),
-        })?;
-
-        // Retrieve role resource config
-        let mut conf_role = role.config.config.to_owned();
-
-        // Retrieve rolegroup specific resource config
-        let mut conf_rolegroup = role
-            .role_groups
-            .get(role_group)
-            .map(|rg| rg.config.config.clone())
-            .unwrap_or_default();
-
-        // Merge more specific configs into default config
-        // Hierarchy is:
-        // 1. RoleGroup
-        // 2. Role
-        // 3. Default
-        conf_role.merge(&conf_defaults);
-        conf_rolegroup.merge(&conf_role);
-
-        tracing::debug!("Merged config: {:?}", conf_rolegroup);
-        fragment::validate(conf_rolegroup).context(FragmentValidationFailureSnafu)
-    }
 }
 
 /// Reference to a single `Pod` that is a component of a [`NifiCluster`]
