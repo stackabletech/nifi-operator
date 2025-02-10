@@ -20,7 +20,7 @@ spec:
       name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: Auto-generated derived type for NifiSpec via `CustomResource`
+          description: Auto-generated derived type for NifiClusterSpec via `CustomResource`
           properties:
             spec:
               description: A NiFi cluster stacklet. This resource is managed by the Stackable operator for Apache NiFi. Find more information on how to use it and the resources that the operator generates in the [operator documentation](https://docs.stackable.tech/home/nightly/nifi/).

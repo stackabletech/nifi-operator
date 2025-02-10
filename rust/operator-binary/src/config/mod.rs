@@ -19,8 +19,8 @@ use strum::{Display, EnumIter};
 
 use crate::{
     crd::{
-        NifiCluster, NifiConfig, NifiConfigFragment, NifiRole, NifiSpec, NifiStorageConfig,
-        HTTPS_PORT, PROTOCOL_PORT,
+        v1alpha1, NifiConfig, NifiConfigFragment, NifiRole, NifiStorageConfig, HTTPS_PORT,
+        PROTOCOL_PORT,
     },
     operations::graceful_shutdown::graceful_shutdown_config_properties,
     security::{
@@ -135,7 +135,7 @@ pub fn build_bootstrap_conf(
 
 /// Create the NiFi nifi.properties
 pub fn build_nifi_properties(
-    spec: &NifiSpec,
+    spec: &v1alpha1::NifiClusterSpec,
     resource_config: &Resources<NifiStorageConfig>,
     proxy_hosts: &str,
     auth_config: &NifiAuthenticationConfig,
@@ -616,7 +616,7 @@ pub fn build_state_management_xml() -> String {
 /// * `product_config`  - The product config to validate and complement the user config.
 ///
 pub fn validated_product_config(
-    resource: &NifiCluster,
+    resource: &v1alpha1::NifiCluster,
     version: &str,
     role: &Role<NifiConfigFragment, GenericRoleConfig, JavaCommonConfig>,
     product_config: &ProductConfigManager,
@@ -669,7 +669,7 @@ mod tests {
     use indoc::indoc;
 
     use super::*;
-    use crate::{config::build_bootstrap_conf, crd::NifiCluster};
+    use crate::{config::build_bootstrap_conf, crd::v1alpha1};
 
     #[test]
     fn test_build_bootstrap_conf_defaults() {
@@ -791,7 +791,8 @@ mod tests {
     }
 
     fn construct_bootstrap_conf(nifi_cluster: &str) -> String {
-        let nifi: NifiCluster = serde_yaml::from_str(nifi_cluster).expect("illegal test input");
+        let nifi: v1alpha1::NifiCluster =
+            serde_yaml::from_str(nifi_cluster).expect("illegal test input");
 
         let nifi_role = NifiRole::Node;
         let role = nifi.spec.nodes.as_ref().unwrap();

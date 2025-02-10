@@ -39,6 +39,7 @@ use stackable_operator::{
         crds::{raw_object_list_schema, raw_object_schema},
     },
 };
+use stackable_versioned::versioned;
 use strum::Display;
 use tls::NifiTls;
 
@@ -75,39 +76,40 @@ pub enum Error {
     FragmentValidationFailure { source: ValidationError },
 }
 
-/// A NiFi cluster stacklet. This resource is managed by the Stackable operator for Apache NiFi.
-/// Find more information on how to use it and the resources that the operator generates in the
-/// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/).
-#[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[kube(
-    group = "nifi.stackable.tech",
-    version = "v1alpha1",
-    kind = "NifiCluster",
-    shortname = "nifi",
-    status = "NifiStatus",
-    namespaced,
-    crates(
-        kube_core = "stackable_operator::kube::core",
-        k8s_openapi = "stackable_operator::k8s_openapi",
-        schemars = "stackable_operator::schemars"
-    )
-)]
-#[serde(rename_all = "camelCase")]
-pub struct NifiSpec {
-    /// Settings that affect all roles and role groups.
-    /// The settings in the `clusterConfig` are cluster wide settings that do not need to be configurable at role or role group level.
-    pub cluster_config: NifiClusterConfig,
+#[versioned(version(name = "v1alpha1"))]
+pub mod versioned {
+    /// A NiFi cluster stacklet. This resource is managed by the Stackable operator for Apache NiFi.
+    /// Find more information on how to use it and the resources that the operator generates in the
+    /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/).
+    #[versioned(k8s(
+        group = "nifi.stackable.tech",
+        shortname = "nifi",
+        status = "NifiStatus",
+        namespaced,
+        crates(
+            kube_core = "stackable_operator::kube::core",
+            k8s_openapi = "stackable_operator::k8s_openapi",
+            schemars = "stackable_operator::schemars"
+        )
+    ))]
+    #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct NifiClusterSpec {
+        /// Settings that affect all roles and role groups.
+        /// The settings in the `clusterConfig` are cluster wide settings that do not need to be configurable at role or role group level.
+        pub cluster_config: NifiClusterConfig,
 
-    // no doc - docs in Role struct.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub nodes: Option<Role<NifiConfigFragment, GenericRoleConfig, JavaCommonConfig>>,
+        // no doc - docs in Role struct.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub nodes: Option<Role<NifiConfigFragment, GenericRoleConfig, JavaCommonConfig>>,
 
-    // no doc - docs in ProductImage struct.
-    pub image: ProductImage,
+        // no doc - docs in ProductImage struct.
+        pub image: ProductImage,
 
-    // no doc - docs in ClusterOperation struct.
-    #[serde(default)]
-    pub cluster_operation: ClusterOperation,
+        // no doc - docs in ClusterOperation struct.
+        #[serde(default)]
+        pub cluster_operation: ClusterOperation,
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -344,7 +346,7 @@ pub struct NifiStatus {
     pub conditions: Vec<ClusterCondition>,
 }
 
-impl HasStatusCondition for NifiCluster {
+impl HasStatusCondition for v1alpha1::NifiCluster {
     fn conditions(&self) -> Vec<ClusterCondition> {
         match &self.status {
             Some(status) => status.conditions.clone(),
@@ -463,7 +465,7 @@ impl NifiConfig {
 }
 
 impl Configuration for NifiConfigFragment {
-    type Configurable = NifiCluster;
+    type Configurable = v1alpha1::NifiCluster;
 
     fn compute_env(
         &self,
@@ -538,7 +540,7 @@ pub struct NifiStorageConfig {
     pub state_repo: PvcConfig,
 }
 
-impl NifiCluster {
+impl v1alpha1::NifiCluster {
     /// The name of the role-level load-balanced Kubernetes `Service`
     pub fn node_role_service_name(&self) -> String {
         self.name_any()
@@ -555,7 +557,7 @@ impl NifiCluster {
     }
 
     /// Metadata about a metastore rolegroup
-    pub fn node_rolegroup_ref(&self, group_name: impl Into<String>) -> RoleGroupRef<NifiCluster> {
+    pub fn node_rolegroup_ref(&self, group_name: impl Into<String>) -> RoleGroupRef<Self> {
         RoleGroupRef {
             cluster: ObjectRef::from_obj(self),
             role: NifiRole::Node.to_string(),

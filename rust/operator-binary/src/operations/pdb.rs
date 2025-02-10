@@ -6,7 +6,7 @@ use stackable_operator::{
 
 use crate::{
     controller::NIFI_CONTROLLER_NAME,
-    crd::{NifiCluster, NifiRole, APP_NAME},
+    crd::{v1alpha1, NifiRole, APP_NAME},
     OPERATOR_NAME,
 };
 
@@ -26,7 +26,7 @@ pub enum Error {
 
 pub async fn add_pdbs(
     pdb: &PdbConfig,
-    nifi: &NifiCluster,
+    nifi: &v1alpha1::NifiCluster,
     role: &NifiRole,
     client: &Client,
     cluster_resources: &mut ClusterResources,

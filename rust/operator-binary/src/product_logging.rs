@@ -12,7 +12,7 @@ use stackable_operator::{
     role_utils::RoleGroupRef,
 };
 
-use crate::crd::{Container, NifiCluster, MAX_NIFI_LOG_FILES_SIZE, STACKABLE_LOG_DIR};
+use crate::crd::{v1alpha1, Container, MAX_NIFI_LOG_FILES_SIZE, STACKABLE_LOG_DIR};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -61,7 +61,7 @@ const ADDITONAL_LOGBACK_CONFIG: &str = r#"  <appender name="PASSTHROUGH" class="
 /// Return the address of the Vector aggregator if the corresponding ConfigMap name is given in the
 /// cluster spec
 pub async fn resolve_vector_aggregator_address(
-    nifi: &NifiCluster,
+    nifi: &v1alpha1::NifiCluster,
     client: &Client,
 ) -> Result<Option<String>> {
     let vector_aggregator_address = if let Some(vector_aggregator_config_map_name) = &nifi
@@ -97,7 +97,7 @@ pub async fn resolve_vector_aggregator_address(
 
 /// Extend the role group ConfigMap with logging and Vector configurations
 pub fn extend_role_group_config_map(
-    rolegroup: &RoleGroupRef<NifiCluster>,
+    rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>,
     vector_aggregator_address: Option<&str>,
     logging: &Logging<Container>,
     cm_builder: &mut ConfigMapBuilder,

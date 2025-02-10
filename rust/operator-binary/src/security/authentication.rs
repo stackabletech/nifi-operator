@@ -14,7 +14,7 @@ use stackable_operator::{
 };
 
 use crate::{
-    crd::{authentication::AuthenticationClassResolved, NifiCluster},
+    crd::{authentication::AuthenticationClassResolved, v1alpha1},
     security::oidc::build_oidc_admin_password_secret_name,
 };
 
@@ -73,7 +73,7 @@ pub enum NifiAuthenticationConfig {
     Oidc {
         provider: oidc::AuthenticationProvider,
         oidc: ClientAuthenticationOptions,
-        nifi: NifiCluster,
+        nifi: v1alpha1::NifiCluster,
     },
 }
 

@@ -4,7 +4,7 @@ use stackable_operator::{
     time::Duration,
 };
 
-use crate::crd::NifiCluster;
+use crate::crd::v1alpha1;
 
 pub mod authentication;
 pub mod oidc;
@@ -25,7 +25,10 @@ pub enum Error {
     OidcAdminPassword { source: oidc::Error },
 }
 
-pub async fn check_or_generate_sensitive_key(client: &Client, nifi: &NifiCluster) -> Result<bool> {
+pub async fn check_or_generate_sensitive_key(
+    client: &Client,
+    nifi: &v1alpha1::NifiCluster,
+) -> Result<bool> {
     sensitive_key::check_or_generate_sensitive_key(client, nifi)
         .await
         .context(SensitiveKeySnafu)
@@ -33,7 +36,7 @@ pub async fn check_or_generate_sensitive_key(client: &Client, nifi: &NifiCluster
 
 pub async fn check_or_generate_oidc_admin_password(
     client: &Client,
-    nifi: &NifiCluster,
+    nifi: &v1alpha1::NifiCluster,
 ) -> Result<bool> {
     oidc::check_or_generate_oidc_admin_password(client, nifi)
         .await
@@ -41,7 +44,7 @@ pub async fn check_or_generate_oidc_admin_password(
 }
 
 pub fn build_tls_volume(
-    nifi: &NifiCluster,
+    nifi: &v1alpha1::NifiCluster,
     volume_name: &str,
     service_scopes: Vec<&str>,
     secret_format: SecretFormat,

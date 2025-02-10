@@ -13,7 +13,7 @@ use stackable_operator::{
     kube::{runtime::reflector::ObjectRef, ResourceExt},
 };
 
-use crate::{crd::NifiCluster, security::authentication::STACKABLE_ADMIN_USERNAME};
+use crate::{crd::v1alpha1, security::authentication::STACKABLE_ADMIN_USERNAME};
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -46,7 +46,7 @@ pub enum Error {
 /// This admin user is the same as for SingleUser authentication.
 pub(crate) async fn check_or_generate_oidc_admin_password(
     client: &Client,
-    nifi: &NifiCluster,
+    nifi: &v1alpha1::NifiCluster,
 ) -> Result<bool, Error> {
     let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
     tracing::debug!("Checking for OIDC admin password configuration");
@@ -99,7 +99,7 @@ pub(crate) async fn check_or_generate_oidc_admin_password(
     }
 }
 
-pub fn build_oidc_admin_password_secret_name(nifi: &NifiCluster) -> String {
+pub fn build_oidc_admin_password_secret_name(nifi: &v1alpha1::NifiCluster) -> String {
     format!("{}-oidc-admin-password", nifi.name_any())
 }
 

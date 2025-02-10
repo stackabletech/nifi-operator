@@ -5,7 +5,7 @@ use stackable_operator::{
     time::Duration,
 };
 
-use crate::{crd::NifiCluster, security::authentication::STACKABLE_TLS_STORE_PASSWORD};
+use crate::{crd::v1alpha1, security::authentication::STACKABLE_TLS_STORE_PASSWORD};
 
 pub const KEYSTORE_VOLUME_NAME: &str = "keystore";
 pub const KEYSTORE_NIFI_CONTAINER_MOUNT: &str = "/stackable/keystore";
@@ -22,7 +22,7 @@ pub enum Error {
 }
 
 pub(crate) fn build_tls_volume(
-    nifi: &NifiCluster,
+    nifi: &v1alpha1::NifiCluster,
     volume_name: &str,
     service_scopes: Vec<&str>,
     secret_format: SecretFormat,
