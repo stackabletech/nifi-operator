@@ -6,10 +6,6 @@ use std::{
 use jvm::build_merged_jvm_config;
 use product_config::{types::PropertyNameKind, ProductConfigManager};
 use snafu::{ResultExt, Snafu};
-use stackable_nifi_crd::{
-    NifiCluster, NifiConfig, NifiConfigFragment, NifiRole, NifiSpec, NifiStorageConfig, HTTPS_PORT,
-    PROTOCOL_PORT,
-};
 use stackable_operator::{
     commons::resources::Resources,
     memory::MemoryQuantity,
@@ -22,6 +18,10 @@ use stackable_operator::{
 use strum::{Display, EnumIter};
 
 use crate::{
+    crd::{
+        NifiCluster, NifiConfig, NifiConfigFragment, NifiRole, NifiSpec, NifiStorageConfig,
+        HTTPS_PORT, PROTOCOL_PORT,
+    },
     operations::graceful_shutdown::graceful_shutdown_config_properties,
     security::{
         authentication::{
@@ -667,10 +667,9 @@ fn storage_quantity_to_nifi(quantity: MemoryQuantity) -> String {
 #[cfg(test)]
 mod tests {
     use indoc::indoc;
-    use stackable_nifi_crd::NifiCluster;
 
     use super::*;
-    use crate::config::build_bootstrap_conf;
+    use crate::{config::build_bootstrap_conf, crd::NifiCluster};
 
     #[test]
     fn test_build_bootstrap_conf_defaults() {

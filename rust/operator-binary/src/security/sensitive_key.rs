@@ -2,11 +2,12 @@ use std::collections::BTreeMap;
 
 use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_nifi_crd::NifiCluster;
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder, client::Client, k8s_openapi::api::core::v1::Secret,
     kube::ResourceExt,
 };
+
+use crate::crd::NifiCluster;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 

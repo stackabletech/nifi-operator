@@ -13,12 +13,6 @@ use product_config::{
     ProductConfigManager,
 };
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_nifi_crd::{
-    authentication::AuthenticationClassResolved, Container, CurrentlySupportedListenerClasses,
-    NifiCluster, NifiConfig, NifiConfigFragment, NifiRole, NifiStatus, APP_NAME, BALANCE_PORT,
-    BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT,
-    PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
-};
 use stackable_operator::{
     builder::{
         self,
@@ -83,6 +77,12 @@ use crate::{
         self, build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
         validated_product_config, NifiRepository, JVM_SECURITY_PROPERTIES_FILE,
         NIFI_BOOTSTRAP_CONF, NIFI_CONFIG_DIRECTORY, NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML,
+    },
+    crd::{
+        authentication::AuthenticationClassResolved, Container, CurrentlySupportedListenerClasses,
+        NifiCluster, NifiConfig, NifiConfigFragment, NifiRole, NifiStatus, APP_NAME, BALANCE_PORT,
+        BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME,
+        PROTOCOL_PORT, PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
     },
     operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
@@ -251,7 +251,7 @@ pub enum Error {
     },
 
     #[snafu(display("failed to resolve and merge config for role and role group"))]
-    FailedToResolveConfig { source: stackable_nifi_crd::Error },
+    FailedToResolveConfig { source: crate::crd::Error },
 
     #[snafu(display("failed to resolve the Vector aggregator address"))]
     ResolveVectorAggregatorAddress {
@@ -295,7 +295,7 @@ pub enum Error {
 
     #[snafu(display("Failed to resolve NiFi Authentication Configuration"))]
     FailedResolveNifiAuthenticationConfig {
-        source: stackable_nifi_crd::authentication::Error,
+        source: crate::crd::authentication::Error,
     },
 
     #[snafu(display("failed to create PodDisruptionBudget"))]

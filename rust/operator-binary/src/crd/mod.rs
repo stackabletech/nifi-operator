@@ -289,14 +289,14 @@ impl Default for NifiSensitiveKeyAlgorithm {
 #[serde(rename_all = "camelCase")]
 pub enum StoreType {
     #[strum(serialize = "JKS")]
-    JKS,
+    Jks,
     #[strum(serialize = "PKCS12")]
-    PKCS12,
+    Pkcs12,
 }
 
 impl Default for StoreType {
     fn default() -> Self {
-        Self::JKS
+        Self::Jks
     }
 }
 

@@ -1,15 +1,7 @@
-mod config;
-mod controller;
-mod operations;
-mod product_logging;
-mod reporting_task;
-mod security;
-
 use std::sync::Arc;
 
 use clap::{crate_description, crate_version, Parser};
 use futures::stream::StreamExt;
-use stackable_nifi_crd::NifiCluster;
 use stackable_operator::{
     cli::{Command, ProductOperatorRun},
     commons::authentication::AuthenticationClass,
@@ -29,7 +21,15 @@ use stackable_operator::{
     CustomResourceExt,
 };
 
-use crate::controller::NIFI_FULL_CONTROLLER_NAME;
+use crate::{controller::NIFI_FULL_CONTROLLER_NAME, crd::NifiCluster};
+
+mod config;
+mod controller;
+mod crd;
+mod operations;
+mod product_logging;
+mod reporting_task;
+mod security;
 
 const OPERATOR_NAME: &str = "nifi.stackable.tech";
 

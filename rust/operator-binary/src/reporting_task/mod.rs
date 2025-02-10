@@ -25,9 +25,6 @@
 use std::collections::BTreeMap;
 
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_nifi_crd::{
-    NifiCluster, NifiRole, APP_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT,
-};
 use stackable_operator::{
     builder::{
         self,
@@ -51,10 +48,13 @@ use stackable_operator::{
     utils::cluster_info::KubernetesClusterInfo,
 };
 
-use super::controller::{build_recommended_labels, NIFI_UID};
-use crate::security::{
-    authentication::{NifiAuthenticationConfig, STACKABLE_ADMIN_USERNAME},
-    build_tls_volume,
+use crate::{
+    controller::{build_recommended_labels, NIFI_UID},
+    crd::{NifiCluster, NifiRole, APP_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT},
+    security::{
+        authentication::{NifiAuthenticationConfig, STACKABLE_ADMIN_USERNAME},
+        build_tls_volume,
+    },
 };
 
 const REPORTING_TASK_CERT_VOLUME_NAME: &str = "tls";

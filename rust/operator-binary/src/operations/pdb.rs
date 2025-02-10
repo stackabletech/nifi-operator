@@ -1,11 +1,14 @@
 use snafu::{ResultExt, Snafu};
-use stackable_nifi_crd::{NifiCluster, NifiRole, APP_NAME};
 use stackable_operator::{
     builder::pdb::PodDisruptionBudgetBuilder, client::Client, cluster_resources::ClusterResources,
     commons::pdb::PdbConfig, kube::ResourceExt,
 };
 
-use crate::{controller::NIFI_CONTROLLER_NAME, OPERATOR_NAME};
+use crate::{
+    controller::NIFI_CONTROLLER_NAME,
+    crd::{NifiCluster, NifiRole, APP_NAME},
+    OPERATOR_NAME,
+};
 
 #[derive(Snafu, Debug)]
 pub enum Error {

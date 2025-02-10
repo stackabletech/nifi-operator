@@ -1,11 +1,13 @@
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_nifi_crd::{NifiConfig, NifiConfigFragment};
 use stackable_operator::{
     memory::{BinaryMultiple, MemoryQuantity},
     role_utils::{self, GenericRoleConfig, JavaCommonConfig, JvmArgumentOverrides, Role},
 };
 
-use super::{JVM_SECURITY_PROPERTIES_FILE, NIFI_CONFIG_DIRECTORY};
+use crate::{
+    config::{JVM_SECURITY_PROPERTIES_FILE, NIFI_CONFIG_DIRECTORY},
+    crd::{NifiConfig, NifiConfigFragment},
+};
 
 // Part of memory resources allocated for Java heap
 const JAVA_HEAP_FACTOR: f32 = 0.8;

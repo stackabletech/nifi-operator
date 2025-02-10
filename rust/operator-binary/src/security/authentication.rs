@@ -1,6 +1,5 @@
 use indoc::{formatdoc, indoc};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_nifi_crd::{authentication::AuthenticationClassResolved, NifiCluster};
 use stackable_operator::{
     builder::{
         self,
@@ -14,7 +13,10 @@ use stackable_operator::{
     k8s_openapi::api::core::v1::{KeyToPath, SecretVolumeSource, Volume},
 };
 
-use super::oidc::build_oidc_admin_password_secret_name;
+use crate::{
+    crd::{authentication::AuthenticationClassResolved, NifiCluster},
+    security::oidc::build_oidc_admin_password_secret_name,
+};
 
 pub const STACKABLE_ADMIN_USERNAME: &str = "admin";
 
