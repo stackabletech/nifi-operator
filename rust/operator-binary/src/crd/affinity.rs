@@ -3,7 +3,7 @@ use stackable_operator::{
     k8s_openapi::api::core::v1::PodAntiAffinity,
 };
 
-use crate::{NifiRole, APP_NAME};
+use crate::crd::{NifiRole, APP_NAME};
 
 pub fn get_affinity(cluster_name: &str, role: &NifiRole) -> StackableAffinityFragment {
     StackableAffinityFragment {
@@ -32,7 +32,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::NifiCluster;
+    use crate::crd::v1alpha1;
 
     #[test]
     fn test_affinity_defaults() {
@@ -57,7 +57,7 @@ mod tests {
                 replicas: 1
         "#;
         let deserializer = serde_yaml::Deserializer::from_str(input);
-        let nifi: NifiCluster =
+        let nifi: v1alpha1::NifiCluster =
             serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
         let merged_config = nifi.merged_config(&NifiRole::Node, "default").unwrap();
 

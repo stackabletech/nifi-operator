@@ -10,7 +10,7 @@ use stackable_operator::{
     kube::{runtime::reflector::ObjectRef, ResourceExt},
 };
 
-use crate::NifiCluster;
+use crate::crd::v1alpha1;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -55,13 +55,13 @@ pub enum AuthenticationClassResolved {
     Oidc {
         provider: oidc::AuthenticationProvider,
         oidc: oidc::ClientAuthenticationOptions<()>,
-        nifi: NifiCluster,
+        nifi: v1alpha1::NifiCluster,
     },
 }
 
 impl AuthenticationClassResolved {
     pub async fn from(
-        nifi: &NifiCluster,
+        nifi: &v1alpha1::NifiCluster,
         client: &Client,
     ) -> Result<Vec<AuthenticationClassResolved>> {
         let resolve_auth_class = |auth_details: ClientAuthenticationDetails| async move {
@@ -72,7 +72,7 @@ impl AuthenticationClassResolved {
 
     /// Retrieve all provided `AuthenticationClass` references.
     pub async fn resolve<R>(
-        nifi: &NifiCluster,
+        nifi: &v1alpha1::NifiCluster,
         resolve_auth_class: impl Fn(ClientAuthenticationDetails) -> R,
     ) -> Result<Vec<AuthenticationClassResolved>>
     where

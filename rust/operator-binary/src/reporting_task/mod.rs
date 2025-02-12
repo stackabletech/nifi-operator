@@ -25,9 +25,6 @@
 use std::collections::BTreeMap;
 
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_nifi_crd::{
-    NifiCluster, NifiRole, APP_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT,
-};
 use stackable_operator::{
     builder::{
         self,
@@ -51,10 +48,13 @@ use stackable_operator::{
     utils::cluster_info::KubernetesClusterInfo,
 };
 
-use super::controller::{build_recommended_labels, NIFI_UID};
-use crate::security::{
-    authentication::{NifiAuthenticationConfig, STACKABLE_ADMIN_USERNAME},
-    build_tls_volume,
+use crate::{
+    controller::{build_recommended_labels, NIFI_UID},
+    crd::{v1alpha1, NifiRole, APP_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT},
+    security::{
+        authentication::{NifiAuthenticationConfig, STACKABLE_ADMIN_USERNAME},
+        build_tls_volume,
+    },
 };
 
 const REPORTING_TASK_CERT_VOLUME_NAME: &str = "tls";
@@ -127,7 +127,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// NiFi 2.x and above automatically server Prometheus metrics via the API, but as of 2024-11-08
 /// requires authentication.
 pub fn build_maybe_reporting_task(
-    nifi: &NifiCluster,
+    nifi: &v1alpha1::NifiCluster,
     resolved_product_image: &ResolvedProductImage,
     cluster_info: &KubernetesClusterInfo,
     nifi_auth_config: &NifiAuthenticationConfig,
@@ -156,7 +156,7 @@ pub fn build_reporting_task_service_name(nifi_cluster_name: &str) -> String {
 
 /// Return the FQDN (with namespace, domain) of the reporting task.
 pub fn build_reporting_task_fqdn_service_name(
-    nifi: &NifiCluster,
+    nifi: &v1alpha1::NifiCluster,
     cluster_info: &KubernetesClusterInfo,
 ) -> Result<String> {
     let nifi_cluster_name = nifi.name_any();
@@ -172,7 +172,7 @@ pub fn build_reporting_task_fqdn_service_name(
 /// If no replicas are set in any rolegroup (e.g. HPA, see <https://docs.stackable.tech/home/stable/concepts/operations/#_performance>)
 /// return the first rolegroup just in case.
 /// This is required to only select a single node in the Reporting Task Service.
-fn get_reporting_task_service_selector_pod(nifi: &NifiCluster) -> Result<String> {
+fn get_reporting_task_service_selector_pod(nifi: &v1alpha1::NifiCluster) -> Result<String> {
     let cluster_name = nifi.name_any();
     let node_name = NifiRole::Node.to_string();
 
@@ -207,7 +207,7 @@ fn get_reporting_task_service_selector_pod(nifi: &NifiCluster) -> Result<String>
 
 /// Build the internal Reporting Task Service in order to communicate with a single NiFi node.
 fn build_reporting_task_service(
-    nifi: &NifiCluster,
+    nifi: &v1alpha1::NifiCluster,
     resolved_product_image: &ResolvedProductImage,
 ) -> Result<Service> {
     let nifi_cluster_name = nifi.name_any();
@@ -265,7 +265,7 @@ fn build_reporting_task_service(
 /// [`secret-operator`](https://github.com/stackabletech/secret-operator)
 ///
 fn build_reporting_task_job(
-    nifi: &NifiCluster,
+    nifi: &v1alpha1::NifiCluster,
     resolved_product_image: &ResolvedProductImage,
     cluster_info: &KubernetesClusterInfo,
     nifi_auth_config: &NifiAuthenticationConfig,

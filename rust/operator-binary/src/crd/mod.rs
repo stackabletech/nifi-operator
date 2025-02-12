@@ -27,7 +27,7 @@ use stackable_operator::{
         apimachinery::pkg::api::resource::Quantity,
     },
     kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
-    memory::{BinaryMultiple, MemoryQuantity},
+    memory::MemoryQuantity,
     product_config_utils::{self, Configuration},
     product_logging::{self, spec::Logging},
     role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroupRef},
@@ -39,6 +39,7 @@ use stackable_operator::{
         crds::{raw_object_list_schema, raw_object_schema},
     },
 };
+use stackable_versioned::versioned;
 use strum::Display;
 use tls::NifiTls;
 
@@ -56,14 +57,7 @@ pub const METRICS_PORT: u16 = 8081;
 pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
 pub const STACKABLE_LOG_CONFIG_DIR: &str = "/stackable/log_config";
 
-pub const MAX_NIFI_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity {
-    value: 10.0,
-    unit: BinaryMultiple::Mebi,
-};
-pub const MAX_PREPARE_LOG_FILE_SIZE: MemoryQuantity = MemoryQuantity {
-    value: 1.0,
-    unit: BinaryMultiple::Mebi,
-};
+pub const MAX_NIFI_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity::from_mebi(10.0);
 
 const DEFAULT_NODE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_minutes_unchecked(5);
 
@@ -82,97 +76,200 @@ pub enum Error {
     FragmentValidationFailure { source: ValidationError },
 }
 
-/// A NiFi cluster stacklet. This resource is managed by the Stackable operator for Apache NiFi.
-/// Find more information on how to use it and the resources that the operator generates in the
-/// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/).
-#[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[kube(
-    group = "nifi.stackable.tech",
-    version = "v1alpha1",
-    kind = "NifiCluster",
-    shortname = "nifi",
-    status = "NifiStatus",
-    namespaced,
-    crates(
-        kube_core = "stackable_operator::kube::core",
-        k8s_openapi = "stackable_operator::k8s_openapi",
-        schemars = "stackable_operator::schemars"
-    )
-)]
-#[serde(rename_all = "camelCase")]
-pub struct NifiSpec {
-    /// Settings that affect all roles and role groups.
-    /// The settings in the `clusterConfig` are cluster wide settings that do not need to be configurable at role or role group level.
-    pub cluster_config: NifiClusterConfig,
+#[versioned(version(name = "v1alpha1"))]
+pub mod versioned {
+    /// A NiFi cluster stacklet. This resource is managed by the Stackable operator for Apache NiFi.
+    /// Find more information on how to use it and the resources that the operator generates in the
+    /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/).
+    #[versioned(k8s(
+        group = "nifi.stackable.tech",
+        shortname = "nifi",
+        status = "NifiStatus",
+        namespaced,
+        crates(
+            kube_core = "stackable_operator::kube::core",
+            k8s_openapi = "stackable_operator::k8s_openapi",
+            schemars = "stackable_operator::schemars"
+        )
+    ))]
+    #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct NifiClusterSpec {
+        /// Settings that affect all roles and role groups.
+        /// The settings in the `clusterConfig` are cluster wide settings that do not need to be configurable at role or role group level.
+        pub cluster_config: v1alpha1::NifiClusterConfig,
 
-    // no doc - docs in Role struct.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub nodes: Option<Role<NifiConfigFragment, GenericRoleConfig, JavaCommonConfig>>,
+        // no doc - docs in Role struct.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub nodes: Option<Role<NifiConfigFragment, GenericRoleConfig, JavaCommonConfig>>,
 
-    // no doc - docs in ProductImage struct.
-    pub image: ProductImage,
+        // no doc - docs in ProductImage struct.
+        pub image: ProductImage,
 
-    // no doc - docs in ClusterOperation struct.
-    #[serde(default)]
-    pub cluster_operation: ClusterOperation,
+        // no doc - docs in ClusterOperation struct.
+        #[serde(default)]
+        pub cluster_operation: ClusterOperation,
+    }
+
+    #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct NifiClusterConfig {
+        /// Authentication options for NiFi (required).
+        /// Read more about authentication in the [security documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/security).
+        // We don't add `#[serde(default)]` here, as we require authentication
+        pub authentication: Vec<ClientAuthenticationDetails>,
+
+        /// Configuration of allowed proxies e.g. load balancers or Kubernetes Ingress. Using a proxy that is not allowed by NiFi results
+        /// in a failed host header check.
+        #[serde(default)]
+        pub host_header_check: HostHeaderCheckConfig,
+
+        /// TLS configuration options for the server.
+        #[serde(default)]
+        pub tls: NifiTls,
+
+        // no doc - docs in NifiSensitivePropertiesConfig struct.
+        pub sensitive_properties: NifiSensitivePropertiesConfig,
+
+        /// Name of the Vector aggregator [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
+        /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
+        /// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
+        /// to learn how to configure log aggregation with Vector.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub vector_aggregator_config_map_name: Option<String>,
+
+        /// NiFi requires a ZooKeeper cluster connection to run.
+        /// Provide the name of the ZooKeeper [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery)
+        /// here. When using the [Stackable operator for Apache ZooKeeper](DOCS_BASE_URL_PLACEHOLDER/zookeeper/)
+        /// to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
+        pub zookeeper_config_map_name: String,
+
+        /// Extra volumes similar to `.spec.volumes` on a Pod to mount into every container, this can be useful to for
+        /// example make client certificates, keytabs or similar things available to processors. These volumes will be
+        /// mounted into all pods at `/stackable/userdata/{volumename}`.
+        /// See also the [external files usage guide](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/extra-volumes).
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        #[schemars(schema_with = "raw_object_list_schema")]
+        pub extra_volumes: Vec<Volume>,
+
+        /// This field controls which type of Service the Operator creates for this NifiCluster:
+        ///
+        /// * cluster-internal: Use a ClusterIP service
+        ///
+        /// * external-unstable: Use a NodePort service
+        ///
+        /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
+        /// In the future, this setting will control which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html)
+        /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
+        #[serde(default)]
+        pub listener_class: CurrentlySupportedListenerClasses,
+
+        // Docs are on the struct
+        #[serde(default)]
+        pub create_reporting_task_job: CreateReportingTaskJob,
+    }
 }
 
-#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NifiClusterConfig {
-    /// Authentication options for NiFi (required).
-    /// Read more about authentication in the [security documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/security).
-    // We don't add `#[serde(default)]` here, as we require authentication
-    pub authentication: Vec<ClientAuthenticationDetails>,
+impl HasStatusCondition for v1alpha1::NifiCluster {
+    fn conditions(&self) -> Vec<ClusterCondition> {
+        match &self.status {
+            Some(status) => status.conditions.clone(),
+            None => vec![],
+        }
+    }
+}
 
-    /// Configuration of allowed proxies e.g. load balancers or Kubernetes Ingress. Using a proxy that is not allowed by NiFi results
-    /// in a failed host header check.
-    #[serde(default)]
-    pub host_header_check: HostHeaderCheckConfig,
+impl v1alpha1::NifiCluster {
+    /// The name of the role-level load-balanced Kubernetes `Service`
+    pub fn node_role_service_name(&self) -> String {
+        self.name_any()
+    }
 
-    /// TLS configuration options for the server.
-    #[serde(default)]
-    pub tls: NifiTls,
+    /// The fully-qualified domain name of the role-level load-balanced Kubernetes `Service`
+    pub fn node_role_service_fqdn(&self, cluster_info: &KubernetesClusterInfo) -> Option<String> {
+        Some(format!(
+            "{}.{}.svc.{}",
+            self.node_role_service_name(),
+            self.metadata.namespace.as_ref()?,
+            cluster_info.cluster_domain,
+        ))
+    }
 
-    // no doc - docs in NifiSensitivePropertiesConfig struct.
-    pub sensitive_properties: NifiSensitivePropertiesConfig,
+    /// Metadata about a metastore rolegroup
+    pub fn node_rolegroup_ref(&self, group_name: impl Into<String>) -> RoleGroupRef<Self> {
+        RoleGroupRef {
+            cluster: ObjectRef::from_obj(self),
+            role: NifiRole::Node.to_string(),
+            role_group: group_name.into(),
+        }
+    }
 
-    /// Name of the Vector aggregator [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
-    /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
-    /// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
-    /// to learn how to configure log aggregation with Vector.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub vector_aggregator_config_map_name: Option<String>,
+    pub fn role_config(&self, role: &NifiRole) -> Option<&GenericRoleConfig> {
+        match role {
+            NifiRole::Node => self.spec.nodes.as_ref().map(|n| &n.role_config),
+        }
+    }
 
-    /// NiFi requires a ZooKeeper cluster connection to run.
-    /// Provide the name of the ZooKeeper [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery)
-    /// here. When using the [Stackable operator for Apache ZooKeeper](DOCS_BASE_URL_PLACEHOLDER/zookeeper/)
-    /// to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
-    pub zookeeper_config_map_name: String,
+    /// Return user provided server TLS settings
+    pub fn server_tls_secret_class(&self) -> &str {
+        &self.spec.cluster_config.tls.server_secret_class
+    }
 
-    /// Extra volumes similar to `.spec.volumes` on a Pod to mount into every container, this can be useful to for
-    /// example make client certificates, keytabs or similar things available to processors. These volumes will be
-    /// mounted into all pods at `/stackable/userdata/{volumename}`.
-    /// See also the [external files usage guide](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/extra-volumes).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[schemars(schema_with = "raw_object_list_schema")]
-    pub extra_volumes: Vec<Volume>,
-
-    /// This field controls which type of Service the Operator creates for this NifiCluster:
+    /// List all pods expected to form the cluster
     ///
-    /// * cluster-internal: Use a ClusterIP service
-    ///
-    /// * external-unstable: Use a NodePort service
-    ///
-    /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
-    /// In the future, this setting will control which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html)
-    /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
-    #[serde(default)]
-    pub listener_class: CurrentlySupportedListenerClasses,
+    /// We try to predict the pods here rather than looking at the current cluster state in order to
+    /// avoid instance churn.
+    pub fn pods(&self) -> Result<impl Iterator<Item = PodRef> + '_, Error> {
+        let ns = self.metadata.namespace.clone().context(NoNamespaceSnafu)?;
+        Ok(self
+            .spec
+            .nodes
+            .iter()
+            .flat_map(|role| &role.role_groups)
+            // Order rolegroups consistently, to avoid spurious downstream rewrites
+            .collect::<BTreeMap<_, _>>()
+            .into_iter()
+            .flat_map(move |(rolegroup_name, rolegroup)| {
+                let rolegroup_ref = self.node_rolegroup_ref(rolegroup_name);
+                let ns = ns.clone();
+                (0..rolegroup.replicas.unwrap_or(0)).map(move |i| PodRef {
+                    namespace: ns.clone(),
+                    role_group_service_name: rolegroup_ref.object_name(),
+                    pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
+                })
+            }))
+    }
 
-    // Docs are on the struct
-    #[serde(default)]
-    pub create_reporting_task_job: CreateReportingTaskJob,
+    /// Retrieve and merge resource configs for role and role groups
+    pub fn merged_config(&self, role: &NifiRole, role_group: &str) -> Result<NifiConfig, Error> {
+        // Initialize the result with all default values as baseline
+        let conf_defaults = NifiConfig::default_config(&self.name_any(), role);
+
+        let role = self.spec.nodes.as_ref().context(MissingNifiRoleSnafu {
+            role: role.to_string(),
+        })?;
+
+        // Retrieve role resource config
+        let mut conf_role = role.config.config.to_owned();
+
+        // Retrieve rolegroup specific resource config
+        let mut conf_rolegroup = role
+            .role_groups
+            .get(role_group)
+            .map(|rg| rg.config.config.clone())
+            .unwrap_or_default();
+
+        // Merge more specific configs into default config
+        // Hierarchy is:
+        // 1. RoleGroup
+        // 2. Role
+        // 3. Default
+        conf_role.merge(&conf_defaults);
+        conf_rolegroup.merge(&conf_role);
+
+        tracing::debug!("Merged config: {:?}", conf_rolegroup);
+        fragment::validate(conf_rolegroup).context(FragmentValidationFailureSnafu)
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -289,14 +386,14 @@ impl Default for NifiSensitiveKeyAlgorithm {
 #[serde(rename_all = "camelCase")]
 pub enum StoreType {
     #[strum(serialize = "JKS")]
-    JKS,
+    Jks,
     #[strum(serialize = "PKCS12")]
-    PKCS12,
+    Pkcs12,
 }
 
 impl Default for StoreType {
     fn default() -> Self {
-        Self::JKS
+        Self::Jks
     }
 }
 
@@ -349,15 +446,6 @@ pub struct NifiStatus {
     pub deployed_version: Option<String>,
     #[serde(default)]
     pub conditions: Vec<ClusterCondition>,
-}
-
-impl HasStatusCondition for NifiCluster {
-    fn conditions(&self) -> Vec<ClusterCondition> {
-        match &self.status {
-            Some(status) => status.conditions.clone(),
-            None => vec![],
-        }
-    }
 }
 
 #[derive(
@@ -470,7 +558,7 @@ impl NifiConfig {
 }
 
 impl Configuration for NifiConfigFragment {
-    type Configurable = NifiCluster;
+    type Configurable = v1alpha1::NifiCluster;
 
     fn compute_env(
         &self,
@@ -543,99 +631,6 @@ pub struct NifiStorageConfig {
     /// Default size: 1GB
     #[fragment_attrs(serde(default))]
     pub state_repo: PvcConfig,
-}
-
-impl NifiCluster {
-    /// The name of the role-level load-balanced Kubernetes `Service`
-    pub fn node_role_service_name(&self) -> String {
-        self.name_any()
-    }
-
-    /// The fully-qualified domain name of the role-level load-balanced Kubernetes `Service`
-    pub fn node_role_service_fqdn(&self, cluster_info: &KubernetesClusterInfo) -> Option<String> {
-        Some(format!(
-            "{}.{}.svc.{}",
-            self.node_role_service_name(),
-            self.metadata.namespace.as_ref()?,
-            cluster_info.cluster_domain,
-        ))
-    }
-
-    /// Metadata about a metastore rolegroup
-    pub fn node_rolegroup_ref(&self, group_name: impl Into<String>) -> RoleGroupRef<NifiCluster> {
-        RoleGroupRef {
-            cluster: ObjectRef::from_obj(self),
-            role: NifiRole::Node.to_string(),
-            role_group: group_name.into(),
-        }
-    }
-
-    pub fn role_config(&self, role: &NifiRole) -> Option<&GenericRoleConfig> {
-        match role {
-            NifiRole::Node => self.spec.nodes.as_ref().map(|n| &n.role_config),
-        }
-    }
-
-    /// Return user provided server TLS settings
-    pub fn server_tls_secret_class(&self) -> &str {
-        &self.spec.cluster_config.tls.server_secret_class
-    }
-
-    /// List all pods expected to form the cluster
-    ///
-    /// We try to predict the pods here rather than looking at the current cluster state in order to
-    /// avoid instance churn.
-    pub fn pods(&self) -> Result<impl Iterator<Item = PodRef> + '_, Error> {
-        let ns = self.metadata.namespace.clone().context(NoNamespaceSnafu)?;
-        Ok(self
-            .spec
-            .nodes
-            .iter()
-            .flat_map(|role| &role.role_groups)
-            // Order rolegroups consistently, to avoid spurious downstream rewrites
-            .collect::<BTreeMap<_, _>>()
-            .into_iter()
-            .flat_map(move |(rolegroup_name, rolegroup)| {
-                let rolegroup_ref = self.node_rolegroup_ref(rolegroup_name);
-                let ns = ns.clone();
-                (0..rolegroup.replicas.unwrap_or(0)).map(move |i| PodRef {
-                    namespace: ns.clone(),
-                    role_group_service_name: rolegroup_ref.object_name(),
-                    pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
-                })
-            }))
-    }
-
-    /// Retrieve and merge resource configs for role and role groups
-    pub fn merged_config(&self, role: &NifiRole, role_group: &str) -> Result<NifiConfig, Error> {
-        // Initialize the result with all default values as baseline
-        let conf_defaults = NifiConfig::default_config(&self.name_any(), role);
-
-        let role = self.spec.nodes.as_ref().context(MissingNifiRoleSnafu {
-            role: role.to_string(),
-        })?;
-
-        // Retrieve role resource config
-        let mut conf_role = role.config.config.to_owned();
-
-        // Retrieve rolegroup specific resource config
-        let mut conf_rolegroup = role
-            .role_groups
-            .get(role_group)
-            .map(|rg| rg.config.config.clone())
-            .unwrap_or_default();
-
-        // Merge more specific configs into default config
-        // Hierarchy is:
-        // 1. RoleGroup
-        // 2. Role
-        // 3. Default
-        conf_role.merge(&conf_defaults);
-        conf_rolegroup.merge(&conf_role);
-
-        tracing::debug!("Merged config: {:?}", conf_rolegroup);
-        fragment::validate(conf_rolegroup).context(FragmentValidationFailureSnafu)
-    }
 }
 
 /// Reference to a single `Pod` that is a component of a [`NifiCluster`]

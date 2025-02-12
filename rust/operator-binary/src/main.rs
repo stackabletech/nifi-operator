@@ -1,15 +1,7 @@
-mod config;
-mod controller;
-mod operations;
-mod product_logging;
-mod reporting_task;
-mod security;
-
 use std::sync::Arc;
 
 use clap::{crate_description, crate_version, Parser};
 use futures::stream::StreamExt;
-use stackable_nifi_crd::NifiCluster;
 use stackable_operator::{
     cli::{Command, ProductOperatorRun},
     commons::authentication::AuthenticationClass,
@@ -26,10 +18,22 @@ use stackable_operator::{
         },
     },
     logging::controller::report_controller_reconciled,
-    CustomResourceExt,
+    shared::yaml::SerializeOptions,
+    YamlSchema,
 };
 
-use crate::controller::NIFI_FULL_CONTROLLER_NAME;
+use crate::{
+    controller::NIFI_FULL_CONTROLLER_NAME,
+    crd::{v1alpha1, NifiCluster},
+};
+
+mod config;
+mod controller;
+mod crd;
+mod operations;
+mod product_logging;
+mod reporting_task;
+mod security;
 
 const OPERATOR_NAME: &str = "nifi.stackable.tech";
 
@@ -48,7 +52,8 @@ struct Opts {
 async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
-        Command::Crd => NifiCluster::print_yaml_schema(built_info::PKG_VERSION)?,
+        Command::Crd => NifiCluster::merged_crd(NifiCluster::V1Alpha1)?
+            .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?,
         Command::Run(ProductOperatorRun {
             product_config,
             watch_namespace,
@@ -89,7 +94,7 @@ async fn main() -> anyhow::Result<()> {
             ));
 
             let nifi_controller = Controller::new(
-                watch_namespace.get_api::<DeserializeGuard<NifiCluster>>(&client),
+                watch_namespace.get_api::<DeserializeGuard<v1alpha1::NifiCluster>>(&client),
                 watcher::Config::default(),
             );
 

@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 
 use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_nifi_crd::NifiCluster;
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     client::Client,
@@ -14,9 +13,7 @@ use stackable_operator::{
     kube::{runtime::reflector::ObjectRef, ResourceExt},
 };
 
-use super::authentication::STACKABLE_ADMIN_USERNAME;
-
-const STACKABLE_OIDC_ADMIN_PASSWORD_KEY: &str = STACKABLE_ADMIN_USERNAME;
+use crate::{crd::v1alpha1, security::authentication::STACKABLE_ADMIN_USERNAME};
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -31,7 +28,7 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "found existing admin password secret {secret:?}, but the key {STACKABLE_OIDC_ADMIN_PASSWORD_KEY} is missing",
+        "found existing admin password secret {secret:?}, but the key {STACKABLE_ADMIN_USERNAME} is missing",
     ))]
     MissingAdminPasswordKey { secret: ObjectRef<Secret> },
 
@@ -49,7 +46,7 @@ pub enum Error {
 /// This admin user is the same as for SingleUser authentication.
 pub(crate) async fn check_or_generate_oidc_admin_password(
     client: &Client,
-    nifi: &NifiCluster,
+    nifi: &v1alpha1::NifiCluster,
 ) -> Result<bool, Error> {
     let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
     tracing::debug!("Checking for OIDC admin password configuration");
@@ -63,7 +60,7 @@ pub(crate) async fn check_or_generate_oidc_admin_password(
                 .data
                 .iter()
                 .flat_map(|data| data.keys())
-                .any(|key| key == STACKABLE_OIDC_ADMIN_PASSWORD_KEY);
+                .any(|key| key == STACKABLE_ADMIN_USERNAME);
 
             if admin_password_present {
                 Ok(false)
@@ -102,7 +99,7 @@ pub(crate) async fn check_or_generate_oidc_admin_password(
     }
 }
 
-pub fn build_oidc_admin_password_secret_name(nifi: &NifiCluster) -> String {
+pub fn build_oidc_admin_password_secret_name(nifi: &v1alpha1::NifiCluster) -> String {
     format!("{}-oidc-admin-password", nifi.name_any())
 }
 

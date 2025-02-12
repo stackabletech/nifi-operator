@@ -2,11 +2,12 @@ use std::collections::BTreeMap;
 
 use rand::{distributions::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_nifi_crd::NifiCluster;
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder, client::Client, k8s_openapi::api::core::v1::Secret,
     kube::ResourceExt,
 };
+
+use crate::crd::v1alpha1;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -30,7 +31,7 @@ pub enum Error {
 
 pub(crate) async fn check_or_generate_sensitive_key(
     client: &Client,
-    nifi: &NifiCluster,
+    nifi: &v1alpha1::NifiCluster,
 ) -> Result<bool, Error> {
     let sensitive_config = &nifi.spec.cluster_config.sensitive_properties;
     let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;

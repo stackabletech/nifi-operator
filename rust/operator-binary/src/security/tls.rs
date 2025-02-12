@@ -1,12 +1,11 @@
 use snafu::{ResultExt, Snafu};
-use stackable_nifi_crd::NifiCluster;
 use stackable_operator::{
     builder::pod::volume::{SecretFormat, SecretOperatorVolumeSourceBuilder, VolumeBuilder},
     k8s_openapi::api::core::v1::Volume,
     time::Duration,
 };
 
-use crate::security::authentication::STACKABLE_TLS_STORE_PASSWORD;
+use crate::{crd::v1alpha1, security::authentication::STACKABLE_TLS_STORE_PASSWORD};
 
 pub const KEYSTORE_VOLUME_NAME: &str = "keystore";
 pub const KEYSTORE_NIFI_CONTAINER_MOUNT: &str = "/stackable/keystore";
@@ -23,7 +22,7 @@ pub enum Error {
 }
 
 pub(crate) fn build_tls_volume(
-    nifi: &NifiCluster,
+    nifi: &v1alpha1::NifiCluster,
     volume_name: &str,
     service_scopes: Vec<&str>,
     secret_format: SecretFormat,

@@ -1,4 +1,5 @@
-//! Ensures that `Pod`s are configured and running for each [`NifiCluster`]
+//! Ensures that `Pod`s are configured and running for each [`v1alpha1::NifiCluster`].
+
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},
@@ -13,12 +14,6 @@ use product_config::{
     ProductConfigManager,
 };
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_nifi_crd::{
-    authentication::AuthenticationClassResolved, Container, CurrentlySupportedListenerClasses,
-    NifiCluster, NifiConfig, NifiConfigFragment, NifiRole, NifiStatus, APP_NAME, BALANCE_PORT,
-    BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, PROTOCOL_PORT,
-    PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
-};
 use stackable_operator::{
     builder::{
         self,
@@ -83,6 +78,13 @@ use crate::{
         self, build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
         validated_product_config, NifiRepository, JVM_SECURITY_PROPERTIES_FILE,
         NIFI_BOOTSTRAP_CONF, NIFI_CONFIG_DIRECTORY, NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML,
+    },
+    crd::{
+        authentication::AuthenticationClassResolved, v1alpha1, Container,
+        CurrentlySupportedListenerClasses, NifiConfig, NifiConfigFragment, NifiRole, NifiStatus,
+        APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT,
+        METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR,
+        STACKABLE_LOG_DIR,
     },
     operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
@@ -159,13 +161,13 @@ pub enum Error {
     #[snafu(display("failed to apply Service for {}", rolegroup))]
     ApplyRoleGroupService {
         source: stackable_operator::cluster_resources::Error,
-        rolegroup: RoleGroupRef<NifiCluster>,
+        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
     },
 
     #[snafu(display("failed to build ConfigMap for {}", rolegroup))]
     BuildRoleGroupConfig {
         source: stackable_operator::builder::configmap::Error,
-        rolegroup: RoleGroupRef<NifiCluster>,
+        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
     },
 
     #[snafu(display("object has no nodes defined"))]
@@ -174,13 +176,13 @@ pub enum Error {
     #[snafu(display("failed to apply ConfigMap for {}", rolegroup))]
     ApplyRoleGroupConfig {
         source: stackable_operator::cluster_resources::Error,
-        rolegroup: RoleGroupRef<NifiCluster>,
+        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
     },
 
     #[snafu(display("failed to apply StatefulSet for {}", rolegroup))]
     ApplyRoleGroupStatefulSet {
         source: stackable_operator::cluster_resources::Error,
-        rolegroup: RoleGroupRef<NifiCluster>,
+        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
     },
 
     #[snafu(display("failed to apply create ReportingTask service"))]
@@ -210,7 +212,7 @@ pub enum Error {
     #[snafu(display("Failed to find any nodes in cluster {obj_ref}",))]
     MissingNodes {
         source: stackable_operator::client::Error,
-        obj_ref: ObjectRef<NifiCluster>,
+        obj_ref: ObjectRef<v1alpha1::NifiCluster>,
     },
 
     #[snafu(display("Failed to find service {obj_ref}"))]
@@ -235,7 +237,7 @@ pub enum Error {
     BuildProductConfig {
         #[snafu(source(from(config::Error, Box::new)))]
         source: Box<config::Error>,
-        rolegroup: RoleGroupRef<NifiCluster>,
+        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
     },
 
     #[snafu(display("illegal container name: [{container_name}]"))]
@@ -247,11 +249,11 @@ pub enum Error {
     #[snafu(display("failed to validate resources for {rolegroup}"))]
     ResourceValidation {
         source: fragment::ValidationError,
-        rolegroup: RoleGroupRef<NifiCluster>,
+        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
     },
 
     #[snafu(display("failed to resolve and merge config for role and role group"))]
-    FailedToResolveConfig { source: stackable_nifi_crd::Error },
+    FailedToResolveConfig { source: crate::crd::Error },
 
     #[snafu(display("failed to resolve the Vector aggregator address"))]
     ResolveVectorAggregatorAddress {
@@ -295,7 +297,7 @@ pub enum Error {
 
     #[snafu(display("Failed to resolve NiFi Authentication Configuration"))]
     FailedResolveNifiAuthenticationConfig {
-        source: stackable_nifi_crd::authentication::Error,
+        source: crate::crd::authentication::Error,
     },
 
     #[snafu(display("failed to create PodDisruptionBudget"))]
@@ -365,7 +367,7 @@ pub enum VersionChangeState {
 }
 
 pub async fn reconcile_nifi(
-    nifi: Arc<DeserializeGuard<NifiCluster>>,
+    nifi: Arc<DeserializeGuard<v1alpha1::NifiCluster>>,
     ctx: Arc<Ctx>,
 ) -> Result<Action> {
     tracing::info!("Starting reconcile");
@@ -686,7 +688,7 @@ pub async fn reconcile_nifi(
 /// The node-role service is the primary endpoint that should be used by clients that do not
 /// perform internal load balancing including targets outside of the cluster.
 pub fn build_node_role_service(
-    nifi: &NifiCluster,
+    nifi: &v1alpha1::NifiCluster,
     resolved_product_image: &ResolvedProductImage,
 ) -> Result<Service> {
     let role_name = NifiRole::Node.to_string();
@@ -732,11 +734,11 @@ pub fn build_node_role_service(
 /// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the administrator
 #[allow(clippy::too_many_arguments)]
 async fn build_node_rolegroup_config_map(
-    nifi: &NifiCluster,
+    nifi: &v1alpha1::NifiCluster,
     resolved_product_image: &ResolvedProductImage,
     nifi_auth_config: &NifiAuthenticationConfig,
     role: &Role<NifiConfigFragment, GenericRoleConfig, JavaCommonConfig>,
-    rolegroup: &RoleGroupRef<NifiCluster>,
+    rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &NifiConfig,
     vector_aggregator_address: Option<&str>,
@@ -846,9 +848,9 @@ async fn build_node_rolegroup_config_map(
 ///
 /// This is mostly useful for internal communication between peers, or for clients that perform client-side load balancing.
 fn build_node_rolegroup_service(
-    nifi: &NifiCluster,
+    nifi: &v1alpha1::NifiCluster,
     resolved_product_image: &ResolvedProductImage,
-    rolegroup: &RoleGroupRef<NifiCluster>,
+    rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>,
 ) -> Result<Service> {
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
@@ -903,10 +905,10 @@ const USERDATA_MOUNTPOINT: &str = "/stackable/userdata";
 /// corresponding [`Service`] (from [`build_node_rolegroup_service`]).
 #[allow(clippy::too_many_arguments)]
 async fn build_node_rolegroup_statefulset(
-    nifi: &NifiCluster,
+    nifi: &v1alpha1::NifiCluster,
     resolved_product_image: &ResolvedProductImage,
     cluster_info: &KubernetesClusterInfo,
-    rolegroup_ref: &RoleGroupRef<NifiCluster>,
+    rolegroup_ref: &RoleGroupRef<v1alpha1::NifiCluster>,
     role: &Role<NifiConfigFragment, GenericRoleConfig, JavaCommonConfig>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &NifiConfig,
@@ -1476,7 +1478,7 @@ fn zookeeper_env_var(name: &str, configmap_name: &str) -> EnvVar {
 
 async fn get_proxy_hosts(
     client: &Client,
-    nifi: &NifiCluster,
+    nifi: &v1alpha1::NifiCluster,
     nifi_service: &Service,
 ) -> Result<String> {
     let host_header_check = nifi.spec.cluster_config.host_header_check.clone();
@@ -1541,7 +1543,7 @@ async fn get_proxy_hosts(
 }
 
 pub fn error_policy(
-    _obj: Arc<DeserializeGuard<NifiCluster>>,
+    _obj: Arc<DeserializeGuard<v1alpha1::NifiCluster>>,
     error: &Error,
     _ctx: Arc<Ctx>,
 ) -> Action {
@@ -1554,11 +1556,11 @@ pub fn error_policy(
 }
 
 pub fn build_recommended_labels<'a>(
-    owner: &'a NifiCluster,
+    owner: &'a v1alpha1::NifiCluster,
     app_version: &'a str,
     role: &'a str,
     role_group: &'a str,
-) -> ObjectLabels<'a, NifiCluster> {
+) -> ObjectLabels<'a, v1alpha1::NifiCluster> {
     ObjectLabels {
         owner,
         app_name: APP_NAME,
