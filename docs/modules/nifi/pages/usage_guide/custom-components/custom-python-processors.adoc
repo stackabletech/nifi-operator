@@ -1,0 +1,150 @@
+= Custom Python processors
+
+In NiFi 2.0 support for custom processors written in Python have been added.
+The Stackable images already contain the needed tools, such as - obviously - a supported Python version.
+
+For inspiration, here are some ways of adding these Python scripts into your NiFi stacklet:
+
+== General configuration
+
+[source,yaml]
+----
+spec:
+  nodes:
+    configOverrides:
+      nifi.properties:
+        nifi.python.command: python3
+        # This property needs to be specified (otherwise a NullPointerException occurs)
+        nifi.python.working.directory: /nifi-python-working-directory
+        # This is needed to detect the Controller.py location (internally used by NiFi)
+        nifi.python.framework.source.directory: /stackable/nifi/python/framework/
+        # This is the folder where the Python scripts are sourced from
+        # We need to get the Python files in here
+        nifi.python.extensions.source.directory.custom: /nifi-python-extensions
+----
+
+== Getting Python scripts into NiFi
+
+TIP: NiFi should hot-reload the Python scripts. You might need to refresh your browser window to see the new processor.
+
+[#configmap]
+=== 1. Mount as ConfigMap
+
+The easiest way is defining a ConfigMap as follows and mount that.
+This way the Python processors are stored and versioned alongside your NiFiCluster itself.
+
+[source,yaml]
+----
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nifi-python-extensions
+data:
+  HelloWorldProcessor.py: |
+    from nifiapi.flowfiletransform import FlowFileTransform, FlowFileTransformResult
+
+    class WriteHelloWorld(FlowFileTransform):
+        class Java:
+            implements = ['org.apache.nifi.python.processor.FlowFileTransform']
+        class ProcessorDetails:
+            version = '0.0.1-SNAPSHOT'
+
+        def __init__(self, **kwargs):
+            pass
+
+        def transform(self, context, flowfile):
+            return FlowFileTransformResult(relationship = "success", contents = "Hello World", attributes = {"greeting": "hello"})
+----
+
+You can add multiple Python scripts in the ConfigMap.
+Afterwards we need to mount the Python scripts into `/nifi-python-extensions`:
+
+[source,yaml]
+----
+spec:
+  nodes:
+    podOverrides:
+      spec:
+        containers:
+          - name: nifi
+            volumeMounts:
+              - name: nifi-python-extensions
+                mountPath: /nifi-python-extensions
+              - name: nifi-python-working-directory
+                mountPath: /nifi-python-working-directory
+        volumes:
+          - name: nifi-python-extensions
+            configMap:
+              name: nifi-python-extensions
+          - name: nifi-python-working-directory
+            emptyDir: {}
+----
+
+[#git-sync]
+=== 2. Use git-sync 
+
+As an alternative you can use `git-sync` to keep your Python processors up to date.
+You need to add a sidecar using podOverrides that syncs into a shared volume between the `nifi` and `git-sync` container.
+
+The following snippet can serve as a starting point (the Git repo has the folder `processors` with the Python scripts inside).
+
+[source,yaml]
+----
+spec:
+  nodes:
+    podOverrides:
+      spec:
+        containers:
+          - name: nifi
+            volumeMounts:
+              - name: nifi-python-extensions
+                mountPath: /nifi-python-extensions
+              - name: nifi-python-working-directory
+                mountPath: /nifi-python-working-directory
+          - name: git-sync
+            image: registry.k8s.io/git-sync/git-sync:v4.2.3
+            args:
+              - --repo=https://github.com/stackabletech/nifi-talk
+              - --root=/nifi-python-extensions
+              - --period=10s
+            volumeMounts:
+              - name: nifi-python-extensions
+                mountPath: /nifi-python-extensions
+        volumes:
+          - name: nifi-python-extensions
+            emptyDir: {}
+          - name: nifi-python-working-directory
+            emptyDir: {}
+----
+
+Afterwards you need to update your source directory (you added previously) accordingly to point into the Git subfolder you have.
+
+[source,yaml]
+----
+spec:
+  nodes:
+    configOverrides:
+      nifi.properties:
+        # Replace the property from the previous step
+        # Format is /nifi-python-extensions/<git-repo-name>/<git-folder>/
+        nifi.python.extensions.source.directory.custom: /nifi-python-extensions/nifi-talk/processors/
+----
+
+=== 3. Use PersistentVolume
+
+You can also mount a PVC below `/nifi-python-extensions` using podOverrides and shell into the NiFi Pod to make changes.
+However, the <<configmap>> or <<git-sync>> approach is recommended.
+
+== Check processors have been loaded
+
+NiFi logs every Python processor it found.
+You can use that to check if the processors have been loaded.
+
+[source,console]
+----
+$ kubectl logs nifi-2-0-0-node-default-0 -c nifi | grep -P 'Discovered Python Processor|Discovered or updated [0-9]+ Python Processors'
+2025-02-14 14:40:20,694 INFO [main] o.a.n.n.StandardExtensionDiscoveringManager Discovered Python Processor PythonZgrepProcessor
+2025-02-14 14:40:20,697 INFO [main] o.a.n.n.StandardExtensionDiscoveringManager Discovered Python Processor TransformOpenskyStates
+2025-02-14 14:40:20,700 INFO [main] o.a.n.n.StandardExtensionDiscoveringManager Discovered Python Processor UpdateAttributeFileLookup
+2025-02-14 14:40:20,700 INFO [main] o.a.n.n.StandardExtensionDiscoveringManager Discovered or updated 3 Python Processors in 60 millis
+----
