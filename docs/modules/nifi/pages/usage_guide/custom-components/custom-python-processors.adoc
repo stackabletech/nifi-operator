@@ -3,8 +3,6 @@
 In NiFi 2.0 support for custom processors written in Python have been added.
 The Stackable images already contain the needed tools, such as - obviously - a supported Python version.
 
-For inspiration, here are some ways of adding these Python scripts into your NiFi stacklet:
-
 == General configuration
 
 [source,yaml]
