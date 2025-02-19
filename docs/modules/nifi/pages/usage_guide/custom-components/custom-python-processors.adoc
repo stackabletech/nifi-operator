@@ -79,7 +79,7 @@ spec:
 ----
 
 [#git-sync]
-=== 2. Use git-sync 
+=== 2. Use git-sync
 
 As an alternative you can use `git-sync` to keep your Python processors up to date.
 You need to add a sidecar using podOverrides that syncs into a shared volume between the `nifi` and `git-sync` container.
