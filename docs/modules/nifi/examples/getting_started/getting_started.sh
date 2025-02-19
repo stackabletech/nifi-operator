@@ -146,7 +146,8 @@ metadata:
   name: simple-nifi
 spec:
   image:
-    productVersion: 1.27.0
+    productVersion: 2.2.0
+    pullPolicy: Never
   clusterConfig:
     authentication:
       - authenticationClass: simple-nifi-users
