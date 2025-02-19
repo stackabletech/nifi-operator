@@ -1,7 +1,7 @@
 = Custom Python processors
 
-In NiFi 2.0 support for custom processors written in Python have been added.
-The Stackable images already contain the needed tools, such as - obviously - a supported Python version.
+In NiFi 2.0, support for custom processors written in Python was added.
+The Stackable images already contain the required tooling, such as - obviously - a supported Python version.
 
 == General configuration
 
@@ -28,8 +28,8 @@ TIP: NiFi should hot-reload the Python scripts. You might need to refresh your b
 [#configmap]
 === 1. Mount as ConfigMap
 
-The easiest way is defining a ConfigMap as follows and mount that.
-This way the Python processors are stored and versioned alongside your NiFiCluster itself.
+The easiest way is defining a ConfigMap and mounting it as follows.
+This way, the Python processors are stored and versioned alongside your NifiCluster itself.
 
 [source,yaml]
 ----
@@ -115,7 +115,7 @@ spec:
             emptyDir: {}
 ----
 
-Afterwards you need to update your source directory (you added previously) accordingly to point into the Git subfolder you have.
+Afterwards you need to update your source directory (the one you added previously) accordingly, to point into the Git subfolder you have.
 
 [source,yaml]
 ----
