@@ -140,9 +140,10 @@ You can use that to check if the processors have been loaded.
 
 [source,console]
 ----
-$ kubectl logs nifi-2-0-0-node-default-0 -c nifi | grep -P 'Discovered Python Processor|Discovered or updated [0-9]+ Python Processors'
-2025-02-14 14:40:20,694 INFO [main] o.a.n.n.StandardExtensionDiscoveringManager Discovered Python Processor PythonZgrepProcessor
-2025-02-14 14:40:20,697 INFO [main] o.a.n.n.StandardExtensionDiscoveringManager Discovered Python Processor TransformOpenskyStates
-2025-02-14 14:40:20,700 INFO [main] o.a.n.n.StandardExtensionDiscoveringManager Discovered Python Processor UpdateAttributeFileLookup
-2025-02-14 14:40:20,700 INFO [main] o.a.n.n.StandardExtensionDiscoveringManager Discovered or updated 3 Python Processors in 60 millis
+$ kubectl logs nifi-2-0-0-node-default-0 -c nifi \
+      | grep 'Discovered.*Python Processor'
+… INFO [main] …  Discovered Python Processor PythonZgrepProcessor
+… INFO [main] …  Discovered Python Processor TransformOpenskyStates
+… INFO [main] …  Discovered Python Processor UpdateAttributeFileLookup
+… INFO [main] …  Discovered or updated 3 Python Processors in 64 millis
 ----
