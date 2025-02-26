@@ -44,21 +44,29 @@ kind: ConfigMap
 metadata:
   name: nifi-python-extensions
 data:
-  HelloWorldProcessor.py: |
-    from nifiapi.flowfiletransform import FlowFileTransform, FlowFileTransformResult
+  CreateFlowFileProcessor.py: |
+    from nifiapi.flowfilesource import FlowFileSource, FlowFileSourceResult
 
-    class WriteHelloWorld(FlowFileTransform):
+    class CreateFlowFile(FlowFileSource):
         class Java:
-            implements = ['org.apache.nifi.python.processor.FlowFileTransform']
+            implements = ['org.apache.nifi.python.processor.FlowFileSource']
+
         class ProcessorDetails:
             version = '0.0.1-SNAPSHOT'
+            description = '''A Python processor that creates FlowFiles.'''
 
         def __init__(self, **kwargs):
             pass
 
-        def transform(self, context, flowfile):
-            return FlowFileTransformResult(relationship = "success", contents = "Hello World", attributes = {"greeting": "hello"})
+        def create(self, context):
+            return FlowFileSourceResult(
+                relationship = 'success',
+                attributes = {'greeting': 'hello'},
+                contents = 'Hello World!'
+            )
 ----
+
+The python script is taken from https://nifi.apache.org/nifi-docs/python-developer-guide.html#flowfile-source[the offical NiFi Python developer guide].
 
 You can add multiple Python scripts in the ConfigMap.
 Afterwards we need to mount the Python scripts into `/nifi-python-extensions`:
