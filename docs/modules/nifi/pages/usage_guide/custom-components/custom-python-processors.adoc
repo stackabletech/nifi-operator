@@ -11,14 +11,20 @@ spec:
   nodes:
     configOverrides:
       nifi.properties:
+        # The command used to launch Python.
+        # This property must be set to enable Python-based processors.
         nifi.python.command: python3
-        # This property needs to be specified (otherwise a NullPointerException occurs)
-        nifi.python.working.directory: /nifi-python-working-directory
-        # This is needed to detect the Controller.py location (internally used by NiFi)
-        nifi.python.framework.source.directory: /stackable/nifi/python/framework/
-        # This is the folder where the Python scripts are sourced from
-        # We need to get the Python files in here
+        # The directory that NiFi should look in to find custom Python-based
+        # Processors.
         nifi.python.extensions.source.directory.custom: /nifi-python-extensions
+        # The directory that contains the Python framework for communicating
+        # between the Python and Java processes.
+        nifi.python.framework.source.directory: /stackable/nifi/python/framework/
+        # The working directory where NiFi should store artifacts
+        # This property defaults to ./work/python but if you want to mount an
+        # emptyDir for the working directory then another directory has to be
+        # set to avoid ownership conflicts with ./work/nar.
+        nifi.python.working.directory: /nifi-python-working-directory
 ----
 
 == Getting Python scripts into NiFi
