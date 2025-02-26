@@ -37,7 +37,8 @@ TIP: NiFi should hot-reload the Python scripts. You might need to refresh your b
 The easiest way is defining a ConfigMap and mounting it as follows.
 This way, the Python processors are stored and versioned alongside your NifiCluster itself.
 
-[source,yaml]
+// Technically it's yaml, but the most content is Python
+[source,python]
 ----
 apiVersion: v1
 kind: ConfigMap
