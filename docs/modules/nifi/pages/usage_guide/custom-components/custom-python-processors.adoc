@@ -131,7 +131,8 @@ spec:
       nifi.properties:
         # Replace the property from the previous step
         # Format is /nifi-python-extensions/<git-repo-name>/<git-folder>/
-        nifi.python.extensions.source.directory.custom: /nifi-python-extensions/nifi-talk/processors/
+        nifi.python.extensions.source.directory.custom: >
+          /nifi-python-extensions/nifi-talk/processors/
 ----
 
 === 3. Use PersistentVolume
