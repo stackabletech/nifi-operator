@@ -67,7 +67,7 @@ data:
             )
 ----
 
-The python script is taken from https://nifi.apache.org/nifi-docs/python-developer-guide.html#flowfile-source[the offical NiFi Python developer guide].
+The Python script is taken from https://nifi.apache.org/nifi-docs/python-developer-guide.html#flowfile-source[the offical NiFi Python developer guide].
 
 You can add multiple Python scripts in the ConfigMap.
 Afterwards we need to mount the Python scripts into `/nifi-python-extensions`:
