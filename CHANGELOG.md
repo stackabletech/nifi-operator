@@ -14,6 +14,10 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Bump Rust dependencies ([#758]).
+  - `stackable-operator` to 0.87.0
+  - `stackable-versioned` to 0.6.0
+  - `rand` to 0.9
 - Default to OCI for image metadata and product image selection ([#741]).
 
 [#722]: https://github.com/stackabletech/nifi-operator/pull/722
@@ -21,6 +25,7 @@ All notable changes to this project will be documented in this file.
 [#730]: https://github.com/stackabletech/nifi-operator/pull/730
 [#741]: https://github.com/stackabletech/nifi-operator/pull/741
 [#742]: https://github.com/stackabletech/nifi-operator/pull/742
+[#758]: https://github.com/stackabletech/nifi-operator/pull/758
 
 ## [24.11.1] - 2025-01-10
 
