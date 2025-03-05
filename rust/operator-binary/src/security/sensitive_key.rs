@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use rand::{distributions::Alphanumeric, Rng};
+use rand::{distr::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder, client::Client, k8s_openapi::api::core::v1::Secret,
@@ -50,7 +50,7 @@ pub(crate) async fn check_or_generate_sensitive_key(
                 });
             }
             tracing::info!("No existing sensitive properties key found, generating new one");
-            let password: String = rand::thread_rng()
+            let password: String = rand::rng()
                 .sample_iter(&Alphanumeric)
                 .take(15)
                 .map(char::from)

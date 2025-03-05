@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use rand::{distributions::Alphanumeric, Rng};
+use rand::{distr::Alphanumeric, Rng};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
@@ -73,7 +73,7 @@ pub(crate) async fn check_or_generate_oidc_admin_password(
         }
         None => {
             tracing::info!("No existing oidc admin password secret found, generating new one");
-            let password: String = rand::thread_rng()
+            let password: String = rand::rng()
                 .sample_iter(&Alphanumeric)
                 .take(15)
                 .map(char::from)
