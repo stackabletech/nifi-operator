@@ -2,6 +2,8 @@
 :description: Write to Apache Iceberg tables in NiFi using the PutIceberg processor. Supports integration with S3 and Hive Metastore for scalable data handling.
 :iceberg: https://iceberg.apache.org/
 
+WARNING: In NiFi `2.0.0` Iceberg support https://issues.apache.org/jira/browse/NIFI-13938[has been removed].
+
 {iceberg}[Apache Iceberg] is a high-performance format for huge analytic tables.
 Iceberg brings the reliability and simplicity of SQL tables to big data, while making it possible for engines like Spark, Trino, Flink, Presto, Hive and Impala to safely work with the same tables, at the same time.
 
