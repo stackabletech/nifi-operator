@@ -13,6 +13,7 @@
 ** xref:nifi:usage_guide/updating.adoc[]
 ** xref:nifi:usage_guide/overrides.adoc[]
 ** xref:nifi:usage_guide/writing-to-iceberg-tables.adoc[]
+** xref:nifi:usage_guide/flow-versioning.adoc[]
 ** xref:nifi:usage_guide/custom-components/index.adoc[]
 *** xref:nifi:usage_guide/custom-components/custom-nars.adoc[]
 *** xref:nifi:usage_guide/custom-components/custom-python-processors.adoc[]
