@@ -26,9 +26,10 @@ dimensions:
   - name: zookeeper
     values:
       - 3.9.2
+      - 3.9.3
   - name: zookeeper-latest
     values:
-      - 3.9.2
+      - 3.9.3
   - name: ldap-use-tls
     values:
       - "false"
