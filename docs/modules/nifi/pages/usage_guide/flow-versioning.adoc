@@ -50,6 +50,8 @@ Once you've configured a Flow Registry Client, you can use it to version your Pr
 4. Provide a Flow Name and optional comments
 5. Click "Save" to store the current version in the repository
 
+IMPORTANT: Values of sensitive properties are not stored in the repository, so you must re-enter them when restoring a versioned flow from scratch.
+
 To update a versioned Process Group:
 
 1. Make changes to your Process Group
