@@ -40,9 +40,9 @@ Starting with Apache NiFi 2.0.0, you can connect directly to Git repositories us
 
 Finally, click "Apply" to save the registry client configuration.
 
-== Using Flow Registry Clients
+== Using flow registry clients
 
-Once you've configured a Flow Registry Client, you can use it to version your Process Groups:
+Once you've configured a flow registry client, you can use it to version your Process Groups:
 
 1. Right-click on a Process Group in your NiFi canvas
 2. Select "Version" > "Start version control"
