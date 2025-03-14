@@ -11,7 +11,7 @@ Starting with Apache NiFi 2.0.0, you can connect directly to Git repositories us
 1. In your NiFi UI, click on the hamburger menu (☰) in the top right corner
 2. Select "Controller Settings" > "Registry Clients"
 3. Click the "+" icon to add a new registry client
-4. Select "GitHubFlowRegistryClient" or "GitLabFlowRegistryClient" as the client type and click "Add"
+4. Select `GitHubFlowRegistryClient` or `GitLabFlowRegistryClient` as the client type and click "Add"
 5. Click the three dots (⋮) on the right side of the client and select "Edit"
 6. Fill in the following properties:
 
@@ -47,7 +47,7 @@ Once you've configured a flow registry client, you can use it to version your Pr
 1. Right-click on a Process Group in your NiFi canvas
 2. Select "Version" > "Start version control"
 3. Select your configured registry client, the branch to use, and the bucket (directory) to store flows in
-4. Provide a Flow Name and optional comments
+4. Provide a flow name and optional comments
 5. Click "Save" to store the current version in the repository
 
 IMPORTANT: Values of sensitive properties are not stored in the repository, so you must re-enter them when restoring a versioned flow from scratch.
