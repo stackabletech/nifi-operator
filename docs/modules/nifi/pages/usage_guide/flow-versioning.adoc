@@ -1,0 +1,74 @@
+= Flow Versioning
+
+IMPORTANT: The way described in this document to version flows is only available in NiFi 2.0.0 and later versions. Previous versions of NiFi relied exclusively on the NiFi Registry service for flow versioning.
+
+Starting with Apache NiFi 2.0.0, you can connect directly to Git repositories using either GitHub or GitLab as your flow registry without requiring a separate NiFi Registry service. This document explains how to configure and use these registry clients to version your NiFi flows.
+
+== Setting up the Registry Client
+
+=== Configuration Steps
+
+1. In your NiFi UI, click on the hamburger menu (☰) in the top right corner
+2. Select "Controller Settings" > "Registry Clients"
+3. Click the "+" icon to add a new registry client
+4. Select `GitHubFlowRegistryClient` or `GitLabFlowRegistryClient` as the client type and click "Add"
+5. Click the three dots (⋮) on the right side of the client and select "Edit"
+6. Fill in the following properties:
+
+[cols="1,3"]
+|===
+|Property |Description
+
+|API URL
+|The API URL, like `https://api.github.com` for GitHub.com or a self-hosted GitLab URL
+
+|Repository Owner
+|The username or organization name that owns the repository
+
+|Repository Name
+|The name of the repository where flows will be stored
+
+|Default Branch
+|The default branch to use (e.g., `main`)
+
+|Authentication Type
+|The type of authentication to use. You can choose "None" for public repositories, "Personal Access Token" or "App Installation" are required for private repositories and are also helpful for public repositories in order to avoid rate limits.
+
+|Repository Path
+|Directory within the repository to store flows (e.g., `/flows`)
+|===
+
+Finally, click "Apply" to save the registry client configuration.
+
+== Using flow registry clients
+
+Once you've configured a flow registry client, you can use it to version your Process Groups:
+
+1. Right-click on a Process Group in your NiFi canvas
+2. Select "Version" > "Start version control"
+3. Select your configured registry client, the branch to use, and the bucket (directory) to store flows in
+4. Provide a flow name and optional comments
+5. Click "Save" to store the current version in the repository
+
+IMPORTANT: Values of sensitive properties are not stored in the repository, so you must re-enter them when restoring a versioned flow from scratch.
+
+To update a versioned Process Group:
+
+1. Make changes to your Process Group
+2. Right-click the Process Group
+3. Select "Version" > "Commit local changes"
+4. Add a comment describing your changes
+5. Click "Save" to commit the changes
+
+To restore a previous version of a Process Group:
+
+1. Right-click the Process Group
+2. Select "Version" > "Show version history"
+3. Select the version you want to restore
+4. Click "Restore" to revert to that version
+
+To import a flow from the registry:
+
+1. Drag the "Import from Registry" icon from the toolbar to the canvas
+2. Select your configured registry client, the branch, the bucket (directory) and the flow to import
+3. Click "Import" to add the flow to the canvas

@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - Run a `containerdebug` process in the background of each Nifi container to collect debugging information ([#730]).
 - Support configuring JVM arguments ([#724]).
 - Aggregate emitted Kubernetes events on the CustomResources ([#742]).
+- Document flow versioning with NiFi 2 ([#761]).
 
 ### Changed
 
@@ -26,6 +27,7 @@ All notable changes to this project will be documented in this file.
 [#741]: https://github.com/stackabletech/nifi-operator/pull/741
 [#742]: https://github.com/stackabletech/nifi-operator/pull/742
 [#758]: https://github.com/stackabletech/nifi-operator/pull/758
+[#761]: https://github.com/stackabletech/nifi-operator/pull/761
 
 ## [24.11.1] - 2025-01-10
 
