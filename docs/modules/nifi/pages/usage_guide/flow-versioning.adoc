@@ -11,7 +11,7 @@ Starting with Apache NiFi 2.0.0, you can connect directly to Git repositories us
 1. In your NiFi UI, click on the hamburger menu (☰) in the top right corner
 2. Select "Controller Settings" > "Registry Clients"
 3. Click the "+" icon to add a new registry client
-4. Select "GitHubFlowRegistryClient" or "GitLabFlowRegistryClient" as the client type and click "Add"
+4. Select `GitHubFlowRegistryClient` or `GitLabFlowRegistryClient` as the client type and click "Add"
 5. Click the three dots (⋮) on the right side of the client and select "Edit"
 6. Fill in the following properties:
 
