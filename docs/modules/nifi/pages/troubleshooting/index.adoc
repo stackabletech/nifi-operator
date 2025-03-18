@@ -21,7 +21,7 @@ spec:
 
 == `HTTP ERROR 400 Invalid SNI`
 
-You are very likely accessing a NiFi >= 2.0 stacklet using HTTPS to secure it's WebUI and an Ingress in front of it.
+You are very likely accessing a NiFi >= 2.0 stacklet using HTTPS to secure its WebUI and an Ingress in front of it.
 The URL requested by the ingress-controller (such as nginx) needs to be the FQDN of the nifi service, not only the service name.
 You can instruct nginx ingress to use the FQDN by setting the following annotation:
 
@@ -56,7 +56,7 @@ For details please read on https://medium.com/@chnzhoujun/how-to-resolve-sni-iss
 
 == `authorization_request_not_found` when using multiple NiFi nodes
 
-In case you are using multiple NiFi nodes und OpenID connect as authentication method, it is important that a client (such as your Browser) always accesses the same NiFi instance.
+In case you are using multiple NiFi nodes and OpenID connect as authentication method, it is important that a client (such as your Browser) always accesses the same NiFi instance.
 Otherwise the `authorization_request_not_found` error is returned.
 
 If you are using an nginx ingress, you can achieve this with the following annotations:
