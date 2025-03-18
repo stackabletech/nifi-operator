@@ -18,3 +18,56 @@ spec:
             sizeLimit: 1Gi
           name: log
 ----
+
+== `HTTP ERROR 400 Invalid SNI`
+
+You are very likely accessing a NiFi >= 2.0 stacklet using HTTPS to secure it's WebUI and an Ingress in front of it.
+The URL requested by the ingress-controller (such as nginx) needs to be the FQDN of the nifi service, not only the service name.
+You can instruct nginx ingress to use the FQDN by setting the following annotation:
+
+[source,yaml]
+----
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+    # We need to use the FQDN, so that NiFi has a cert for the host and does not throw
+    # HTTP ERROR 400 Invalid SNI
+    nginx.ingress.kubernetes.io/upstream-vhost: "nifi.default.svc.cluster.local"
+  name: nifi-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: nifi.my.corp
+      http:
+        paths:
+        - backend:
+            service:
+              name: nifi
+              port:
+                number: 8443
+          path: /
+          pathType: Prefix
+# ...
+----
+
+For details please read on https://medium.com/@chnzhoujun/how-to-resolve-sni-issue-when-upgrading-to-nifi-2-0-907e07d465c5[this article].
+
+== `authorization_request_not_found` when using multiple NiFi nodes
+
+In case you are using multiple NiFi nodes und OpenID connect as authentication method, it is important that a client (such as your Browser) always accesses the same NiFi instance.
+Otherwise the `authorization_request_not_found` error is returned.
+
+If you are using an nginx ingress, you can achieve this with the following annotations:
+
+[source,yaml]
+----
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/session-cookie-name: "route"
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "172800"
+----
