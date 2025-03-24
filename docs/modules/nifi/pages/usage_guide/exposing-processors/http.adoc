@@ -1,7 +1,7 @@
 = Exposing HTTP processors
 :description: Expose NiFi ListenHTTP processor by creating Service and Ingress objects, allowing external tools to trigger workflows or send data.
 
-Use can use the `ListenHTTP` processor to start a HTTP webserver and listen for incoming connections.
+You can use the `ListenHTTP` processor to start a HTTP webserver and listen for incoming connections.
 
 In this case `POST` requests are being send to NiFi, which acts as a webhook to receive data here.
 You should also be able to serve `GET` requests by using the `HandleHttpRequest` processor, however this is currently not demonstrated in this guide.
@@ -13,7 +13,7 @@ Let's start by creating a `ListenHTTP` processor:
 1. Set `Base Path` to an empty string
 2. Set `Listening Port` to `8042` or any other unused port number you prefer
 3. Set `Record Reader` to an `JsonTreeReader` and `Record Writer` to an `JsonRecordSetWriter` instance.
-   This guide assumes you are receiving JSON documents, but you can also receive other files types, please update the record reader and writer accordingly.
+   This guide assumes that JSON documents are being posted to the listener. For other document formats, change the record reader and writer accordingly.
 
 You should end up with something similar to
 
@@ -21,10 +21,10 @@ image:listen-http-1.png[A ListenHTTP processor]
 
 == 2. Expose `ListenHTTP` processor
 
-Afterwards you need to expose the processor the the outside world of NiFi.
+Afterwards you need to expose the processor to the outside world.
 
 For that to work, first create a Service object as follows.
-This guide assumes your NifiCluster is called `simple-nifi`, please update the YAML accordingly.
+In this guide, the NifiCluster is called `simple-nifi`. The name of the Nifi cluster must match the value of the `app.kubernetes.io/instance` as shown below.
 
 [source,yaml]
 ----
@@ -76,7 +76,7 @@ Start the `ListenHTTP` processor.
 image:listen-http-2.png[´RouteOnAttribute connected to ListenHTTP processor]
 
 The `ListenHTTP` processor should now generate a FlowFile for every incoming HTTP request.
-You can test this e.g. by calling `curl --verbose --data '{"hello":"NiFi"}' https://simple-nifi-listen-http.my.corp`, you should get a `HTTP/2 200` response.
+You can test this by calling `curl --verbose --data '{"hello":"NiFi"}' https://simple-nifi-listen-http.my.corp`, you should get a `HTTP/2 200` response.
 
 TIP: If you get a `503 Service Temporarily Unavailable`, this probably means your ingress controller was not able to
 reach your `ListenHTTP` processor, it is probably not running or not configured correctly.
@@ -85,7 +85,7 @@ This should result in one FlowFile being queued, as shown in the picture above a
 
 image:listen-http-3.png[Resulting FlowFile]
 
-The next step is to handle different kind of messages coming in, based on the HTTP path.
+The next step is to handle different kinds of messages coming in, based on the HTTP path.
 
 In the `RouteOnAttribute` processor, add a field called `/webhook/foo` with the value of `${"restlistener.request.uri":equals('/webhook/foo')}`.
 You can replace `/webhook/foo` with whatever URL your HTTP service should be reachable.
