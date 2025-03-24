@@ -1,6 +1,6 @@
 = Exposing processors
 
-You can expose NiFi processors to the outside world using two basic mechanisms:
+There are two mechanisms to expose Nifi processors to the outside world.
 
 1. xref:nifi:usage_guide/exposing-processors/http.adoc[HTTP traffic]
 2. xref:nifi:usage_guide/exposing-processors/tcp.adoc[Generic TCP traffic]

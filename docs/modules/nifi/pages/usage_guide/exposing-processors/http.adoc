@@ -11,7 +11,7 @@ You should also be able to serve `GET` requests by using the `HandleHttpRequest`
 Let's start by creating a `ListenHTTP` processor:
 
 1. Set `Base Path` to an empty string
-2. Set `Listening Port` to `8042` or any other unused port number you prefer
+2. Set `Listening Port` to `8042`.
 3. Set `Record Reader` to an `JsonTreeReader` and `Record Writer` to an `JsonRecordSetWriter` instance.
    This guide assumes that JSON documents are being posted to the listener. For other document formats, change the record reader and writer accordingly.
 
