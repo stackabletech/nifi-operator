@@ -87,8 +87,6 @@ This should result in one FlowFile being queued, as shown in the picture above a
 
 image:listen-http-3.png[Resulting FlowFile]
 
-The next step is to handle different kinds of messages coming in, based on the HTTP path.
-
 In the `RouteOnAttribute` processor, add a field called `/webhook/foo` with the value of `${"restlistener.request.uri":equals('/webhook/foo')}`.
 You can replace `/webhook/foo` with whatever URL your HTTP service should be reachable.
 This guide also added `/webhook/bar` and `/webhook/baz` in a similar way.
