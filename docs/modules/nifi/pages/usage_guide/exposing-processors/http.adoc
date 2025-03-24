@@ -89,7 +89,7 @@ The next step is to handle different kinds of messages coming in, based on the H
 
 In the `RouteOnAttribute` processor, add a field called `/webhook/foo` with the value of `${"restlistener.request.uri":equals('/webhook/foo')}`.
 You can replace `/webhook/foo` with whatever URL your HTTP service should be reachable.
-This guide also added `/webhook/bar` and `/webhook/bak` in a similar way.
+This guide also added `/webhook/bar` and `/webhook/baz` in a similar way.
 
 The `RouteOnAttribute` processor now has one `unmatched` output as well as one for every field you defined.
 You can connect a processor for every HTTP path you routed on.
