@@ -70,6 +70,8 @@ spec:
 
 === 3. Route 
 
+The next step is to handle different kind of messages coming in, based on the HTTP path.
+
 First, create a `RouteOnAttribute` processor and connect it to the `success` output of the `ListenHTTP` processor as shown below.
 Start the `ListenHTTP` processor.
 
