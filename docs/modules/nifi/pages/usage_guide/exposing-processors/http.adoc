@@ -80,8 +80,8 @@ image:listen-http-2.png[´RouteOnAttribute connected to ListenHTTP processor]
 The `ListenHTTP` processor should now generate a FlowFile for every incoming HTTP request.
 You can test this by calling `curl --verbose --data '{"hello":"NiFi"}' https://simple-nifi-listen-http.my.corp`, you should get a `HTTP/2 200` response.
 
-TIP: If you get a `503 Service Temporarily Unavailable`, this probably means your ingress controller was not able to
-reach your `ListenHTTP` processor, it is probably not running or not configured correctly.
+TIP: If you get a `503 Service Temporarily Unavailable`, this probably means your Ingress controller was not able to
+reach your `ListenHTTP` processor. Check that the processor is running and configured correctly.
 
 This should result in one FlowFile being queued, as shown in the picture above and below.
 
