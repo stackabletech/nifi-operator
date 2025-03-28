@@ -95,6 +95,7 @@ use crate::{
             LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME, STACKABLE_SERVER_TLS_DIR,
             STACKABLE_TLS_STORE_PASSWORD,
         },
+        authorization::NifiAuthorizationConfig,
         build_tls_volume, check_or_generate_oidc_admin_password, check_or_generate_sensitive_key,
         tls::{KEYSTORE_NIFI_CONTAINER_MOUNT, KEYSTORE_VOLUME_NAME, TRUSTSTORE_VOLUME_NAME},
     },
@@ -293,6 +294,11 @@ pub enum Error {
     #[snafu(display("Invalid NiFi Authentication Configuration"))]
     InvalidNifiAuthenticationConfig {
         source: crate::security::authentication::Error,
+    },
+
+    #[snafu(display("Invalid NiFi Authorization Configuration"))]
+    InvalidNifiAuthorizationConfig {
+        source: crate::security::authorization::Error,
     },
 
     #[snafu(display("Failed to resolve NiFi Authentication Configuration"))]
@@ -496,18 +502,21 @@ pub async fn reconcile_nifi(
             obj_ref: ObjectRef::new(&nifi.name_any()).within(namespace),
         })?;
 
-    let nifi_authentication_config = NifiAuthenticationConfig::try_from(
+    let authentication_config = NifiAuthenticationConfig::try_from(
         AuthenticationClassResolved::from(nifi, client)
             .await
             .context(FailedResolveNifiAuthenticationConfigSnafu)?,
     )
     .context(InvalidNifiAuthenticationConfigSnafu)?;
 
-    if let NifiAuthenticationConfig::Oidc { .. } = nifi_authentication_config {
+    if let NifiAuthenticationConfig::Oidc { .. } = authentication_config {
         check_or_generate_oidc_admin_password(client, nifi)
             .await
             .context(SecuritySnafu)?;
     }
+
+    let authorization_config =
+        NifiAuthorizationConfig::from(&nifi.spec.cluster_config.authorization);
 
     let vector_aggregator_address = resolve_vector_aggregator_address(nifi, client)
         .await
@@ -561,7 +570,8 @@ pub async fn reconcile_nifi(
             let rg_configmap = build_node_rolegroup_config_map(
                 nifi,
                 &resolved_product_image,
-                &nifi_authentication_config,
+                &authentication_config,
+                &authorization_config,
                 role,
                 &rolegroup,
                 rolegroup_config,
@@ -579,7 +589,8 @@ pub async fn reconcile_nifi(
                 role,
                 rolegroup_config,
                 &merged_config,
-                &nifi_authentication_config,
+                &authentication_config,
+                &authorization_config,
                 &version_change,
                 &rbac_sa.name_any(),
             )
@@ -628,7 +639,7 @@ pub async fn reconcile_nifi(
             nifi,
             &resolved_product_image,
             &client.kubernetes_cluster_info,
-            &nifi_authentication_config,
+            &authentication_config,
             &rbac_sa.name_any(),
         )
         .context(ReportingTaskSnafu)?
@@ -736,7 +747,8 @@ pub fn build_node_role_service(
 async fn build_node_rolegroup_config_map(
     nifi: &v1alpha1::NifiCluster,
     resolved_product_image: &ResolvedProductImage,
-    nifi_auth_config: &NifiAuthenticationConfig,
+    authentication_config: &NifiAuthenticationConfig,
+    authorization_config: &NifiAuthorizationConfig,
     role: &Role<NifiConfigFragment, GenericRoleConfig, JavaCommonConfig>,
     rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
@@ -746,9 +758,13 @@ async fn build_node_rolegroup_config_map(
 ) -> Result<ConfigMap> {
     tracing::debug!("building rolegroup configmaps");
 
-    let (login_identity_provider_xml, authorizers_xml) = nifi_auth_config
-        .get_auth_config()
+    let login_identity_provider_xml = authentication_config
+        .get_authentication_config()
         .context(InvalidNifiAuthenticationConfigSnafu)?;
+
+    let authorizers_xml = authorization_config
+        .get_authorizers_config(authentication_config)
+        .context(InvalidNifiAuthorizationConfigSnafu)?;
 
     let jvm_sec_props: BTreeMap<String, Option<String>> = rolegroup_config
         .get(&PropertyNameKind::File(
@@ -799,7 +815,7 @@ async fn build_node_rolegroup_config_map(
                 &nifi.spec,
                 &merged_config.resources,
                 proxy_hosts,
-                nifi_auth_config,
+                authentication_config,
                 rolegroup_config
                     .get(&PropertyNameKind::File(NIFI_PROPERTIES.to_string()))
                     .with_context(|| ProductConfigKindNotSpecifiedSnafu {
@@ -912,7 +928,8 @@ async fn build_node_rolegroup_statefulset(
     role: &Role<NifiConfigFragment, GenericRoleConfig, JavaCommonConfig>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &NifiConfig,
-    nifi_auth_config: &NifiAuthenticationConfig,
+    authentication_config: &NifiAuthenticationConfig,
+    authorization_config: &NifiAuthorizationConfig,
     version_change_state: &VersionChangeState,
     sa_name: &str,
 ) -> Result<StatefulSet> {
@@ -963,11 +980,13 @@ async fn build_node_rolegroup_statefulset(
         &nifi.spec.cluster_config.zookeeper_config_map_name,
     ));
 
-    if let NifiAuthenticationConfig::Oidc { oidc, .. } = nifi_auth_config {
+    if let NifiAuthenticationConfig::Oidc { oidc, .. } = authentication_config {
         env_vars.extend(AuthenticationProvider::client_credentials_env_var_mounts(
             oidc.client_credentials_secret_ref.clone(),
         ));
     }
+
+    env_vars.extend(authorization_config.get_env_vars());
 
     let node_address = format!(
         "$POD_NAME.{}-node-{}.{}.svc.{}",
@@ -1014,7 +1033,11 @@ async fn build_node_rolegroup_statefulset(
     ]);
 
     // This commands needs to go first, as they might set env variables needed by the templating
-    prepare_args.extend_from_slice(nifi_auth_config.get_additional_container_args().as_slice());
+    prepare_args.extend_from_slice(
+        authentication_config
+            .get_additional_container_args()
+            .as_slice(),
+    );
 
     prepare_args.extend(vec![
         "echo Templating config files".to_string(),
@@ -1255,7 +1278,7 @@ async fn build_node_rolegroup_statefulset(
         );
     }
 
-    nifi_auth_config
+    authentication_config
         .add_volumes_and_mounts(
             &mut pod_builder,
             vec![&mut container_prepare, container_nifi],

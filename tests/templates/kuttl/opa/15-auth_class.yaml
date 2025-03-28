@@ -1,0 +1,17 @@
+---
+apiVersion: authentication.stackable.tech/v1alpha1
+kind: AuthenticationClass
+metadata:
+  name: simple-nifi-users
+spec:
+  provider:
+    static:
+      userCredentialsSecret:
+        name: simple-nifi-admin-credentials
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: simple-nifi-admin-credentials
+stringData:
+  admin: supersecretpassword
