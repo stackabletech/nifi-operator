@@ -1,6 +1,7 @@
 = Security
 :description: Secure Apache NiFi on Kubernetes with TLS, authentication, and authorization using the Stackable operator. Configure LDAP, OIDC, and sensitive data encryption.
 :nifi-docs-authorization: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#multi-tenant-authorization
+:nifi-docs-access-policies: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#access-policies
 :nifi-docs-fileusergroupprovider: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#fileusergroupprovider
 :nifi-docs-fileaccesspolicyprovider: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#fileaccesspolicyprovider
 :nifi-docs-sensitive-properties-key: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#nifi_sensitive_props_key
@@ -168,7 +169,7 @@ stringData:
 
 NiFi supports {nifi-docs-authorization}[multiple authorization methods], the available authorization methods depend on the chosen authentication method.
 
-Authorization is not fully implemented by the Stackable Operator for Apache NiFi.
+The Stackable Operator for Apache NiFi supports a default authorization methods for each authentication method and authorization with Open Policy Agent.
 
 [#authorization-single-user]
 === Single user
@@ -189,6 +190,89 @@ With this authorization method, all authenticated users have administrator capab
 
 An admin user with an auto-generated password is created that can access the NiFi API.
 The password for this user is stored in a Kubernetes Secret called `<nifi-name>-oidc-admin-password`.
+
+[#authorization-opa]
+=== Open Policy Agent (OPA)
+
+NiFi can be configured to delegate authorization decisions to an Open Policy Agent (OPA) instance. More information on the setup and configuration of OPA can be found in the xref:opa:index.adoc[OPA Operator documentation].
+
+A NiFi cluster can be configured with OPA authorization by adding this section to the configuration:
+
+[source,yaml]
+----
+spec:
+  clusterConfig:
+    authorization:
+      opa:
+        configMapName: simple-opa <1>
+        package: my-druid-rules <2>
+        cache:
+          entryTimeToLive: 5s <3>
+          maxEntries: 10 <4>
+----
+<1> The name of your OPA Stacklet (`simple-opa` in this case)
+<2> The RegoRule package to use for policy decisions.
+The package needs to contain an `allow` rule.
+This is optional and defaults to the name of the Druid Stacklet.
+<3> TTL for items in the cache in NiFi.
+<4> Maximum number of concurrent entries in the cache in NiFi
+
+=== Defining rego rules
+
+For a general explanation of how rules are written, please refer to the {opa-rego-docs}[OPA documentation]. For more information on NiFi's access policies please refer to the  {nifi-docs-access-policies}[NiFi documentation].
+
+Inside of your rego rules you have access to the content of the authorization request from NiFi as input for OPA:
+
+[source,json]
+----
+{
+    "action": {
+        "name": <String> <1>
+    },
+    "properties": {
+        "isAccessAttempt": <String>, <2>
+        "isAnonymous": <String> <3>
+    },
+    "resource": { <4>
+        "id": <String>,
+        "name": <String>,
+        "safeDescription": <String>
+    },
+    "requestedResource": { <5>
+        "id": <String>,
+        "name": <String>,
+        "safeDescription": <String>
+    },
+    "user": {
+        "name": <String>, <6>
+        "groups": String, <7>
+    },
+    "resourceContext": <Object>, <8>
+    "userContext": <Object> <9>
+}
+----
+<1> The action taken against the resource. Possible values: `"read"` or `"write"`.
+<2> Whether this is a direct access attempt of the resource or if it's being checked as part of another response. Possible values: `"true"` or `"false"`
+<3> Whether the entity accessing the resource is anonymous. Possible values: `"true"` or `"false"`.
+<4> The current resource being authorized on.
+<5> The original resource being requested. In cases with inherited policies, this will be an ancestor resource of the current resource. For the initial request, and cases without inheritance, the requested resource will be the same as the current resource.
+<6> The user accessing the resource.
+<7> Comma-separated list of groups that the user accessing the resource belongs to.
+<8> The event attributes to make additional access decisions for provenance events. Will be `{"": ""}` if empty.
+<9> Additional context for the user to make additional access decisions. Will be `{"": ""}` if empty.
+
+The result of an 'allow' rego rule has to be
+
+[source,json]
+----
+{
+    "allowed": <String>, <1>
+    "dumpCache": <Boolean> <2>
+}
+----
+<1> Whether the action against the resource is allowed. Possible values: `"true"` or `"false"`.
+<2> Whether the complete local cache in NiFi should be invalidated.
+
 
 [#encrypting-sensitive-properties]
 == Encrypting sensitive properties on disk
