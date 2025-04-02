@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use rand::{distr::Alphanumeric, Rng};
+use rand::{Rng, distr::Alphanumeric};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
@@ -10,7 +10,7 @@ use stackable_operator::{
         tls_verification::{CaCert, TlsServerVerification, TlsVerification},
     },
     k8s_openapi::api::core::v1::Secret,
-    kube::{runtime::reflector::ObjectRef, ResourceExt},
+    kube::{ResourceExt, runtime::reflector::ObjectRef},
 };
 
 use crate::{crd::v1alpha1, security::authentication::STACKABLE_ADMIN_USERNAME};
