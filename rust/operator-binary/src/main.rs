@@ -3,6 +3,7 @@ use std::sync::Arc;
 use clap::Parser;
 use futures::stream::StreamExt;
 use stackable_operator::{
+    YamlSchema,
     cli::{Command, ProductOperatorRun},
     commons::authentication::AuthenticationClass,
     k8s_openapi::api::{
@@ -12,19 +13,19 @@ use stackable_operator::{
     kube::{
         core::DeserializeGuard,
         runtime::{
+            Controller,
             events::{Recorder, Reporter},
             reflector::ObjectRef,
-            watcher, Controller,
+            watcher,
         },
     },
     logging::controller::report_controller_reconciled,
     shared::yaml::SerializeOptions,
-    YamlSchema,
 };
 
 use crate::{
     controller::NIFI_FULL_CONTROLLER_NAME,
-    crd::{v1alpha1, NifiCluster},
+    crd::{NifiCluster, v1alpha1},
 };
 
 mod config;
@@ -86,13 +87,10 @@ async fn main() -> anyhow::Result<()> {
             )
             .await?;
 
-            let event_recorder = Arc::new(Recorder::new(
-                client.as_kube_client(),
-                Reporter {
-                    controller: NIFI_FULL_CONTROLLER_NAME.to_string(),
-                    instance: None,
-                },
-            ));
+            let event_recorder = Arc::new(Recorder::new(client.as_kube_client(), Reporter {
+                controller: NIFI_FULL_CONTROLLER_NAME.to_string(),
+                instance: None,
+            }));
 
             let nifi_controller = Controller::new(
                 watch_namespace.get_api::<DeserializeGuard<v1alpha1::NifiCluster>>(&client),

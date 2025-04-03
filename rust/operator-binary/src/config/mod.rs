@@ -4,14 +4,14 @@ use std::{
 };
 
 use jvm::build_merged_jvm_config;
-use product_config::{types::PropertyNameKind, ProductConfigManager};
+use product_config::{ProductConfigManager, types::PropertyNameKind};
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     commons::resources::Resources,
     memory::MemoryQuantity,
     product_config_utils::{
-        transform_all_roles_to_config, validate_all_roles_and_groups_config,
-        ValidatedRoleConfigByPropertyKind,
+        ValidatedRoleConfigByPropertyKind, transform_all_roles_to_config,
+        validate_all_roles_and_groups_config,
     },
     role_utils::{GenericRoleConfig, JavaCommonConfig, Role},
 };
@@ -19,8 +19,8 @@ use strum::{Display, EnumIter};
 
 use crate::{
     crd::{
-        v1alpha1, NifiConfig, NifiConfigFragment, NifiRole, NifiStorageConfig, HTTPS_PORT,
-        PROTOCOL_PORT,
+        HTTPS_PORT, NifiConfig, NifiConfigFragment, NifiRole, NifiStorageConfig, PROTOCOL_PORT,
+        v1alpha1,
     },
     operations::graceful_shutdown::graceful_shutdown_config_properties,
     security::{
@@ -64,6 +64,7 @@ impl NifiRepository {
     pub fn repository(&self) -> String {
         format!("{}-repository", self)
     }
+
     pub fn mount_path(&self) -> String {
         format!("/stackable/data/{}", self)
     }
@@ -695,9 +696,7 @@ mod tests {
         "#;
         let bootstrap_conf = construct_bootstrap_conf(input);
 
-        assert_eq!(
-            bootstrap_conf,
-            indoc! {"
+        assert_eq!(bootstrap_conf, indoc! {"
                 conf.dir=./conf
                 graceful.shutdown.seconds=300
                 java=java
@@ -716,8 +715,7 @@ mod tests {
                 lib.dir=./lib
                 preserve.environment=false
                 run.as=
-            "}
-        );
+            "});
     }
 
     #[test]
@@ -763,9 +761,7 @@ mod tests {
         "#;
         let bootstrap_conf = construct_bootstrap_conf(input);
 
-        assert_eq!(
-            bootstrap_conf,
-            indoc! {"
+        assert_eq!(bootstrap_conf, indoc! {"
                 conf.dir=./conf
                 graceful.shutdown.seconds=300
                 java=java
@@ -786,8 +782,7 @@ mod tests {
                 lib.dir=./lib
                 preserve.environment=false
                 run.as=
-            "}
-        );
+            "});
     }
 
     fn construct_bootstrap_conf(nifi_cluster: &str) -> String {
