@@ -12,7 +12,7 @@ use stackable_operator::{
     role_utils::RoleGroupRef,
 };
 
-use crate::crd::{v1alpha1, Container, MAX_NIFI_LOG_FILES_SIZE, STACKABLE_LOG_DIR};
+use crate::crd::{Container, MAX_NIFI_LOG_FILES_SIZE, STACKABLE_LOG_DIR, v1alpha1};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
