@@ -11,6 +11,7 @@ use stackable_operator::{
         core::v1::{ConfigMap, Service},
     },
     kube::{
+        ResourceExt,
         core::DeserializeGuard,
         runtime::{
             Controller,
@@ -140,6 +141,7 @@ async fn main() -> anyhow::Result<()> {
             );
 
             let nifi_store_1 = nifi_controller.store();
+            let nifi_store_2 = nifi_controller.store();
 
             nifi_controller
                 .owns(
@@ -162,6 +164,17 @@ async fn main() -> anyhow::Result<()> {
                         nifi_store_1
                             .state()
                             .into_iter()
+                            .map(|nifi| ObjectRef::from_obj(&*nifi))
+                    },
+                )
+                .watches(
+                    watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
+                    watcher::Config::default(),
+                    move |config_map| {
+                        nifi_store_2
+                            .state()
+                            .into_iter()
+                            .filter(move |nifi| references_config_map(nifi, &config_map))
                             .map(|nifi| ObjectRef::from_obj(&*nifi))
                     },
                 )
@@ -195,4 +208,15 @@ async fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn references_config_map(
+    nifi: &DeserializeGuard<v1alpha1::NifiCluster>,
+    config_map: &DeserializeGuard<ConfigMap>,
+) -> bool {
+    let Ok(nifi) = &nifi.0 else {
+        return false;
+    };
+
+    nifi.spec.cluster_config.zookeeper_config_map_name == config_map.name_any()
 }
