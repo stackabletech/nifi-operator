@@ -11,14 +11,14 @@ All notable changes to this project will be documented in this file.
     (or via `--rolling-logs <DIRECTORY>`).
   - Replace stackable-operator `print_startup_string` with `tracing::info!` with fields.
 - BREAKING: Inject the vector aggregator address into the vector config using the env var `VECTOR_AGGREGATOR_ADDRESS` instead
-    of having the operator write it to the vector config ([#XXX]).
+    of having the operator write it to the vector config ([#772]).
 
 ### Fixed
 
-- Fix a bug where changes to ConfigMaps that are referenced in the NifiCluster spec didn't trigger a reconciliation ([#XXX]).
+- Fix a bug where changes to ConfigMaps that are referenced in the NifiCluster spec didn't trigger a reconciliation ([#772]).
 
 [#767]: https://github.com/stackabletech/nifi-operator/pull/767
-[#XXX]: https://github.com/stackabletech/nifi-operator/pull/XXX
+[#772]: https://github.com/stackabletech/nifi-operator/pull/772
 
 ## [25.3.0] - 2025-03-21
 
