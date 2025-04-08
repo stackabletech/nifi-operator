@@ -579,31 +579,31 @@ pub fn build_nifi_properties(
 
 pub fn build_state_management_xml() -> String {
     format!(
-        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
         <stateManagement>
           <local-provider>
           <id>local-provider</id>
             <class>org.apache.nifi.controller.state.providers.local.WriteAheadLocalStateProvider</class>
-            <property name=\"Directory\">{}</property>
-            <property name=\"Always Sync\">false</property>
-            <property name=\"Partitions\">16</property>
-            <property name=\"Checkpoint Interval\">2 mins</property>
+            <property name="Directory">{local_state_path}</property>
+            <property name="Always Sync">false</property>
+            <property name="Partitions">16</property>
+            <property name="Checkpoint Interval">2 mins</property>
           </local-provider>
           <cluster-provider>
             <id>zk-provider</id>
             <class>org.apache.nifi.controller.state.providers.zookeeper.ZooKeeperStateProvider</class>
-            <property name=\"Connect String\">${{env:ZOOKEEPER_HOSTS}}</property>
-            <property name=\"Root Node\">${{env:ZOOKEEPER_CHROOT}}</property>
-            <property name=\"Session Timeout\">10 seconds</property>
-            <property name=\"Access Control\">Open</property>
+            <property name="Connect String">${{env:ZOOKEEPER_HOSTS}}</property>
+            <property name="Root Node">${{env:ZOOKEEPER_CHROOT}}</property>
+            <property name="Session Timeout">10 seconds</property>
+            <property name="Access Control">Open</property>
           </cluster-provider>
           <cluster-provider>
             <id>kubernetes-provider</id>
             <class>org.apache.nifi.kubernetes.state.provider.KubernetesConfigMapStateProvider</class>
-            <property name=\"ConfigMap Name Prefix\">simple-nifi</property>
+            <property name="ConfigMap Name Prefix">simple-nifi</property>
           </cluster-provider>
-        </stateManagement>",
-        &NifiRepository::State.mount_path(),
+        </stateManagement>"#,
+        local_state_path = &NifiRepository::State.mount_path(),
     )
 }
 
