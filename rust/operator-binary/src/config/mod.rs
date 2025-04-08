@@ -696,9 +696,7 @@ mod tests {
         "#;
         let bootstrap_conf = construct_bootstrap_conf(input);
 
-        assert_eq!(
-            bootstrap_conf,
-            indoc! {"
+        assert_eq!(bootstrap_conf, indoc! {"
                 conf.dir=./conf
                 graceful.shutdown.seconds=300
                 java=java
@@ -717,8 +715,7 @@ mod tests {
                 lib.dir=./lib
                 preserve.environment=false
                 run.as=
-            "}
-        );
+            "});
     }
 
     #[test]
@@ -764,9 +761,7 @@ mod tests {
         "#;
         let bootstrap_conf = construct_bootstrap_conf(input);
 
-        assert_eq!(
-            bootstrap_conf,
-            indoc! {"
+        assert_eq!(bootstrap_conf, indoc! {"
                 conf.dir=./conf
                 graceful.shutdown.seconds=300
                 java=java
@@ -787,8 +782,7 @@ mod tests {
                 lib.dir=./lib
                 preserve.environment=false
                 run.as=
-            "}
-        );
+            "});
     }
 
     fn construct_bootstrap_conf(nifi_cluster: &str) -> String {

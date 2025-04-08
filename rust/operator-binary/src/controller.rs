@@ -1303,10 +1303,10 @@ async fn build_node_rolegroup_statefulset(
     }
 
     nifi_auth_config
-        .add_volumes_and_mounts(
-            &mut pod_builder,
-            vec![&mut container_prepare, container_nifi],
-        )
+        .add_volumes_and_mounts(&mut pod_builder, vec![
+            &mut container_prepare,
+            container_nifi,
+        ])
         .context(AddAuthVolumesSnafu)?;
 
     let metadata = ObjectMetaBuilder::new()
