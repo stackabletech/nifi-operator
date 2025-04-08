@@ -600,7 +600,7 @@ pub fn build_state_management_xml() -> String {
           <cluster-provider>
             <id>kubernetes-provider</id>
             <class>org.apache.nifi.kubernetes.state.provider.KubernetesConfigMapStateProvider</class>
-            <property name="ConfigMap Name Prefix">simple-nifi</property>
+            <property name="ConfigMap Name Prefix">${{env:STACKLET_NAME}}</property>
           </cluster-provider>
         </stateManagement>"#,
         local_state_path = &NifiRepository::State.mount_path(),

@@ -914,7 +914,7 @@ async fn build_node_rolegroup_statefulset(
     merged_config: &NifiConfig,
     nifi_auth_config: &NifiAuthenticationConfig,
     version_change_state: &VersionChangeState,
-    sa_name: &str,
+    service_account_name: &str,
 ) -> Result<StatefulSet> {
     tracing::debug!("Building statefulset");
     let role_group = role.role_groups.get(&rolegroup_ref.role_group);
@@ -950,18 +950,33 @@ async fn build_node_rolegroup_statefulset(
     env_vars.push(EnvVar {
         name: "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
         value: Some(format!("{STACKABLE_LOG_DIR}/containerdebug")),
-        value_from: None,
+        ..Default::default()
     });
 
-    env_vars.push(zookeeper_env_var(
-        "ZOOKEEPER_HOSTS",
-        &nifi.spec.cluster_config.zookeeper_config_map_name,
-    ));
+    env_vars.push(EnvVar {
+        name: "STACKLET_NAME".to_string(),
+        value: Some(nifi.name_unchecked().to_string()),
+        ..Default::default()
+    });
 
-    env_vars.push(zookeeper_env_var(
-        "ZOOKEEPER_CHROOT",
-        &nifi.spec.cluster_config.zookeeper_config_map_name,
-    ));
+    let zookeeper_env_var = |name: &str| EnvVar {
+        name: name.to_string(),
+        value_from: Some(EnvVarSource {
+            config_map_key_ref: Some(ConfigMapKeySelector {
+                name: nifi
+                    .spec
+                    .cluster_config
+                    .zookeeper_config_map_name
+                    .to_string(),
+                key: name.to_string(),
+                ..ConfigMapKeySelector::default()
+            }),
+            ..EnvVarSource::default()
+        }),
+        ..EnvVar::default()
+    };
+    env_vars.push(zookeeper_env_var("ZOOKEEPER_HOSTS"));
+    env_vars.push(zookeeper_env_var("ZOOKEEPER_CHROOT"));
 
     if let NifiAuthenticationConfig::Oidc { oidc, .. } = nifi_auth_config {
         env_vars.extend(AuthenticationProvider::client_credentials_env_var_mounts(
@@ -1348,7 +1363,7 @@ async fn build_node_rolegroup_statefulset(
             ..Volume::default()
         })
         .context(AddVolumeSnafu)?
-        .service_account_name(sa_name)
+        .service_account_name(service_account_name)
         .security_context(
             PodSecurityContextBuilder::new()
                 .run_as_user(NIFI_UID)
@@ -1458,22 +1473,6 @@ fn external_node_port(nifi_service: &Service) -> Result<i32> {
         .with_context(|| ExternalPortSnafu {})?;
 
     port.node_port.with_context(|| ExternalPortSnafu {})
-}
-
-/// Used for the `ZOOKEEPER_HOSTS` and `ZOOKEEPER_CHROOT` env vars.
-fn zookeeper_env_var(name: &str, configmap_name: &str) -> EnvVar {
-    EnvVar {
-        name: name.to_string(),
-        value_from: Some(EnvVarSource {
-            config_map_key_ref: Some(ConfigMapKeySelector {
-                name: configmap_name.to_string(),
-                key: name.to_string(),
-                ..ConfigMapKeySelector::default()
-            }),
-            ..EnvVarSource::default()
-        }),
-        ..EnvVar::default()
-    }
 }
 
 async fn get_proxy_hosts(
