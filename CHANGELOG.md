@@ -8,6 +8,14 @@ All notable changes to this project will be documented in this file.
 
 - Add rolling upgrade support for upgrades between NiFi 2 versions ([#771]).
 
+### Changed
+
+- Replace stackable-operator `initialize_logging` with stackable-telemetry `Tracing` ([#767]).
+  - BREAKING: The file log directory was set by `NIFI_OPERATOR_LOG_DIRECTORY`, and is now set by `ROLLING_LOGS`
+    (or via `--rolling-logs <DIRECTORY>`).
+  - Replace stackable-operator `print_startup_string` with `tracing::info!` with fields.
+
+[#767]: https://github.com/stackabletech/nifi-operator/pull/767
 [#771]: https://github.com/stackabletech/nifi-operator/pull/771
 
 ## [25.3.0] - 2025-03-21
