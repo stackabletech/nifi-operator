@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add rolling upgrade support for upgrades between NiFi 2 versions ([#771]).
+
+[#771]: https://github.com/stackabletech/nifi-operator/pull/771
+
 ## [25.3.0] - 2025-03-21
 
 ### Added
