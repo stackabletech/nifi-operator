@@ -9,9 +9,9 @@ use std::{
 use const_format::concatcp;
 use indoc::formatdoc;
 use product_config::{
-    types::PropertyNameKind,
-    writer::{to_java_properties_string, PropertiesWriterError},
     ProductConfigManager,
+    types::PropertyNameKind,
+    writer::{PropertiesWriterError, to_java_properties_string},
 };
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -20,8 +20,8 @@ use stackable_operator::{
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{
-            container::ContainerBuilder, resources::ResourceRequirementsBuilder,
-            security::PodSecurityContextBuilder, volume::SecretFormat, PodBuilder,
+            PodBuilder, container::ContainerBuilder, resources::ResourceRequirementsBuilder,
+            security::PodSecurityContextBuilder, volume::SecretFormat,
         },
     },
     client::Client,
@@ -32,6 +32,7 @@ use stackable_operator::{
     },
     config::fragment,
     k8s_openapi::{
+        DeepMerge,
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec, StatefulSetUpdateStrategy},
             core::v1::{
@@ -41,13 +42,12 @@ use stackable_operator::{
             },
         },
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
-        DeepMerge,
     },
     kube::{
-        api::ListParams,
-        core::{error_boundary, DeserializeGuard},
-        runtime::{controller::Action, reflector::ObjectRef},
         Resource, ResourceExt,
+        api::ListParams,
+        core::{DeserializeGuard, error_boundary},
+        runtime::{controller::Action, reflector::ObjectRef},
     },
     kvp::{Label, Labels, ObjectLabels},
     logging::controller::ReconcilerError,
@@ -55,7 +55,7 @@ use stackable_operator::{
     product_logging::{
         self,
         framework::{
-            create_vector_shutdown_file_command, remove_vector_shutdown_file_command, LoggingError,
+            LoggingError, create_vector_shutdown_file_command, remove_vector_shutdown_file_command,
         },
         spec::{
             ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
@@ -68,37 +68,36 @@ use stackable_operator::{
         statefulset::StatefulSetConditionBuilder,
     },
     time::Duration,
-    utils::{cluster_info::KubernetesClusterInfo, COMMON_BASH_TRAP_FUNCTIONS},
+    utils::{COMMON_BASH_TRAP_FUNCTIONS, cluster_info::KubernetesClusterInfo},
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
 
 use crate::{
+    OPERATOR_NAME,
     config::{
-        self, build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
-        validated_product_config, NifiRepository, JVM_SECURITY_PROPERTIES_FILE,
-        NIFI_BOOTSTRAP_CONF, NIFI_CONFIG_DIRECTORY, NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML,
+        self, JVM_SECURITY_PROPERTIES_FILE, NIFI_BOOTSTRAP_CONF, NIFI_CONFIG_DIRECTORY,
+        NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML, NifiRepository, build_bootstrap_conf,
+        build_nifi_properties, build_state_management_xml, validated_product_config,
     },
     crd::{
-        authentication::AuthenticationClassResolved, v1alpha1, Container,
-        CurrentlySupportedListenerClasses, NifiConfig, NifiConfigFragment, NifiRole, NifiStatus,
-        APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT,
-        METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR,
-        STACKABLE_LOG_DIR,
+        APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, Container, CurrentlySupportedListenerClasses,
+        HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, NifiConfig,
+        NifiConfigFragment, NifiRole, NifiStatus, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
+        STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR, authentication::AuthenticationClassResolved,
+        v1alpha1,
     },
     operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
     reporting_task::{self, build_maybe_reporting_task, build_reporting_task_service_name},
     security::{
         authentication::{
-            NifiAuthenticationConfig, AUTHORIZERS_XML_FILE_NAME,
-            LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME, STACKABLE_SERVER_TLS_DIR,
-            STACKABLE_TLS_STORE_PASSWORD,
+            AUTHORIZERS_XML_FILE_NAME, LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME,
+            NifiAuthenticationConfig, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
         },
         build_tls_volume, check_or_generate_oidc_admin_password, check_or_generate_sensitive_key,
         tls::{KEYSTORE_NIFI_CONTAINER_MOUNT, KEYSTORE_VOLUME_NAME, TRUSTSTORE_VOLUME_NAME},
     },
-    OPERATOR_NAME,
 };
 
 pub const NIFI_CONTROLLER_NAME: &str = "nificluster";
@@ -1297,10 +1296,10 @@ async fn build_node_rolegroup_statefulset(
     }
 
     nifi_auth_config
-        .add_volumes_and_mounts(
-            &mut pod_builder,
-            vec![&mut container_prepare, container_nifi],
-        )
+        .add_volumes_and_mounts(&mut pod_builder, vec![
+            &mut container_prepare,
+            container_nifi,
+        ])
         .context(AddAuthVolumesSnafu)?;
 
     let metadata = ObjectMetaBuilder::new()
@@ -1532,9 +1531,13 @@ async fn get_proxy_hosts(
     let host_header_check = nifi.spec.cluster_config.host_header_check.clone();
 
     if host_header_check.allow_all {
-        tracing::info!("spec.clusterConfig.hostHeaderCheck.allowAll is set to true. All proxy hosts will be allowed.");
+        tracing::info!(
+            "spec.clusterConfig.hostHeaderCheck.allowAll is set to true. All proxy hosts will be allowed."
+        );
         if !host_header_check.additional_allowed_hosts.is_empty() {
-            tracing::info!("spec.clusterConfig.hostHeaderCheck.additionalAllowedHosts is ignored and only '*' is added to the allow-list.")
+            tracing::info!(
+                "spec.clusterConfig.hostHeaderCheck.additionalAllowedHosts is ignored and only '*' is added to the allow-list."
+            )
         }
         return Ok("*".to_string());
     }
