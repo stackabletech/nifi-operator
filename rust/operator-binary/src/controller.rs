@@ -696,7 +696,10 @@ async fn version_change_state(
                 // If statefulsets have already been scaled to zero, but have remaining replicas
                 // we requeue to wait until a full stop has been performed.
                 if target_replicas == 0 && current_replicas > 0 {
-                    tracing::info!("Cluster is performing a full restart at the moment and still shutting down, remaining replicas: [{}] - requeueing to wait for shutdown to finish", current_replicas);
+                    tracing::info!(
+                        "Cluster is performing a full restart at the moment and still shutting down, remaining replicas: [{}] - requeueing to wait for shutdown to finish",
+                        current_replicas
+                    );
                     return Ok(VersionChangeState::InProgress);
                 }
 
@@ -705,7 +708,9 @@ async fn version_change_state(
                 // Both actions will be taken in the regular reconciliation, so we can simply continue
                 // here
                 if target_replicas > 0 {
-                    tracing::info!("Version change detected, we'll need to scale down the cluster for a full restart.");
+                    tracing::info!(
+                        "Version change detected, we'll need to scale down the cluster for a full restart."
+                    );
                     Ok(VersionChangeState::ReadyForChange)
                 } else {
                     tracing::info!("Cluster has been stopped for a restart, will scale back up.");
@@ -719,7 +724,9 @@ async fn version_change_state(
         None => {
             // No deployed version set in status, this is probably the first reconciliation ever
             // for this cluster, so just let it progress normally
-            tracing::debug!("No deployed version found for this cluster, this is probably the first start, continue reconciliation");
+            tracing::debug!(
+                "No deployed version found for this cluster, this is probably the first start, continue reconciliation"
+            );
             Ok(VersionChangeState::NoVersionChange)
         }
     }
@@ -1296,10 +1303,10 @@ async fn build_node_rolegroup_statefulset(
     }
 
     nifi_auth_config
-        .add_volumes_and_mounts(&mut pod_builder, vec![
-            &mut container_prepare,
-            container_nifi,
-        ])
+        .add_volumes_and_mounts(
+            &mut pod_builder,
+            vec![&mut container_prepare, container_nifi],
+        )
         .context(AddAuthVolumesSnafu)?;
 
     let metadata = ObjectMetaBuilder::new()
