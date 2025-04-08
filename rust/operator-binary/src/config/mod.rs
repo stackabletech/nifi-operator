@@ -597,6 +597,11 @@ pub fn build_state_management_xml() -> String {
             <property name=\"Session Timeout\">10 seconds</property>
             <property name=\"Access Control\">Open</property>
           </cluster-provider>
+          <cluster-provider>
+            <id>kubernetes-provider</id>
+            <class>org.apache.nifi.kubernetes.state.provider.KubernetesConfigMapStateProvider</class>
+            <property name=\"ConfigMap Name Prefix\">simple-nifi</property>
+          </cluster-provider>
         </stateManagement>",
         &NifiRepository::State.mount_path(),
     )
