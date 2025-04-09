@@ -249,9 +249,9 @@ pub fn build_nifi_properties(
     // The ID of the cluster-wide state provider. This will be ignored if NiFi is not clustered but must be populated if running in a cluster.
     properties.insert(
         "nifi.state.management.provider.cluster".to_string(),
-        match spec.cluster_config.clustering_mode {
-            v1alpha1::NifiClusteringMode::ZooKeeper { .. } => "zk-provider".to_string(),
-            v1alpha1::NifiClusteringMode::Kubernetes { .. } => "kubernetes-provider".to_string(),
+        match spec.cluster_config.clustering_backend {
+            v1alpha1::NifiClusteringBackend::ZooKeeper { .. } => "zk-provider".to_string(),
+            v1alpha1::NifiClusteringBackend::Kubernetes { .. } => "kubernetes-provider".to_string(),
         },
     );
     // Specifies whether or not this instance of NiFi should run an embedded ZooKeeper server
@@ -561,8 +561,8 @@ pub fn build_nifi_properties(
         "".to_string(),
     );
 
-    match spec.cluster_config.clustering_mode {
-        v1alpha1::NifiClusteringMode::ZooKeeper { .. } => {
+    match spec.cluster_config.clustering_backend {
+        v1alpha1::NifiClusteringBackend::ZooKeeper { .. } => {
             properties.insert(
                 "nifi.cluster.leader.election.implementation".to_string(),
                 "CuratorLeaderElectionManager".to_string(),
@@ -581,7 +581,7 @@ pub fn build_nifi_properties(
             );
         }
 
-        v1alpha1::NifiClusteringMode::Kubernetes {} => {
+        v1alpha1::NifiClusteringBackend::Kubernetes {} => {
             properties.insert(
                 "nifi.cluster.leader.election.implementation".to_string(),
                 "KubernetesLeaderElectionManager".to_string(),

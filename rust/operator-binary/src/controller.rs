@@ -959,8 +959,8 @@ async fn build_node_rolegroup_statefulset(
         ..Default::default()
     });
 
-    match &nifi.spec.cluster_config.clustering_mode {
-        v1alpha1::NifiClusteringMode::ZooKeeper {
+    match &nifi.spec.cluster_config.clustering_backend {
+        v1alpha1::NifiClusteringBackend::ZooKeeper {
             zookeeper_config_map_name,
         } => {
             let zookeeper_env_var = |name: &str| EnvVar {
@@ -978,7 +978,7 @@ async fn build_node_rolegroup_statefulset(
             env_vars.push(zookeeper_env_var("ZOOKEEPER_HOSTS"));
             env_vars.push(zookeeper_env_var("ZOOKEEPER_CHROOT"));
         }
-        v1alpha1::NifiClusteringMode::Kubernetes {} => {}
+        v1alpha1::NifiClusteringBackend::Kubernetes {} => {}
     }
 
     if let NifiAuthenticationConfig::Oidc { oidc, .. } = nifi_auth_config {

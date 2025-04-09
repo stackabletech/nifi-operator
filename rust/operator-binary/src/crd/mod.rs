@@ -139,7 +139,7 @@ pub mod versioned {
         pub vector_aggregator_config_map_name: Option<String>,
 
         #[serde(flatten)]
-        pub clustering_mode: NifiClusteringMode,
+        pub clustering_backend: NifiClusteringBackend,
 
         /// Extra volumes similar to `.spec.volumes` on a Pod to mount into every container, this can be useful to for
         /// example make client certificates, keytabs or similar things available to processors. These volumes will be
@@ -170,7 +170,7 @@ pub mod versioned {
     // For v1alpha2, consider migrating this to a tagged enum for consistency.
     #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
     #[serde(untagged)]
-    pub enum NifiClusteringMode {
+    pub enum NifiClusteringBackend {
         #[serde(rename_all = "camelCase")]
         ZooKeeper {
             /// NiFi can either use ZooKeeper or Kubernetes for managing its cluster state. To use ZooKeeper, provide the name of the
