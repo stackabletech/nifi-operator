@@ -959,24 +959,27 @@ async fn build_node_rolegroup_statefulset(
         ..Default::default()
     });
 
-    let zookeeper_env_var = |name: &str| EnvVar {
-        name: name.to_string(),
-        value_from: Some(EnvVarSource {
-            config_map_key_ref: Some(ConfigMapKeySelector {
-                name: nifi
-                    .spec
-                    .cluster_config
-                    .zookeeper_config_map_name
-                    .to_string(),
-                key: name.to_string(),
-                ..ConfigMapKeySelector::default()
-            }),
-            ..EnvVarSource::default()
-        }),
-        ..EnvVar::default()
-    };
-    env_vars.push(zookeeper_env_var("ZOOKEEPER_HOSTS"));
-    env_vars.push(zookeeper_env_var("ZOOKEEPER_CHROOT"));
+    match &nifi.spec.cluster_config.clustering_mode {
+        v1alpha1::NifiClusteringMode::ZooKeeper {
+            zookeeper_config_map_name,
+        } => {
+            let zookeeper_env_var = |name: &str| EnvVar {
+                name: name.to_string(),
+                value_from: Some(EnvVarSource {
+                    config_map_key_ref: Some(ConfigMapKeySelector {
+                        name: zookeeper_config_map_name.to_string(),
+                        key: name.to_string(),
+                        ..ConfigMapKeySelector::default()
+                    }),
+                    ..EnvVarSource::default()
+                }),
+                ..EnvVar::default()
+            };
+            env_vars.push(zookeeper_env_var("ZOOKEEPER_HOSTS"));
+            env_vars.push(zookeeper_env_var("ZOOKEEPER_CHROOT"));
+        }
+        v1alpha1::NifiClusteringMode::Kubernetes {} => {}
+    }
 
     if let NifiAuthenticationConfig::Oidc { oidc, .. } = nifi_auth_config {
         env_vars.extend(AuthenticationProvider::client_credentials_env_var_mounts(

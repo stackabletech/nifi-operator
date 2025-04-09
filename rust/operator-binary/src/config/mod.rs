@@ -249,7 +249,10 @@ pub fn build_nifi_properties(
     // The ID of the cluster-wide state provider. This will be ignored if NiFi is not clustered but must be populated if running in a cluster.
     properties.insert(
         "nifi.state.management.provider.cluster".to_string(),
-        "zk-provider".to_string(),
+        match spec.cluster_config.clustering_mode {
+            v1alpha1::NifiClusteringMode::ZooKeeper { .. } => "zk-provider".to_string(),
+            v1alpha1::NifiClusteringMode::Kubernetes { .. } => "kubernetes-provider".to_string(),
+        },
     );
     // Specifies whether or not this instance of NiFi should run an embedded ZooKeeper server
     properties.insert(
@@ -558,18 +561,39 @@ pub fn build_nifi_properties(
         "".to_string(),
     );
 
-    // zookeeper properties, used for cluster management
-    // this will be replaced via a container command script
-    properties.insert(
-        "nifi.zookeeper.connect.string".to_string(),
-        "${env:ZOOKEEPER_HOSTS}".to_string(),
-    );
+    match spec.cluster_config.clustering_mode {
+        v1alpha1::NifiClusteringMode::ZooKeeper { .. } => {
+            properties.insert(
+                "nifi.cluster.leader.election.implementation".to_string(),
+                "CuratorLeaderElectionManager".to_string(),
+            );
 
-    // this will be replaced via a container command script
-    properties.insert(
-        "nifi.zookeeper.root.node".to_string(),
-        "${env:ZOOKEEPER_CHROOT}".to_string(),
-    );
+            // this will be replaced via a container command script
+            properties.insert(
+                "nifi.zookeeper.connect.string".to_string(),
+                "${env:ZOOKEEPER_HOSTS}".to_string(),
+            );
+
+            // this will be replaced via a container command script
+            properties.insert(
+                "nifi.zookeeper.root.node".to_string(),
+                "${env:ZOOKEEPER_CHROOT}".to_string(),
+            );
+        }
+
+        v1alpha1::NifiClusteringMode::Kubernetes {} => {
+            properties.insert(
+                "nifi.cluster.leader.election.implementation".to_string(),
+                "KubernetesLeaderElectionManager".to_string(),
+            );
+
+            // this will be replaced via a container command script
+            properties.insert(
+                "nifi.cluster.leader.election.kubernetes.lease.prefix".to_string(),
+                "${env:STACKLET_NAME}".to_string(),
+            );
+        }
+    }
 
     // override with config overrides
     properties.extend(overrides);

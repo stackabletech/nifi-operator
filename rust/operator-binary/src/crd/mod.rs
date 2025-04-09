@@ -138,11 +138,8 @@ pub mod versioned {
         #[serde(skip_serializing_if = "Option::is_none")]
         pub vector_aggregator_config_map_name: Option<String>,
 
-        /// NiFi requires a ZooKeeper cluster connection to run.
-        /// Provide the name of the ZooKeeper [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery)
-        /// here. When using the [Stackable operator for Apache ZooKeeper](DOCS_BASE_URL_PLACEHOLDER/zookeeper/)
-        /// to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
-        pub zookeeper_config_map_name: String,
+        #[serde(flatten)]
+        pub clustering_mode: NifiClusteringMode,
 
         /// Extra volumes similar to `.spec.volumes` on a Pod to mount into every container, this can be useful to for
         /// example make client certificates, keytabs or similar things available to processors. These volumes will be
@@ -167,6 +164,21 @@ pub mod versioned {
         // Docs are on the struct
         #[serde(default)]
         pub create_reporting_task_job: CreateReportingTaskJob,
+    }
+
+    #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[serde(untagged)]
+    pub enum NifiClusteringMode {
+        #[serde(rename_all = "camelCase")]
+        ZooKeeper {
+            // TODO: reword to clarify that ZK is optional for 2.0+
+            /// NiFi requires a ZooKeeper cluster connection to run.
+            /// Provide the name of the ZooKeeper [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery)
+            /// here. When using the [Stackable operator for Apache ZooKeeper](DOCS_BASE_URL_PLACEHOLDER/zookeeper/)
+            /// to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
+            zookeeper_config_map_name: String,
+        },
+        Kubernetes {},
     }
 }
 
