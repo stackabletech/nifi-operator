@@ -250,7 +250,10 @@ pub fn build_nifi_properties(
     // The ID of the cluster-wide state provider. This will be ignored if NiFi is not clustered but must be populated if running in a cluster.
     properties.insert(
         "nifi.state.management.provider.cluster".to_string(),
-        "zk-provider".to_string(),
+        match spec.cluster_config.clustering_backend {
+            v1alpha1::NifiClusteringBackend::ZooKeeper { .. } => "zk-provider".to_string(),
+            v1alpha1::NifiClusteringBackend::Kubernetes { .. } => "kubernetes-provider".to_string(),
+        },
     );
     // Specifies whether or not this instance of NiFi should run an embedded ZooKeeper server
     properties.insert(
@@ -559,18 +562,39 @@ pub fn build_nifi_properties(
         "".to_string(),
     );
 
-    // zookeeper properties, used for cluster management
-    // this will be replaced via a container command script
-    properties.insert(
-        "nifi.zookeeper.connect.string".to_string(),
-        "${env:ZOOKEEPER_HOSTS}".to_string(),
-    );
+    match spec.cluster_config.clustering_backend {
+        v1alpha1::NifiClusteringBackend::ZooKeeper { .. } => {
+            properties.insert(
+                "nifi.cluster.leader.election.implementation".to_string(),
+                "CuratorLeaderElectionManager".to_string(),
+            );
 
-    // this will be replaced via a container command script
-    properties.insert(
-        "nifi.zookeeper.root.node".to_string(),
-        "${env:ZOOKEEPER_CHROOT}".to_string(),
-    );
+            // this will be replaced via a container command script
+            properties.insert(
+                "nifi.zookeeper.connect.string".to_string(),
+                "${env:ZOOKEEPER_HOSTS}".to_string(),
+            );
+
+            // this will be replaced via a container command script
+            properties.insert(
+                "nifi.zookeeper.root.node".to_string(),
+                "${env:ZOOKEEPER_CHROOT}".to_string(),
+            );
+        }
+
+        v1alpha1::NifiClusteringBackend::Kubernetes {} => {
+            properties.insert(
+                "nifi.cluster.leader.election.implementation".to_string(),
+                "KubernetesLeaderElectionManager".to_string(),
+            );
+
+            // this will be replaced via a container command script
+            properties.insert(
+                "nifi.cluster.leader.election.kubernetes.lease.prefix".to_string(),
+                "${env:STACKLET_NAME}".to_string(),
+            );
+        }
+    }
 
     // override with config overrides
     properties.extend(overrides);
@@ -580,26 +604,31 @@ pub fn build_nifi_properties(
 
 pub fn build_state_management_xml() -> String {
     format!(
-        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
         <stateManagement>
           <local-provider>
           <id>local-provider</id>
             <class>org.apache.nifi.controller.state.providers.local.WriteAheadLocalStateProvider</class>
-            <property name=\"Directory\">{}</property>
-            <property name=\"Always Sync\">false</property>
-            <property name=\"Partitions\">16</property>
-            <property name=\"Checkpoint Interval\">2 mins</property>
+            <property name="Directory">{local_state_path}</property>
+            <property name="Always Sync">false</property>
+            <property name="Partitions">16</property>
+            <property name="Checkpoint Interval">2 mins</property>
           </local-provider>
           <cluster-provider>
             <id>zk-provider</id>
             <class>org.apache.nifi.controller.state.providers.zookeeper.ZooKeeperStateProvider</class>
-            <property name=\"Connect String\">${{env:ZOOKEEPER_HOSTS}}</property>
-            <property name=\"Root Node\">${{env:ZOOKEEPER_CHROOT}}</property>
-            <property name=\"Session Timeout\">10 seconds</property>
-            <property name=\"Access Control\">Open</property>
+            <property name="Connect String">${{env:ZOOKEEPER_HOSTS}}</property>
+            <property name="Root Node">${{env:ZOOKEEPER_CHROOT}}</property>
+            <property name="Session Timeout">10 seconds</property>
+            <property name="Access Control">Open</property>
           </cluster-provider>
-        </stateManagement>",
-        &NifiRepository::State.mount_path(),
+          <cluster-provider>
+            <id>kubernetes-provider</id>
+            <class>org.apache.nifi.kubernetes.state.provider.KubernetesConfigMapStateProvider</class>
+            <property name="ConfigMap Name Prefix">${{env:STACKLET_NAME}}</property>
+          </cluster-provider>
+        </stateManagement>"#,
+        local_state_path = &NifiRepository::State.mount_path(),
     )
 }
 
