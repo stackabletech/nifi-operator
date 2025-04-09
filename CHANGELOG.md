@@ -11,7 +11,12 @@ All notable changes to this project will be documented in this file.
     (or via `--rolling-logs <DIRECTORY>`).
   - Replace stackable-operator `print_startup_string` with `tracing::info!` with fields.
 
+### Fixed
+
+- Use `json` file extension for log files ([#774]).
+
 [#767]: https://github.com/stackabletech/nifi-operator/pull/767
+[#774]: https://github.com/stackabletech/nifi-operator/pull/774
 
 ## [25.3.0] - 2025-03-21
 
