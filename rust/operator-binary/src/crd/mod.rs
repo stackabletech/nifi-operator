@@ -166,16 +166,20 @@ pub mod versioned {
         pub create_reporting_task_job: CreateReportingTaskJob,
     }
 
+    // This is flattened in for backwards compatibility reasons, `zookeeper_config_map_name` already existed and used to be mandatory.
+    // For v1alpha2, consider migrating this to a tagged enum for consistency.
     #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
     #[serde(untagged)]
     pub enum NifiClusteringMode {
         #[serde(rename_all = "camelCase")]
         ZooKeeper {
-            // TODO: reword to clarify that ZK is optional for 2.0+
-            /// NiFi requires a ZooKeeper cluster connection to run.
-            /// Provide the name of the ZooKeeper [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery)
-            /// here. When using the [Stackable operator for Apache ZooKeeper](DOCS_BASE_URL_PLACEHOLDER/zookeeper/)
+            /// NiFi can either use ZooKeeper or Kubernetes for managing its cluster state. To use ZooKeeper, provide the name of the
+            /// ZooKeeper [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery) here.
+            /// When using the [Stackable operator for Apache ZooKeeper](DOCS_BASE_URL_PLACEHOLDER/zookeeper/)
             /// to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
+            ///
+            /// The Kubernetes provider will be used if this field is unset. Kubernetes is only supported for NiFi 2.x and newer,
+            /// NiFi 1.x requires ZooKeeper.
             zookeeper_config_map_name: String,
         },
         Kubernetes {},
