@@ -5,7 +5,7 @@ commands:
   - script: kubectl cp -n $NAMESPACE ./test_nifi_metrics.py  test-nifi-0:/tmp
   - script: kubectl cp -n $NAMESPACE ./test_nifi.py  test-nifi-0:/tmp
   - script: kubectl cp -n $NAMESPACE ./flow.py  test-nifi-0:/tmp
-{% if test_scenario['values']['nifi_old'] == '2.0.0' %}
+{% if test_scenario['values']['nifi_old'].split(',')[0] == '2.0.0' %}
   - script: kubectl cp -n $NAMESPACE ./generate-and-log-flowfiles.json  test-nifi-0:/tmp
 {% else %}
   - script: kubectl cp -n $NAMESPACE ./generate-and-log-flowfiles.xml  test-nifi-0:/tmp

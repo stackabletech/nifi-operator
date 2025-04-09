@@ -4,10 +4,10 @@ kind: TestAssert
 timeout: 300
 commands:
   - script: kubectl exec -n $NAMESPACE test-nifi-0 -- python /tmp/test_nifi.py -u admin -p supersecretpassword -n $NAMESPACE -c 3
-{% if test_scenario['values']['nifi_old'].startswith('1.') %}
+{% if test_scenario['values']['nifi_old'].split(',')[0].startswith('1.') %}
   - script: kubectl exec -n $NAMESPACE test-nifi-0 -- python /tmp/test_nifi_metrics.py -n $NAMESPACE
 {% endif %}
-{% if test_scenario['values']['nifi_old'] == '2.0.0' %}
+{% if test_scenario['values']['nifi_old'].split(',')[0] == '2.0.0' %}
   - script: kubectl exec -n $NAMESPACE test-nifi-0 -- sh -c "python /tmp/flow.py -e https://test-nifi-node-default-0.test-nifi-node-default.$NAMESPACE.svc.cluster.local:8443 run json /tmp/generate-and-log-flowfiles.json > /tmp/old_input"
 {% else %}
   - script: kubectl exec -n $NAMESPACE test-nifi-0 -- sh -c "python /tmp/flow.py -e https://test-nifi-node-default-0.test-nifi-node-default.$NAMESPACE.svc.cluster.local:8443 run template /tmp/generate-and-log-flowfiles.xml > /tmp/old_input"
