@@ -4,10 +4,10 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     client::Client,
     commons::authentication::{
-        ldap, oidc, static_, AuthenticationClass, AuthenticationClassProvider,
-        ClientAuthenticationDetails,
+        AuthenticationClass, AuthenticationClassProvider, ClientAuthenticationDetails, ldap, oidc,
+        static_,
     },
-    kube::{runtime::reflector::ObjectRef, ResourceExt},
+    kube::{ResourceExt, runtime::reflector::ObjectRef},
 };
 
 use crate::crd::v1alpha1;
@@ -19,19 +19,27 @@ pub enum Error {
         source: stackable_operator::client::Error,
     },
 
-    #[snafu(display("The nifi-operator does not support running Nifi without any authentication. Please provide a AuthenticationClass to use."))]
+    #[snafu(display(
+        "The nifi-operator does not support running Nifi without any authentication. Please provide a AuthenticationClass to use."
+    ))]
     NoAuthenticationNotSupported {},
 
-    #[snafu(display("The nifi-operator does not support multiple AuthenticationClasses simultaneously. Please provide a single AuthenticationClass to use."))]
+    #[snafu(display(
+        "The nifi-operator does not support multiple AuthenticationClasses simultaneously. Please provide a single AuthenticationClass to use."
+    ))]
     MultipleAuthenticationClassesNotSupported {},
 
-    #[snafu(display("The nifi-operator does not support the AuthenticationClass provider [{authentication_class_provider}] from AuthenticationClass [{authentication_class}]."))]
+    #[snafu(display(
+        "The nifi-operator does not support the AuthenticationClass provider [{authentication_class_provider}] from AuthenticationClass [{authentication_class}]."
+    ))]
     AuthenticationClassProviderNotSupported {
         authentication_class_provider: String,
         authentication_class: ObjectRef<AuthenticationClass>,
     },
 
-    #[snafu(display("Nifi doesn't support skipping the LDAP TLS verification of the AuthenticationClass {authentication_class}"))]
+    #[snafu(display(
+        "Nifi doesn't support skipping the LDAP TLS verification of the AuthenticationClass {authentication_class}"
+    ))]
     NoLdapTlsVerificationNotSupported {
         authentication_class: ObjectRef<AuthenticationClass>,
     },

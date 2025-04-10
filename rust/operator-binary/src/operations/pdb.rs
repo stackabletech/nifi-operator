@@ -5,9 +5,9 @@ use stackable_operator::{
 };
 
 use crate::{
-    controller::NIFI_CONTROLLER_NAME,
-    crd::{v1alpha1, NifiRole, APP_NAME},
     OPERATOR_NAME,
+    controller::NIFI_CONTROLLER_NAME,
+    crd::{APP_NAME, NifiRole, v1alpha1},
 };
 
 #[derive(Snafu, Debug)]

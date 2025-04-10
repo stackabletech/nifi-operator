@@ -1,4 +1,3 @@
-use crate::crd::NifiAuthorization;
 use indoc::{formatdoc, indoc};
 use snafu::{OptionExt, Snafu};
 use stackable_operator::{
@@ -7,6 +6,7 @@ use stackable_operator::{
 };
 
 use super::authentication::NifiAuthenticationConfig;
+use crate::crd::NifiAuthorization;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -86,7 +86,7 @@ impl NifiAuthorizationConfig {
         authorizers_xml.push_str(indoc! {r#"
             </authorizers>
         "#});
-        return Ok(authorizers_xml);
+        Ok(authorizers_xml)
     }
 
     fn get_default_ldap_authorizer(
@@ -106,7 +106,7 @@ impl NifiAuthorizationConfig {
                 <!-- As we currently don't have authorization (including admin user) configurable we simply paste in the ldap bind user in here -->
                 <!-- In the future the whole authorization may be reworked to OPA -->
                 <property name="Initial User Identity admin">${{file:UTF-8:{username_file}}}</property>
-    
+
                 <!-- As the secret-operator provides the NiFi nodes with cert with a common name of "generated certificate for pod" we have to put that here -->
                 <property name="Initial User Identity other-nifis">CN=generated certificate for pod</property>
             </userGroupProvider>
@@ -120,7 +120,7 @@ impl NifiAuthorizationConfig {
                 <!-- As we currently don't have authorization (including admin user) configurable we simply paste in the ldap bind user in here -->
                 <!-- In the future the whole authorization may be reworked to OPA -->
                 <property name="Initial Admin Identity">${{file:UTF-8:{username_file}}}</property>
-    
+
                 <!-- As the secret-operator provides the NiFi nodes with cert with a common name of "generated certificate for pod" we have to put that here -->
                 <property name="Node Identity other-nifis">CN=generated certificate for pod</property>
             </accessPolicyProvider>

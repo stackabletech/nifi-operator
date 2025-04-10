@@ -1,8 +1,8 @@
-= Exposing NiFi processor ports
-:description: Expose NiFi processor ports by creating Service or Ingress objects, allowing external tools to trigger workflows or send data via Kubernetes.
+= Exposing TCP ports
+:description: Expose NiFi processor ports by creating Service objects, allowing external tools to trigger workflows or send data.
 
 Some NiFi processors allow external tools to connect to them to trigger workflows or send data.
-For this to work from outside the Kubernetes cluster NiFi has been deployed to, it is necessary to create Service or Ingress objects to configure Kubernetes routes for these ports.
+For this to work from outside the Kubernetes cluster NiFi has been deployed to, it is necessary to create Service objects to configure Kubernetes routes for these ports.
 
 Stackable doesn't place any restriction on the type of service that can be used here.
 
@@ -28,6 +28,8 @@ spec:
   type: LoadBalancer
   externalTrafficPolicy: Cluster
   selector:
+    app.kubernetes.io/name: nifi
+    app.kubernetes.io/component: node
     app.kubernetes.io/instance: simple-nifi
   ports:
     - name: tcp-port
@@ -51,6 +53,8 @@ metadata:
 spec:
   type: NodePort
   selector:
+    app.kubernetes.io/name: nifi
+    app.kubernetes.io/component: node
     app.kubernetes.io/instance: simple-nifi
   ports:
     - port: 8123

@@ -30,17 +30,17 @@ use stackable_operator::{
         self,
         meta::ObjectMetaBuilder,
         pod::{
-            container::ContainerBuilder, resources::ResourceRequirementsBuilder,
-            security::PodSecurityContextBuilder, volume::SecretFormat, PodBuilder,
+            PodBuilder, container::ContainerBuilder, resources::ResourceRequirementsBuilder,
+            security::PodSecurityContextBuilder, volume::SecretFormat,
         },
     },
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
+        DeepMerge,
         api::{
             batch::v1::{Job, JobSpec},
             core::v1::{Service, ServicePort, ServiceSpec},
         },
-        DeepMerge,
     },
     kube::ResourceExt,
     kvp::Labels,
@@ -49,8 +49,8 @@ use stackable_operator::{
 };
 
 use crate::{
-    controller::{build_recommended_labels, NIFI_UID},
-    crd::{v1alpha1, NifiRole, APP_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT},
+    controller::{NIFI_UID, build_recommended_labels},
+    crd::{APP_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, NifiRole, v1alpha1},
     security::{
         authentication::{NifiAuthenticationConfig, STACKABLE_ADMIN_USERNAME},
         build_tls_volume,

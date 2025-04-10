@@ -3,7 +3,7 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
         self,
-        pod::{container::ContainerBuilder, PodBuilder},
+        pod::{PodBuilder, container::ContainerBuilder},
     },
     commons::authentication::{
         ldap,
@@ -33,7 +33,9 @@ pub enum Error {
     #[snafu(display("Only one authentication mechanism is supported by NiFi."))]
     SingleAuthenticationMechanismSupported,
 
-    #[snafu(display("The authentication class provider [{authentication_class_provider}] is not supported by NiFi."))]
+    #[snafu(display(
+        "The authentication class provider [{authentication_class_provider}] is not supported by NiFi."
+    ))]
     AuthenticationClassProviderNotSupported {
         authentication_class_provider: String,
     },

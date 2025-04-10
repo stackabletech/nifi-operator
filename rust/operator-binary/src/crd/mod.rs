@@ -28,7 +28,7 @@ use stackable_operator::{
         api::core::v1::{PodTemplateSpec, Volume},
         apimachinery::pkg::api::resource::Quantity,
     },
-    kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
+    kube::{CustomResource, ResourceExt, runtime::reflector::ObjectRef},
     memory::MemoryQuantity,
     product_config_utils::{self, Configuration},
     product_logging::{self, spec::Logging},
@@ -40,8 +40,8 @@ use stackable_operator::{
         cluster_info::KubernetesClusterInfo,
         crds::{raw_object_list_schema, raw_object_schema},
     },
+    versioned::versioned,
 };
-use stackable_versioned::versioned;
 use strum::Display;
 use tls::NifiTls;
 
