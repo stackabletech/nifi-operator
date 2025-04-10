@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add rolling upgrade support for upgrades between NiFi 2 versions ([#771]).
+
 ### Changed
 
 - BREAKING: Replace stackable-operator `initialize_logging` with stackable-telemetry `Tracing` ([#767], [#776]).
@@ -21,6 +25,7 @@ All notable changes to this project will be documented in this file.
 - Fix a bug where changes to ConfigMaps that are referenced in the NifiCluster spec didn't trigger a reconciliation ([#772]).
 
 [#767]: https://github.com/stackabletech/nifi-operator/pull/767
+[#771]: https://github.com/stackabletech/nifi-operator/pull/771
 [#772]: https://github.com/stackabletech/nifi-operator/pull/772
 [#774]: https://github.com/stackabletech/nifi-operator/pull/774
 [#776]: https://github.com/stackabletech/nifi-operator/pull/776
