@@ -362,7 +362,7 @@ impl ReconcilerError for Error {
 // we have to manage the restart process ourselves and need to track the state of it
 #[derive(Debug, PartialEq, Eq)]
 enum ClusterVersionUpdateState {
-    ReadyForUpdate,
+    UpdateRequested,
     UpdateInProgress,
     ClusterStopped,
     NoVersionChange,
@@ -624,7 +624,7 @@ pub async fn reconcile_nifi(
 
     // Update the deployed product version in the status after everything has been deployed, unless
     // we are still in the process of updating
-    let status = if version_change != Some(ClusterVersionUpdateState::ReadyForUpdate) {
+    let status = if version_change != Some(ClusterVersionUpdateState::UpdateRequested) {
         NifiStatus {
             deployed_version: Some(resolved_product_image.product_version),
             conditions,
@@ -711,7 +711,7 @@ async fn version_change_state(
                     tracing::info!(
                         "Version change detected, we'll need to scale down the cluster for a full restart."
                     );
-                    Ok(ClusterVersionUpdateState::ReadyForUpdate)
+                    Ok(ClusterVersionUpdateState::UpdateRequested)
                 } else {
                     tracing::info!("Cluster has been stopped for a restart, will scale back up.");
                     Ok(ClusterVersionUpdateState::ClusterStopped)
@@ -1438,7 +1438,7 @@ async fn build_node_rolegroup_statefulset(
             pod_management_policy: Some("Parallel".to_string()),
             replicas: if version_change_state
                 .as_ref()
-                .is_some_and(|state| state == &ClusterVersionUpdateState::ReadyForUpdate)
+                .is_some_and(|state| state == &ClusterVersionUpdateState::UpdateRequested)
             {
                 Some(0)
             } else {
