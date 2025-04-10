@@ -87,7 +87,11 @@ use crate::{
         STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR, authentication::AuthenticationClassResolved,
         v1alpha1,
     },
-    operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
+    operations::{
+        graceful_shutdown::add_graceful_shutdown_config,
+        pdb::add_pdbs,
+        upgrade::{self, ClusterVersionUpdateState},
+    },
     product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
     reporting_task::{self, build_maybe_reporting_task, build_reporting_task_service_name},
     security::{
@@ -348,6 +352,9 @@ pub enum Error {
     AddVolumeMount {
         source: builder::pod::container::Error,
     },
+
+    #[snafu(display("Failed to determine the state of the version upgrade procedure"))]
+    ClusterVersionUpdateState { source: upgrade::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -356,16 +363,6 @@ impl ReconcilerError for Error {
     fn category(&self) -> &'static str {
         ErrorDiscriminants::from(self).into()
     }
-}
-
-// This struct is used for NiFi versions not supporting rolling upgrades since in that case
-// we have to manage the restart process ourselves and need to track the state of it
-#[derive(Debug, PartialEq, Eq)]
-enum ClusterVersionUpdateState {
-    UpdateRequested,
-    UpdateInProgress,
-    ClusterStopped,
-    NoVersionChange,
 }
 
 pub async fn reconcile_nifi(
@@ -408,13 +405,14 @@ pub async fn reconcile_nifi(
 
     if !rolling_upgrade_supported {
         version_change = Some(
-            version_change_state(
+            upgrade::version_change_state(
                 nifi,
                 client,
                 &resolved_product_image.product_version,
                 deployed_version,
             )
-            .await?,
+            .await
+            .context(ClusterVersionUpdateStateSnafu)?,
         );
 
         if version_change == Some(ClusterVersionUpdateState::UpdateInProgress) {
@@ -645,91 +643,6 @@ pub async fn reconcile_nifi(
         .context(StatusUpdateSnafu)?;
 
     Ok(Action::await_change())
-}
-
-async fn version_change_state(
-    nifi: &v1alpha1::NifiCluster,
-    client: &Client,
-    resolved_version: &String,
-    deployed_version: Option<&String>,
-) -> Result<ClusterVersionUpdateState> {
-    let namespace = &nifi
-        .metadata
-        .namespace
-        .clone()
-        .with_context(|| ObjectHasNoNamespaceSnafu {})?;
-
-    // Handle full restarts for a version change
-    match deployed_version {
-        Some(deployed_version) => {
-            if deployed_version != resolved_version {
-                // Check if statefulsets are already scaled to zero, if not - requeue
-                let selector = LabelSelector {
-                    match_expressions: None,
-                    match_labels: Some(
-                        Labels::role_selector(nifi, APP_NAME, &NifiRole::Node.to_string())
-                            .context(LabelBuildSnafu)?
-                            .into(),
-                    ),
-                };
-
-                // Retrieve the deployed statefulsets to check on the current status of the restart
-                let deployed_statefulsets = client
-                    .list_with_label_selector::<StatefulSet>(namespace, &selector)
-                    .await
-                    .context(FetchStatefulsetsSnafu)?;
-
-                // Sum target replicas for all statefulsets
-                let target_replicas = deployed_statefulsets
-                    .iter()
-                    .filter_map(|statefulset| statefulset.spec.as_ref())
-                    .filter_map(|spec| spec.replicas)
-                    .sum::<i32>();
-
-                // Sum current ready replicas for all statefulsets
-                let current_replicas = deployed_statefulsets
-                    .iter()
-                    .filter_map(|statefulset| statefulset.status.as_ref())
-                    .map(|status| status.replicas)
-                    .sum::<i32>();
-
-                // If statefulsets have already been scaled to zero, but have remaining replicas
-                // we requeue to wait until a full stop has been performed.
-                if target_replicas == 0 && current_replicas > 0 {
-                    tracing::info!(
-                        "Cluster is performing a full restart at the moment and still shutting down, remaining replicas: [{}] - requeueing to wait for shutdown to finish",
-                        current_replicas
-                    );
-                    return Ok(ClusterVersionUpdateState::UpdateInProgress);
-                }
-
-                // Otherwise we either still need to scale the statefulsets to 0 or all replicas have
-                // been stopped and we can restart the cluster.
-                // Both actions will be taken in the regular reconciliation, so we can simply continue
-                // here
-                if target_replicas > 0 {
-                    tracing::info!(
-                        "Version change detected, we'll need to scale down the cluster for a full restart."
-                    );
-                    Ok(ClusterVersionUpdateState::UpdateRequested)
-                } else {
-                    tracing::info!("Cluster has been stopped for a restart, will scale back up.");
-                    Ok(ClusterVersionUpdateState::ClusterStopped)
-                }
-            } else {
-                // No version change detected, propagate this to the reconciliation
-                Ok(ClusterVersionUpdateState::NoVersionChange)
-            }
-        }
-        None => {
-            // No deployed version set in status, this is probably the first reconciliation ever
-            // for this cluster, so just let it progress normally
-            tracing::debug!(
-                "No deployed version found for this cluster, this is probably the first start, continue reconciliation"
-            );
-            Ok(ClusterVersionUpdateState::NoVersionChange)
-        }
-    }
 }
 
 /// The node-role service is the primary endpoint that should be used by clients that do not
@@ -1303,10 +1216,10 @@ async fn build_node_rolegroup_statefulset(
     }
 
     nifi_auth_config
-        .add_volumes_and_mounts(&mut pod_builder, vec![
-            &mut container_prepare,
-            container_nifi,
-        ])
+        .add_volumes_and_mounts(
+            &mut pod_builder,
+            vec![&mut container_prepare, container_nifi],
+        )
         .context(AddAuthVolumesSnafu)?;
 
     let metadata = ObjectMetaBuilder::new()
