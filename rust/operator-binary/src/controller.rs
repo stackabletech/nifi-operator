@@ -20,8 +20,11 @@ use stackable_operator::{
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{
-            PodBuilder, container::ContainerBuilder, resources::ResourceRequirementsBuilder,
-            security::PodSecurityContextBuilder, volume::SecretFormat,
+            PodBuilder,
+            container::ContainerBuilder,
+            resources::ResourceRequirementsBuilder,
+            security::PodSecurityContextBuilder,
+            volume::{SecretFormat, VolumeBuilder},
         },
     },
     client::Client,
@@ -31,14 +34,19 @@ use stackable_operator::{
         product_image_selection::ResolvedProductImage, rbac::build_rbac_resources,
     },
     config::fragment,
+    git_sync::{
+        container::build_gitsync_container,
+        spec::{GIT_SYNC_CONTENT, GIT_SYNC_DIR, GIT_SYNC_NAME},
+    },
     k8s_openapi::{
         DeepMerge,
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec, StatefulSetUpdateStrategy},
             core::v1::{
                 ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource, EmptyDirVolumeSource,
-                EnvVar, EnvVarSource, Node, ObjectFieldSelector, Probe, SecretVolumeSource,
-                Service, ServicePort, ServiceSpec, TCPSocketAction, Volume,
+                EnvVar, EnvVarSource, Node, ObjectFieldSelector, Probe, SecretKeySelector,
+                SecretVolumeSource, Service, ServicePort, ServiceSpec, TCPSocketAction, Volume,
+                VolumeMount,
             },
         },
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
@@ -1198,6 +1206,51 @@ async fn build_node_rolegroup_statefulset(
             .context(AddVolumeMountSnafu)?;
     }
 
+    for (i, git_sync) in nifi
+        .spec
+        .cluster_config
+        .custom_processors_git_sync
+        .iter()
+        .enumerate()
+    {
+        let volume_name = format!("{GIT_SYNC_CONTENT}-{i}");
+        let mount_path = format!("{GIT_SYNC_DIR}-{i}");
+
+        let env_vars =
+            build_gitsync_statefulset_envs(rolegroup_config, &git_sync.credentials_secret);
+
+        let mounts = vec![VolumeMount {
+            name: volume_name.to_owned(),
+            mount_path,
+            ..VolumeMount::default()
+        }];
+
+        pod_builder.add_container(
+            build_gitsync_container(
+                resolved_product_image,
+                &git_sync,
+                false,
+                &format!("{GIT_SYNC_NAME}-{i}"),
+                env_vars,
+                &volume_name,
+                mounts.to_owned(),
+            )
+            .unwrap(),
+        );
+
+        pod_builder
+            .add_volume(
+                VolumeBuilder::new(volume_name)
+                    .empty_dir(EmptyDirVolumeSource::default())
+                    .build(),
+            )
+            .context(AddVolumeSnafu)?;
+
+        container_nifi.add_volume_mounts(mounts).unwrap();
+    }
+
+    // TODO Change container order
+
     // We want to add nifi container first for easier defaulting into this container
     pod_builder.add_container(container_nifi.build());
 
@@ -1258,10 +1311,10 @@ async fn build_node_rolegroup_statefulset(
     }
 
     nifi_auth_config
-        .add_volumes_and_mounts(&mut pod_builder, vec![
-            &mut container_prepare,
-            container_nifi,
-        ])
+        .add_volumes_and_mounts(
+            &mut pod_builder,
+            vec![&mut container_prepare, container_nifi],
+        )
         .context(AddAuthVolumesSnafu)?;
 
     let metadata = ObjectMetaBuilder::new()
@@ -1442,6 +1495,84 @@ async fn build_node_rolegroup_statefulset(
         status: None,
     })
 }
+
+// TODO Move to operator-rs
+// ===
+
+const GITSYNC_USERNAME: &str = "GITSYNC_USERNAME";
+const GITSYNC_PASSWORD: &str = "GITSYNC_PASSWORD";
+
+fn add_gitsync_credentials(
+    git_credentials_secret: &Option<String>,
+    env: &mut BTreeMap<String, EnvVar>,
+) {
+    if let Some(git_credentials_secret) = &git_credentials_secret {
+        env.insert(
+            GITSYNC_USERNAME.to_string(),
+            env_var_from_secret(GITSYNC_USERNAME, git_credentials_secret, "user"),
+        );
+        env.insert(
+            GITSYNC_PASSWORD.to_string(),
+            env_var_from_secret(GITSYNC_PASSWORD, git_credentials_secret, "password"),
+        );
+    }
+}
+
+pub fn env_var_from_secret(var_name: &str, secret: &str, secret_key: &str) -> EnvVar {
+    EnvVar {
+        name: String::from(var_name),
+        value_from: Some(EnvVarSource {
+            secret_key_ref: Some(SecretKeySelector {
+                name: String::from(secret),
+                key: String::from(secret_key),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    }
+}
+
+/// Return environment variables to be applied to the gitsync container in the statefulset for the scheduler,
+/// webserver (and worker, for clusters utilizing `celeryExecutor`). N.B. the git credentials-secret is passed
+/// explicitly here: it is no longer added to the role config (lib/compute_env) as the kubenertes executor wraps
+/// `CommonConfiguration<ExecutorConfigFragment>` that is not linked to a role.
+pub fn build_gitsync_statefulset_envs(
+    rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    git_credentials_secret: &Option<String>,
+) -> Vec<EnvVar> {
+    let mut env: BTreeMap<String, EnvVar> = BTreeMap::new();
+
+    add_gitsync_credentials(git_credentials_secret, &mut env);
+
+    if let Some(git_env) = rolegroup_config.get(&PropertyNameKind::Env) {
+        for (k, v) in git_env.iter() {
+            gitsync_vars_map(k, &mut env, v);
+        }
+    }
+
+    tracing::debug!("Env-var set [{:?}]", env);
+    transform_map_to_vec(env)
+}
+
+fn gitsync_vars_map(k: &String, env: &mut BTreeMap<String, EnvVar>, v: &String) {
+    env.insert(
+        k.to_string(),
+        EnvVar {
+            name: k.to_string(),
+            value: Some(v.to_string()),
+            ..Default::default()
+        },
+    );
+}
+
+// Internally the environment variable collection uses a map so that overrides can actually
+// override existing keys. The returned collection will be a vector.
+fn transform_map_to_vec(env_map: BTreeMap<String, EnvVar>) -> Vec<EnvVar> {
+    env_map.into_values().collect::<Vec<EnvVar>>()
+}
+
+// ===
 
 fn external_node_port(nifi_service: &Service) -> Result<i32> {
     let external_ports = nifi_service

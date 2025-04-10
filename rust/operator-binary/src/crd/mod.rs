@@ -22,6 +22,7 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
+    git_sync::spec::GitSync,
     k8s_openapi::{
         api::core::v1::{PodTemplateSpec, Volume},
         apimachinery::pkg::api::resource::Quantity,
@@ -143,6 +144,12 @@ pub mod versioned {
         /// here. When using the [Stackable operator for Apache ZooKeeper](DOCS_BASE_URL_PLACEHOLDER/zookeeper/)
         /// to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
         pub zookeeper_config_map_name: String,
+
+        /// The `gitSync` settings allow configuring Python processors to mount via `git-sync`.
+        /// Learn more in the
+        /// [mounting DAGs documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/usage-guide/mounting-processors#_via_git_sync).
+        #[serde(default)]
+        pub custom_processors_git_sync: Vec<GitSync>,
 
         /// Extra volumes similar to `.spec.volumes` on a Pod to mount into every container, this can be useful to for
         /// example make client certificates, keytabs or similar things available to processors. These volumes will be
