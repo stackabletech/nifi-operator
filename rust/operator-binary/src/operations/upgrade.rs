@@ -38,7 +38,7 @@ pub enum ClusterVersionUpdateState {
     NoVersionChange,
 }
 
-pub async fn version_change_state(
+pub async fn cluster_version_update_state(
     nifi: &v1alpha1::NifiCluster,
     client: &Client,
     resolved_version: &String,

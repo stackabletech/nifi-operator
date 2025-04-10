@@ -391,9 +391,11 @@ pub async fn reconcile_nifi(
         .await
         .context(SecuritySnafu)?;
 
-    // if rolling upgrade is supported, kubernetes takes care of the cluster scaling automatically
+    // If rolling upgrade is supported, kubernetes takes care of the cluster scaling automatically
     // otherwise the operator handles it
-    let mut version_change = None;
+    // manage our own flow for upgrade from 1.x.x to 1.x.x/2.x.x
+    // TODO: this can be removed once 1.x.x is longer supported
+    let mut cluster_version_update_state = ClusterVersionUpdateState::NoVersionChange;
     let deployed_version = nifi
         .status
         .as_ref()
@@ -402,21 +404,20 @@ pub async fn reconcile_nifi(
         && deployed_version.is_some_and(|v| v.starts_with("2."));
 
     if !rolling_upgrade_supported {
-        version_change = Some(
-            upgrade::version_change_state(
-                nifi,
-                client,
-                &resolved_product_image.product_version,
-                deployed_version,
-            )
-            .await
-            .context(ClusterVersionUpdateStateSnafu)?,
-        );
+        cluster_version_update_state = upgrade::cluster_version_update_state(
+            nifi,
+            client,
+            &resolved_product_image.product_version,
+            deployed_version,
+        )
+        .await
+        .context(ClusterVersionUpdateStateSnafu)?;
 
-        if version_change == Some(ClusterVersionUpdateState::UpdateInProgress) {
+        if cluster_version_update_state == ClusterVersionUpdateState::UpdateInProgress {
             return Ok(Action::await_change());
         }
     }
+    // end todo
 
     let validated_config = validated_product_config(
         nifi,
@@ -524,6 +525,14 @@ pub async fn reconcile_nifi(
             )
             .await?;
 
+            let role_group = role.role_groups.get(&rolegroup.role_group);
+            let replicas =
+                if cluster_version_update_state == ClusterVersionUpdateState::UpdateRequested {
+                    Some(0)
+                } else {
+                    role_group.and_then(|rg| rg.replicas).map(i32::from)
+                };
+
             let rg_statefulset = build_node_rolegroup_statefulset(
                 nifi,
                 &resolved_product_image,
@@ -533,7 +542,8 @@ pub async fn reconcile_nifi(
                 rolegroup_config,
                 &merged_config,
                 &nifi_authentication_config,
-                &version_change,
+                rolling_upgrade_supported,
+                replicas,
                 &rbac_sa.name_any(),
             )
             .await?;
@@ -615,7 +625,7 @@ pub async fn reconcile_nifi(
 
     // Update the deployed product version in the status after everything has been deployed, unless
     // we are still in the process of updating
-    let status = if version_change != Some(ClusterVersionUpdateState::UpdateRequested) {
+    let status = if cluster_version_update_state != ClusterVersionUpdateState::UpdateRequested {
         NifiStatus {
             deployed_version: Some(resolved_product_image.product_version),
             conditions,
@@ -861,7 +871,8 @@ async fn build_node_rolegroup_statefulset(
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &NifiConfig,
     nifi_auth_config: &NifiAuthenticationConfig,
-    version_change_state: &Option<ClusterVersionUpdateState>,
+    rolling_update_supported: bool,
+    replicas: Option<i32>,
     sa_name: &str,
 ) -> Result<StatefulSet> {
     tracing::debug!("Building statefulset");
@@ -1345,14 +1356,7 @@ async fn build_node_rolegroup_statefulset(
             .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("Parallel".to_string()),
-            replicas: if version_change_state
-                .as_ref()
-                .is_some_and(|state| state == &ClusterVersionUpdateState::UpdateRequested)
-            {
-                Some(0)
-            } else {
-                role_group.and_then(|rg| rg.replicas).map(i32::from)
-            },
+            replicas,
             selector: LabelSelector {
                 match_labels: Some(
                     Labels::role_group_selector(
@@ -1369,7 +1373,7 @@ async fn build_node_rolegroup_statefulset(
             service_name: rolegroup_ref.object_name(),
             template: pod_template,
             update_strategy: Some(StatefulSetUpdateStrategy {
-                type_: if version_change_state.is_none() {
+                type_: if rolling_update_supported {
                     Some("RollingUpdate".to_string())
                 } else {
                     Some("OnDelete".to_string())
