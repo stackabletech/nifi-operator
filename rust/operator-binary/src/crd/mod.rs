@@ -38,8 +38,8 @@ use stackable_operator::{
         cluster_info::KubernetesClusterInfo,
         crds::{raw_object_list_schema, raw_object_schema},
     },
+    versioned::versioned,
 };
-use stackable_versioned::versioned;
 use strum::Display;
 use tls::NifiTls;
 

@@ -92,7 +92,7 @@ use crate::{
         pdb::add_pdbs,
         upgrade::{self, ClusterVersionUpdateState},
     },
-    product_logging::{extend_role_group_config_map, resolve_vector_aggregator_address},
+    product_logging::extend_role_group_config_map,
     reporting_task::{self, build_maybe_reporting_task, build_reporting_task_service_name},
     security::{
         authentication::{
@@ -258,10 +258,8 @@ pub enum Error {
     #[snafu(display("failed to resolve and merge config for role and role group"))]
     FailedToResolveConfig { source: crate::crd::Error },
 
-    #[snafu(display("failed to resolve the Vector aggregator address"))]
-    ResolveVectorAggregatorAddress {
-        source: crate::product_logging::Error,
-    },
+    #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
+    VectorAggregatorConfigMapMissing,
 
     #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
     InvalidLoggingConfig {
@@ -469,10 +467,6 @@ pub async fn reconcile_nifi(
             .context(SecuritySnafu)?;
     }
 
-    let vector_aggregator_address = resolve_vector_aggregator_address(nifi, client)
-        .await
-        .context(ResolveVectorAggregatorAddressSnafu)?;
-
     let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
         nifi,
         APP_NAME,
@@ -526,7 +520,6 @@ pub async fn reconcile_nifi(
                 &rolegroup,
                 rolegroup_config,
                 &merged_config,
-                vector_aggregator_address.as_deref(),
                 &proxy_hosts,
             )
             .await?;
@@ -701,7 +694,6 @@ async fn build_node_rolegroup_config_map(
     rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &NifiConfig,
-    vector_aggregator_address: Option<&str>,
     proxy_hosts: &str,
 ) -> Result<ConfigMap> {
     tracing::debug!("building rolegroup configmaps");
@@ -787,15 +779,11 @@ async fn build_node_rolegroup_config_map(
             })?,
         );
 
-    extend_role_group_config_map(
-        rolegroup,
-        vector_aggregator_address,
-        &merged_config.logging,
-        &mut cm_builder,
-    )
-    .context(InvalidLoggingConfigSnafu {
-        cm_name: rolegroup.object_name(),
-    })?;
+    extend_role_group_config_map(rolegroup, &merged_config.logging, &mut cm_builder).context(
+        InvalidLoggingConfigSnafu {
+            cm_name: rolegroup.object_name(),
+        },
+    )?;
 
     cm_builder
         .build()
@@ -1198,21 +1186,29 @@ async fn build_node_rolegroup_statefulset(
     }
 
     if merged_config.logging.enable_vector_agent {
-        pod_builder.add_container(
-            product_logging::framework::vector_container(
-                resolved_product_image,
-                "config",
-                "log",
-                merged_config.logging.containers.get(&Container::Vector),
-                ResourceRequirementsBuilder::new()
-                    .with_cpu_request("250m")
-                    .with_cpu_limit("500m")
-                    .with_memory_request("128Mi")
-                    .with_memory_limit("128Mi")
-                    .build(),
-            )
-            .context(ConfigureLoggingSnafu)?,
-        );
+        match &nifi.spec.cluster_config.vector_aggregator_config_map_name {
+            Some(vector_aggregator_config_map_name) => {
+                pod_builder.add_container(
+                    product_logging::framework::vector_container(
+                        resolved_product_image,
+                        "config",
+                        "log",
+                        merged_config.logging.containers.get(&Container::Vector),
+                        ResourceRequirementsBuilder::new()
+                            .with_cpu_request("250m")
+                            .with_cpu_limit("500m")
+                            .with_memory_request("128Mi")
+                            .with_memory_limit("128Mi")
+                            .build(),
+                        vector_aggregator_config_map_name,
+                    )
+                    .context(ConfigureLoggingSnafu)?,
+                );
+            }
+            None => {
+                VectorAggregatorConfigMapMissingSnafu.fail()?;
+            }
+        }
     }
 
     nifi_auth_config
