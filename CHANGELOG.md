@@ -6,9 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Replace stackable-operator `initialize_logging` with stackable-telemetry `Tracing` ([#767]).
-  - BREAKING: The file log directory was set by `NIFI_OPERATOR_LOG_DIRECTORY`, and is now set by `ROLLING_LOGS`
-    (or via `--rolling-logs <DIRECTORY>`).
+- BREAKING: Replace stackable-operator `initialize_logging` with stackable-telemetry `Tracing` ([#767], [#776]).
+  - The console log level was set by `NIFI_OPERATOR_LOG`, and is now set by `CONSOLE_LOG`.
+  - The file log level was set by `NIFI_OPERATOR_LOG`, and is now set by `FILE_LOG`.
+  - The file log directory was set by `NIFI_OPERATOR_LOG_DIRECTORY`, and is now set
+    by `ROLLING_LOGS_DIR` (or via `--rolling-logs <DIRECTORY>`).
   - Replace stackable-operator `print_startup_string` with `tracing::info!` with fields.
 - BREAKING: Inject the vector aggregator address into the vector config using the env var `VECTOR_AGGREGATOR_ADDRESS` instead
     of having the operator write it to the vector config ([#772]).
@@ -21,6 +23,7 @@ All notable changes to this project will be documented in this file.
 [#767]: https://github.com/stackabletech/nifi-operator/pull/767
 [#772]: https://github.com/stackabletech/nifi-operator/pull/772
 [#774]: https://github.com/stackabletech/nifi-operator/pull/774
+[#776]: https://github.com/stackabletech/nifi-operator/pull/776
 
 ## [25.3.0] - 2025-03-21
 
