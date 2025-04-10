@@ -361,9 +361,9 @@ impl ReconcilerError for Error {
 // This struct is used for NiFi versions not supporting rolling upgrades since in that case
 // we have to manage the restart process ourselves and need to track the state of it
 #[derive(Debug, PartialEq, Eq)]
-enum VersionChangeState {
-    ReadyForChange,
-    InProgress,
+enum ClusterVersionUpdateState {
+    ReadyForUpdate,
+    UpdateInProgress,
     ClusterStopped,
     NoVersionChange,
 }
@@ -417,7 +417,7 @@ pub async fn reconcile_nifi(
             .await?,
         );
 
-        if version_change == Some(VersionChangeState::InProgress) {
+        if version_change == Some(ClusterVersionUpdateState::UpdateInProgress) {
             return Ok(Action::await_change());
         }
     }
@@ -624,7 +624,7 @@ pub async fn reconcile_nifi(
 
     // Update the deployed product version in the status after everything has been deployed, unless
     // we are still in the process of updating
-    let status = if version_change != Some(VersionChangeState::ReadyForChange) {
+    let status = if version_change != Some(ClusterVersionUpdateState::ReadyForUpdate) {
         NifiStatus {
             deployed_version: Some(resolved_product_image.product_version),
             conditions,
@@ -652,7 +652,7 @@ async fn version_change_state(
     client: &Client,
     resolved_version: &String,
     deployed_version: Option<&String>,
-) -> Result<VersionChangeState> {
+) -> Result<ClusterVersionUpdateState> {
     let namespace = &nifi
         .metadata
         .namespace
@@ -700,7 +700,7 @@ async fn version_change_state(
                         "Cluster is performing a full restart at the moment and still shutting down, remaining replicas: [{}] - requeueing to wait for shutdown to finish",
                         current_replicas
                     );
-                    return Ok(VersionChangeState::InProgress);
+                    return Ok(ClusterVersionUpdateState::UpdateInProgress);
                 }
 
                 // Otherwise we either still need to scale the statefulsets to 0 or all replicas have
@@ -711,14 +711,14 @@ async fn version_change_state(
                     tracing::info!(
                         "Version change detected, we'll need to scale down the cluster for a full restart."
                     );
-                    Ok(VersionChangeState::ReadyForChange)
+                    Ok(ClusterVersionUpdateState::ReadyForUpdate)
                 } else {
                     tracing::info!("Cluster has been stopped for a restart, will scale back up.");
-                    Ok(VersionChangeState::ClusterStopped)
+                    Ok(ClusterVersionUpdateState::ClusterStopped)
                 }
             } else {
                 // No version change detected, propagate this to the reconciliation
-                Ok(VersionChangeState::NoVersionChange)
+                Ok(ClusterVersionUpdateState::NoVersionChange)
             }
         }
         None => {
@@ -727,7 +727,7 @@ async fn version_change_state(
             tracing::debug!(
                 "No deployed version found for this cluster, this is probably the first start, continue reconciliation"
             );
-            Ok(VersionChangeState::NoVersionChange)
+            Ok(ClusterVersionUpdateState::NoVersionChange)
         }
     }
 }
@@ -960,7 +960,7 @@ async fn build_node_rolegroup_statefulset(
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &NifiConfig,
     nifi_auth_config: &NifiAuthenticationConfig,
-    version_change_state: &Option<VersionChangeState>,
+    version_change_state: &Option<ClusterVersionUpdateState>,
     sa_name: &str,
 ) -> Result<StatefulSet> {
     tracing::debug!("Building statefulset");
@@ -1438,7 +1438,7 @@ async fn build_node_rolegroup_statefulset(
             pod_management_policy: Some("Parallel".to_string()),
             replicas: if version_change_state
                 .as_ref()
-                .is_some_and(|state| state == &VersionChangeState::ReadyForChange)
+                .is_some_and(|state| state == &ClusterVersionUpdateState::ReadyForUpdate)
             {
                 Some(0)
             } else {
