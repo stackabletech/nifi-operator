@@ -5,11 +5,7 @@ use stackable_operator::{
         self,
         pod::{PodBuilder, container::ContainerBuilder},
     },
-    commons::authentication::{
-        ldap,
-        oidc::{self, ClientAuthenticationOptions},
-        static_,
-    },
+    crd::authentication::{ldap, oidc, r#static},
     k8s_openapi::api::core::v1::{KeyToPath, SecretVolumeSource, Volume},
 };
 
@@ -41,9 +37,7 @@ pub enum Error {
     },
 
     #[snafu(display("Failed to add LDAP volumes and volumeMounts to the Pod and containers"))]
-    AddLdapVolumes {
-        source: stackable_operator::commons::authentication::ldap::Error,
-    },
+    AddLdapVolumes { source: ldap::v1alpha1::Error },
 
     #[snafu(display("Failed to add OIDC volumes and volumeMounts to the Pod and containers"))]
     AddOidcVolumes {
@@ -67,14 +61,14 @@ pub enum Error {
 #[allow(clippy::large_enum_variant)]
 pub enum NifiAuthenticationConfig {
     SingleUser {
-        provider: static_::AuthenticationProvider,
+        provider: r#static::v1alpha1::AuthenticationProvider,
     },
     Ldap {
-        provider: ldap::AuthenticationProvider,
+        provider: ldap::v1alpha1::AuthenticationProvider,
     },
     Oidc {
-        provider: oidc::AuthenticationProvider,
-        oidc: ClientAuthenticationOptions,
+        provider: oidc::v1alpha1::AuthenticationProvider,
+        oidc: oidc::v1alpha1::ClientAuthenticationOptions,
         nifi: v1alpha1::NifiCluster,
     },
 }
@@ -279,7 +273,9 @@ impl NifiAuthenticationConfig {
     }
 }
 
-fn get_ldap_login_identity_provider(ldap: &ldap::AuthenticationProvider) -> Result<String, Error> {
+fn get_ldap_login_identity_provider(
+    ldap: &ldap::v1alpha1::AuthenticationProvider,
+) -> Result<String, Error> {
     let mut search_filter = ldap.search_filter.clone();
 
     // If no search_filter is specified we will set a default filter that just searches for the user logging in using the specified uid field name
@@ -344,7 +340,7 @@ fn get_ldap_login_identity_provider(ldap: &ldap::AuthenticationProvider) -> Resu
     })
 }
 
-fn get_ldap_authorizer(ldap: &ldap::AuthenticationProvider) -> Result<String, Error> {
+fn get_ldap_authorizer(ldap: &ldap::v1alpha1::AuthenticationProvider) -> Result<String, Error> {
     let (username_file, _) = ldap
         .bind_credentials_mount_paths()
         .context(LdapAuthenticationClassMissingBindCredentialsSnafu)?;

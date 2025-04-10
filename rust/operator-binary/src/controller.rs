@@ -26,11 +26,9 @@ use stackable_operator::{
     },
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
-    commons::{
-        authentication::oidc::AuthenticationProvider,
-        product_image_selection::ResolvedProductImage, rbac::build_rbac_resources,
-    },
+    commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
     config::fragment,
+    crd::{authentication::oidc, git_sync},
     k8s_openapi::{
         DeepMerge,
         api::{
@@ -52,6 +50,7 @@ use stackable_operator::{
     kvp::{Label, Labels, ObjectLabels},
     logging::controller::ReconcilerError,
     memory::{BinaryMultiple, MemoryQuantity},
+    product_config_utils::env_vars_from_rolegroup_config,
     product_logging::{
         self,
         framework::{
@@ -77,8 +76,9 @@ use crate::{
     OPERATOR_NAME,
     config::{
         self, JVM_SECURITY_PROPERTIES_FILE, NIFI_BOOTSTRAP_CONF, NIFI_CONFIG_DIRECTORY,
-        NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML, NifiRepository, build_bootstrap_conf,
-        build_nifi_properties, build_state_management_xml, validated_product_config,
+        NIFI_PROPERTIES, NIFI_PYTHON_WORKING_DIRECTORY, NIFI_STATE_MANAGEMENT_XML, NifiRepository,
+        build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
+        validated_product_config,
     },
     crd::{
         APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, Container, CurrentlySupportedListenerClasses,
@@ -257,6 +257,9 @@ pub enum Error {
 
     #[snafu(display("failed to resolve and merge config for role and role group"))]
     FailedToResolveConfig { source: crate::crd::Error },
+
+    #[snafu(display("invalid git-sync specification"))]
+    InvalidGitSyncSpec { source: git_sync::v1alpha1::Error },
 
     #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
     VectorAggregatorConfigMapMissing,
@@ -501,6 +504,14 @@ pub async fn reconcile_nifi(
                 .merged_config(&NifiRole::Node, rolegroup_name)
                 .context(FailedToResolveConfigSnafu)?;
 
+            let git_sync_resources = git_sync::v1alpha1::GitSyncResources::new(
+                &nifi.spec.cluster_config.custom_processors_git_sync,
+                &resolved_product_image,
+                &env_vars_from_rolegroup_config(rolegroup_config),
+                &[],
+            )
+            .context(InvalidGitSyncSpecSnafu)?;
+
             let rg_service =
                 build_node_rolegroup_service(nifi, &resolved_product_image, &rolegroup)?;
 
@@ -522,6 +533,7 @@ pub async fn reconcile_nifi(
                 rolegroup_config,
                 &merged_config,
                 &proxy_hosts,
+                &git_sync_resources,
             )
             .await?;
 
@@ -545,6 +557,7 @@ pub async fn reconcile_nifi(
                 rolling_upgrade_supported,
                 replicas,
                 &rbac_sa.name_any(),
+                &git_sync_resources,
             )
             .await?;
 
@@ -705,6 +718,7 @@ async fn build_node_rolegroup_config_map(
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &NifiConfig,
     proxy_hosts: &str,
+    git_sync_resources: &git_sync::v1alpha1::GitSyncResources,
 ) -> Result<ConfigMap> {
     tracing::debug!("building rolegroup configmaps");
 
@@ -769,6 +783,7 @@ async fn build_node_rolegroup_config_map(
                     })?
                     .clone(),
                 resolved_product_image.product_version.as_ref(),
+                git_sync_resources,
             )
             .with_context(|_| BuildProductConfigSnafu {
                 rolegroup: rolegroup.clone(),
@@ -874,6 +889,7 @@ async fn build_node_rolegroup_statefulset(
     rolling_update_supported: bool,
     replicas: Option<i32>,
     sa_name: &str,
+    git_sync_resources: &git_sync::v1alpha1::GitSyncResources,
 ) -> Result<StatefulSet> {
     tracing::debug!("Building statefulset");
     let role_group = role.role_groups.get(&rolegroup_ref.role_group);
@@ -923,9 +939,11 @@ async fn build_node_rolegroup_statefulset(
     ));
 
     if let NifiAuthenticationConfig::Oidc { oidc, .. } = nifi_auth_config {
-        env_vars.extend(AuthenticationProvider::client_credentials_env_var_mounts(
-            oidc.client_credentials_secret_ref.clone(),
-        ));
+        env_vars.extend(
+            oidc::v1alpha1::AuthenticationProvider::client_credentials_env_var_mounts(
+                oidc.client_credentials_secret_ref.clone(),
+            ),
+        );
     }
 
     let node_address = format!(
@@ -1163,8 +1181,29 @@ async fn build_node_rolegroup_statefulset(
             .context(AddVolumeMountSnafu)?;
     }
 
+    if git_sync_resources.is_git_sync_enabled() {
+        let volume_name = "nifi-python-working-directory".to_string();
+
+        pod_builder
+            .add_empty_dir_volume(&volume_name, None)
+            .context(AddVolumeSnafu)?;
+        container_nifi
+            .add_volume_mount(&volume_name, NIFI_PYTHON_WORKING_DIRECTORY)
+            .context(AddVolumeMountSnafu)?;
+    }
+
     // We want to add nifi container first for easier defaulting into this container
     pod_builder.add_container(container_nifi.build());
+
+    for container in git_sync_resources.git_sync_containers.iter().cloned() {
+        pod_builder.add_container(container);
+    }
+    pod_builder
+        .add_volumes(git_sync_resources.git_content_volumes.to_owned())
+        .context(AddVolumeSnafu)?;
+    container_nifi
+        .add_volume_mounts(git_sync_resources.git_content_volume_mounts.to_owned())
+        .context(AddVolumeMountSnafu)?;
 
     if let Some(ContainerLogConfig {
         choice:
