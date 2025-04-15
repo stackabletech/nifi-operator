@@ -243,7 +243,7 @@ Inside of your rego rules you have access to the content of the authorization re
         "name": <String>,
         "safeDescription": <String>
     },
-    "user": {
+    "identity": {
         "name": <String>, <6>
         "groups": String, <7>
     },
@@ -256,8 +256,8 @@ Inside of your rego rules you have access to the content of the authorization re
 <3> Whether the entity accessing the resource is anonymous. Possible values: `"true"` or `"false"`.
 <4> The current resource being authorized on.
 <5> The original resource being requested. In cases with inherited policies, this will be an ancestor resource of the current resource. For the initial request, and cases without inheritance, the requested resource will be the same as the current resource.
-<6> The user accessing the resource.
-<7> Comma-separated list of groups that the user accessing the resource belongs to.
+<6> The identity/user accessing the resource.
+<7> Comma-separated list of groups that the identity/user accessing the resource belongs to.
 <8> The event attributes to make additional access decisions for provenance events. Will be `{"": ""}` if empty.
 <9> Additional context for the user to make additional access decisions. Will be `{"": ""}` if empty.
 

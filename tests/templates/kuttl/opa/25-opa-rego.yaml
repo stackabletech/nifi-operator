@@ -10,25 +10,24 @@ data:
     package nifi
 
     default allow := {
-      "allowed": "false", 
+      "allowed": "false",
       "dumpCache": true
     }
 
     allow := {
-      "allowed": "true", 
+      "allowed": "true",
       "dumpCache": true
     } if {
-      input.user.name == "CN=generated certificate for pod"
+      input.identity.name == "CN=generated certificate for pod"
       input.resource.id == "/proxy"
     }
 
     allow := {
-      "allowed": "true", 
+      "allowed": "true",
       "dumpCache": true
     } if {
-      group_paths := data.stackable.opa.userinfo.v1.userInfoByUsername(input.user.name).groups
+      group_paths := data.stackable.opa.userinfo.v1.userInfoByUsername(input.identity.name).groups
       roles := [ trim(group,"/") | group := group_paths[_] ]
       some i
       roles[i] == "nifi-admin"
     }
-
