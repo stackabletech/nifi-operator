@@ -87,6 +87,7 @@ spec:
     custom: "{{ test_scenario['values']['nifi'].split(',')[1] }}"
     productVersion: "{{ test_scenario['values']['nifi'].split(',')[0] }}"
 {% else %}
+    custom: null
     productVersion: "{{ test_scenario['values']['nifi'] }}"
 {% endif %}
     pullPolicy: IfNotPresent

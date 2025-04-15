@@ -87,7 +87,11 @@ use crate::{
         STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR, authentication::AuthenticationClassResolved,
         v1alpha1,
     },
-    operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
+    operations::{
+        graceful_shutdown::add_graceful_shutdown_config,
+        pdb::add_pdbs,
+        upgrade::{self, ClusterVersionUpdateState},
+    },
     product_logging::extend_role_group_config_map,
     reporting_task::{self, build_maybe_reporting_task, build_reporting_task_service_name},
     security::{
@@ -352,6 +356,9 @@ pub enum Error {
     AddVolumeMount {
         source: builder::pod::container::Error,
     },
+
+    #[snafu(display("Failed to determine the state of the version upgrade procedure"))]
+    ClusterVersionUpdateState { source: upgrade::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -360,13 +367,6 @@ impl ReconcilerError for Error {
     fn category(&self) -> &'static str {
         ErrorDiscriminants::from(self).into()
     }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum VersionChangeState {
-    BeginChange,
-    Stopped,
-    NoChange,
 }
 
 pub async fn reconcile_nifi(
@@ -397,78 +397,33 @@ pub async fn reconcile_nifi(
         .await
         .context(SecuritySnafu)?;
 
-    // Handle full restarts for a version change
-    let version_change = if let Some(deployed_version) = nifi
+    // If rolling upgrade is supported, kubernetes takes care of the cluster scaling automatically
+    // otherwise the operator handles it
+    // manage our own flow for upgrade from 1.x.x to 1.x.x/2.x.x
+    // TODO: this can be removed once 1.x.x is longer supported
+    let mut cluster_version_update_state = ClusterVersionUpdateState::NoVersionChange;
+    let deployed_version = nifi
         .status
         .as_ref()
-        .and_then(|status| status.deployed_version.as_ref())
-    {
-        if deployed_version != &resolved_product_image.product_version {
-            // Check if statefulsets are already scaled to zero, if not - requeue
-            let selector = LabelSelector {
-                match_expressions: None,
-                match_labels: Some(
-                    Labels::role_selector(nifi, APP_NAME, &NifiRole::Node.to_string())
-                        .context(LabelBuildSnafu)?
-                        .into(),
-                ),
-            };
+        .and_then(|status| status.deployed_version.as_ref());
+    let rolling_upgrade_supported = resolved_product_image.product_version.starts_with("2.")
+        && deployed_version.is_some_and(|v| v.starts_with("2."));
 
-            // Retrieve the deployed statefulsets to check on the current status of the restart
-            let deployed_statefulsets = client
-                .list_with_label_selector::<StatefulSet>(namespace, &selector)
-                .await
-                .context(FetchStatefulsetsSnafu)?;
+    if !rolling_upgrade_supported {
+        cluster_version_update_state = upgrade::cluster_version_update_state(
+            nifi,
+            client,
+            &resolved_product_image.product_version,
+            deployed_version,
+        )
+        .await
+        .context(ClusterVersionUpdateStateSnafu)?;
 
-            // Sum target replicas for all statefulsets
-            let target_replicas = deployed_statefulsets
-                .iter()
-                .filter_map(|statefulset| statefulset.spec.as_ref())
-                .filter_map(|spec| spec.replicas)
-                .sum::<i32>();
-
-            // Sum current ready replicas for all statefulsets
-            let current_replicas = deployed_statefulsets
-                .iter()
-                .filter_map(|statefulset| statefulset.status.as_ref())
-                .map(|status| status.replicas)
-                .sum::<i32>();
-
-            // If statefulsets have already been scaled to zero, but have remaining replicas
-            // we requeue to wait until a full stop has been performed.
-            if target_replicas == 0 && current_replicas > 0 {
-                tracing::info!(
-                    "Cluster is performing a full restart at the moment and still shutting down, remaining replicas: [{}] - requeueing to wait for shutdown to finish",
-                    current_replicas
-                );
-                return Ok(Action::await_change());
-            }
-
-            // Otherwise we either still need to scale the statefulsets to 0 or all replicas have
-            // been stopped and we can restart the cluster.
-            // Both actions will be taken in the regular reconciliation, so we can simply continue
-            // here
-            if target_replicas > 0 {
-                tracing::info!(
-                    "Version change detected, we'll need to scale down the cluster for a full restart."
-                );
-                VersionChangeState::BeginChange
-            } else {
-                tracing::info!("Cluster has been stopped for a restart, will scale back up.");
-                VersionChangeState::Stopped
-            }
-        } else {
-            // No version change detected, propagate this to the reconciliation
-            VersionChangeState::NoChange
+        if cluster_version_update_state == ClusterVersionUpdateState::UpdateInProgress {
+            return Ok(Action::await_change());
         }
-    } else {
-        // No deployed version set in status, this is probably the first reconciliation ever
-        // for this cluster, so just let it progress normally
-        tracing::debug!(
-            "No deployed version found for this cluster, this is probably the first start, continue reconciliation"
-        );
-        VersionChangeState::NoChange
-    };
+    }
+    // end todo
 
     let validated_config = validated_product_config(
         nifi,
@@ -580,6 +535,14 @@ pub async fn reconcile_nifi(
             )
             .await?;
 
+            let role_group = role.role_groups.get(&rolegroup.role_group);
+            let replicas =
+                if cluster_version_update_state == ClusterVersionUpdateState::UpdateRequested {
+                    Some(0)
+                } else {
+                    role_group.and_then(|rg| rg.replicas).map(i32::from)
+                };
+
             let rg_statefulset = build_node_rolegroup_statefulset(
                 nifi,
                 &resolved_product_image,
@@ -590,7 +553,8 @@ pub async fn reconcile_nifi(
                 &merged_config,
                 &authentication_config,
                 &authorization_config,
-                &version_change,
+                rolling_upgrade_supported,
+                replicas,
                 &rbac_sa.name_any(),
             )
             .await?;
@@ -672,7 +636,7 @@ pub async fn reconcile_nifi(
 
     // Update the deployed product version in the status after everything has been deployed, unless
     // we are still in the process of updating
-    let status = if version_change != VersionChangeState::BeginChange {
+    let status = if cluster_version_update_state != ClusterVersionUpdateState::UpdateRequested {
         NifiStatus {
             deployed_version: Some(resolved_product_image.product_version),
             conditions,
@@ -924,7 +888,8 @@ async fn build_node_rolegroup_statefulset(
     merged_config: &NifiConfig,
     authentication_config: &NifiAuthenticationConfig,
     authorization_config: &NifiAuthorizationConfig,
-    version_change_state: &VersionChangeState,
+    rolling_update_supported: bool,
+    replicas: Option<i32>,
     sa_name: &str,
 ) -> Result<StatefulSet> {
     tracing::debug!("Building statefulset");
@@ -1414,11 +1379,7 @@ async fn build_node_rolegroup_statefulset(
             .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("Parallel".to_string()),
-            replicas: if version_change_state == &VersionChangeState::BeginChange {
-                Some(0)
-            } else {
-                role_group.and_then(|rg| rg.replicas).map(i32::from)
-            },
+            replicas,
             selector: LabelSelector {
                 match_labels: Some(
                     Labels::role_group_selector(
@@ -1435,7 +1396,11 @@ async fn build_node_rolegroup_statefulset(
             service_name: rolegroup_ref.object_name(),
             template: pod_template,
             update_strategy: Some(StatefulSetUpdateStrategy {
-                type_: Some("OnDelete".to_string()),
+                type_: if rolling_update_supported {
+                    Some("RollingUpdate".to_string())
+                } else {
+                    Some("OnDelete".to_string())
+                },
                 ..StatefulSetUpdateStrategy::default()
             }),
             volume_claim_templates: Some(vec![
