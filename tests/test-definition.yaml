@@ -30,6 +30,9 @@ dimensions:
   - name: zookeeper-latest
     values:
       - 3.9.3
+  - name: opa-latest
+    values:
+      - 1.0.1
   - name: ldap-use-tls
     values:
       - "false"
@@ -90,6 +93,12 @@ tests:
       - nifi
       - zookeeper-latest
       - oidc-use-tls
+      - openshift
+  - name: opa
+    dimensions:
+      - nifi
+      - zookeeper-latest
+      - opa-latest
       - openshift
 suites:
   - name: nightly

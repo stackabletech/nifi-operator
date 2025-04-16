@@ -180,4 +180,11 @@ fn references_config_map(
     };
 
     nifi.spec.cluster_config.zookeeper_config_map_name == config_map.name_any()
+        || match nifi.spec.cluster_config.authorization.to_owned() {
+            Some(trino_authorization) => match trino_authorization.opa {
+                Some(opa_config) => opa_config.opa.config_map_name == config_map.name_any(),
+                None => false,
+            },
+            None => false,
+        }
 }

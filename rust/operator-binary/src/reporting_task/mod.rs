@@ -130,7 +130,7 @@ pub fn build_maybe_reporting_task(
     nifi: &v1alpha1::NifiCluster,
     resolved_product_image: &ResolvedProductImage,
     cluster_info: &KubernetesClusterInfo,
-    nifi_auth_config: &NifiAuthenticationConfig,
+    authentication_config: &NifiAuthenticationConfig,
     sa_name: &str,
 ) -> Result<Option<(Job, Service)>> {
     if resolved_product_image.product_version.starts_with("1.") {
@@ -139,7 +139,7 @@ pub fn build_maybe_reporting_task(
                 nifi,
                 resolved_product_image,
                 cluster_info,
-                nifi_auth_config,
+                authentication_config,
                 sa_name,
             )?,
             build_reporting_task_service(nifi, resolved_product_image)?,
