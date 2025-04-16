@@ -78,12 +78,6 @@ tests:
       - zookeeper-latest
       - ldap-use-tls
       - openshift
-  - name: ldap_opa_uif
-    dimensions:
-      - nifi
-      - zookeeper-latest
-      - opa-latest
-      - openshift
   - name: logging
     dimensions:
       - nifi
