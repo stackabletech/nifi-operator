@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Add rolling upgrade support for upgrades between NiFi 2 versions ([#771]).
+- Added listener support for Nifi ([#XXX]).
 
 ### Changed
 
