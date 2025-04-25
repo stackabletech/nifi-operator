@@ -1,0 +1,25 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 1200
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test-nifi-node-default
+spec:
+  template:
+    spec:
+      terminationGracePeriodSeconds: 300
+status:
+  readyReplicas: 2
+  replicas: 2
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: test-nifi-node
+status:
+  expectedPods: 4
+  currentHealthy: 4
+  disruptionsAllowed: 1
