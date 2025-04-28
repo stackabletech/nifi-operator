@@ -57,12 +57,12 @@ spec:
   provider:
     static:
       userCredentialsSecret:
-        name: nifi-admin-credentials
+        name: nifi-users
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: nifi-admin-credentials
+  name: nifi-users
 stringData:
   admin: >
     passwordWithSpecialCharacter\@<&>"'
