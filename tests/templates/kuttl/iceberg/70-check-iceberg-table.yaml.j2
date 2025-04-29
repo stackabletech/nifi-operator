@@ -1,0 +1,34 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: check-iceberg-table
+spec:
+  template:
+    spec:
+      containers:
+        - name: check-iceberg-table
+          image: "oci.stackable.tech/sdp/trino-cli:{{ test_scenario['values']['trino-latest'] }}-stackable0.0.0-dev"
+          command:
+            - bash
+            - -euo
+            - pipefail
+            - -c
+            - |
+              COUNT=$(cat << 'EOF' | java -jar trino-cli-*-executable.jar --server https://trino-coordinator:8443 --insecure --user admin
+              SELECT COUNT(*) FROM iceberg.test.greetings WHERE hello = 'world from NiFi :)';
+              EOF
+              )
+
+              COUNT="${COUNT%\"}" # Remove trailing quote if any
+              COUNT="${COUNT#\"}" # Remove leading quote if any
+              echo "Count is $COUNT"
+
+              # Check if it's a number greater than 0
+              if ! [[ "$COUNT" =~ ^[0-9]+$ ]] || [ "$COUNT" -le 0 ]; then
+                echo "Invalid or zero count: $COUNT"
+                exit 1
+              fi
+
+              echo "Count $COUNT was valid"
+      restartPolicy: OnFailure

@@ -1,0 +1,7 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-iceberg-table
+status:
+  succeeded: 1

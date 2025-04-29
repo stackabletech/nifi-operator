@@ -1,0 +1,7 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: check-iceberg-table
+status:
+  succeeded: 1

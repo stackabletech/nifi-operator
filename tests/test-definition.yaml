@@ -17,6 +17,10 @@ dimensions:
   - name: nifi-latest
     values:
       - 2.2.0 # oci.stackable.tech/sandbox/nifi:2.2.0-stackable0.0.0-dev
+  - name: nifi-iceberg
+    values:
+      # - 2.2.0 # oci.stackable.tech/sandbox/nifi:2.2.0-stackable0.0.0-dev
+      - 2.0.0,oci.stackable.tech/sandbox/sbernauer/nifi:2.2.0-stackable0.0.0-dev-with-iceberg
   - name: zookeeper
     values:
       - 3.9.2
@@ -24,6 +28,12 @@ dimensions:
   - name: zookeeper-latest
     values:
       - 3.9.3
+  - name: hive-latest
+    values:
+      - 4.0.1
+  - name: trino-latest
+    values:
+      - "470"
   - name: ldap-use-tls
     values:
       - "false"
@@ -84,6 +94,13 @@ tests:
       - nifi
       - zookeeper-latest
       - oidc-use-tls
+      - openshift
+  - name: iceberg
+    dimensions:
+      - nifi-iceberg
+      - zookeeper-latest
+      - hive-latest
+      - trino-latest
       - openshift
 suites:
   - name: nightly

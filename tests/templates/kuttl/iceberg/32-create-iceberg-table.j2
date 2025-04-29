@@ -1,0 +1,22 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-iceberg-table
+spec:
+  template:
+    spec:
+      containers:
+        - name: create-iceberg-table
+          image: "oci.stackable.tech/sdp/trino-cli:{{ test_scenario['values']['trino-latest'] }}-stackable0.0.0-dev"
+          command:
+            - bash
+            - -euo
+            - pipefail
+            - -c
+            - |
+              cat << 'EOF' | java -jar trino-cli-*-executable.jar --server https://trino-coordinator:8443 --insecure --user admin
+              CREATE SCHEMA IF NOT EXISTS iceberg.test WITH (location = 's3a://demo/lakehouse/test');
+              CREATE TABLE IF NOT EXISTS iceberg.test.greetings (hello varchar);
+              EOF
+      restartPolicy: OnFailure
