@@ -1,0 +1,47 @@
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: nifi-interactive
+spec:
+  image:
+    productVersion: 2.2.0
+  clusterConfig:
+    authentication:
+      - authenticationClass: nifi-users
+    listenerClass: external-unstable
+    sensitiveProperties:
+      keySecret: nifi-interactive-sensitive-property-key
+      autoGenerate: true
+    zookeeperConfigMapName: nifi-interactive-znode
+    extraVolumes:
+      - name: nifi-processors
+        persistentVolumeClaim:
+          claimName: nifi-interactive-processors
+  nodes:
+    configOverrides:
+      nifi.properties:
+        nifi.nar.library.directory.myCustomLibs: "/stackable/userdata/nifi-processors/"
+        # Quicker startup
+        nifi.cluster.flow.election.max.wait.time: 3 secs
+    roleGroups:
+      default:
+        replicas: 1
+---
+apiVersion: zookeeper.stackable.tech/v1alpha1
+kind: ZookeeperZnode
+metadata:
+  name: nifi-interactive-znode
+spec:
+  clusterRef:
+    name: zookeeper
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nifi-interactive-processors
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi

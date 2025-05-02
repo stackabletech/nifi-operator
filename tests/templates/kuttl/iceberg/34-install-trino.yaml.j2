@@ -3,4 +3,4 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
   # We need to replace $NAMESPACE (by KUTTL)
-  - script: envsubst '$NAMESPACE' < 50_nifi.yaml | kubectl apply -n $NAMESPACE -f -
+  - script: envsubst '$NAMESPACE' < 34_trino.yaml | kubectl apply -n $NAMESPACE -f -

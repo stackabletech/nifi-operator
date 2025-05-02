@@ -1,0 +1,78 @@
+---
+apiVersion: hdfs.stackable.tech/v1alpha1
+kind: HdfsCluster
+metadata:
+  name: hdfs
+spec:
+  image:
+{% if test_scenario['values']['hdfs-l'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['hdfs-l'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['hdfs-l'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['hdfs-l'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
+  clusterConfig:
+    dfsReplication: 1
+{% if test_scenario['values']['iceberg-use-kerberos'] == 'true' %}
+    authentication:
+      tlsSecretClass: tls
+      kerberos:
+        secretClass: kerberos-$NAMESPACE
+    authorization:
+      opa:
+        configMapName: opa
+        package: hdfs
+{% endif %}
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+    vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
+    zookeeperConfigMapName: hdfs-znode
+  nameNodes:
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    configOverrides: &configOverrides
+      core-site.xml:
+        # The idea is that the user "hive" can't do anything in hdfs,
+        # *but* it can impersonate other users (such as trino),
+        # that have the needed permissions
+        hadoop.proxyuser.hive.users: "*"
+        hadoop.proxyuser.hive.hosts: "*"
+    roleGroups:
+      default:
+        replicas: 2
+  dataNodes:
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    roleGroups:
+      default:
+        replicas: 1
+  journalNodes:
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    roleGroups:
+      default:
+        replicas: 1
+---
+apiVersion: zookeeper.stackable.tech/v1alpha1
+kind: ZookeeperZnode
+metadata:
+  name:  hdfs-znode
+spec:
+  clusterRef:
+    name: zookeeper
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hdfs-regorules
+  labels:
+    opa.stackable.tech/bundle: "true"
+data:
+  hdfs.rego: |
+    package hdfs
+
+    default allow := true

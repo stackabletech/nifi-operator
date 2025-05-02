@@ -18,9 +18,11 @@ dimensions:
     values:
       - 2.2.0 # oci.stackable.tech/sandbox/nifi:2.2.0-stackable0.0.0-dev
   - name: nifi-iceberg
+    # Not all NiFi versions support Iceberg with the same functionality!
+    # E.g. our own implementation started with NiFi 2.2.0
     values:
       # - 2.2.0 # oci.stackable.tech/sandbox/nifi:2.2.0-stackable0.0.0-dev
-      - 2.0.0,oci.stackable.tech/sandbox/sbernauer/nifi:2.2.0-stackable0.0.0-dev-with-iceberg
+      - 2.0.0,oci.stackable.tech/sandbox/sbernauer/nifi:2.2.0-stackable0.0.0-dev
   - name: zookeeper
     values:
       - 3.9.2
@@ -28,15 +30,21 @@ dimensions:
   - name: zookeeper-latest
     values:
       - 3.9.3
-  - name: hdfs-latest
+  - name: opa-l
+    values:
+      - 1.0.1
+  - name: hdfs-l
     values:
       - 3.4.0
-  - name: hive-latest
+  - name: hive-l
     values:
       - 4.0.1
-  - name: trino-latest
+  - name: trino-l
     values:
       - "470"
+  - name: krb5
+    values:
+      - 1.21.1
   - name: ldap-use-tls
     values:
       - "false"
@@ -45,6 +53,13 @@ dimensions:
     values:
       - "false"
       - "true"
+  - name: iceberg-use-kerberos
+    values:
+      - "false"
+      - "true"
+  - name: kerberos-realm
+    values:
+      - "PROD.MYCORP"
   - name: openshift
     values:
       - "false"
@@ -101,10 +116,14 @@ tests:
   - name: iceberg
     dimensions:
       - nifi-iceberg
+      - opa-l
       - zookeeper-latest
-      - hdfs-latest
-      - hive-latest
-      - trino-latest
+      - hdfs-l
+      - hive-l
+      - trino-l
+      - krb5
+      - iceberg-use-kerberos
+      - kerberos-realm
       - openshift
 suites:
   - name: nightly
