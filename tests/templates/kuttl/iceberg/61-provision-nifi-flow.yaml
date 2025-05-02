@@ -70,6 +70,7 @@ data:
     filename = "/tmp/nifi-flow/nifi-flow.json"
     
     pg_id = get_root_pg_id()
+    print(f"Got root process group id: {pg_id}")
 
     if not nipyapi.config.nifi_config.api_client:
         nipyapi.config.nifi_config.api_client = ApiClient()
@@ -78,6 +79,7 @@ data:
     header_params['Accept'] = nipyapi.config.nifi_config.api_client.select_header_accept(['application/json'])
     header_params['Content-Type'] = nipyapi.config.nifi_config.api_client.select_header_content_type(['multipart/form-data'])
 
+    print("Uploading process group")
     nipyapi.config.nifi_config.api_client.call_api('/process-groups/{pg_id}/process-groups/upload', 'POST',
         path_params={'pg_id': pg_id},
         header_params=header_params,
@@ -93,13 +95,17 @@ data:
             'file': filename
         },
         auth_settings=['tokenAuth'])
+    print("Process group uploaded")
 
-    max_retries = 2
+    # As they are started in the wrong order :D we need to retry
+    max_retries = 3
     for _ in range(max_retries):
         controllers = list_all_controllers(pg_id)
+        print(f"Found {len(controllers)} controllers")
         for controller in controllers:
             if controller.component.state != "ENABLED":
                 try:
+                    print(f"Scheduling controller {controller.component.name}")
                     schedule_controller(controller, scheduled=True)
                     print(f"Scheduled controller: {controller.component.name}")
                 except Exception as e:

@@ -28,6 +28,9 @@ dimensions:
   - name: zookeeper-latest
     values:
       - 3.9.3
+  - name: hdfs-latest
+    values:
+      - 3.4.0
   - name: hive-latest
     values:
       - 4.0.1
@@ -99,6 +102,7 @@ tests:
     dimensions:
       - nifi-iceberg
       - zookeeper-latest
+      - hdfs-latest
       - hive-latest
       - trino-latest
       - openshift

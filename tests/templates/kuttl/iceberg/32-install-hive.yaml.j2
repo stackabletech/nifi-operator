@@ -17,8 +17,8 @@ spec:
       connString: jdbc:postgresql://postgresql:5432/hive
       credentialsSecret: postgres-credentials
       dbType: postgres
-    # hdfs:
-    #   configMap: hdfs
+    hdfs:
+      configMap: hdfs
     s3:
       reference: minio
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}

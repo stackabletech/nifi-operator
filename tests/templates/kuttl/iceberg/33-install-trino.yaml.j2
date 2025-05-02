@@ -16,6 +16,7 @@ spec:
     catalogLabelSelector:
       matchLabels:
         trino: trino
+    listenerClass: external-unstable
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
@@ -49,5 +50,5 @@ spec:
         configMap: hive
       s3:
         reference: minio
-      # hdfs:
-      #   configMap: hdfs
+      hdfs:
+        configMap: hdfs

@@ -20,6 +20,10 @@ spec:
       - authenticationClass: nifi-users
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
+    extraVolumes:
+      - name: hdfs-config
+        configMap:
+          name: hdfs
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}

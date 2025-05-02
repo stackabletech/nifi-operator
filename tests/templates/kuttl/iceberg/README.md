@@ -2,6 +2,8 @@ The file `60_nifi-flow.json` was exported from the NiFi UI.
 
 *However*, we need to update some stuff, such as adding S3 credentials and templating the namespace of MinIO.
 
+TIP: I used `JSON: Sort Document` in VScode to somewhat have consistent formatting, which makes reading and diffs easier.
+
 Notable the following diff has been made:
 
 ```diff
