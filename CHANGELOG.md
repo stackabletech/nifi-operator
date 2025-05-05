@@ -28,12 +28,17 @@ All notable changes to this project will be documented in this file.
 - Use `json` file extension for log files ([#774]).
 - Fix a bug where changes to ConfigMaps that are referenced in the NifiCluster spec didn't trigger a reconciliation ([#772]).
 
+### Removed
+
+- test: ZooKeeper 3.9.2 removed ([#787]).
+
 [#767]: https://github.com/stackabletech/nifi-operator/pull/767
 [#771]: https://github.com/stackabletech/nifi-operator/pull/771
 [#772]: https://github.com/stackabletech/nifi-operator/pull/772
 [#774]: https://github.com/stackabletech/nifi-operator/pull/774
 [#776]: https://github.com/stackabletech/nifi-operator/pull/776
 [#782]: https://github.com/stackabletech/nifi-operator/pull/782
+[#787]: https://github.com/stackabletech/nifi-operator/pull/787
 
 ## [25.3.0] - 2025-03-21
 
