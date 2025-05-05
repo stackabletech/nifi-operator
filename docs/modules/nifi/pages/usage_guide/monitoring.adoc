@@ -44,3 +44,29 @@ https://simple-nifi-node-default-0.simple-nifi-node-default.<namespace>.svc.clus
 ```
 
 IMPORTANT: If NiFi is configured to do any user authentication, requests to the metric endpoint must be authenticated and authorized.
+
+=== Authentication with NiFi `2.x.x`
+To authenticate, you can use a bearer token created by your NiFi instance e.g.
+
+[source,bash]
+----
+curl -X POST https://<nifi-host>:<nifi-port>/nifi-api/access/token -d 'username=<user>&password=<password>' -k
+----
+
+where `-k` equals `verify=false`. The reply is your bearer token.
+
+You then can use the bearer token to authenticate with Prometheus replacing `basic_auth` with
+
+[source,yaml]
+----
+# basic_auth:
+  # username: <user>
+  # password: <password>
+authorization:
+  type: Bearer
+  credentials: "<Bearer Token>"
+tls_config:
+  insecure_skip_verify: true
+----
+
+according to https://prometheus.io/docs/prometheus/latest/configuration/configuration/#http_config[Prometheus documentation].
