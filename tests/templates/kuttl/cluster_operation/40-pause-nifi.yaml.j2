@@ -9,6 +9,7 @@ spec:
     custom: "{{ test_scenario['values']['nifi-latest'].split(',')[1] }}"
     productVersion: "{{ test_scenario['values']['nifi-latest'].split(',')[0] }}"
 {% else %}
+    custom: null
     productVersion: "{{ test_scenario['values']['nifi-latest'] }}"
 {% endif %}
     pullPolicy: IfNotPresent
