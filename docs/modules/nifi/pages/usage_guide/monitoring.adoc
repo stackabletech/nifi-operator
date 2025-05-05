@@ -50,7 +50,7 @@ To authenticate, you can use a bearer token created by your NiFi instance e.g.
 
 [source,bash]
 ----
-curl -X POST https://<nifi-host>:<nifi-port>/nifi-api/access/token -d 'username=<user>&password=<password>' -k
+curl -X POST https://simple-nifi-node-default-0.simple-nifi-node-default.<namespace>.svc.cluster.local:8443/nifi-api/access/token -d 'username=<user>&password=<password>' -k
 ----
 
 where `-k` equals `verify=false`. The reply is your bearer token.
