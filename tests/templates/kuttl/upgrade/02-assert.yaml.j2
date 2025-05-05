@@ -16,4 +16,4 @@ kind: NifiCluster
 metadata:
   name: test-nifi
 status:
-  deployed_version: {{ test_scenario['values']['nifi_old'].split("-")[0]  }}
+  deployed_version: {{ test_scenario['values']['nifi_old'].split(',')[0]  }}
