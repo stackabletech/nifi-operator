@@ -5,7 +5,7 @@ use std::{
 
 use jvm::build_merged_jvm_config;
 use product_config::{types::PropertyNameKind, ProductConfigManager};
-use snafu::{ResultExt, Snafu};
+use snafu::{ensure, ResultExt, Snafu};
 use stackable_operator::{
     commons::resources::Resources,
     memory::MemoryQuantity,
@@ -95,6 +95,11 @@ pub enum Error {
 
     #[snafu(display("failed to generate OIDC config"))]
     GenerateOidcConfig { source: oidc::Error },
+
+    #[snafu(display(
+        "NiFi 1.x requires ZooKeeper (hint: upgrade to NiFi 2.x or set .spec.clusterConfig.zookeeperConfigMapName)"
+    ))]
+    Nifi1RequiresZookeeper,
 }
 
 /// Create the NiFi bootstrap.conf
@@ -142,13 +147,15 @@ pub fn build_nifi_properties(
     overrides: BTreeMap<String, String>,
     product_version: &str,
 ) -> Result<String, Error> {
+    // TODO: Remove once we dropped support for all NiFi 1.x versions
+    let is_nifi_1 = product_version.starts_with("1.");
+
     let mut properties = BTreeMap::new();
     // Core Properties
     // According to https://cwiki.apache.org/confluence/display/NIFI/Migration+Guidance#MigrationGuidance-Migratingto2.0.0-M1
     // The nifi.flow.configuration.file property in nifi.properties must be changed to reference
     // "flow.json.gz" instead of "flow.xml.gz"
-    // TODO: Remove once we dropped support for all 1.x.x versions
-    let flow_file_name = if product_version.starts_with("1.") {
+    let flow_file_name = if is_nifi_1 {
         "flow.xml.gz"
     } else {
         "flow.json.gz"
@@ -582,6 +589,8 @@ pub fn build_nifi_properties(
         }
 
         v1alpha1::NifiClusteringBackend::Kubernetes {} => {
+            ensure!(!is_nifi_1, Nifi1RequiresZookeeperSnafu);
+
             properties.insert(
                 "nifi.cluster.leader.election.implementation".to_string(),
                 "KubernetesLeaderElectionManager".to_string(),
