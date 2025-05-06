@@ -19,8 +19,8 @@ use strum::{Display, EnumIter};
 
 use crate::{
     crd::{
-        v1alpha1, NifiConfig, NifiConfigFragment, NifiRole, NifiStorageConfig, HTTPS_PORT,
-        PROTOCOL_PORT,
+        v1alpha1::{self, NifiClusteringBackend},
+        NifiConfig, NifiConfigFragment, NifiRole, NifiStorageConfig, HTTPS_PORT, PROTOCOL_PORT,
     },
     operations::graceful_shutdown::graceful_shutdown_config_properties,
     security::{
@@ -601,33 +601,42 @@ pub fn build_nifi_properties(
     Ok(format_properties(properties))
 }
 
-pub fn build_state_management_xml() -> String {
+pub fn build_state_management_xml(clustering_backend: &NifiClusteringBackend) -> String {
+    // Inert providers are ignored by NiFi itself, but templating still fails if they refer to invalid environment variables,
+    // so only include the actually used provider.
+    let cluster_provider = match clustering_backend {
+        NifiClusteringBackend::ZooKeeper { .. } => {
+            r#"<cluster-provider>
+              <id>zk-provider</id>
+              <class>org.apache.nifi.controller.state.providers.zookeeper.ZooKeeperStateProvider</class>
+              <property name="Connect String">${env:ZOOKEEPER_HOSTS}</property>
+              <property name="Root Node">${env:ZOOKEEPER_CHROOT}</property>
+              <property name="Session Timeout">10 seconds</property>
+              <property name="Access Control">Open</property>
+            </cluster-provider>"#
+        }
+        NifiClusteringBackend::Kubernetes {} => {
+            r#"<cluster-provider>
+              <id>kubernetes-provider</id>
+              <class>org.apache.nifi.kubernetes.state.provider.KubernetesConfigMapStateProvider</class>
+              <property name="ConfigMap Name Prefix">${env:STACKLET_NAME}</property>
+            </cluster-provider>"#
+        }
+    };
     format!(
         r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
         <stateManagement>
           <local-provider>
-          <id>local-provider</id>
+            <id>local-provider</id>
             <class>org.apache.nifi.controller.state.providers.local.WriteAheadLocalStateProvider</class>
             <property name="Directory">{local_state_path}</property>
             <property name="Always Sync">false</property>
             <property name="Partitions">16</property>
             <property name="Checkpoint Interval">2 mins</property>
           </local-provider>
-          <cluster-provider>
-            <id>zk-provider</id>
-            <class>org.apache.nifi.controller.state.providers.zookeeper.ZooKeeperStateProvider</class>
-            <property name="Connect String">${{env:ZOOKEEPER_HOSTS}}</property>
-            <property name="Root Node">${{env:ZOOKEEPER_CHROOT}}</property>
-            <property name="Session Timeout">10 seconds</property>
-            <property name="Access Control">Open</property>
-          </cluster-provider>
-          <cluster-provider>
-            <id>kubernetes-provider</id>
-            <class>org.apache.nifi.kubernetes.state.provider.KubernetesConfigMapStateProvider</class>
-            <property name="ConfigMap Name Prefix">${{env:STACKLET_NAME}}</property>
-          </cluster-provider>
+          {cluster_provider}
         </stateManagement>"#,
-        local_state_path = &NifiRepository::State.mount_path(),
+        local_state_path = NifiRepository::State.mount_path(),
     )
 }
 

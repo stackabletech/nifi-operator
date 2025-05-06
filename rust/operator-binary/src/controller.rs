@@ -812,7 +812,10 @@ async fn build_node_rolegroup_config_map(
                 rolegroup: rolegroup.clone(),
             })?,
         )
-        .add_data(NIFI_STATE_MANAGEMENT_XML, build_state_management_xml())
+        .add_data(
+            NIFI_STATE_MANAGEMENT_XML,
+            build_state_management_xml(&nifi.spec.cluster_config.clustering_backend),
+        )
         .add_data(
             LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME,
             login_identity_provider_xml,
