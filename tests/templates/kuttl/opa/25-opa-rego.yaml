@@ -6,26 +6,41 @@ metadata:
   labels:
     opa.stackable.tech/bundle: "true"
 data:
-  roles.rego: |
+  nifi.rego: |
     package nifi
 
+    # Setting "resourceNotFound" to true results in the parent resource being evaluated for authorization, e.g. the parent of a processor is the processor-group.
+    # If a resource is matched by a rego rule that is not the default the parent resource will be ignored.
     default allow := {
-      "allowed": "false",
+      "resourceNotFound": true,
       "dumpCache": true
     }
 
     allow := {
-      "allowed": "true",
+      "allowed": true,
+      "dumpCache": true
+    } if {
+      input.resource.id in ["/flow", "/controller", "/parameter-contexts", "/provenance-data", "/restricted-components", "/policies", "/tenants", "/site-to-site", "/system", "counters"]
+      nifi_admin
+    }
+
+    allow := {
+      "allowed": true,
+      "dumpCache": true
+    } if {
+      input.resource.name in ["NiFi Flow"]
+      nifi_admin
+    }
+
+    allow := {
+      "allowed": true,
       "dumpCache": true
     } if {
       input.identity.name == "CN=generated certificate for pod"
       input.resource.id == "/proxy"
     }
 
-    allow := {
-      "allowed": "true",
-      "dumpCache": true
-    } if {
+    nifi_admin := true if {
       group_paths := data.stackable.opa.userinfo.v1.userInfoByUsername(input.identity.name).groups
       roles := [ trim(group,"/") | group := group_paths[_] ]
       some i
