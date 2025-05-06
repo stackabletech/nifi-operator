@@ -64,6 +64,12 @@ tests:
       - zookeeper
       - listener-class
       - openshift
+  # Merge into smoke once we drop support for NiFi 1.x
+  - name: smoke-zookeeperless
+    dimensions:
+      - nifi_new
+      - listener-class
+      - openshift
   - name: resources
     dimensions:
       - nifi
