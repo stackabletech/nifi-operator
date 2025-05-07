@@ -21,8 +21,7 @@ dimensions:
     # Not all NiFi versions support Iceberg with the same functionality!
     # E.g. our own implementation started with NiFi 2.2.0
     values:
-      # - 2.2.0 # oci.stackable.tech/sandbox/nifi:2.2.0-stackable0.0.0-dev
-      - 2.0.0,oci.stackable.tech/sandbox/sbernauer/nifi:2.2.0-stackable0.0.0-dev
+      - 2.2.0 # oci.stackable.tech/sandbox/nifi:2.2.0-stackable0.0.0-dev
   - name: zookeeper
     values:
       - 3.9.2
