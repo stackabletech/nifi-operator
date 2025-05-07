@@ -4,7 +4,7 @@ The file `60_nifi-flow.json` was exported from the NiFi UI.
 
 TIP: I used `JSON: Sort Document` in VScode to somewhat have consistent formatting, which makes reading and diffs easier.
 
-Notable the following diff has been made:
+Notable the following diff has been made (may not be up to date!):
 
 ```diff
 diff --git a/tests/templates/kuttl/iceberg/60_nifi-flow.json b/tests/templates/kuttl/iceberg/60_nifi-flow.json

@@ -17,12 +17,36 @@ spec:
       - name: nifi-processors
         persistentVolumeClaim:
           claimName: nifi-interactive-processors
+      - name: hdfs-config
+        configMap:
+          name: hdfs
+      - name: nifi-interactive-hive-site
+        configMap:
+          name: nifi-interactive-hive-site
+      - name: kerberos
+        ephemeral:
+          volumeClaimTemplate:
+            metadata:
+              annotations:
+                secrets.stackable.tech/class: kerberos-kuttl-test-united-pheasant
+                secrets.stackable.tech/kerberos.service.names: nifi
+                secrets.stackable.tech/scope: service=nifi
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: "1"
+              storageClassName: secrets.stackable.tech
   nodes:
     configOverrides:
       nifi.properties:
-        nifi.nar.library.directory.myCustomLibs: "/stackable/userdata/nifi-processors/"
+        nifi.nar.library.directory.myCustomLibs: /stackable/userdata/nifi-processors/
+        nifi.kerberos.krb5.file: /stackable/userdata/kerberos/krb5.conf
         # Quicker startup
         nifi.cluster.flow.election.max.wait.time: 3 secs
+    envOverrides:
+      KERBEROS_REALM: PROD.MYCORP
     roleGroups:
       default:
         replicas: 1
@@ -45,3 +69,20 @@ spec:
   resources:
     requests:
       storage: 10Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nifi-interactive-hive-site
+data:
+  hive-site.xml: |
+    <configuration>
+        <property>
+            <name>hive.metastore.kerberos.principal</name>
+            <value>hive/hive.kuttl-test-united-pheasant.svc.cluster.local@MY.CORP</value>
+        </property>
+        <property>
+            <name>hive.metastore.sasl.enabled</name>
+            <value>true</value>
+        </property>
+    </configuration>

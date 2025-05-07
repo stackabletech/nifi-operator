@@ -98,7 +98,7 @@ data:
     print("Process group uploaded")
 
     # As they are started in the wrong order :D we need to retry
-    max_retries = 3
+    max_retries = 5
     for _ in range(max_retries):
         controllers = list_all_controllers(pg_id)
         print(f"Found {len(controllers)} controllers")

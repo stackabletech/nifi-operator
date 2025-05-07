@@ -24,6 +24,26 @@ spec:
       - name: hdfs-config
         configMap:
           name: hdfs
+{% if test_scenario['values']['iceberg-use-kerberos'] == 'true' %}
+      - name: hive-config
+        configMap:
+          name: nifi-hive-config
+      - name: kerberos
+        ephemeral:
+          volumeClaimTemplate:
+            metadata:
+              annotations:
+                secrets.stackable.tech/class: kerberos-$NAMESPACE
+                secrets.stackable.tech/kerberos.service.names: nifi
+                secrets.stackable.tech/scope: service=nifi
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: "1"
+              storageClassName: secrets.stackable.tech
+{% endif %}
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
@@ -33,6 +53,10 @@ spec:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
     configOverrides:
       nifi.properties:
+{% if test_scenario['values']['iceberg-use-kerberos'] == 'true' %}
+        nifi.kerberos.krb5.file: /stackable/userdata/kerberos/krb5.conf
+{% endif %}
+
         # Quicker startup, and we only have a single node
         nifi.cluster.flow.election.max.wait.time: 5 secs
     jvmArgumentOverrides:
@@ -109,3 +133,22 @@ metadata:
 spec:
   clusterRef:
     name: zookeeper
+{% if test_scenario['values']['iceberg-use-kerberos'] == 'true' %}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nifi-hive-config
+data:
+  hive-site.xml: |
+    <configuration>
+        <property>
+            <name>hive.metastore.sasl.enabled</name>
+            <value>true</value>
+        </property>
+        <property>
+            <name>hive.metastore.kerberos.principal</name>
+            <value>hive/hive.$NAMESPACE.svc.cluster.local@{{ test_scenario['values']['kerberos-realm'] }}</value>
+        </property>
+    </configuration>
+{% endif %}
