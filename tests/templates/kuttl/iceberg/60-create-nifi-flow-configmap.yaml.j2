@@ -1,0 +1,10 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+{% if test_scenario['values']['iceberg-use-kerberos'] == 'true' %}
+  - script: cat 60_nifi-flow-with-kerberos.json | envsubst '$NAMESPACE' | kubectl -n $NAMESPACE  create configmap nifi-flow --from-file=nifi-flow.json=/dev/stdin
+{% else %}
+  - script: cat 60_nifi-flow-without-kerberos.json | envsubst '$NAMESPACE' | kubectl -n $NAMESPACE  create configmap nifi-flow --from-file=nifi-flow.json=/dev/stdin
+
+{% endif %}
