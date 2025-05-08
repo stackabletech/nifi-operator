@@ -1,9 +1,9 @@
 use stackable_operator::{
-    commons::affinity::{affinity_between_role_pods, StackableAffinityFragment},
+    commons::affinity::{StackableAffinityFragment, affinity_between_role_pods},
     k8s_openapi::api::core::v1::PodAntiAffinity,
 };
 
-use crate::crd::{NifiRole, APP_NAME};
+use crate::crd::{APP_NAME, NifiRole};
 
 pub fn get_affinity(cluster_name: &str, role: &NifiRole) -> StackableAffinityFragment {
     StackableAffinityFragment {

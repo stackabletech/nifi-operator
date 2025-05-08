@@ -4,14 +4,14 @@ use std::{
 };
 
 use jvm::build_merged_jvm_config;
-use product_config::{types::PropertyNameKind, ProductConfigManager};
-use snafu::{ensure, ResultExt, Snafu};
+use product_config::{ProductConfigManager, types::PropertyNameKind};
+use snafu::{ResultExt, Snafu, ensure};
 use stackable_operator::{
     commons::resources::Resources,
     memory::MemoryQuantity,
     product_config_utils::{
-        transform_all_roles_to_config, validate_all_roles_and_groups_config,
-        ValidatedRoleConfigByPropertyKind,
+        ValidatedRoleConfigByPropertyKind, transform_all_roles_to_config,
+        validate_all_roles_and_groups_config,
     },
     role_utils::{GenericRoleConfig, JavaCommonConfig, Role},
 };
@@ -19,8 +19,8 @@ use strum::{Display, EnumIter};
 
 use crate::{
     crd::{
+        HTTPS_PORT, NifiConfig, NifiConfigFragment, NifiRole, NifiStorageConfig, PROTOCOL_PORT,
         v1alpha1::{self, NifiClusteringBackend},
-        NifiConfig, NifiConfigFragment, NifiRole, NifiStorageConfig, HTTPS_PORT, PROTOCOL_PORT,
     },
     operations::graceful_shutdown::graceful_shutdown_config_properties,
     security::{
@@ -64,6 +64,7 @@ impl NifiRepository {
     pub fn repository(&self) -> String {
         format!("{}-repository", self)
     }
+
     pub fn mount_path(&self) -> String {
         format!("/stackable/data/{}", self)
     }
