@@ -68,7 +68,7 @@ data:
     print("Logged in")
 
     filename = "/tmp/nifi-flow/nifi-flow.json"
-    
+
     pg_id = get_root_pg_id()
     print(f"Got root process group id: {pg_id}")
 
