@@ -28,7 +28,8 @@ data:
       "allowed": true,
       "dumpCache": true
     } if {
-      input.resource.name in ["NiFi Flow"]
+      input.resource.name == "NiFi Flow"
+      startswith(input.resource.id, "/process-groups")
       nifi_admin
     }
 
