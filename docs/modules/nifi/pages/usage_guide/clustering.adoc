@@ -18,7 +18,7 @@ NOTE: The Kubernetes provider is only supported by Apache NiFi 2.0 or newer. Whe
 
 The Kubernetes backend is used by default (unless the xref:#backend-zookeeper[] backend is configured), and stores all state in Kubernetes objects, in the same namespace as the `NifiCluster` object.
 
-It requires (nor supports) no configuration.
+It takes no configuration.
 
 [#backend-zookeeper]
 == Apache ZooKeeper
