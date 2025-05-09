@@ -1,3 +1,8 @@
+# This file is the source of truth for all our repos!
+# This includes repos not templated by operator-templating, please copy/paste the file for this repos.
+
+# TIP: Use "cargo deny check" to check if everything is fine
+
 [graph]
 targets = [
     { triple = "x86_64-unknown-linux-gnu" },
@@ -9,6 +14,17 @@ targets = [
 
 [advisories]
 yanked = "deny"
+ignore = [
+    # https://rustsec.org/advisories/RUSTSEC-2023-0071
+    # "rsa" crate: Marvin Attack: potential key recovery through timing sidechannel
+    #
+    # No patch is yet available, however work is underway to migrate to a fully constant-time implementation
+    # So we need to accept this, as of SDP 25.3 we are not using the rsa crate to create certificates used in production
+    # setups.
+    #
+    # https://github.com/RustCrypto/RSA/issues/19 is the tracking issue
+    "RUSTSEC-2023-0071",
+]
 
 [bans]
 multiple-versions = "allow"
