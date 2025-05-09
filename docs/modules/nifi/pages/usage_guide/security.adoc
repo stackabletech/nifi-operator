@@ -221,10 +221,12 @@ This is optional and defaults to the name of the Druid Stacklet.
 <3> TTL for items in the cache in NiFi.
 <4> Maximum number of concurrent entries in the cache in NiFi
 
+[#defining-rego-rules]
 === Defining rego rules
 
 For a general explanation of how rules are written, please refer to the {opa-rego-docs}[OPA documentation]. Authorization with OPA is done using {nifi-opa-plugin}[NiFi OPA Plugin].
 
+[#opa-inputs]
 ==== OPA Inputs
 Inside of your rego rules you have access to the content of the authorization request from NiFi as input for OPA:
 
@@ -266,6 +268,7 @@ Inside of your rego rules you have access to the content of the authorization re
 <8> The event attributes to make additional access decisions for provenance events. Will be `{"": ""}` if empty.
 <9> Additional context for the user to make additional access decisions. Will be `{"": ""}` if empty.
 
+[#opa-result]
 ==== OPA Result
 
 The OPA authorizer plugin expects relo rules to be named `allow` and to return a result following this schema:
@@ -283,9 +286,11 @@ The OPA authorizer plugin expects relo rules to be named `allow` and to return a
 <3> Whether the whole local cache in the OPA authorizer plugin in NiFi should be invalidated. Optional, defaults to false.
 <4> An optional error message that is shown to the user when access is denied.
 
+[#access-policies]
 ==== Access Policies
 NiFi uses {nifi-docs-access-policies}[access policies] to manage access to system-wide resources like the user interface.
 
+[#-component-level-access-policies]
 ==== Component Level Access Policies and Access Policy Inheritance
 
 {nifi-docs-component-level-access-policies}[Component Level Access Policies] allow managing granular access to components like process-groups and processors. Components can {nifi-docs-access-policy-inheritance}[inherite access policies] defined for parent components, e.g. a process group is the parent component for a processor component. When an authorizer returns "resourceNotFound" as result instead of an authorization decision, NiFi will send an authorization request for the parent component. Access policy inheritance can be recursive up to the root component. If "resourceNotFound" is returned for an authorization request and the component doesn't have a parent component, NiFi will deny access to the component.
@@ -316,9 +321,10 @@ allow := {
 <2> A rule that grants all users access to the root process group and thus to all components in the NiFi instance.
 <3> A rule that denies access to a specific process group for the user "alice". For this process group the default rego rule will not be applied and NiFi's component inhertiance will not be used. All child components of this process group will also be authorized based on this rule unless a more granular rule overrides it.
 
+[#caching]
 ==== Caching
 
-The OPA authorizer has a mechanism to cache requests to OPA which can be configured in the NifCluster spec (see above). To delete the whole cache add `"dumpCache": true` to the result.
+The OPA authorizer has a mechanism to cache results from OPA which can be configured in the NifCluster spec (see above). To delete the whole cache add `"dumpCache": true` to the result.
 [source,rego]
 ----
 allow := {
