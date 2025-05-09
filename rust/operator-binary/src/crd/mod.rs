@@ -117,7 +117,7 @@ pub mod versioned {
     #[serde(rename_all = "camelCase")]
     pub struct NifiClusterConfig {
         /// Authentication options for NiFi (required).
-        /// Read more about authentication in the [security documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/security#_authentication).
+        /// Read more about authentication in the [security documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/security#authentication).
         // We don't add `#[serde(default)]` here, as we require authentication
         pub authentication: Vec<ClientAuthenticationDetails>,
 

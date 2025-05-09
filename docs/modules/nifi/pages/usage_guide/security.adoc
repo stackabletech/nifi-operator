@@ -2,7 +2,7 @@
 :description: Secure Apache NiFi on Kubernetes with TLS, authentication, and authorization using the Stackable operator. Configure LDAP, OIDC, and sensitive data encryption.
 :nifi-docs-authorization: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#multi-tenant-authorization
 :nifi-docs-access-policies: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#access-policies
-nifi-docs-component-level-access-policies: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#component-level-access-policies
+:nifi-docs-component-level-access-policies: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#component-level-access-policies
 :nifi-docs-access-policy-inheritance: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#access-policy-inheritance
 :nifi-docs-fileusergroupprovider: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#fileusergroupprovider
 :nifi-docs-fileaccesspolicyprovider: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#fileaccesspolicyprovider
@@ -209,13 +209,13 @@ spec:
     authorization:
       opa:
         configMapName: simple-opa <1>
-        package: my-druid-rules <2>
+        package: my-nifi-rules <2>
         cache:
           entryTimeToLive: 5s <3>
           maxEntries: 10 <4>
 ----
 <1> The name of your OPA Stacklet (`simple-opa` in this case)
-<2> The RegoRule package to use for policy decisions.
+<2> The rego rule package to use for policy decisions.
 The package needs to contain an `allow` rule.
 This is optional and defaults to the name of the Druid Stacklet.
 <3> TTL for items in the cache in NiFi.
@@ -224,49 +224,55 @@ This is optional and defaults to the name of the Druid Stacklet.
 [#defining-rego-rules]
 === Defining rego rules
 
-For a general explanation of how rules are written, please refer to the {opa-rego-docs}[OPA documentation]. Authorization with OPA is done using {nifi-opa-plugin}[NiFi OPA Plugin].
+For a general explanation of how rules are written, please refer to the {opa-rego-docs}[OPA documentation]. Authorization with OPA is done using a {nifi-opa-plugin}[custom authorizer provided by a plugin for NiFi].
 
 [#opa-inputs]
 ==== OPA Inputs
-Inside of your rego rules you have access to the content of the authorization request from NiFi as input for OPA:
+The payload sent by NiFi with each request to OPA, that is accessible within the rego rules, has the following structure:
 
-[source,json]
-----
-{
-    "action": {
-        "name": <String> <1>
-    },
-    "properties": {
-        "isAccessAttempt": <String>, <2>
-        "isAnonymous": <String> <3>
-    },
-    "resource": { <4>
-        "id": <String>,
-        "name": <String>,
-        "safeDescription": <String>
-    },
-    "requestedResource": { <5>
-        "id": <String>,
-        "name": <String>,
-        "safeDescription": <String>
-    },
-    "identity": {
-        "name": <String>, <6>
-        "groups": String, <7>
-    },
-    "resourceContext": <Object>, <8>
-    "userContext": <Object> <9>
-}
-----
-<1> The action taken against the resource. Possible values: `"read"` or `"write"`.
-<2> Whether this is a direct access attempt of the resource or if it's being checked as part of another response. Possible values: `"true"` or `"false"`
-<3> Whether the entity accessing the resource is anonymous. Possible values: `"true"` or `"false"`.
-<4> The current resource being authorized on.
-<5> The original resource being requested. In cases with inherited policies, this will be an ancestor resource of the current resource. For the initial request, and cases without inheritance, the requested resource will be the same as the current resource.
-<6> The identity/user accessing the resource.
-<7> Comma-separated list of groups that the identity/user accessing the resource belongs to.
-<8> The event attributes to make additional access decisions for provenance events. Will be `{"": ""}` if empty.
-<9> Additional context for the user to make additional access decisions. Will be `{"": ""}` if empty.
+[cols="1,2,1"]
+|===
+| Payload Field| Description| Possible Values
+| action.name
+| The action taken against the resource.
+|`read`, `write`
+| resource.id
+| The unique identifier of the resource that is being authorized.
+|
+| resource.name
+| The name of the resource that is being authorized.
+|
+| resource.safeDescription
+| The description of the resource that is being authorized.
+|
+| requestedResource.id
+| The unique identifier of the original resource that was requested (see <<component-level-access-policies>>).
+|
+| requestedResource.name
+| The name of the original resource that is being authorized on  (see <<component-level-access-policies>>).
+|
+| requestedResource.safeDescription
+| The description of the resource that is being authorized on (see <<component-level-access-policies>>).
+|
+| identity.name
+| The name of the identity/user accessing the resource.
+|
+| identity.groups
+| Comma-separated list of groups that the identity/user accessing the resource belongs to.
+|
+| properties.isAccessAttempt
+| Whether this is a direct access attempt of the resource or if it's being checked as part of another response.
+| `true`, `false` (String)
+| isAnonymous
+| Whether the entity accessing the resource is anonymous.
+| `true`, `false` (String)
+| resourceContext
+| Object containing the event attributes to make additional access decisions for provenance events.
+| ```{"": ""}``` if empty
+| userContext
+| Additional context for the user to make additional access decisions.
+| ```{"": ""}``` if empty
+|===
 
 [#opa-result]
 ==== OPA Result
@@ -290,10 +296,14 @@ The OPA authorizer plugin expects relo rules to be named `allow` and to return a
 ==== Access Policies
 NiFi uses {nifi-docs-access-policies}[access policies] to manage access to system-wide resources like the user interface.
 
-[#-component-level-access-policies]
+[#component-level-access-policies]
 ==== Component Level Access Policies and Access Policy Inheritance
 
-{nifi-docs-component-level-access-policies}[Component Level Access Policies] allow managing granular access to components like process-groups and processors. Components can {nifi-docs-access-policy-inheritance}[inherite access policies] defined for parent components, e.g. a process group is the parent component for a processor component. When an authorizer returns "resourceNotFound" as result instead of an authorization decision, NiFi will send an authorization request for the parent component. Access policy inheritance can be recursive up to the root component. If "resourceNotFound" is returned for an authorization request and the component doesn't have a parent component, NiFi will deny access to the component.
+{nifi-docs-component-level-access-policies}[Component Level Access Policies] allow managing granular access to components like process-groups and processors. Components can {nifi-docs-access-policy-inheritance}[inherite access policies] defined for parent components, e.g. a process group is the parent component for a processor component.
+
+The payload field `requestedResource` contains the id, name and description of the original resource that was requested. In cases with inherited policies, this will be an ancestor resource of the current resource. For the initial request, and cases without inheritance, the requested resource will be the same as the current resource.
+
+When an authorizer returns "resourceNotFound" as result instead of an authorization decision, NiFi will send an authorization request for the parent component. Access policy inheritance can be recursive up to the root component. If "resourceNotFound" is returned for an authorization request and the component doesn't have a parent component, NiFi will deny access to the component.
 
 To manage access for all process groups in the NiFi instance a rule has to be defined for the root process group which is identified by the resource name "NiFi Flow" and a resource id generated at random ("/process-groups/<uuid>").
 
@@ -320,6 +330,21 @@ allow := {
 <1> Default rule returns should `"resourceNotFound": true`. If this is not set NiFi's access policy inheritance won't work. Any values for the `allowed` field in the response will be ignored.
 <2> A rule that grants all users access to the root process group and thus to all components in the NiFi instance.
 <3> A rule that denies access to a specific process group for the user "alice". For this process group the default rego rule will not be applied and NiFi's component inhertiance will not be used. All child components of this process group will also be authorized based on this rule unless a more granular rule overrides it.
+
+[#communication-between-nifi-nodes]
+==== Communication between NiFi nodes
+To allow communication between NiFi nodes an additional rego rule is required:
+[source,rego]
+----
+allow := {
+  "allowed": true
+} if {
+  input.identity.name == "CN=generated certificate for pod" <1>
+  input.resource.id == "/proxy" <2>
+}
+----
+<1> The identity of NiFi nodes authenticated with TLS certificates provided by the secrets operator.
+<2> Only access to the `/proxy` API is required.
 
 [#caching]
 ==== Caching
