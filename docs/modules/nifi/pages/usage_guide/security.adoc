@@ -208,11 +208,11 @@ spec:
   clusterConfig:
     authorization:
       opa:
-        configMapName: simple-opa <1>
-        package: my-nifi-rules <2>
+        configMapName: simple-opa # <1>
+        package: my-nifi-rules # <2>
         cache:
-          entryTimeToLive: 5s <3>
-          maxEntries: 10 <4>
+          entryTimeToLive: 5s # <3>
+          maxEntries: 10 # <4>
 ----
 <1> The name of your OPA Stacklet (`simple-opa` in this case)
 <2> The rego rule package to use for policy decisions.
@@ -281,10 +281,10 @@ The OPA authorizer plugin expects relo rules to be named `allow` and to return a
 [source,json]
 ----
 {
-    "allowed": <Boolean>, <1>
-    "resourceNotFound": <Boolean>, <2>
-    "dumpCache": <Boolean>, <3>
-    "message": <String>, <4>
+    "allowed": <Boolean>, # <1>
+    "resourceNotFound": <Boolean>, # <2>
+    "dumpCache": <Boolean>, # <3>
+    "message": <String>, # <4>
 }
 ----
 <1> Whether the action against the resource is allowed. Optional, defaults to false.
@@ -339,8 +339,8 @@ To allow communication between NiFi nodes an additional rego rule is required:
 allow := {
   "allowed": true
 } if {
-  input.identity.name == "CN=generated certificate for pod" <1>
-  input.resource.id == "/proxy" <2>
+  input.identity.name == "CN=generated certificate for pod" # <1>
+  input.resource.id == "/proxy" # <2>
 }
 ----
 <1> The identity of NiFi nodes authenticated with TLS certificates provided by the secrets operator.
