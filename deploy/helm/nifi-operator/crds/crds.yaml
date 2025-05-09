@@ -29,7 +29,7 @@ spec:
                   description: Settings that affect all roles and role groups. The settings in the `clusterConfig` are cluster wide settings that do not need to be configurable at role or role group level.
                   properties:
                     authentication:
-                      description: Authentication options for NiFi (required). Read more about authentication in the [security documentation](https://docs.stackable.tech/home/nightly/nifi/usage_guide/security).
+                      description: Authentication options for NiFi (required). Read more about authentication in the [security documentation](https://docs.stackable.tech/home/nightly/nifi/usage_guide/security#authentication).
                       items:
                         properties:
                           authenticationClass:
@@ -55,6 +55,42 @@ spec:
                           - authenticationClass
                         type: object
                       type: array
+                    authorization:
+                      description: Authorization options. Learn more in the [NiFi authorization usage guide](https://docs.stackable.tech/home/nightly/nifi/usage-guide/security#authorization).
+                      nullable: true
+                      properties:
+                        opa:
+                          description: Configure the OPA stacklet [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery) and the name of the Rego package containing your authorization rules. Consult the [OPA authorization documentation](https://docs.stackable.tech/home/nightly/concepts/opa) to learn how to deploy Rego authorization rules with OPA.
+                          nullable: true
+                          properties:
+                            cache:
+                              default:
+                                entryTimeToLive: 30s
+                                maxEntries: 10000
+                              description: Least Recently Used (LRU) cache with per-entry time-to-live (TTL) value.
+                              properties:
+                                entryTimeToLive:
+                                  default: 30s
+                                  description: Time to live per entry
+                                  type: string
+                                maxEntries:
+                                  default: 10000
+                                  description: Maximum number of entries in the cache; If this threshold is reached then the least recently used item is removed.
+                                  format: uint32
+                                  minimum: 0.0
+                                  type: integer
+                              type: object
+                            configMapName:
+                              description: The [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery) for the OPA stacklet that should be used for authorization requests.
+                              type: string
+                            package:
+                              description: The name of the Rego package containing the Rego rules for the product.
+                              nullable: true
+                              type: string
+                          required:
+                            - configMapName
+                          type: object
+                      type: object
                     createReportingTaskJob:
                       default:
                         enabled: true

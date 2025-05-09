@@ -1,0 +1,78 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: user-info-fetcher-client-credentials
+stringData:
+  clientId: user-info-fetcher
+  clientSecret: user-info-fetcher-client-secret
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-test-realm
+data:
+  realm.json: |
+    {
+      "realm" : "test",
+      "enabled" : true,
+      "groups" : [ {
+        "name" : "nifi-admin",
+        "path" : "/nifi-admin"
+      } ],
+      "users" : [ {
+        "username" : "admin",
+        "enabled" : true,
+        "emailVerified" : true,
+        "firstName" : "admin",
+        "lastName" : "admin",
+        "email" : "admin@example.com",
+        "credentials" : [ {
+          "type" : "password",
+          "userLabel" : "My password",
+          "secretData" : "{\"value\":\"JxIyEshkBUrhZX1BEN9JO8EM3ue5/SnGHDfuyTqOH6A=\",\"salt\":\"f6iCn2rWqZQaRnCCsKAoQQ==\",\"additionalParameters\":{}}",
+          "credentialData" : "{\"hashIterations\":27500,\"algorithm\":\"pbkdf2-sha256\",\"additionalParameters\":{}}"
+        } ],
+        "realmRoles" : [ "default-roles-my-dataspace" ],
+        "groups" : [ "/nifi-admin" ]
+      }, {
+        "username" : "service-account-user-info-fetcher",
+        "enabled" : true,
+        "totp" : false,
+        "emailVerified" : false,
+        "serviceAccountClientId" : "user-info-fetcher",
+        "credentials" : [ ],
+        "disableableCredentialTypes" : [ ],
+        "requiredActions" : [ ],
+        "realmRoles" : [ "default-roles-my-dataspace" ],
+        "clientRoles" : {
+          "realm-management" : [
+            "view-users"
+          ]
+        },
+        "notBefore" : 0,
+        "groups" : [ ]
+      } ],
+      "clients" : [ {
+        "clientId" : "${USER_INFO_FETCHER_CLIENT_ID}",
+        "surrogateAuthRequired" : false,
+        "enabled" : true,
+        "alwaysDisplayInConsole" : false,
+        "clientAuthenticatorType" : "client-secret",
+        "secret" : "${USER_INFO_FETCHER_CLIENT_SECRET}",
+        "redirectUris" : [ "/*" ],
+        "webOrigins" : [ "/*" ],
+        "notBefore" : 0,
+        "bearerOnly" : false,
+        "serviceAccountsEnabled" : true,
+        "publicClient" : false,
+        "frontchannelLogout" : true,
+        "protocol" : "openid-connect",
+        "attributes" : {
+          "oidc.ciba.grant.enabled" : "true",
+          "oauth2.device.authorization.grant.enabled" : "false"
+        },
+        "authenticationFlowBindingOverrides" : { },
+        "fullScopeAllowed" : true
+      } ]
+    }

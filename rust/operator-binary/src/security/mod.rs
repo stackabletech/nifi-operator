@@ -7,6 +7,7 @@ use stackable_operator::{
 use crate::crd::v1alpha1;
 
 pub mod authentication;
+pub mod authorization;
 pub mod oidc;
 pub mod sensitive_key;
 pub mod tls;

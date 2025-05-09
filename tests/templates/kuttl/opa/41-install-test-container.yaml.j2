@@ -1,0 +1,75 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: python
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: python
+{% if test_scenario['values']['openshift'] == 'true' %}
+rules:
+- apiGroups: ["security.openshift.io"]
+  resources: ["securitycontextconstraints"]
+  resourceNames: ["privileged"]
+  verbs: ["use"]
+{% endif %}
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: python
+subjects:
+  - kind: ServiceAccount
+    name: python
+roleRef:
+  kind: Role
+  name: python
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+metadata:
+  name: install-test-container
+timeout: 300
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: python
+  labels:
+    app: python
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: python
+  template:
+    metadata:
+      labels:
+        app: python
+    spec:
+      serviceAccountName: python
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: python
+          image: docker.stackable.tech/stackable/testing-tools:0.2.0-stackable0.0.0-dev
+          stdin: true
+          tty: true
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "512m"
+            limits:
+              memory: "128Mi"
+              cpu: "1"
+          volumeMounts:
+            - name: test-nifi
+              mountPath: /tmp
+      volumes:
+        - name: test-nifi
+          configMap:
+            name: test-nifi
+      terminationGracePeriodSeconds: 1
