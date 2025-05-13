@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
   - Use `--file-log-max-files` (or `FILE_LOG_MAX_FILES`) to limit the number of log files kept.
   - Use `--file-log-rotation-period` (or `FILE_LOG_ROTATION_PERIOD`) to configure the frequency of rotation.
   - Use `--console-log-format` (or `CONSOLE_LOG_FORMAT`) to set the format to `plain` (default) or `json`.
+- NiFi 2.x now supports storing cluster state in Kuberntes instead of ZooKeeper ([#775]).
 
 ### Changed
 
@@ -37,6 +38,7 @@ All notable changes to this project will be documented in this file.
 [#771]: https://github.com/stackabletech/nifi-operator/pull/771
 [#772]: https://github.com/stackabletech/nifi-operator/pull/772
 [#774]: https://github.com/stackabletech/nifi-operator/pull/774
+[#775]: https://github.com/stackabletech/nifi-operator/pull/775
 [#776]: https://github.com/stackabletech/nifi-operator/pull/776
 [#782]: https://github.com/stackabletech/nifi-operator/pull/782
 [#787]: https://github.com/stackabletech/nifi-operator/pull/787
