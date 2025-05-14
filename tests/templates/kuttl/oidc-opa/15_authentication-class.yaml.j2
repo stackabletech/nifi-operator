@@ -1,0 +1,26 @@
+---
+apiVersion: authentication.stackable.tech/v1alpha1
+kind: AuthenticationClass
+metadata:
+  name: nifi-oidc-auth-class-$NAMESPACE
+spec:
+  provider:
+    oidc:
+      hostname: keycloak.$NAMESPACE.svc.cluster.local
+      rootPath: /realms/test/
+      principalClaim: preferred_username
+      scopes:
+        - openid
+        - email
+        - profile
+{% if test_scenario['values']['oidc-use-tls'] == 'true' %}
+      port: 8443
+      tls:
+        verification:
+          server:
+            caCert:
+              secretClass: keycloak-tls-$NAMESPACE
+{% else %}
+      port: 8080
+      tls: null
+{% endif %}

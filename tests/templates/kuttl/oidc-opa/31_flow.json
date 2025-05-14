@@ -1,0 +1,382 @@
+{
+  "encodingVersion": {
+    "majorVersion": 2,
+    "minorVersion": 0
+  },
+  "maxTimerDrivenThreadCount": 10,
+  "registries": [],
+  "parameterContexts": [],
+  "parameterProviders": [],
+  "controllerServices": [],
+  "reportingTasks": [],
+  "flowAnalysisRules": [],
+  "rootGroup": {
+    "identifier": "96d9abc7-e736-324d-9da8-1c0a4e671508",
+    "instanceIdentifier": "c377901a-0196-1000-d1e8-b549997e4d94",
+    "name": "NiFi Flow",
+    "comments": "",
+    "position": {
+      "x": 0,
+      "y": 0
+    },
+    "processGroups": [
+      {
+        "identifier": "0ad13e3a-a773-380d-0000-000031bd1ecb",
+        "instanceIdentifier": "7e08561b-447d-3acb-b510-744d886c3ca4",
+        "name": "Process Group B",
+        "comments": "",
+        "position": {
+          "x": 248,
+          "y": -112
+        },
+        "processGroups": [],
+        "remoteProcessGroups": [],
+        "processors": [
+          {
+            "identifier": "347682fa-61d4-31ae-0000-000031bd1ecb",
+            "instanceIdentifier": "351336f0-903f-362c-b479-c06040537e68",
+            "name": "GenerateFlowFile C",
+            "comments": "",
+            "position": {
+              "x": -1032,
+              "y": -520
+            },
+            "type": "org.apache.nifi.processors.standard.GenerateFlowFile",
+            "bundle": {
+              "group": "org.apache.nifi",
+              "artifact": "nifi-standard-nar",
+              "version": "2.2.0"
+            },
+            "properties": {
+              "character-set": "UTF-8",
+              "File Size": "0B",
+              "Batch Size": "1",
+              "Unique FlowFiles": "false",
+              "Data Format": "Text"
+            },
+            "propertyDescriptors": {},
+            "style": {},
+            "schedulingPeriod": "1 min",
+            "schedulingStrategy": "TIMER_DRIVEN",
+            "executionNode": "ALL",
+            "penaltyDuration": "30 sec",
+            "yieldDuration": "1 sec",
+            "bulletinLevel": "WARN",
+            "runDurationMillis": 0,
+            "concurrentlySchedulableTaskCount": 1,
+            "autoTerminatedRelationships": [],
+            "scheduledState": "ENABLED",
+            "retryCount": 10,
+            "retriedRelationships": [],
+            "backoffMechanism": "PENALIZE_FLOWFILE",
+            "maxBackoffPeriod": "10 mins",
+            "componentType": "PROCESSOR",
+            "groupIdentifier": "0ad13e3a-a773-380d-0000-000031bd1ecb"
+          },
+          {
+            "identifier": "f7b6da7b-daa3-3b68-0000-000031bd1ecb",
+            "instanceIdentifier": "1ed101fd-f976-38ad-8137-45dc0c7b6e6e",
+            "name": "GenerateFlowFile D",
+            "comments": "",
+            "position": {
+              "x": -648,
+              "y": -520
+            },
+            "type": "org.apache.nifi.processors.standard.GenerateFlowFile",
+            "bundle": {
+              "group": "org.apache.nifi",
+              "artifact": "nifi-standard-nar",
+              "version": "2.2.0"
+            },
+            "properties": {
+              "character-set": "UTF-8",
+              "File Size": "0B",
+              "Batch Size": "1",
+              "Unique FlowFiles": "false",
+              "Data Format": "Text"
+            },
+            "propertyDescriptors": {},
+            "style": {},
+            "schedulingPeriod": "1 min",
+            "schedulingStrategy": "TIMER_DRIVEN",
+            "executionNode": "ALL",
+            "penaltyDuration": "30 sec",
+            "yieldDuration": "1 sec",
+            "bulletinLevel": "WARN",
+            "runDurationMillis": 0,
+            "concurrentlySchedulableTaskCount": 1,
+            "autoTerminatedRelationships": [],
+            "scheduledState": "ENABLED",
+            "retryCount": 10,
+            "retriedRelationships": [],
+            "backoffMechanism": "PENALIZE_FLOWFILE",
+            "maxBackoffPeriod": "10 mins",
+            "componentType": "PROCESSOR",
+            "groupIdentifier": "0ad13e3a-a773-380d-0000-000031bd1ecb"
+          }
+        ],
+        "inputPorts": [],
+        "outputPorts": [],
+        "connections": [],
+        "labels": [],
+        "funnels": [],
+        "controllerServices": [],
+        "defaultFlowFileExpiration": "0 sec",
+        "defaultBackPressureObjectThreshold": 10000,
+        "defaultBackPressureDataSizeThreshold": "1 GB",
+        "scheduledState": "ENABLED",
+        "executionEngine": "INHERITED",
+        "maxConcurrentTasks": 1,
+        "statelessFlowTimeout": "1 min",
+        "flowFileConcurrency": "UNBOUNDED",
+        "flowFileOutboundPolicy": "STREAM_WHEN_AVAILABLE",
+        "componentType": "PROCESS_GROUP",
+        "groupIdentifier": "96d9abc7-e736-324d-9da8-1c0a4e671508"
+      },
+      {
+        "identifier": "8f62d3e7-2a0b-3ba8-936c-8a0cb425284a",
+        "instanceIdentifier": "c9186a05-0196-1000-ffff-ffffd8474359",
+        "name": "Process Group A",
+        "comments": "",
+        "position": {
+          "x": -190,
+          "y": -112.91667938232422
+        },
+        "processGroups": [],
+        "remoteProcessGroups": [],
+        "processors": [
+          {
+            "identifier": "e14260ce-23cd-361d-0000-00001b31a7fc",
+            "instanceIdentifier": "63ad5386-61ce-327a-bce3-5b597829aa54",
+            "name": "GenerateFlowFile B",
+            "comments": "",
+            "position": {
+              "x": -648,
+              "y": -520
+            },
+            "type": "org.apache.nifi.processors.standard.GenerateFlowFile",
+            "bundle": {
+              "group": "org.apache.nifi",
+              "artifact": "nifi-standard-nar",
+              "version": "2.2.0"
+            },
+            "properties": {
+              "character-set": "UTF-8",
+              "File Size": "0B",
+              "Batch Size": "1",
+              "Unique FlowFiles": "false",
+              "Data Format": "Text"
+            },
+            "propertyDescriptors": {},
+            "style": {},
+            "schedulingPeriod": "1 min",
+            "schedulingStrategy": "TIMER_DRIVEN",
+            "executionNode": "ALL",
+            "penaltyDuration": "30 sec",
+            "yieldDuration": "1 sec",
+            "bulletinLevel": "WARN",
+            "runDurationMillis": 0,
+            "concurrentlySchedulableTaskCount": 1,
+            "autoTerminatedRelationships": [],
+            "scheduledState": "ENABLED",
+            "retryCount": 10,
+            "retriedRelationships": [],
+            "backoffMechanism": "PENALIZE_FLOWFILE",
+            "maxBackoffPeriod": "10 mins",
+            "componentType": "PROCESSOR",
+            "groupIdentifier": "8f62d3e7-2a0b-3ba8-936c-8a0cb425284a"
+          },
+          {
+            "identifier": "4623a22e-5c14-310b-afb8-c82965f74a7d",
+            "instanceIdentifier": "c9196a9e-0196-1000-0000-0000418515a4",
+            "name": "GenerateFlowFile A",
+            "comments": "",
+            "position": {
+              "x": -1032,
+              "y": -520
+            },
+            "type": "org.apache.nifi.processors.standard.GenerateFlowFile",
+            "bundle": {
+              "group": "org.apache.nifi",
+              "artifact": "nifi-standard-nar",
+              "version": "2.2.0"
+            },
+            "properties": {
+              "character-set": "UTF-8",
+              "File Size": "0B",
+              "Batch Size": "1",
+              "Unique FlowFiles": "false",
+              "Data Format": "Text"
+            },
+            "propertyDescriptors": {},
+            "style": {},
+            "schedulingPeriod": "1 min",
+            "schedulingStrategy": "TIMER_DRIVEN",
+            "executionNode": "ALL",
+            "penaltyDuration": "30 sec",
+            "yieldDuration": "1 sec",
+            "bulletinLevel": "WARN",
+            "runDurationMillis": 0,
+            "concurrentlySchedulableTaskCount": 1,
+            "autoTerminatedRelationships": [],
+            "scheduledState": "ENABLED",
+            "retryCount": 10,
+            "retriedRelationships": [],
+            "backoffMechanism": "PENALIZE_FLOWFILE",
+            "maxBackoffPeriod": "10 mins",
+            "componentType": "PROCESSOR",
+            "groupIdentifier": "8f62d3e7-2a0b-3ba8-936c-8a0cb425284a"
+          }
+        ],
+        "inputPorts": [],
+        "outputPorts": [],
+        "connections": [],
+        "labels": [],
+        "funnels": [],
+        "controllerServices": [],
+        "defaultFlowFileExpiration": "0 sec",
+        "defaultBackPressureObjectThreshold": 10000,
+        "defaultBackPressureDataSizeThreshold": "1 GB",
+        "scheduledState": "ENABLED",
+        "executionEngine": "INHERITED",
+        "maxConcurrentTasks": 1,
+        "statelessFlowTimeout": "1 min",
+        "flowFileConcurrency": "UNBOUNDED",
+        "flowFileOutboundPolicy": "STREAM_WHEN_AVAILABLE",
+        "componentType": "PROCESS_GROUP",
+        "groupIdentifier": "96d9abc7-e736-324d-9da8-1c0a4e671508"
+      },
+      {
+        "identifier": "82533e93-7494-352d-ffff-ffffaad75c48",
+        "instanceIdentifier": "f3b78341-b2ff-3ae3-b7fc-4b518617c802",
+        "name": "Process Group C",
+        "comments": "",
+        "position": {
+          "x": 696,
+          "y": -112
+        },
+        "processGroups": [],
+        "remoteProcessGroups": [],
+        "processors": [
+          {
+            "identifier": "fcd0595d-bf18-34be-ffff-ffffaad75c48",
+            "instanceIdentifier": "9d95cac3-2759-3fce-9c07-71215b0fb554",
+            "name": "GenerateFlowFile E",
+            "comments": "",
+            "position": {
+              "x": -1032,
+              "y": -520
+            },
+            "type": "org.apache.nifi.processors.standard.GenerateFlowFile",
+            "bundle": {
+              "group": "org.apache.nifi",
+              "artifact": "nifi-standard-nar",
+              "version": "2.2.0"
+            },
+            "properties": {
+              "character-set": "UTF-8",
+              "File Size": "0B",
+              "Batch Size": "1",
+              "Unique FlowFiles": "false",
+              "Data Format": "Text"
+            },
+            "propertyDescriptors": {},
+            "style": {},
+            "schedulingPeriod": "1 min",
+            "schedulingStrategy": "TIMER_DRIVEN",
+            "executionNode": "ALL",
+            "penaltyDuration": "30 sec",
+            "yieldDuration": "1 sec",
+            "bulletinLevel": "WARN",
+            "runDurationMillis": 0,
+            "concurrentlySchedulableTaskCount": 1,
+            "autoTerminatedRelationships": [],
+            "scheduledState": "ENABLED",
+            "retryCount": 10,
+            "retriedRelationships": [],
+            "backoffMechanism": "PENALIZE_FLOWFILE",
+            "maxBackoffPeriod": "10 mins",
+            "componentType": "PROCESSOR",
+            "groupIdentifier": "82533e93-7494-352d-ffff-ffffaad75c48"
+          },
+          {
+            "identifier": "077fd08e-4c7c-39cc-ffff-ffffaad75c48",
+            "instanceIdentifier": "63d8f319-893c-38d4-9cd4-35cea3f43ea2",
+            "name": "GenerateFlowFile F",
+            "comments": "",
+            "position": {
+              "x": -648,
+              "y": -520
+            },
+            "type": "org.apache.nifi.processors.standard.GenerateFlowFile",
+            "bundle": {
+              "group": "org.apache.nifi",
+              "artifact": "nifi-standard-nar",
+              "version": "2.2.0"
+            },
+            "properties": {
+              "character-set": "UTF-8",
+              "File Size": "0B",
+              "Batch Size": "1",
+              "Unique FlowFiles": "false",
+              "Data Format": "Text"
+            },
+            "propertyDescriptors": {},
+            "style": {},
+            "schedulingPeriod": "1 min",
+            "schedulingStrategy": "TIMER_DRIVEN",
+            "executionNode": "ALL",
+            "penaltyDuration": "30 sec",
+            "yieldDuration": "1 sec",
+            "bulletinLevel": "WARN",
+            "runDurationMillis": 0,
+            "concurrentlySchedulableTaskCount": 1,
+            "autoTerminatedRelationships": [],
+            "scheduledState": "ENABLED",
+            "retryCount": 10,
+            "retriedRelationships": [],
+            "backoffMechanism": "PENALIZE_FLOWFILE",
+            "maxBackoffPeriod": "10 mins",
+            "componentType": "PROCESSOR",
+            "groupIdentifier": "82533e93-7494-352d-ffff-ffffaad75c48"
+          }
+        ],
+        "inputPorts": [],
+        "outputPorts": [],
+        "connections": [],
+        "labels": [],
+        "funnels": [],
+        "controllerServices": [],
+        "defaultFlowFileExpiration": "0 sec",
+        "defaultBackPressureObjectThreshold": 10000,
+        "defaultBackPressureDataSizeThreshold": "1 GB",
+        "scheduledState": "ENABLED",
+        "executionEngine": "INHERITED",
+        "maxConcurrentTasks": 1,
+        "statelessFlowTimeout": "1 min",
+        "flowFileConcurrency": "UNBOUNDED",
+        "flowFileOutboundPolicy": "STREAM_WHEN_AVAILABLE",
+        "componentType": "PROCESS_GROUP",
+        "groupIdentifier": "96d9abc7-e736-324d-9da8-1c0a4e671508"
+      }
+    ],
+    "remoteProcessGroups": [],
+    "processors": [],
+    "inputPorts": [],
+    "outputPorts": [],
+    "connections": [],
+    "labels": [],
+    "funnels": [],
+    "controllerServices": [],
+    "defaultFlowFileExpiration": "0 sec",
+    "defaultBackPressureObjectThreshold": 10000,
+    "defaultBackPressureDataSizeThreshold": "1 GB",
+    "scheduledState": "ENABLED",
+    "executionEngine": "INHERITED",
+    "maxConcurrentTasks": 1,
+    "statelessFlowTimeout": "1 min",
+    "flowFileConcurrency": "UNBOUNDED",
+    "flowFileOutboundPolicy": "STREAM_WHEN_AVAILABLE",
+    "componentType": "PROCESS_GROUP"
+  }
+}

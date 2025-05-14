@@ -18,12 +18,16 @@ commands:
             backend:
               keycloak:
                 hostname: keycloak.$NAMESPACE.svc.cluster.local
+{% if test_scenario['values']['oidc-use-tls'] == 'true' %}
                 port: 8443
                 tls:
                   verification:
                     server:
                       caCert:
                         secretClass: keycloak-tls-$NAMESPACE
+{% else %}
+                port: 8080
+{% endif %}
                 clientCredentialsSecret: user-info-fetcher-client-credentials
                 adminRealm: test
                 userRealm: test

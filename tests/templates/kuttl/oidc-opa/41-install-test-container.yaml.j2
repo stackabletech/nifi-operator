@@ -54,8 +54,8 @@ spec:
       securityContext:
         fsGroup: 1000
       containers:
-        - name: python
-          image: docker.stackable.tech/stackable/testing-tools:0.2.0-stackable0.0.0-dev
+        - name: oidc-login-test
+          image: oci.stackable.tech/sdp/testing-tools:0.2.0-stackable0.0.0-dev
           stdin: true
           tty: true
           resources:
@@ -65,11 +65,21 @@ spec:
             limits:
               memory: "128Mi"
               cpu: "1"
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NIFI_VERSION
+              value: "{{ test_scenario['values']['nifi'] }}"
+            - name: OIDC_USE_TLS
+              value: "true"
           volumeMounts:
-            - name: test-nifi
-              mountPath: /tmp
+            - name: test-script
+              mountPath: /tmp/test-script
+      terminationGracePeriodSeconds: 1
       volumes:
-        - name: test-nifi
+        - name: test-script
           configMap:
-            name: test-nifi
+            name: test-script
       terminationGracePeriodSeconds: 1

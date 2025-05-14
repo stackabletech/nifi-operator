@@ -21,7 +21,9 @@ spec:
     pullPolicy: IfNotPresent
   clusterConfig:
     authentication:
-      - authenticationClass: simple-nifi-users
+      - authenticationClass: nifi-oidc-auth-class-$NAMESPACE
+        oidc:
+          clientCredentialsSecret: nifi-client-credentials
     authorization:
       opa:
         configMapName: opa
@@ -44,4 +46,4 @@ spec:
     roleGroups:
       default:
         config: {}
-        replicas: 2
+        replicas: 1

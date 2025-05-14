@@ -1,0 +1,10 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: |
+      gzip --keep 31_flow.json
+      kubectl cp -n $NAMESPACE -c nifi ./31_flow.json.gz test-nifi-node-default-0:/stackable/data/database/flow.json.gz
+      rm 31_flow.json.gz
+      # Delete Pod to trigger NiFi to load the replaced flow.json.gz
+      kubectl -n $NAMESPACE delete pod test-nifi-node-default-0

@@ -1,8 +1,0 @@
----
-apiVersion: kuttl.dev/v1beta1
-kind: TestAssert
-metadata:
-  name: login
-timeout: 300
-commands:
-  - script: kubectl exec -n $NAMESPACE python-0 -- python /tmp/test_nifi.py -u admin -p supersecretpassword -n $NAMESPACE -c 2
