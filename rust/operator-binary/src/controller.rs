@@ -1072,7 +1072,7 @@ async fn build_node_rolegroup_statefulset(
     create_vector_shutdown_file_command =
         create_vector_shutdown_file_command(STACKABLE_LOG_DIR),
     }];
-    let mut container_nifi = container_builder
+    let container_nifi = container_builder
         .image_from_product_image(resolved_product_image)
         .command(vec![
             "/bin/bash".to_string(),
