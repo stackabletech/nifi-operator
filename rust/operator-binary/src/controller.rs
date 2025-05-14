@@ -810,6 +810,23 @@ fn build_node_rolegroup_service(
     resolved_product_image: &ResolvedProductImage,
     rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>,
 ) -> Result<Service> {
+    let mut enabled_ports = vec![ServicePort {
+        name: Some(HTTPS_PORT_NAME.to_string()),
+        port: HTTPS_PORT.into(),
+        protocol: Some("TCP".to_string()),
+        ..ServicePort::default()
+    }];
+
+    // Nifi 2.x.x offers nifi-api/flow/metrics/prometheus at the HTTPS_PORT, therefore METRICS_PORT is not necessary anymore.
+    if resolved_product_image.product_version.starts_with("1.") {
+        enabled_ports.push(ServicePort {
+            name: Some(METRICS_PORT_NAME.to_string()),
+            port: METRICS_PORT.into(),
+            protocol: Some("TCP".to_string()),
+            ..ServicePort::default()
+        })
+    }
+
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(nifi)
@@ -829,20 +846,7 @@ fn build_node_rolegroup_service(
             // Internal communication does not need to be exposed
             type_: Some("ClusterIP".to_string()),
             cluster_ip: Some("None".to_string()),
-            ports: Some(vec![
-                ServicePort {
-                    name: Some(HTTPS_PORT_NAME.to_string()),
-                    port: HTTPS_PORT.into(),
-                    protocol: Some("TCP".to_string()),
-                    ..ServicePort::default()
-                },
-                ServicePort {
-                    name: Some(METRICS_PORT_NAME.to_string()),
-                    port: METRICS_PORT.into(),
-                    protocol: Some("TCP".to_string()),
-                    ..ServicePort::default()
-                },
-            ]),
+            ports: Some(enabled_ports),
             selector: Some(
                 Labels::role_group_selector(nifi, APP_NAME, &rolegroup.role, &rolegroup.role_group)
                     .context(LabelBuildSnafu)?
