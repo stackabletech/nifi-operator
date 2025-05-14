@@ -1072,7 +1072,7 @@ async fn build_node_rolegroup_statefulset(
     create_vector_shutdown_file_command =
         create_vector_shutdown_file_command(STACKABLE_LOG_DIR),
     }];
-    let container_nifi = container_builder
+    let mut container_nifi = container_builder
         .image_from_product_image(resolved_product_image)
         .command(vec![
             "/bin/bash".to_string(),
@@ -1121,7 +1121,6 @@ async fn build_node_rolegroup_statefulset(
         .add_container_port(HTTPS_PORT_NAME, HTTPS_PORT.into())
         .add_container_port(PROTOCOL_PORT_NAME, PROTOCOL_PORT.into())
         .add_container_port(BALANCE_PORT_NAME, BALANCE_PORT.into())
-        .add_container_port(METRICS_PORT_NAME, METRICS_PORT.into())
         .liveness_probe(Probe {
             initial_delay_seconds: Some(10),
             period_seconds: Some(10),
@@ -1142,6 +1141,11 @@ async fn build_node_rolegroup_statefulset(
             ..Probe::default()
         })
         .resources(merged_config.resources.clone().into());
+
+    // Nifi 2.x.x offers nifi-api/flow/metrics/prometheus at the HTTPS_PORT, therefore METRICS_PORT is not necessary anymore.
+    if resolved_product_image.product_version.starts_with("1.") {
+        container_nifi.add_container_port(METRICS_PORT_NAME, METRICS_PORT.into());
+    }
 
     let mut pod_builder = PodBuilder::new();
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
