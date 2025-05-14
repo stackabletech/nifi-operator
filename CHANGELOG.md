@@ -22,11 +22,16 @@ All notable changes to this project will be documented in this file.
   - Replace stackable-operator `print_startup_string` with `tracing::info!` with fields.
 - BREAKING: Inject the vector aggregator address into the vector config using the env var `VECTOR_AGGREGATOR_ADDRESS` instead
     of having the operator write it to the vector config ([#772]).
+- test: Bump to Vector `0.46.1` ([#789]).
 
 ### Fixed
 
 - Use `json` file extension for log files ([#774]).
 - Fix a bug where changes to ConfigMaps that are referenced in the NifiCluster spec didn't trigger a reconciliation ([#772]).
+
+### Removed
+
+- test: ZooKeeper 3.9.2 removed ([#787]).
 
 [#767]: https://github.com/stackabletech/nifi-operator/pull/767
 [#771]: https://github.com/stackabletech/nifi-operator/pull/771
@@ -34,6 +39,8 @@ All notable changes to this project will be documented in this file.
 [#774]: https://github.com/stackabletech/nifi-operator/pull/774
 [#776]: https://github.com/stackabletech/nifi-operator/pull/776
 [#782]: https://github.com/stackabletech/nifi-operator/pull/782
+[#787]: https://github.com/stackabletech/nifi-operator/pull/787
+[#789]: https://github.com/stackabletech/nifi-operator/pull/789
 
 ## [25.3.0] - 2025-03-21
 
