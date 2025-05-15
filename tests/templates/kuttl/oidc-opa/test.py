@@ -126,7 +126,12 @@ assert not process_group_b.json()["permissions"]["canRead"], (
     "Alice should not be able to access process group B"
 )
 processor_e = get_processor_e(session)
-assert processor_e.ok, "Alice should be able to access a processor E in process group C"
+assert processor_e.json()["permissions"]["canRead"], (
+    "Alice should be able to read processor E in process group C"
+)
+assert not processor_e.json()["permissions"]["canWrite"], (
+    "Alice should not be able to write to processor E in process group C"
+)
 
 counters = get_counters(session)
 assert not counters.ok, (
@@ -149,7 +154,12 @@ assert process_group_b.json()["permissions"]["canRead"], (
 )
 
 processor_e = get_processor_e(session)
-assert processor_e.ok, "Bob should be able to access a processor E in process group C"
+assert processor_e.json()["permissions"]["canRead"], (
+    "Bob should be able to read processor E in process group C"
+)
+assert not processor_e.json()["permissions"]["canWrite"], (
+    "Bob should not be able to write to processor E in process group C"
+)
 
 counters = get_counters(session)
 assert not counters.ok, (
@@ -172,8 +182,11 @@ assert not process_group_b.json()["permissions"]["canRead"], (
 )
 
 processor_e = get_processor_e(session)
-assert processor_e.ok, (
-    "Charlie should be able to access a processor E in process group C"
+assert processor_e.json()["permissions"]["canRead"], (
+    "Charlie should be able to read processor E in process group C"
+)
+assert not processor_e.json()["permissions"]["canWrite"], (
+    "Charlie should not be able to write to processor E in process group C"
 )
 
 counters = get_counters(session)
@@ -196,8 +209,11 @@ assert process_group_b.json()["permissions"]["canRead"], (
 )
 
 processor_e = get_processor_e(session)
-assert processor_e.ok, (
-    "Nifi-admin should be able to access a processor E in process group C"
+assert processor_e.json()["permissions"]["canRead"], (
+    "Nifi-admin should be able to read processor E in process group C"
+)
+assert processor_e.json()["permissions"]["canWrite"], (
+    "Nifi-admin should be able to write to processor E in process group C"
 )
 
 counters = get_counters(session)

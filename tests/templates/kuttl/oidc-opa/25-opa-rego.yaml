@@ -16,63 +16,49 @@ data:
       "resourceNotFound": true
     }
 
-    # Allow access nifi-admin for all resource types that don't have other policies in place
-    # This convoluted way of writing the rule is necessary because a general allow rule for nifi-admin would result in
-    # an the rego error "complete rules must not produce multiple outputs"
+    # The nifi-admin has access to everything
     allow := {
       "allowed": true,
     } if {
-      resource_types_with_other_policies = [
-        "/flow",
-        "/process-groups",
-        "/processors"
-      ]
-      every resource_type in resource_types_with_other_policies { not startswith(input.resource.id, resource_type) }
-      groups_with_access := ["nifi-admin"]
       some group in user_groups
-      group in groups_with_access
+      group == "nifi-admin"
     }
 
-    # Access to the UI for every user
+    # Every user in the group "nifi-user" has access to the UI
     allow := {
       "allowed": true,
       "dumpCache": true
     } if {
       input.resource.id in ["/flow"]
-      groups_with_access := ["nifi-admin", "nifi-user"]
       some group in user_groups
-      group in groups_with_access
+      group == "nifi-user"
     }
 
-    # Access to the root process group for every user
+    # Allow access to process groups A & B only to users in the corresponding group
     allow := {
       "allowed": true,
-      "dumpCache": true
-    } if {
-      input.resource.name == "NiFi Flow"
-      startswith(input.resource.id, "/process-groups")
-      groups_with_access := ["nifi-admin", "nifi-user"]
-      some group in user_groups
-      group in groups_with_access
-    }
-
-    # Allow access to process groups A & B only to users in the corresponding group & admin
-    # Rules have to explicitly deny access because every user in group "nifi-user"
-    # has inherited access to each process group for which they are not explicitly denied.
-    allow := {
-      "allowed": false,
     } if {
       input.resource.id == "/process-groups/c9186a05-0196-1000-ffff-ffffd8474359"
-      groups_with_access := ["nifi-admin", "nifi-process-group-a"]
-      every group in user_groups { not group in groups_with_access }
+      some group in user_groups
+      group in ["nifi-process-group-a"]
     }
 
     allow := {
-      "allowed": false
+      "allowed": true
     } if {
       input.resource.id == "/process-groups/7e08561b-447d-3acb-b510-744d886c3ca4"
-      groups_with_access := ["nifi-admin", "nifi-process-group-b"]
-      every group in user_groups { not group in groups_with_access }
+      some group in user_groups
+      group in ["nifi-process-group-b"]
+    }
+
+    # Allow read-only access to group "nifi-user" to proccess group C
+    allow := {
+      "allowed": true
+    } if {
+      input.resource.id == "/process-groups/f3b78341-b2ff-3ae3-b7fc-4b518617c802"
+      input.action.name == "read"
+      some group in user_groups
+      group == "nifi-user"
     }
 
     allow := {
