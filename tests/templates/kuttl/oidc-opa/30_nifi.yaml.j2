@@ -43,6 +43,27 @@ spec:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
       gracefulShutdownTimeout: 1s # let the tests run faster
+    podOverrides:
+      spec:
+        initContainers:
+        - name: copy-nifi-flow
+          image: oci.stackable.tech/sdp/testing-tools:0.2.0-stackable0.0.0-dev
+          command:
+          - /bin/bash
+          - -c
+          - -euo
+          - pipefail
+          args:
+          - cp /tmp/flow.json /stackable/data/database/flow.json && gzip /stackable/data/database/flow.json
+          volumeMounts:
+          - mountPath: /stackable/data/database
+            name: database-repository
+          - mountPath: /tmp
+            name: nifi-flow-json
+        volumes:
+        - configMap:
+            name: nifi-flow-json
+          name: nifi-flow-json
     roleGroups:
       default:
         config: {}
