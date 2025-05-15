@@ -2,6 +2,7 @@ import logging
 import os
 import requests
 import sys
+import time
 import json
 from bs4 import BeautifulSoup
 
@@ -68,96 +69,114 @@ def login(session: requests.Session, username: str, password: str):
     assert welcome_page.url == f"https://{nifi}:8443/nifi/", (
         "Redirection to the NiFi web UI expected"
     )
+    print(f"logged in as {username}")
+
+
+def get_process_group_a(session: requests.Session) -> requests.Response:
+    return get_resource_with_retries(
+        session, "/flow/process-groups/c9186a05-0196-1000-ffff-ffffd8474359"
+    )
+
+
+def get_process_group_b(session: requests.Session) -> requests.Response:
+    return get_resource_with_retries(
+        session, "/flow/process-groups/7e08561b-447d-3acb-b510-744d886c3ca4"
+    )
+
+
+def get_processor_e(session: requests.Session) -> requests.Response:
+    return get_resource_with_retries(
+        session, "/processors/9d95cac3-2759-3fce-9c07-71215b0fb554"
+    )
+
+
+def get_counters(session: requests.Session) -> requests.Response:
+    return get_resource_with_retries(session, "/counters")
+
+
+def get_resource_with_retries(
+    session: requests.Session, resource: str
+) -> requests.Response:
+    retries = 0
+    max_retries = 5
+    while True:
+        time.sleep(retries ^ 2)
+        response = session.get(
+            f"https://{nifi}:8443/nifi-api{resource}?uiOnly=true",
+            verify=False,
+        )
+        # Occasionally NiFi will respond with an 409 http error
+        if response.status_code == 409 and retries <= max_retries:
+            print("NiFi returned HTTP 409")
+            retries += 1
+        else:
+            return response
 
 
 # alice
 session = requests.Session()
 login(session, "alice", "alice")
-process_group_a = session.get(
-    f"https://{nifi}:8443/nifi-api/flow/process-groups/c9186a05-0196-1000-ffff-ffffd8474359?uiOnly=true",
-    verify=False,
-)
+
+process_group_a = get_process_group_a(session)
 assert process_group_a.json()["permissions"]["canRead"], (
     "Alice should be able to access process group A"
 )
-process_group_b = session.get(
-    f"https://{nifi}:8443/nifi-api/flow/process-groups/7e08561b-447d-3acb-b510-744d886c3ca4?uiOnly=true",
-    verify=False,
-)
+process_group_b = get_process_group_b(session)
 assert not process_group_b.json()["permissions"]["canRead"], (
     "Alice should not be able to access process group B"
 )
-processor_e = session.get(
-    f"https://{nifi}:8443/nifi-api/processors/9d95cac3-2759-3fce-9c07-71215b0fb554?uiOnly=true",
-    verify=False,
-)
+processor_e = get_processor_e(session)
 assert processor_e.ok, "Alice should be able to access a processor E in process group C"
-counters = session.get(
-    f"https://{nifi}:8443/nifi-api/counters",
-    verify=False,
-)
+
+counters = get_counters(session)
 assert not counters.ok, (
     "Alice should not be able to access the global resource 'counters'"
 )
 
+
 # bob
 session = requests.Session()
 login(session, "bob", "bob")
-process_group_a = session.get(
-    f"https://{nifi}:8443/nifi-api/flow/process-groups/c9186a05-0196-1000-ffff-ffffd8474359?uiOnly=true",
-    verify=False,
-)
+
+process_group_a = get_process_group_a(session)
 assert not process_group_a.json()["permissions"]["canRead"], (
     "Bob should not be able to access process group A"
 )
-process_group_b = session.get(
-    f"https://{nifi}:8443/nifi-api/flow/process-groups/7e08561b-447d-3acb-b510-744d886c3ca4?uiOnly=true",
-    verify=False,
-)
+
+process_group_b = get_process_group_b(session)
 assert process_group_b.json()["permissions"]["canRead"], (
     "Bob should be able to access process group B"
 )
-processor_e = session.get(
-    f"https://{nifi}:8443/nifi-api/processors/9d95cac3-2759-3fce-9c07-71215b0fb554?uiOnly=true",
-    verify=False,
-)
+
+processor_e = get_processor_e(session)
 assert processor_e.ok, "Bob should be able to access a processor E in process group C"
-counters = session.get(
-    f"https://{nifi}:8443/nifi-api/counters",
-    verify=False,
-)
+
+counters = get_counters(session)
 assert not counters.ok, (
     "Bob should not be able to access the global resource 'counters'"
 )
 
+
 # charlie
 session = requests.Session()
 login(session, "charlie", "charlie")
-process_group_a = session.get(
-    f"https://{nifi}:8443/nifi-api/flow/process-groups/c9186a05-0196-1000-ffff-ffffd8474359?uiOnly=true",
-    verify=False,
-)
+
+process_group_a = get_process_group_a(session)
 assert not process_group_a.json()["permissions"]["canRead"], (
     "Charlie should not be able to access process group A"
 )
-process_group_b = session.get(
-    f"https://{nifi}:8443/nifi-api/flow/process-groups/7e08561b-447d-3acb-b510-744d886c3ca4?uiOnly=true",
-    verify=False,
-)
+
+process_group_b = get_process_group_b(session)
 assert not process_group_b.json()["permissions"]["canRead"], (
     "Charlie should not be able to access process group B"
 )
-processor_e = session.get(
-    f"https://{nifi}:8443/nifi-api/processors/9d95cac3-2759-3fce-9c07-71215b0fb554?uiOnly=true",
-    verify=False,
-)
+
+processor_e = get_processor_e(session)
 assert processor_e.ok, (
     "Charlie should be able to access a processor E in process group C"
 )
-counters = session.get(
-    f"https://{nifi}:8443/nifi-api/counters",
-    verify=False,
-)
+
+counters = get_counters(session)
 assert not counters.ok, (
     "Charlie should not be able to access the global resource 'counters'"
 )
@@ -165,29 +184,21 @@ assert not counters.ok, (
 # nifi-admin
 session = requests.Session()
 login(session, "nifi-admin", "nifi-admin")
-process_group_a = session.get(
-    f"https://{nifi}:8443/nifi-api/flow/process-groups/c9186a05-0196-1000-ffff-ffffd8474359?uiOnly=true",
-    verify=False,
-)
+
+process_group_a = get_process_group_a(session)
 assert process_group_a.json()["permissions"]["canRead"], (
     "Nifi-admin should be able to access process group A"
 )
-process_group_b = session.get(
-    f"https://{nifi}:8443/nifi-api/flow/process-groups/7e08561b-447d-3acb-b510-744d886c3ca4?uiOnly=true",
-    verify=False,
-)
+
+process_group_b = get_process_group_b(session)
 assert process_group_b.json()["permissions"]["canRead"], (
     "Nifi-admin should be able to access process group B"
 )
-processor_e = session.get(
-    f"https://{nifi}:8443/nifi-api/processors/9d95cac3-2759-3fce-9c07-71215b0fb554?uiOnly=true",
-    verify=False,
-)
+
+processor_e = get_processor_e(session)
 assert processor_e.ok, (
     "Nifi-admin should be able to access a processor E in process group C"
 )
-counters = session.get(
-    f"https://{nifi}:8443/nifi-api/counters",
-    verify=False,
-)
+
+counters = get_counters(session)
 assert counters.ok, "Nifi-admin should be able to access the global resource 'counters'"
