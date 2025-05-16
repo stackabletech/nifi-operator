@@ -38,7 +38,7 @@ dimensions:
       - "true"
   - name: oidc-use-tls
     values:
-      # - "false"
+      - "false"
       - "true"
   - name: openshift
     values:
@@ -49,50 +49,44 @@ dimensions:
       - "cluster-internal"
       - "external-unstable"
 tests:
-  # - name: upgrade
-  #   dimensions:
-  #     - nifi_old
-  #     - nifi_new
-  #     - zookeeper-latest
-  #     - openshift
-  # - name: orphaned_resources
-  #   dimensions:
-  #     - nifi
-  #     - zookeeper-latest
-  #     - openshift
-  # - name: smoke
-  #   dimensions:
-  #     - nifi
-  #     - zookeeper
-  #     - listener-class
-  #     - openshift
-  # - name: resources
-  #   dimensions:
-  #     - nifi
-  #     - zookeeper-latest
-  #     - openshift
-  # - name: ldap
-  #   dimensions:
-  #     - nifi
-  #     - zookeeper-latest
-  #     - ldap-use-tls
-  #     - openshift
-  # - name: logging
-  #   dimensions:
-  #     - nifi
-  #     - zookeeper-latest
-  #     - openshift
-  # - name: cluster_operation
-  #   dimensions:
-  #     - nifi-latest
-  #     - zookeeper-latest
-  #     - openshift
-  # - name: oidc
-  #   dimensions:
-  #     - nifi
-  #     - zookeeper-latest
-  #     - oidc-use-tls
-  #     - openshift
+  - name: upgrade
+    dimensions:
+      - nifi_old
+      - nifi_new
+      - zookeeper-latest
+      - openshift
+  - name: orphaned_resources
+    dimensions:
+      - nifi
+      - zookeeper-latest
+      - openshift
+  - name: smoke
+    dimensions:
+      - nifi
+      - zookeeper
+      - listener-class
+      - openshift
+  - name: resources
+    dimensions:
+      - nifi
+      - zookeeper-latest
+      - openshift
+  - name: ldap
+    dimensions:
+      - nifi
+      - zookeeper-latest
+      - ldap-use-tls
+      - openshift
+  - name: logging
+    dimensions:
+      - nifi
+      - zookeeper-latest
+      - openshift
+  - name: cluster_operation
+    dimensions:
+      - nifi-latest
+      - zookeeper-latest
+      - openshift
   - name: oidc-opa
     dimensions:
       - nifi

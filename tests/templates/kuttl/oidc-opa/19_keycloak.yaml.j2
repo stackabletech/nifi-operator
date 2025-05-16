@@ -63,12 +63,11 @@ spec:
         - name: keycloak
           image: quay.io/keycloak/keycloak:25.0.0
           args:
-            - start
-            - --hostname-strict=false
+            - start-dev
             - --import-realm
 {% if test_scenario['values']['oidc-use-tls'] == 'true' %}
-            - --https-key-store-file=/tls/keystore.p12
-            - --https-key-store-password=changeit
+            - --https-certificate-file=/tls/tls.crt
+            - --https-certificate-key-file=/tls/tls.key
 {% endif %}
           env:
             - name: KEYCLOAK_ADMIN
@@ -81,15 +80,21 @@ spec:
           ports:
             - name: https
               containerPort: 8443
-{% else %}
-            - name: http
-              containerPort: 8080
-{% endif %}
           readinessProbe:
             httpGet:
               scheme: HTTPS
               path: /realms/master
               port: https
+{% else %}
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /realms/master
+              port: http
+{% endif %}
           resources:
             limits:
               cpu: 1
@@ -117,9 +122,7 @@ spec:
               metadata:
                 annotations:
                   secrets.stackable.tech/class: keycloak-tls-$NAMESPACE
-                  secrets.stackable.tech/format: tls-pkcs12
-                  secrets.stackable.tech/format.compatibility.tls-pkcs12.password: changeit
-                  secrets.stackable.tech/scope: service=keycloak,node
+                  secrets.stackable.tech/scope: service=keycloak
               spec:
                 storageClassName: secrets.stackable.tech
                 accessModes:
@@ -139,8 +142,14 @@ metadata:
     app: keycloak
 spec:
   ports:
+{% if test_scenario['values']['oidc-use-tls'] == 'true' %}
     - name: https
       port: 8443
       targetPort: 8443
+{% else %}
+    - name: http
+      port: 8080
+      targetPort: 8080
+{% endif %}
   selector:
     app: keycloak

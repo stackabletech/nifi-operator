@@ -73,7 +73,7 @@ spec:
             - name: NIFI_VERSION
               value: "{{ test_scenario['values']['nifi'] }}"
             - name: OIDC_USE_TLS
-              value: "true"
+              value: "{{ test_scenario['values']['oidc-use-tls'] }}"
           volumeMounts:
             - name: test-script
               mountPath: /tmp/test-script
