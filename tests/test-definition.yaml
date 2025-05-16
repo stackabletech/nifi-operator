@@ -2,12 +2,12 @@
 dimensions:
   - name: nifi
     values:
-      - 1.27.0
-      - 1.28.1
-      - 2.2.0
+      # - 1.27.0
+      # - 1.28.1
+      # - 2.2.0
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
-      # - 2.2.0,oci.stackable.tech/sandbox/nifi:2.2.0-stackable0.0.0-dev
+      - 2.2.0,oci.stackable.tech/sdp/nifi:2.2.0-stackable0.0.0-dev-opa
   - name: nifi_old
     values:
       - 1.27.0
@@ -29,6 +29,9 @@ dimensions:
   - name: zookeeper-latest
     values:
       - 3.9.3
+  - name: opa-latest
+    values:
+      - 1.0.1
   - name: ldap-use-tls
     values:
       - "false"
@@ -84,11 +87,12 @@ tests:
       - nifi-latest
       - zookeeper-latest
       - openshift
-  - name: oidc
+  - name: oidc-opa
     dimensions:
       - nifi
       - zookeeper-latest
       - oidc-use-tls
+      - opa-latest
       - openshift
 suites:
   - name: nightly

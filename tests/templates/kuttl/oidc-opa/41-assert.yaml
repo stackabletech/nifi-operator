@@ -2,13 +2,13 @@
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 metadata:
-  name: test-keycloak
-timeout: 480
+  name: install-test-container
+timeout: 300
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
-  name: keycloak
+  name: python
 status:
   readyReplicas: 1
   replicas: 1
