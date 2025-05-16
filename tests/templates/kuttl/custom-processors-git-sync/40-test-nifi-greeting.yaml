@@ -1,0 +1,18 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: test-nifi-greeting
+spec:
+  template:
+    spec:
+      containers:
+        - name: test
+          image: oci.stackable.tech/sdp/testing-tools:0.2.0-stackable0.0.0-dev
+          command:
+            - /bin/bash
+            - -c
+          args:
+            - test "$(curl nifi-greeting/greeting)" = HELLO!
+      restartPolicy: OnFailure
+      terminationGracePeriodSeconds: 1

@@ -33,10 +33,16 @@ spec:
                       items:
                         properties:
                           authenticationClass:
-                            description: Name of the [AuthenticationClass](https://docs.stackable.tech/home/nightly/concepts/authentication) used to authenticate users.
+                            description: |-
+                              Name of the [AuthenticationClass](https://docs.stackable.tech/home/nightly/concepts/authentication) used to authenticate users.
+
+                              To get the concrete [`AuthenticationClass`], we must resolve it. This resolution can be achieved by using [`ClientAuthenticationDetails::resolve_class`].
                             type: string
                           oidc:
-                            description: This field contains OIDC-specific configuration. It is only required in case OIDC is used.
+                            description: |-
+                              This field contains OIDC-specific configuration. It is only required in case OIDC is used.
+
+                              Use [`ClientAuthenticationDetails::oidc_or_error`] to get the value or report an error to the user.
                             nullable: true
                             properties:
                               clientCredentialsSecret:
@@ -44,7 +50,10 @@ spec:
                                 type: string
                               extraScopes:
                                 default: []
-                                description: An optional list of extra scopes which get merged with the scopes defined in the [`AuthenticationClass`].
+                                description: |-
+                                  An optional list of extra scopes which get merged with the scopes defined in the [`AuthenticationClass`][1].
+
+                                  [1]: crate::crd::authentication::core::v1alpha1::AuthenticationClass
                                 items:
                                   type: string
                                 type: array
@@ -71,6 +80,55 @@ spec:
                           type: object
                           x-kubernetes-preserve-unknown-fields: true
                       type: object
+                    customProcessorsGitSync:
+                      default: []
+                      description: The `gitSync` settings allow configuring Python processors to mount via `git-sync`. Learn more in the [mounting DAGs documentation](https://docs.stackable.tech/home/nightly/nifi/usage-guide/mounting-processors#_via_git_sync).
+                      items:
+                        properties:
+                          branch:
+                            default: main
+                            description: |-
+                              The branch to clone; defaults to `main`.
+
+                              Since git-sync v4.x.x this field is mapped to the flag `--ref`.
+                            type: string
+                          credentialsSecret:
+                            description: 'The name of the Secret used to access the repository if it is not public. This should include two fields: `user` and `password`. The `password` field can either be an actual password (not recommended) or a GitHub token, as described [here](https://github.com/kubernetes/git-sync/tree/v4.2.4?tab=readme-ov-file#manual).'
+                            nullable: true
+                            type: string
+                          depth:
+                            default: 1
+                            description: The depth of syncing, i.e. the number of commits to clone; defaults to 1.
+                            format: uint32
+                            minimum: 0.0
+                            type: integer
+                          gitFolder:
+                            default: /
+                            description: |-
+                              The location of the DAG folder, relative to the synced repository root.
+
+                              It can optionally start with `/`, however, no trailing slash is recommended. An empty string (``) or slash (`/`) corresponds to the root folder in Git.
+                            type: string
+                          gitSyncConf:
+                            additionalProperties:
+                              type: string
+                            default: {}
+                            description: A map of optional configuration settings that are listed in the [git-sync documentation](https://github.com/kubernetes/git-sync/tree/v4.2.4?tab=readme-ov-file#manual). Read the [git sync example](https://docs.stackable.tech/home/nightly/airflow/usage-guide/mounting-dags#_example).
+                            type: object
+                          repo:
+                            description: 'The git repository URL that will be cloned, for example: `https://github.com/stackabletech/airflow-operator`.'
+                            type: string
+                          wait:
+                            default: 20s
+                            description: |-
+                              The synchronization interval, e.g. `20s` or `5m`; defaults to `20s`.
+
+                              Since git-sync v4.x.x this field is mapped to the flag `--period`.
+                            type: string
+                        required:
+                          - repo
+                        type: object
+                      type: array
                     extraVolumes:
                       description: Extra volumes similar to `.spec.volumes` on a Pod to mount into every container, this can be useful to for example make client certificates, keytabs or similar things available to processors. These volumes will be mounted into all pods at `/stackable/userdata/{volumename}`. See also the [external files usage guide](https://docs.stackable.tech/home/nightly/nifi/usage_guide/extra-volumes).
                       items:

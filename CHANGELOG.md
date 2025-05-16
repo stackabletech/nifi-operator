@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
   - Use `--file-log-max-files` (or `FILE_LOG_MAX_FILES`) to limit the number of log files kept.
   - Use `--file-log-rotation-period` (or `FILE_LOG_ROTATION_PERIOD`) to configure the frequency of rotation.
   - Use `--console-log-format` (or `CONSOLE_LOG_FORMAT`) to set the format to `plain` (default) or `json`.
+- Add support for custom Python processors via git-sync ([#793]).
 
 ### Changed
 
@@ -41,6 +42,7 @@ All notable changes to this project will be documented in this file.
 [#782]: https://github.com/stackabletech/nifi-operator/pull/782
 [#787]: https://github.com/stackabletech/nifi-operator/pull/787
 [#789]: https://github.com/stackabletech/nifi-operator/pull/789
+[#793]: https://github.com/stackabletech/nifi-operator/pull/793
 
 ## [25.3.0] - 2025-03-21
 
