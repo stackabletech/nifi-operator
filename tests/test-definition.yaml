@@ -90,6 +90,11 @@ tests:
       - zookeeper-latest
       - oidc-use-tls
       - openshift
+  - name: external-access
+    dimensions:
+      - nifi
+      - zookeeper-latest
+      - openshift
 suites:
   - name: nightly
     patch:
