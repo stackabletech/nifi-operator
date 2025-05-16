@@ -20,8 +20,11 @@ use stackable_operator::{
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{
-            PodBuilder, container::ContainerBuilder, resources::ResourceRequirementsBuilder,
-            security::PodSecurityContextBuilder, volume::SecretFormat,
+            PodBuilder,
+            container::ContainerBuilder,
+            resources::ResourceRequirementsBuilder,
+            security::PodSecurityContextBuilder,
+            volume::{ListenerOperatorVolumeSourceBuilderError, SecretFormat},
         },
     },
     client::Client,
@@ -37,15 +40,14 @@ use stackable_operator::{
             apps::v1::{StatefulSet, StatefulSetSpec, StatefulSetUpdateStrategy},
             core::v1::{
                 ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource, EmptyDirVolumeSource,
-                EnvVar, EnvVarSource, Node, ObjectFieldSelector, Probe, SecretVolumeSource,
-                Service, ServicePort, ServiceSpec, TCPSocketAction, Volume,
+                EnvVar, EnvVarSource, ObjectFieldSelector, Probe, SecretVolumeSource, Service,
+                ServicePort, ServiceSpec, TCPSocketAction, Volume,
             },
         },
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
     },
     kube::{
         Resource, ResourceExt,
-        api::ListParams,
         core::{DeserializeGuard, error_boundary},
         runtime::{controller::Action, reflector::ObjectRef},
     },
@@ -81,11 +83,11 @@ use crate::{
         build_nifi_properties, build_state_management_xml, validated_product_config,
     },
     crd::{
-        APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, Container, CurrentlySupportedListenerClasses,
-        HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, NifiConfig,
+        APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, Container, HTTPS_PORT, HTTPS_PORT_NAME,
+        LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, METRICS_PORT, METRICS_PORT_NAME, NifiConfig,
         NifiConfigFragment, NifiRole, NifiStatus, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
-        STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR, authentication::AuthenticationClassResolved,
-        v1alpha1,
+        STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR, SupportedListenerClasses,
+        authentication::AuthenticationClassResolved, v1alpha1,
     },
     operations::{
         graceful_shutdown::add_graceful_shutdown_config,
@@ -353,6 +355,11 @@ pub enum Error {
 
     #[snafu(display("Failed to determine the state of the version upgrade procedure"))]
     ClusterVersionUpdateState { source: upgrade::Error },
+
+    #[snafu(display("failed to build listener volume"))]
+    BuildListenerVolume {
+        source: ListenerOperatorVolumeSourceBuilderError,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -375,11 +382,6 @@ pub async fn reconcile_nifi(
         .context(InvalidNifiClusterSnafu)?;
 
     let client = &ctx.client;
-    let namespace = &nifi
-        .metadata
-        .namespace
-        .clone()
-        .with_context(|| ObjectHasNoNamespaceSnafu {})?;
 
     let resolved_product_image: ResolvedProductImage = nifi
         .spec
@@ -441,20 +443,6 @@ pub async fn reconcile_nifi(
         .map(Cow::Borrowed)
         .unwrap_or_default();
 
-    let node_role_service = build_node_role_service(nifi, &resolved_product_image)?;
-    cluster_resources
-        .add(client, node_role_service)
-        .await
-        .context(ApplyRoleServiceSnafu)?;
-
-    // This is read back to obtain the hosts that we later need to fill in the proxy_hosts variable
-    let updated_role_service = client
-        .get::<Service>(&nifi.name_any(), namespace)
-        .await
-        .with_context(|_| MissingServiceSnafu {
-            obj_ref: ObjectRef::new(&nifi.name_any()).within(namespace),
-        })?;
-
     let nifi_authentication_config = NifiAuthenticationConfig::try_from(
         AuthenticationClassResolved::from(nifi, client)
             .await
@@ -511,7 +499,7 @@ pub async fn reconcile_nifi(
             // Since we cannot predict which of the addresses a user might decide to use we will simply
             // add all of them to the setting for now.
             // For more information see <https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#proxy_configuration>
-            let proxy_hosts = get_proxy_hosts(client, nifi, &updated_role_service).await?;
+            let proxy_hosts = get_proxy_hosts(client, nifi, &merged_config).await?;
 
             let rg_configmap = build_node_rolegroup_config_map(
                 nifi,
@@ -646,52 +634,6 @@ pub async fn reconcile_nifi(
         .context(StatusUpdateSnafu)?;
 
     Ok(Action::await_change())
-}
-
-/// The node-role service is the primary endpoint that should be used by clients that do not
-/// perform internal load balancing including targets outside of the cluster.
-pub fn build_node_role_service(
-    nifi: &v1alpha1::NifiCluster,
-    resolved_product_image: &ResolvedProductImage,
-) -> Result<Service> {
-    let role_name = NifiRole::Node.to_string();
-
-    let role_svc_name = nifi.node_role_service_name();
-    Ok(Service {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(nifi)
-            .name(&role_svc_name)
-            .ownerreference_from_resource(nifi, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(build_recommended_labels(
-                nifi,
-                &resolved_product_image.app_version_label,
-                &role_name,
-                "global",
-            ))
-            .context(MetadataBuildSnafu)?
-            .build(),
-        spec: Some(ServiceSpec {
-            type_: Some(nifi.spec.cluster_config.listener_class.k8s_service_type()),
-            ports: Some(vec![ServicePort {
-                name: Some(HTTPS_PORT_NAME.to_string()),
-                port: HTTPS_PORT.into(),
-                protocol: Some("TCP".to_string()),
-                ..ServicePort::default()
-            }]),
-            selector: Some(
-                Labels::role_selector(nifi, APP_NAME, &role_name)
-                    .context(LabelBuildSnafu)?
-                    .into(),
-            ),
-            external_traffic_policy: match nifi.spec.cluster_config.listener_class {
-                CurrentlySupportedListenerClasses::ClusterInternal => None,
-                CurrentlySupportedListenerClasses::ExternalUnstable => Some("Local".to_string()),
-            },
-            ..ServiceSpec::default()
-        }),
-        status: None,
-    })
 }
 
 /// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the administrator
@@ -870,7 +812,7 @@ async fn build_node_rolegroup_statefulset(
     role: &Role<NifiConfigFragment, GenericRoleConfig, JavaCommonConfig>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &NifiConfig,
-    nifi_auth_config: &NifiAuthenticationConfig,
+    nifi_authentication_config: &NifiAuthenticationConfig,
     rolling_update_supported: bool,
     replicas: Option<i32>,
     sa_name: &str,
@@ -922,7 +864,7 @@ async fn build_node_rolegroup_statefulset(
         &nifi.spec.cluster_config.zookeeper_config_map_name,
     ));
 
-    if let NifiAuthenticationConfig::Oidc { oidc, .. } = nifi_auth_config {
+    if let NifiAuthenticationConfig::Oidc { oidc, .. } = nifi_authentication_config {
         env_vars.extend(AuthenticationProvider::client_credentials_env_var_mounts(
             oidc.client_credentials_secret_ref.clone(),
         ));
@@ -973,7 +915,22 @@ async fn build_node_rolegroup_statefulset(
     ]);
 
     // This commands needs to go first, as they might set env variables needed by the templating
-    prepare_args.extend_from_slice(nifi_auth_config.get_additional_container_args().as_slice());
+    prepare_args.extend_from_slice(
+        nifi_authentication_config
+            .get_additional_container_args()
+            .as_slice(),
+    );
+
+    if merged_config.listener_class == SupportedListenerClasses::ExternalUnstable {
+        prepare_args.extend(vec![
+            "export LISTENER_DEFAULT_ADDRESS=$(cat /stackable/listener/default-address/address)"
+                .to_string(),
+        ]);
+        prepare_args.extend(vec![
+        "export LISTENER_DEFAULT_PORT_HTTPS=$(cat /stackable/listener/default-address/ports/https)"
+            .to_string(),
+        ]);
+    }
 
     prepare_args.extend(vec![
         "echo Templating config files".to_string(),
@@ -1037,6 +994,8 @@ async fn build_node_rolegroup_statefulset(
         .add_volume_mount("log", STACKABLE_LOG_DIR)
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(TRUSTSTORE_VOLUME_NAME, STACKABLE_SERVER_TLS_DIR)
+        .context(AddVolumeMountSnafu)?
+        .add_volume_mount(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)
         .context(AddVolumeMountSnafu)?
         .resources(
             ResourceRequirementsBuilder::new()
@@ -1114,6 +1073,8 @@ async fn build_node_rolegroup_statefulset(
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(TRUSTSTORE_VOLUME_NAME, STACKABLE_SERVER_TLS_DIR)
         .context(AddVolumeMountSnafu)?
+        .add_volume_mount(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)
+        .context(AddVolumeMountSnafu)?
         .add_container_port(HTTPS_PORT_NAME, HTTPS_PORT.into())
         .add_container_port(PROTOCOL_PORT_NAME, PROTOCOL_PORT.into())
         .add_container_port(BALANCE_PORT_NAME, BALANCE_PORT.into())
@@ -1140,6 +1101,28 @@ async fn build_node_rolegroup_statefulset(
         .resources(merged_config.resources.clone().into());
 
     let mut pod_builder = PodBuilder::new();
+
+    let recommended_object_labels = build_recommended_labels(
+        nifi,
+        &resolved_product_image.app_version_label,
+        &rolegroup_ref.role,
+        &rolegroup_ref.role_group,
+    );
+    let recommended_labels =
+        Labels::recommended(recommended_object_labels.clone()).context(LabelBuildSnafu)?;
+
+    let listener_class = &merged_config.listener_class;
+    // all listeners will use ephemeral volumes as they can/should
+    // be removed when the pods are *terminated* (ephemeral PVCs will
+    // survive re-starts)
+    pod_builder
+        .add_listener_volume_by_listener_class(
+            LISTENER_VOLUME_NAME,
+            &listener_class.to_string(),
+            &recommended_labels,
+        )
+        .context(AddVolumeSnafu)?;
+
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
 
     // Add user configured extra volumes if any are specified
@@ -1222,7 +1205,7 @@ async fn build_node_rolegroup_statefulset(
         }
     }
 
-    nifi_auth_config
+    nifi_authentication_config
         .add_volumes_and_mounts(&mut pod_builder, vec![
             &mut container_prepare,
             container_nifi,
@@ -1346,12 +1329,7 @@ async fn build_node_rolegroup_statefulset(
             .name(rolegroup_ref.object_name())
             .ownerreference_from_resource(nifi, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(build_recommended_labels(
-                nifi,
-                &resolved_product_image.app_version_label,
-                &rolegroup_ref.role,
-                &rolegroup_ref.role_group,
-            ))
+            .with_recommended_labels(recommended_object_labels)
             .context(MetadataBuildSnafu)?
             .build(),
         spec: Some(StatefulSetSpec {
@@ -1408,25 +1386,6 @@ async fn build_node_rolegroup_statefulset(
     })
 }
 
-fn external_node_port(nifi_service: &Service) -> Result<i32> {
-    let external_ports = nifi_service
-        .spec
-        .as_ref()
-        .with_context(|| ObjectHasNoSpecSnafu {})?
-        .ports
-        .as_ref()
-        .with_context(|| ExternalPortSnafu {})?
-        .iter()
-        .filter(|p| p.name == Some(HTTPS_PORT_NAME.to_string()))
-        .collect::<Vec<_>>();
-
-    let port = external_ports
-        .first()
-        .with_context(|| ExternalPortSnafu {})?;
-
-    port.node_port.with_context(|| ExternalPortSnafu {})
-}
-
 /// Used for the `ZOOKEEPER_HOSTS` and `ZOOKEEPER_CHROOT` env vars.
 fn zookeeper_env_var(name: &str, configmap_name: &str) -> EnvVar {
     EnvVar {
@@ -1446,7 +1405,7 @@ fn zookeeper_env_var(name: &str, configmap_name: &str) -> EnvVar {
 async fn get_proxy_hosts(
     client: &Client,
     nifi: &v1alpha1::NifiCluster,
-    nifi_service: &Service,
+    merged_config: &NifiConfig,
 ) -> Result<String> {
     let host_header_check = nifi.spec.cluster_config.host_header_check.clone();
 
@@ -1478,32 +1437,10 @@ async fn get_proxy_hosts(
 
     proxy_hosts_set.extend(host_header_check.additional_allowed_hosts);
 
-    // In case NodePort is used add them as well
-    if nifi.spec.cluster_config.listener_class
-        == CurrentlySupportedListenerClasses::ExternalUnstable
-    {
-        let external_port = external_node_port(nifi_service)?;
-
-        let cluster_nodes = client
-            .list::<Node>(&(), &ListParams::default())
-            .await
-            .with_context(|_| MissingNodesSnafu {
-                obj_ref: ObjectRef::from_obj(nifi),
-            })?;
-
-        // We need the addresses of all nodes to add these to the NiFi proxy setting
-        // Since there is no real convention about how to label these addresses we will simply
-        // take all published addresses for now to be on the safe side.
-        proxy_hosts_set.extend(
-            cluster_nodes
-                .into_iter()
-                .flat_map(|node| {
-                    node.status
-                        .unwrap_or_default()
-                        .addresses
-                        .unwrap_or_default()
-                })
-                .map(|node_address| format!("{}:{external_port}", node_address.address)),
+    // If NodePort is used inject the address and port from the listener volume in the prepare container
+    if merged_config.listener_class == SupportedListenerClasses::ExternalUnstable {
+        proxy_hosts_set.insert(
+            "${env:LISTENER_DEFAULT_ADDRESS}:${env:LISTENER_DEFAULT_PORT_HTTPS}".to_string(),
         );
     }
 

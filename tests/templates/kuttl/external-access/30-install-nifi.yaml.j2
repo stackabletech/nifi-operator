@@ -1,0 +1,96 @@
+---
+apiVersion: authentication.stackable.tech/v1alpha1
+kind: AuthenticationClass
+metadata:
+  name: simple-nifi-users
+spec:
+  provider:
+    static:
+      userCredentialsSecret:
+        name: simple-nifi-admin-credentials
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: simple-nifi-admin-credentials
+stringData:
+  admin: >
+    passwordWithSpecialCharacter\@<&>"'
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nifi-sensitive-property-key
+stringData:
+  nifiSensitivePropsKey: mYsUp3rS3cr3tk3y
+---
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: test-nifi
+spec:
+  image:
+{% if test_scenario['values']['nifi'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['nifi'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['nifi'].split(',')[0] }}"
+{% else %}
+    custom: null
+    productVersion: "{{ test_scenario['values']['nifi'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
+  clusterConfig:
+    zookeeperConfigMapName: test-nifi-znode
+    listenerClass: {{ test_scenario['values']['listener-class'] }}
+    authentication:
+      - authenticationClass: simple-nifi-users
+    hostHeaderCheck:
+      allowAll: false
+    sensitiveProperties:
+      keySecret: nifi-sensitive-property-key
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+    vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
+  nodes:
+    envOverrides:
+      COMMON_VAR: role-value # overridden by role group below
+      ROLE_VAR: role-value   # only defined here at role level
+    configOverrides:
+      "nifi.properties":
+        "nifi.diagnostics.on.shutdown.enabled": "true"
+        "nifi.diagnostics.on.shutdown.verbose": "false"
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    roleGroups:
+      default:
+        replicas: 2
+        envOverrides:
+          COMMON_VAR: group-value # overrides role value
+          GROUP_VAR: group-value # only defined here at group level
+        configOverrides:
+          "nifi.properties":
+            "nifi.diagnostics.on.shutdown.enabled": "false"
+            "nifi.diagnostics.on.shutdown.max.filecount": "20"
+          roleGroups:
+      external-unstable:
+        replicas: 1
+        config:
+          listenerClass: external-unstable
+        envOverrides:
+          COMMON_VAR: group-value # overrides role value
+          GROUP_VAR: group-value # only defined here at group level
+        configOverrides:
+          "nifi.properties":
+            "nifi.diagnostics.on.shutdown.enabled": "false"
+            "nifi.diagnostics.on.shutdown.max.filecount": "20"
+      cluster-internal:
+        replicas: 1
+        config:
+          listenerClass: cluster-internal
+        envOverrides:
+          COMMON_VAR: group-value # overrides role value
+          GROUP_VAR: group-value # only defined here at group level
+        configOverrides:
+          "nifi.properties":
+            "nifi.diagnostics.on.shutdown.enabled": "false"
+            "nifi.diagnostics.on.shutdown.max.filecount": "20"
