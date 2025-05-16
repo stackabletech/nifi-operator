@@ -5,7 +5,7 @@ use std::{
 
 use jvm::build_merged_jvm_config;
 use product_config::{ProductConfigManager, types::PropertyNameKind};
-use snafu::{ResultExt, Snafu};
+use snafu::{ResultExt, Snafu, ensure};
 use stackable_operator::{
     commons::resources::Resources,
     memory::MemoryQuantity,
@@ -20,7 +20,7 @@ use strum::{Display, EnumIter};
 use crate::{
     crd::{
         HTTPS_PORT, NifiConfig, NifiConfigFragment, NifiRole, NifiStorageConfig, PROTOCOL_PORT,
-        v1alpha1,
+        v1alpha1::{self, NifiClusteringBackend},
     },
     operations::graceful_shutdown::graceful_shutdown_config_properties,
     security::{
@@ -96,6 +96,11 @@ pub enum Error {
 
     #[snafu(display("failed to generate OIDC config"))]
     GenerateOidcConfig { source: oidc::Error },
+
+    #[snafu(display(
+        "NiFi 1.x requires ZooKeeper (hint: upgrade to NiFi 2.x or set .spec.clusterConfig.zookeeperConfigMapName)"
+    ))]
+    Nifi1RequiresZookeeper,
 }
 
 /// Create the NiFi bootstrap.conf
@@ -143,13 +148,15 @@ pub fn build_nifi_properties(
     overrides: BTreeMap<String, String>,
     product_version: &str,
 ) -> Result<String, Error> {
+    // TODO: Remove once we dropped support for all NiFi 1.x versions
+    let is_nifi_1 = product_version.starts_with("1.");
+
     let mut properties = BTreeMap::new();
     // Core Properties
     // According to https://cwiki.apache.org/confluence/display/NIFI/Migration+Guidance#MigrationGuidance-Migratingto2.0.0-M1
     // The nifi.flow.configuration.file property in nifi.properties must be changed to reference
     // "flow.json.gz" instead of "flow.xml.gz"
-    // TODO: Remove once we dropped support for all 1.x.x versions
-    let flow_file_name = if product_version.starts_with("1.") {
+    let flow_file_name = if is_nifi_1 {
         "flow.xml.gz"
     } else {
         "flow.json.gz"
@@ -250,7 +257,10 @@ pub fn build_nifi_properties(
     // The ID of the cluster-wide state provider. This will be ignored if NiFi is not clustered but must be populated if running in a cluster.
     properties.insert(
         "nifi.state.management.provider.cluster".to_string(),
-        "zk-provider".to_string(),
+        match spec.cluster_config.clustering_backend {
+            v1alpha1::NifiClusteringBackend::ZooKeeper { .. } => "zk-provider".to_string(),
+            v1alpha1::NifiClusteringBackend::Kubernetes { .. } => "kubernetes-provider".to_string(),
+        },
     );
     // Specifies whether or not this instance of NiFi should run an embedded ZooKeeper server
     properties.insert(
@@ -559,18 +569,41 @@ pub fn build_nifi_properties(
         "".to_string(),
     );
 
-    // zookeeper properties, used for cluster management
-    // this will be replaced via a container command script
-    properties.insert(
-        "nifi.zookeeper.connect.string".to_string(),
-        "${env:ZOOKEEPER_HOSTS}".to_string(),
-    );
+    match spec.cluster_config.clustering_backend {
+        v1alpha1::NifiClusteringBackend::ZooKeeper { .. } => {
+            properties.insert(
+                "nifi.cluster.leader.election.implementation".to_string(),
+                "CuratorLeaderElectionManager".to_string(),
+            );
 
-    // this will be replaced via a container command script
-    properties.insert(
-        "nifi.zookeeper.root.node".to_string(),
-        "${env:ZOOKEEPER_CHROOT}".to_string(),
-    );
+            // this will be replaced via a container command script
+            properties.insert(
+                "nifi.zookeeper.connect.string".to_string(),
+                "${env:ZOOKEEPER_HOSTS}".to_string(),
+            );
+
+            // this will be replaced via a container command script
+            properties.insert(
+                "nifi.zookeeper.root.node".to_string(),
+                "${env:ZOOKEEPER_CHROOT}".to_string(),
+            );
+        }
+
+        v1alpha1::NifiClusteringBackend::Kubernetes {} => {
+            ensure!(!is_nifi_1, Nifi1RequiresZookeeperSnafu);
+
+            properties.insert(
+                "nifi.cluster.leader.election.implementation".to_string(),
+                "KubernetesLeaderElectionManager".to_string(),
+            );
+
+            // this will be replaced via a container command script
+            properties.insert(
+                "nifi.cluster.leader.election.kubernetes.lease.prefix".to_string(),
+                "${env:STACKLET_NAME}".to_string(),
+            );
+        }
+    }
 
     // override with config overrides
     properties.extend(overrides);
@@ -578,28 +611,42 @@ pub fn build_nifi_properties(
     Ok(format_properties(properties))
 }
 
-pub fn build_state_management_xml() -> String {
+pub fn build_state_management_xml(clustering_backend: &NifiClusteringBackend) -> String {
+    // Inert providers are ignored by NiFi itself, but templating still fails if they refer to invalid environment variables,
+    // so only include the actually used provider.
+    let cluster_provider = match clustering_backend {
+        NifiClusteringBackend::ZooKeeper { .. } => {
+            r#"<cluster-provider>
+              <id>zk-provider</id>
+              <class>org.apache.nifi.controller.state.providers.zookeeper.ZooKeeperStateProvider</class>
+              <property name="Connect String">${env:ZOOKEEPER_HOSTS}</property>
+              <property name="Root Node">${env:ZOOKEEPER_CHROOT}</property>
+              <property name="Session Timeout">10 seconds</property>
+              <property name="Access Control">Open</property>
+            </cluster-provider>"#
+        }
+        NifiClusteringBackend::Kubernetes {} => {
+            r#"<cluster-provider>
+              <id>kubernetes-provider</id>
+              <class>org.apache.nifi.kubernetes.state.provider.KubernetesConfigMapStateProvider</class>
+              <property name="ConfigMap Name Prefix">${env:STACKLET_NAME}</property>
+            </cluster-provider>"#
+        }
+    };
     format!(
-        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
         <stateManagement>
           <local-provider>
-          <id>local-provider</id>
+            <id>local-provider</id>
             <class>org.apache.nifi.controller.state.providers.local.WriteAheadLocalStateProvider</class>
-            <property name=\"Directory\">{}</property>
-            <property name=\"Always Sync\">false</property>
-            <property name=\"Partitions\">16</property>
-            <property name=\"Checkpoint Interval\">2 mins</property>
+            <property name="Directory">{local_state_path}</property>
+            <property name="Always Sync">false</property>
+            <property name="Partitions">16</property>
+            <property name="Checkpoint Interval">2 mins</property>
           </local-provider>
-          <cluster-provider>
-            <id>zk-provider</id>
-            <class>org.apache.nifi.controller.state.providers.zookeeper.ZooKeeperStateProvider</class>
-            <property name=\"Connect String\">${{env:ZOOKEEPER_HOSTS}}</property>
-            <property name=\"Root Node\">${{env:ZOOKEEPER_CHROOT}}</property>
-            <property name=\"Session Timeout\">10 seconds</property>
-            <property name=\"Access Control\">Open</property>
-          </cluster-provider>
-        </stateManagement>",
-        &NifiRepository::State.mount_path(),
+          {cluster_provider}
+        </stateManagement>"#,
+        local_state_path = NifiRepository::State.mount_path(),
     )
 }
 
