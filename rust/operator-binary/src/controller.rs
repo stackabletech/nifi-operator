@@ -38,10 +38,10 @@ use stackable_operator::{
             core::v1::{
                 ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource, EmptyDirVolumeSource,
                 EnvVar, EnvVarSource, ExecAction, Node, ObjectFieldSelector, Probe,
-                SecretVolumeSource, Service, ServicePort, ServiceSpec, TCPSocketAction, Volume,
+                SecretVolumeSource, Service, ServicePort, ServiceSpec, Volume,
             },
         },
-        apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
+        apimachinery::pkg::apis::meta::v1::LabelSelector,
     },
     kube::{
         Resource, ResourceExt,
