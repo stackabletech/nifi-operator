@@ -171,9 +171,7 @@ stringData:
 [#authorization]
 == Authorization
 
-NiFi supports {nifi-docs-authorization}[multiple authorization methods], the available authorization methods depend on the chosen authentication method.
-
-The Stackable Operator for Apache NiFi supports a default authorization methods for each authentication method and authorization with Open Policy Agent.
+The Stackable Operator for Apache NiFi supports {nifi-docs-authorization}[multiple authorization methods], the available authorization methods depend on the chosen authentication method. Using Open Policy Agent for authorization is independent of the authentication method.
 
 [#authorization-single-user]
 === Single user
