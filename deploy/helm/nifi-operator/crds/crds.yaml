@@ -93,7 +93,12 @@ spec:
                               Since git-sync v4.x.x this field is mapped to the flag `--ref`.
                             type: string
                           credentialsSecret:
-                            description: 'The name of the Secret used to access the repository if it is not public. This should include two fields: `user` and `password`. The `password` field can either be an actual password (not recommended) or a GitHub token, as described [here](https://github.com/kubernetes/git-sync/tree/v4.2.4?tab=readme-ov-file#manual).'
+                            description: |-
+                              The name of the Secret used to access the repository if it is not public.
+
+                              The referenced Secret must include two fields: `user` and `password`. The `password` field can either be an actual password (not recommended) or a GitHub token, as described in the git-sync [documentation].
+
+                              [documentation]: https://github.com/kubernetes/git-sync/tree/v4.2.4?tab=readme-ov-file#manual
                             nullable: true
                             type: string
                           depth:
@@ -105,7 +110,7 @@ spec:
                           gitFolder:
                             default: /
                             description: |-
-                              The location of the DAG folder, relative to the synced repository root.
+                              Location in the Git repository containing the resource; defaults to the root folder.
 
                               It can optionally start with `/`, however, no trailing slash is recommended. An empty string (``) or slash (`/`) corresponds to the root folder in Git.
                             type: string
@@ -113,10 +118,16 @@ spec:
                             additionalProperties:
                               type: string
                             default: {}
-                            description: A map of optional configuration settings that are listed in the [git-sync documentation](https://github.com/kubernetes/git-sync/tree/v4.2.4?tab=readme-ov-file#manual). Read the [git sync example](https://docs.stackable.tech/home/nightly/airflow/usage-guide/mounting-dags#_example).
+                            description: |-
+                              A map of optional configuration settings that are listed in the git-sync [documentation].
+
+                              Also read the git-sync [example] in our documentation.
+
+                              [documentation]: https://github.com/kubernetes/git-sync/tree/v4.2.4?tab=readme-ov-file#manual [example]: https://docs.stackable.tech/home/nightly/airflow/usage-guide/mounting-dags#_example
                             type: object
                           repo:
                             description: 'The git repository URL that will be cloned, for example: `https://github.com/stackabletech/airflow-operator`.'
+                            format: uri
                             type: string
                           wait:
                             default: 20s
