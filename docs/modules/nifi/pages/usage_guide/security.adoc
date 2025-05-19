@@ -277,7 +277,7 @@ The payload sent by NiFi with each request to OPA, that is accessible within the
 [#opa-result]
 ==== OPA Result
 
-The OPA authorizer plugin expects relo rules to be named `allow` and to return a result following this schema:
+The OPA authorizer plugin expects rego rules to be named `allow` and to return a result following this schema:
 [source,json]
 ----
 {
@@ -299,7 +299,7 @@ NiFi uses {nifi-docs-access-policies}[access policies] to manage access to syste
 [#component-level-access-policies]
 ==== Component Level Access Policies and Access Policy Inheritance
 
-{nifi-docs-component-level-access-policies}[Component Level Access Policies] allow managing granular access to components like process-groups and processors. Components can {nifi-docs-access-policy-inheritance}[inherite access policies] defined for parent components, e.g. a process group is the parent component for a processor component.
+{nifi-docs-component-level-access-policies}[Component Level Access Policies] allow managing granular access to components like process-groups and processors. Components can {nifi-docs-access-policy-inheritance}[inherite access policies] defined for parent components, e.g. a process group is the parent component for a contained processor component.
 
 The payload field `requestedResource` contains the id, name and description of the original resource that was requested. In cases with inherited policies, this will be an ancestor resource of the current resource. For the initial request, and cases without inheritance, the requested resource will be the same as the current resource.
 
@@ -327,7 +327,7 @@ allow := {
   input.identity.name == "alice"
 } <3>
 ----
-<1> Default rule returns should `"resourceNotFound": true`. If this is not set NiFi's access policy inheritance won't work. Any values for the `allowed` field in the response will be ignored.
+<1> The default rule should return `"resourceNotFound": true`. If this is not set, NiFi's access policy inheritance will not work. Any values for the `allowed` field in the response will be ignored.
 <2> A rule that grants all users access to the root process group and thus to all components in the NiFi instance.
 <3> A rule that denies access to a specific process group for the user "alice". For this process group the default rego rule will not be applied and NiFi's component inhertiance will not be used. All child components of this process group will also be authorized based on this rule unless a more granular rule overrides it.
 
