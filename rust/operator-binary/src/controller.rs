@@ -1130,8 +1130,6 @@ async fn build_node_rolegroup_statefulset(
                 command: Some(vec![
                     "/bin/bash".to_string(),
                     "-c".to_string(),
-                    // "-euo".to_string(),
-                    // "pipefail".to_string(),
                     "curl --insecure --silent --head https://127.0.0.1:8443/nifi > /dev/null || true"
                         .to_string(),
                 ]),
@@ -1146,8 +1144,6 @@ async fn build_node_rolegroup_statefulset(
                 command: Some(vec![
                     "/bin/bash".to_string(),
                     "-c".to_string(),
-                    // "-euo".to_string(),
-                    // "pipefail".to_string(),
                     "curl --insecure --silent --head https://127.0.0.1:8443/nifi > /dev/null || true"
                         .to_string(),
                 ]),
