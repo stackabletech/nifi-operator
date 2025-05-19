@@ -4,7 +4,7 @@ dimensions:
     values:
       - 1.27.0
       - 1.28.1
-      - 2.2.0
+      - 2.2.0,oci.stackable.tech/sandbox/git-sync/nifi:2.2.0-stackable0.0.0-dev
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
       # - 2.2.0,oci.stackable.tech/sandbox/nifi:2.2.0-stackable0.0.0-dev

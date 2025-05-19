@@ -109,6 +109,7 @@ pub const NIFI_FULL_CONTROLLER_NAME: &str = concatcp!(NIFI_CONTROLLER_NAME, '.',
 pub const NIFI_UID: i64 = 1000;
 
 const DOCKER_IMAGE_BASE_NAME: &str = "nifi";
+const LOG_VOLUME_NAME: &str = "log";
 
 pub struct Ctx {
     pub client: Client,
@@ -509,6 +510,8 @@ pub async fn reconcile_nifi(
                 &resolved_product_image,
                 &env_vars_from_rolegroup_config(rolegroup_config),
                 &[],
+                LOG_VOLUME_NAME,
+                &merged_config.logging.for_container(&Container::GitSync),
             )
             .context(InvalidGitSyncSpecSnafu)?;
 
@@ -1052,7 +1055,7 @@ async fn build_node_rolegroup_statefulset(
         .context(AddVolumeMountSnafu)?
         .add_volume_mount("sensitiveproperty", "/stackable/sensitiveproperty")
         .context(AddVolumeMountSnafu)?
-        .add_volume_mount("log", STACKABLE_LOG_DIR)
+        .add_volume_mount(LOG_VOLUME_NAME, STACKABLE_LOG_DIR)
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(TRUSTSTORE_VOLUME_NAME, STACKABLE_SERVER_TLS_DIR)
         .context(AddVolumeMountSnafu)?
@@ -1128,7 +1131,7 @@ async fn build_node_rolegroup_statefulset(
         .context(AddVolumeMountSnafu)?
         .add_volume_mount("log-config", STACKABLE_LOG_CONFIG_DIR)
         .context(AddVolumeMountSnafu)?
-        .add_volume_mount("log", STACKABLE_LOG_DIR)
+        .add_volume_mount(LOG_VOLUME_NAME, STACKABLE_LOG_DIR)
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(TRUSTSTORE_VOLUME_NAME, STACKABLE_SERVER_TLS_DIR)
         .context(AddVolumeMountSnafu)?
@@ -1242,7 +1245,7 @@ async fn build_node_rolegroup_statefulset(
                     product_logging::framework::vector_container(
                         resolved_product_image,
                         "config",
-                        "log",
+                        LOG_VOLUME_NAME,
                         merged_config.logging.containers.get(&Container::Vector),
                         ResourceRequirementsBuilder::new()
                             .with_cpu_request("250m")
@@ -1308,7 +1311,7 @@ async fn build_node_rolegroup_statefulset(
         })
         .context(AddVolumeSnafu)?
         .add_empty_dir_volume(
-            "log",
+            LOG_VOLUME_NAME,
             // Set volume size to higher than theoretically necessary to avoid running out of disk space as log rotation triggers are only checked by Logback every 5s.
             Some(
                 MemoryQuantity {
@@ -1409,7 +1412,7 @@ async fn build_node_rolegroup_statefulset(
                 ),
                 ..LabelSelector::default()
             },
-            service_name: rolegroup_ref.object_name(),
+            service_name: Some(rolegroup_ref.object_name()),
             template: pod_template,
             update_strategy: Some(StatefulSetUpdateStrategy {
                 type_: if rolling_update_supported {

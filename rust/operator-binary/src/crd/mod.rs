@@ -473,6 +473,7 @@ pub enum Container {
     Prepare,
     Vector,
     Nifi,
+    GitSync,
 }
 
 #[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
