@@ -37,8 +37,8 @@ use stackable_operator::{
             apps::v1::{StatefulSet, StatefulSetSpec, StatefulSetUpdateStrategy},
             core::v1::{
                 ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource, EmptyDirVolumeSource,
-                EnvVar, EnvVarSource, Node, ObjectFieldSelector, Probe, SecretVolumeSource,
-                Service, ServicePort, ServiceSpec, TCPSocketAction, Volume,
+                EnvVar, EnvVarSource, ExecAction, Node, ObjectFieldSelector, Probe,
+                SecretVolumeSource, Service, ServicePort, ServiceSpec, TCPSocketAction, Volume,
             },
         },
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
@@ -1121,12 +1121,20 @@ async fn build_node_rolegroup_statefulset(
         .add_container_port(HTTPS_PORT_NAME, HTTPS_PORT.into())
         .add_container_port(PROTOCOL_PORT_NAME, PROTOCOL_PORT.into())
         .add_container_port(BALANCE_PORT_NAME, BALANCE_PORT.into())
+        // Probes have been changed to exec as we introduced nifi.web.https.network.interface.lo=lo by default.
+        // Probe will succeed for any HTTPS errors ( SIN Invalid, 400 ) as this confirms the port to be open.
         .liveness_probe(Probe {
             initial_delay_seconds: Some(10),
             period_seconds: Some(10),
-            tcp_socket: Some(TCPSocketAction {
-                port: IntOrString::String(HTTPS_PORT_NAME.to_string()),
-                ..TCPSocketAction::default()
+            exec: Some(ExecAction {
+                command: Some(vec![
+                    "/bin/bash".to_string(),
+                    "-c".to_string(),
+                    // "-euo".to_string(),
+                    // "pipefail".to_string(),
+                    "curl --insecure --silent --head https://127.0.0.1:8443/nifi > /dev/null || true"
+                        .to_string(),
+                ]),
             }),
             ..Probe::default()
         })
@@ -1134,9 +1142,15 @@ async fn build_node_rolegroup_statefulset(
             initial_delay_seconds: Some(10),
             period_seconds: Some(10),
             failure_threshold: Some(20 * 6),
-            tcp_socket: Some(TCPSocketAction {
-                port: IntOrString::String(HTTPS_PORT_NAME.to_string()),
-                ..TCPSocketAction::default()
+            exec: Some(ExecAction {
+                command: Some(vec![
+                    "/bin/bash".to_string(),
+                    "-c".to_string(),
+                    // "-euo".to_string(),
+                    // "pipefail".to_string(),
+                    "curl --insecure --silent --head https://127.0.0.1:8443/nifi > /dev/null || true"
+                        .to_string(),
+                ]),
             }),
             ..Probe::default()
         })
