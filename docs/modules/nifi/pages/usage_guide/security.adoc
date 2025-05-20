@@ -235,7 +235,7 @@ The payload sent by NiFi with each request to OPA, that is accessible within the
 | The action taken against the resource.
 |`read`, `write`
 | resource.id
-| The unique identifier of the resource that is being authorized. This might be a parent component in the case of `resourceNotFound` is set to `true`. 
+| The unique identifier of the resource that is being authorized. This might be a parent component in the case of `resourceNotFound` is set to `true`.
 |
 | resource.name
 | The name of the resource that is being authorized. This might be a parent component in the case of `resourceNotFound` is set to `true`.
