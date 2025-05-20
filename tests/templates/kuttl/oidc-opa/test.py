@@ -4,10 +4,15 @@ import requests
 import sys
 import time
 import json
+import urllib3
 from bs4 import BeautifulSoup
+from requests.exceptions import JSONDecodeError
+
+# disable tls insecure warnings
+urllib3.disable_warnings()
 
 logging.basicConfig(
-    level="DEBUG", format="%(asctime)s %(levelname)s: %(message)s", stream=sys.stdout
+    level="INFO", format="%(asctime)s %(levelname)s: %(message)s", stream=sys.stdout
 )
 
 namespace = os.environ["NAMESPACE"]
@@ -73,44 +78,44 @@ def login(session: requests.Session, username: str, password: str):
 
 
 def get_process_group_a(session: requests.Session) -> requests.Response:
-    return get_resource_with_retries(
+    return get_resource(
         session, "/flow/process-groups/c9186a05-0196-1000-ffff-ffffd8474359"
     )
 
 
 def get_process_group_b(session: requests.Session) -> requests.Response:
-    return get_resource_with_retries(
+    return get_resource(
         session, "/flow/process-groups/7e08561b-447d-3acb-b510-744d886c3ca4"
     )
 
 
 def get_processor_e(session: requests.Session) -> requests.Response:
-    return get_resource_with_retries(
+    return get_resource(
         session, "/processors/9d95cac3-2759-3fce-9c07-71215b0fb554"
     )
 
 
 def get_counters(session: requests.Session) -> requests.Response:
-    return get_resource_with_retries(session, "/counters")
+    return get_resource(session, "/counters")
 
 
-def get_resource_with_retries(
+def get_resource(
     session: requests.Session, resource: str
 ) -> requests.Response:
-    retries = 0
-    max_retries = 5
-    while True:
-        time.sleep(retries ^ 2)
-        response = session.get(
-            f"https://{nifi}:8443/nifi-api{resource}?uiOnly=true",
-            verify=False,
-        )
-        # Occasionally NiFi will respond with an 409 http error
-        if response.status_code == 409 and retries <= max_retries:
-            print("NiFi returned HTTP 409")
-            retries += 1
-        else:
-            return response
+    response = session.get(
+       f"https://{nifi}:8443/nifi-api{resource}?uiOnly=true",
+        verify=False,
+    )
+
+    # let success or unauthorized pass
+    if response.status_code == 200 or response.status_code == 403:
+        return response
+    else:
+        print(f"Could not retrieve resource [{resource}] ...")
+        print("Status Code:", response.status_code)
+        print("Response Text:", response.text)
+        time.sleep(5)
+        exit(1)
 
 
 # alice
