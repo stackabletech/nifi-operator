@@ -3,7 +3,7 @@
 ** xref:nifi:getting_started/first_steps.adoc[]
 * xref:nifi:usage_guide/index.adoc[]
 ** xref:nifi:usage_guide/listenerclass.adoc[]
-** xref:nifi:usage_guide/zookeeper-connection.adoc[]
+** xref:nifi:usage_guide/clustering.adoc[]
 ** xref:nifi:usage_guide/extra-volumes.adoc[]
 ** xref:nifi:usage_guide/security.adoc[]
 ** xref:nifi:usage_guide/resource-configuration.adoc[]

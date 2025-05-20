@@ -1,0 +1,6 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+commands:
+- script: kubectl get cm -n $NAMESPACE test-nifi-node-default -o yaml | grep -- 'nifi.web.proxy.host=.*example.com:1234' | xargs test ! -z

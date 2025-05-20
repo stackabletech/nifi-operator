@@ -43,7 +43,7 @@ spec:
         replicas: 3
 ----
 
-<1> The xref:usage_guide/zookeeper-connection.adoc[ZooKeeper instance] to use.
+<1> The xref:usage_guide/clustering.adoc#backend-zookeeper[ZooKeeper instance] to use.
 <2> How users should xref:usage_guide/security.adoc[authenticate] themselves.
 <3> xref:usage_guide/extra-volumes.adoc[Extra volumes] with files that can be referenced in custom workflows.
 <4> xref:usage_guide/resource-configuration.adoc[CPU and memory configuration] can be set per role group.

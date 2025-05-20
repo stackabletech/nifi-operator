@@ -1,0 +1,41 @@
+= Clustering
+:description: Apache NiFi requires a backend for cluster management, and supports either Kubernetes or Apache ZooKeeper.
+:page-aliases: usage_guide/zookeeper-connection.adoc
+
+Apache NiFi requires{empty}footnote:[Apache NiFi also supports a single-node mode with no cluster backend, but this is not supported by the Stackable Operator for Apache NiFi. The Stackable Operator does require a cluster backend.] an external backend for state management and leader election.
+
+Currently, the Stackable Operator for Apache NiFi supports the following backends:
+
+- xref:#backend-kubernetes[]
+- xref:#backend-zookeeper[]
+
+CAUTION: The cluster backend of an existing cluster should never be changed. Otherwise data loss may occur, both due to losing NiFi processor state, and due to potential split-brain scenarios during the migration.
+
+[#backend-kubernetes]
+== Kubernetes
+
+NOTE: The Kubernetes provider is only supported by Apache NiFi 2.0 or newer. When using NiFi 1.x, use the xref:#backend-zookeeper[] backend instead.
+
+The Kubernetes backend is used by default (unless the xref:#backend-zookeeper[] backend is configured), and stores all state in Kubernetes objects, in the same namespace as the `NifiCluster` object.
+
+It takes no configuration.
+
+[#backend-zookeeper]
+== Apache ZooKeeper
+
+NiFi can also be configured to store its state in Apache ZooKeeper.
+
+NiFi in cluster mode requires an Apache ZooKeeper ensemble for state management and leader election purposes, the Stackable operator for Apache NiFi does not support single node deployments without ZooKeeper, hence this is a required setting.
+
+This is enabled by setting the `spec.clusterConfig.zookeeperConfigMapName` to a xref:concepts:service-discovery.adoc[discovery ConfigMap]:
+
+[source,yaml]
+----
+spec:
+  clusterConfig:
+    zookeeperConfigMapName: simple-nifi-znode
+----
+
+The ConfigMap needs to contain two keys: `ZOOKEEPER_HOSTS` containing the value being the ZooKeeper connection string, and `ZOOKEEPER_CHROOT` containing the ZooKeeper chroot.
+
+The xref:zookeeper:index.adoc[Stackable operator for Apache ZooKeeper] automatically creates this ConfigMap for every ZookeeperZnode object.
