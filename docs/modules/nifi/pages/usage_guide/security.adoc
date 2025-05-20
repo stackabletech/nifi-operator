@@ -235,10 +235,10 @@ The payload sent by NiFi with each request to OPA, that is accessible within the
 | The action taken against the resource.
 |`read`, `write`
 | resource.id
-| The unique identifier of the resource that is being authorized.
+| The unique identifier of the resource that is being authorized. This might be a parent component in the case of `resourceNotFound` is set to `true`. 
 |
 | resource.name
-| The name of the resource that is being authorized.
+| The name of the resource that is being authorized. This might be a parent component in the case of `resourceNotFound` is set to `true`.
 |
 | resource.safeDescription
 | The description of the resource that is being authorized.
@@ -250,7 +250,7 @@ The payload sent by NiFi with each request to OPA, that is accessible within the
 | The name of the original resource that is being authorized on  (see <<component-level-access-policies>>).
 |
 | requestedResource.safeDescription
-| The description of the resource that is being authorized on (see <<component-level-access-policies>>).
+| The description of the original resource that is being authorized on (see <<component-level-access-policies>>).
 |
 | identity.name
 | The name of the identity/user accessing the resource.
@@ -286,7 +286,7 @@ The OPA authorizer plugin expects rego rules to be named `allow` and to return a
 }
 ----
 <1> Whether the action against the resource is allowed. Optional, defaults to false.
-<2> Whether no rule was found for the authorization request. This should only be set to true in the default rule. If set to true the value of the "allowed" field will be ignored. Optional, defaults to false.
+<2> Whether no rule was found for the authorization request. This should only be set to true in the default rule to e.g. forward policy decisions to parent components. If set to true the value of the "allowed" field will be ignored. Optional, defaults to false.
 <3> Whether the whole local cache in the OPA authorizer plugin in NiFi should be invalidated. Optional, defaults to false.
 <4> An optional error message that is shown to the user when access is denied.
 
@@ -309,21 +309,21 @@ To manage access for all process groups in the NiFi instance a rule has to be de
 ----
 default allow := {
   "resourceNotFound": true
-} <1>
+} # <1>
 
 allow := {
   "allowed": true
 } if {
   input.resource.name == "NiFi Flow"
   startswith(input.resource.id, "/process-groups")
-} <2>
+} # <2>
 
 allow := {
   "allowed": false
 } if {
   input.resource.id == "/process-groups/a10c311e-0196-1000-2856-dc0606d3c5d7"
   input.identity.name == "alice"
-} <3>
+} # <3>
 ----
 <1> The default rule should return `"resourceNotFound": true`. If this is not set, NiFi's access policy inheritance will not work. Any values for the `allowed` field in the response will be ignored.
 <2> A rule that grants all users access to the root process group and thus to all components in the NiFi instance.
