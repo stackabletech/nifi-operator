@@ -276,7 +276,7 @@ The payload sent by NiFi with each request to OPA, that is accessible within the
 ==== OPA Result
 
 The OPA authorizer plugin expects rego rules to be named `allow` and to return a result following this schema:
-[source,json]
+[source]
 ----
 {
     "allowed": <Boolean>, # <1>
