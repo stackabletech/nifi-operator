@@ -6,7 +6,6 @@ import time
 import json
 import urllib3
 from bs4 import BeautifulSoup
-from requests.exceptions import JSONDecodeError
 
 # disable tls insecure warnings
 urllib3.disable_warnings()
@@ -90,20 +89,16 @@ def get_process_group_b(session: requests.Session) -> requests.Response:
 
 
 def get_processor_e(session: requests.Session) -> requests.Response:
-    return get_resource(
-        session, "/processors/9d95cac3-2759-3fce-9c07-71215b0fb554"
-    )
+    return get_resource(session, "/processors/9d95cac3-2759-3fce-9c07-71215b0fb554")
 
 
 def get_counters(session: requests.Session) -> requests.Response:
     return get_resource(session, "/counters")
 
 
-def get_resource(
-    session: requests.Session, resource: str
-) -> requests.Response:
+def get_resource(session: requests.Session, resource: str) -> requests.Response:
     response = session.get(
-       f"https://{nifi}:8443/nifi-api{resource}?uiOnly=true",
+        f"https://{nifi}:8443/nifi-api{resource}?uiOnly=true",
         verify=False,
     )
 
