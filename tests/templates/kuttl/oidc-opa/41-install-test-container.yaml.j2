@@ -51,8 +51,6 @@ spec:
         app: python
     spec:
       serviceAccountName: python
-      securityContext:
-        fsGroup: 1000
       containers:
         - name: oidc-login-test
           image: oci.stackable.tech/sdp/testing-tools:0.2.0-stackable0.0.0-dev
