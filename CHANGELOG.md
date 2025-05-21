@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
   - Use `--file-log-max-files` (or `FILE_LOG_MAX_FILES`) to limit the number of log files kept.
   - Use `--file-log-rotation-period` (or `FILE_LOG_ROTATION_PERIOD`) to configure the frequency of rotation.
   - Use `--console-log-format` (or `CONSOLE_LOG_FORMAT`) to set the format to `plain` (default) or `json`.
+- Add test for Apache Iceberg integration ([#785]).
 
 ### Changed
 
@@ -40,6 +41,7 @@ All notable changes to this project will be documented in this file.
 [#774]: https://github.com/stackabletech/nifi-operator/pull/774
 [#776]: https://github.com/stackabletech/nifi-operator/pull/776
 [#782]: https://github.com/stackabletech/nifi-operator/pull/782
+[#785]: https://github.com/stackabletech/nifi-operator/pull/785
 [#787]: https://github.com/stackabletech/nifi-operator/pull/787
 [#784]: https://github.com/stackabletech/nifi-operator/pull/784
 [#789]: https://github.com/stackabletech/nifi-operator/pull/789

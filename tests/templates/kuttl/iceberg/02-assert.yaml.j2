@@ -1,12 +1,14 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-timeout: 600
+timeout: 300
+{% if test_scenario['values']['iceberg-use-kerberos'] == 'true' %}
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: zookeeper-server-default
+  name: krb5-kdc
 status:
   readyReplicas: 1
   replicas: 1
+{% endif %}

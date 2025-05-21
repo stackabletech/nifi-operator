@@ -1,0 +1,17 @@
+---
+apiVersion: opa.stackable.tech/v1alpha1
+kind: OpaCluster
+metadata:
+  name: opa
+spec:
+  image:
+{% if test_scenario['values']['opa-l'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['opa-l'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['opa-l'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['opa-l'] }}"
+{% endif %}
+  servers:
+    roleGroups:
+      default:
+        replicas: 1
