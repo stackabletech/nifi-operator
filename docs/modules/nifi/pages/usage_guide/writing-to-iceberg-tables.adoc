@@ -8,7 +8,7 @@ Iceberg brings the reliability and simplicity of SQL tables to big data, while m
 NiFi supports a `PutIceberg` processor to add rows to an existing Iceberg table https://issues.apache.org/jira/browse/NIFI-10442[starting from version 1.19.0].
 As of NiFi version `2.4.0` only `PutIceberg` is supported, you need to create and compact your tables with other tools such as Trino or Spark (both included in the Stackable Data Platform).
 
-== NiFi 2.x
+== NiFi 2
 
 In NiFi `2.0.0` Iceberg support https://issues.apache.org/jira/browse/NIFI-13938[has been removed] from upstream NiFi.
 
@@ -20,7 +20,7 @@ You don't need any special configs on the `NiFiCluster` in case you are using S3
 
 HDFS and Kerberos are also supported, please have a look at the https://github.com/stackabletech/nifi-operator/tree/main/tests/templates/kuttl/iceberg[Iceberg integration test] for that.
 
-== NiFi 1.x
+== NiFi 1
 
 Starting with `1.19.0`, NiFi supports writing to Iceberg tables.
 
