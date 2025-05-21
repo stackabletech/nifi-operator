@@ -216,8 +216,8 @@ spec:
 <2> The rego rule package to use for policy decisions.
 The package needs to contain an `allow` rule.
 This is optional and defaults to the name of the NiFi Stacklet.
-<3> TTL for items in the cache in NiFi.
-<4> Maximum number of concurrent entries in the cache in NiFi
+<3> TTL for items in the cache in NiFi. Optional, defaults to 30 seconds.
+<4> Maximum number of concurrent entries in the cache in NiFi. Optional, defaults to 10000 entries.
 
 [#defining-rego-rules]
 === Defining rego rules
