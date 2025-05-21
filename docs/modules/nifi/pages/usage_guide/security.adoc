@@ -347,7 +347,7 @@ allow := {
 [#caching]
 ==== Caching
 
-The OPA authorizer has a mechanism to cache results from OPA which can be configured in the NifCluster spec (see above). To delete the whole cache add `"dumpCache": true` to the result.
+The OPA authorizer has a mechanism to cache results from OPA which can be configured in the NifiCluster spec (see above). To delete the whole cache add `"dumpCache": true` to the result.
 [source,rego]
 ----
 allow := {
