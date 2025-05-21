@@ -30,10 +30,10 @@ dimensions:
       - 3.9.3
   - name: opa-l
     values:
-      - 1.0.1
+      - 1.4.2
   - name: hdfs-l
     values:
-      - 3.4.0
+      - 3.4.1
   - name: hive-l
     values:
       - 4.0.1
