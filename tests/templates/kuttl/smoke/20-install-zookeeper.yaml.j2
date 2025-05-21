@@ -2,7 +2,7 @@
 apiVersion: zookeeper.stackable.tech/v1alpha1
 kind: ZookeeperCluster
 metadata:
-  name: test-zk
+  name: zookeeper
 spec:
   image:
     productVersion: "{{ test_scenario['values']['zookeeper'] }}"
@@ -19,11 +19,3 @@ spec:
     roleGroups:
       default:
         replicas: 1
----
-apiVersion: zookeeper.stackable.tech/v1alpha1
-kind: ZookeeperZnode
-metadata:
-  name: test-nifi-znode
-spec:
-  clusterRef:
-    name: test-zk
