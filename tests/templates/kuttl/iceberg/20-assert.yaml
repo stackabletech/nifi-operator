@@ -4,9 +4,16 @@ kind: TestAssert
 timeout: 600
 ---
 apiVersion: apps/v1
-kind: StatefulSet
+kind: Deployment
 metadata:
-  name: zookeeper-server-default
+  name: minio
 status:
   readyReplicas: 1
   replicas: 1
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-post-job
+status:
+  succeeded: 1

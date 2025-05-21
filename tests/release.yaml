@@ -12,9 +12,15 @@ releases:
         operatorVersion: 0.0.0-dev
       listener:
         operatorVersion: 0.0.0-dev
+      opa:
+        operatorVersion: 0.0.0-dev
       zookeeper:
         operatorVersion: 0.0.0-dev
-      opa:
+      hdfs:
+        operatorVersion: 0.0.0-dev
+      hive:
+        operatorVersion: 0.0.0-dev
+      trino:
         operatorVersion: 0.0.0-dev
       nifi:
         operatorVersion: 0.0.0-dev

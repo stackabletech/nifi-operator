@@ -1,9 +1,0 @@
----
-apiVersion: kuttl.dev/v1beta1
-kind: TestStep
-commands:
-  - script: >-
-      kubectl --namespace $NAMESPACE
-      patch nificlusters.nifi.stackable.tech test-nifi
-      --type=merge --patch '{"spec":{"config": {"authentication": {"allowAnonymousAccess": true}}}}'
-  - command: kubectl rollout restart statefulset test-nifi-node-default --namespace $NAMESPACE
