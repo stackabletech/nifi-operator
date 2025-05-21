@@ -1,10 +1,12 @@
 pub mod affinity;
 pub mod authentication;
+pub mod sensitive_properties;
 pub mod tls;
 
 use std::collections::BTreeMap;
 
 use affinity::get_affinity;
+use sensitive_properties::NifiSensitivePropertiesConfig;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -80,6 +82,8 @@ pub enum Error {
 
 #[versioned(version(name = "v1alpha1"))]
 pub mod versioned {
+    use super::sensitive_properties::NifiSensitivePropertiesConfig;
+
     /// A NiFi cluster stacklet. This resource is managed by the Stackable operator for Apache NiFi.
     /// Find more information on how to use it and the resources that the operator generates in the
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/).
@@ -337,71 +341,6 @@ impl CurrentlySupportedListenerClasses {
             CurrentlySupportedListenerClasses::ClusterInternal => "ClusterIP".to_string(),
             CurrentlySupportedListenerClasses::ExternalUnstable => "NodePort".to_string(),
         }
-    }
-}
-
-/// These settings configure the encryption of sensitive properties in NiFi processors.
-/// NiFi supports encrypting sensitive properties in processors as they are written to disk.
-/// You can configure the encryption algorithm and the key to use.
-/// You can also let the operator generate an encryption key for you.
-#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NifiSensitivePropertiesConfig {
-    /// A reference to a Secret. The Secret needs to contain a key `nifiSensitivePropsKey`.
-    /// If `autoGenerate` is false and this object is missing, the Operator will raise an error.
-    /// The encryption key needs to be at least 12 characters long.
-    pub key_secret: String,
-
-    /// Whether to generate the `keySecret` if it is missing.
-    /// Defaults to `false`.
-    #[serde(default)]
-    pub auto_generate: bool,
-
-    /// This is setting the `nifi.sensitive.props.algorithm` property in NiFi.
-    /// This setting configures the encryption algorithm to use to encrypt sensitive properties.
-    /// Valid values are:
-    ///
-    /// `nifiPbkdf2AesGcm256` (the default value),
-    /// `nifiArgon2AesGcm256`,
-    ///
-    /// The following algorithms are deprecated and will be removed in future versions:
-    ///
-    /// `nifiArgon2AesGcm128`,
-    /// `nifiBcryptAesGcm128`,
-    /// `nifiBcryptAesGcm256`,
-    /// `nifiPbkdf2AesGcm128`,
-    /// `nifiScryptAesGcm128`,
-    /// `nifiScryptAesGcm256`.
-    ///
-    /// Learn more about the specifics of the algorithm parameters in the
-    /// [NiFi documentation](https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#property-encryption-algorithms).
-    pub algorithm: Option<NifiSensitiveKeyAlgorithm>,
-}
-
-#[derive(strum::Display, Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub enum NifiSensitiveKeyAlgorithm {
-    #[strum(serialize = "NIFI_ARGON2_AES_GCM_128")]
-    NifiArgon2AesGcm128,
-    #[strum(serialize = "NIFI_ARGON2_AES_GCM_256")]
-    NifiArgon2AesGcm256,
-    #[strum(serialize = "NIFI_BCRYPT_AES_GCM_128")]
-    NifiBcryptAesGcm128,
-    #[strum(serialize = "NIFI_BCRYPT_AES_GCM_256")]
-    NifiBcryptAesGcm256,
-    #[strum(serialize = "NIFI_PBKDF2_AES_GCM_128")]
-    NifiPbkdf2AesGcm128,
-    #[strum(serialize = "NIFI_PBKDF2_AES_GCM_256")]
-    NifiPbkdf2AesGcm256,
-    #[strum(serialize = "NIFI_SCRYPT_AES_GCM_128")]
-    NifiScryptAesGcm128,
-    #[strum(serialize = "NIFI_SCRYPT_AES_GCM_256")]
-    NifiScryptAesGcm256,
-}
-
-impl Default for NifiSensitiveKeyAlgorithm {
-    fn default() -> Self {
-        Self::NifiArgon2AesGcm256
     }
 }
 

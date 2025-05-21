@@ -20,7 +20,7 @@ use strum::{Display, EnumIter};
 use crate::{
     crd::{
         HTTPS_PORT, NifiConfig, NifiConfigFragment, NifiRole, NifiStorageConfig, PROTOCOL_PORT,
-        v1alpha1,
+        sensitive_properties, v1alpha1,
     },
     operations::graceful_shutdown::graceful_shutdown_config_properties,
     security::{
@@ -96,6 +96,9 @@ pub enum Error {
 
     #[snafu(display("failed to generate OIDC config"))]
     GenerateOidcConfig { source: oidc::Error },
+
+    #[snafu(display("failed to configure sensitive properties"))]
+    ConfigureSensitiveProperties { source: sensitive_properties::Error },
 }
 
 /// Create the NiFi bootstrap.conf
@@ -473,15 +476,20 @@ pub fn build_nifi_properties(
         "".to_string(),
     );
 
-    let algorithm = &spec
+    let sensitive_properties_algorithm = &spec
         .cluster_config
         .sensitive_properties
         .algorithm
         .clone()
         .unwrap_or_default();
+
+    sensitive_properties_algorithm
+        .check_for_nifi_version(spec.image.product_version())
+        .context(ConfigureSensitivePropertiesSnafu)?;
+
     properties.insert(
         "nifi.sensitive.props.algorithm".to_string(),
-        algorithm.to_string(),
+        sensitive_properties_algorithm.to_string(),
     );
 
     // key and trust store
