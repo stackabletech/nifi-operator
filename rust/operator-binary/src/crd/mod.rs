@@ -82,8 +82,6 @@ pub enum Error {
 
 #[versioned(version(name = "v1alpha1"))]
 pub mod versioned {
-    use super::sensitive_properties::NifiSensitivePropertiesConfig;
-
     /// A NiFi cluster stacklet. This resource is managed by the Stackable operator for Apache NiFi.
     /// Find more information on how to use it and the resources that the operator generates in the
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/).
