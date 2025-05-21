@@ -1,0 +1,47 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: |
+      kubectl apply -n $NAMESPACE -f - <<EOF
+      ---
+      apiVersion: opa.stackable.tech/v1alpha1
+      kind: OpaCluster
+      metadata:
+        name: opa
+      spec:
+        image:
+          productVersion: "{{ test_scenario['values']['opa-l'] }}"
+          pullPolicy: IfNotPresent
+        clusterConfig:
+          userInfo:
+            backend:
+              keycloak:
+                hostname: keycloak.$NAMESPACE.svc.cluster.local
+{% if test_scenario['values']['oidc-use-tls'] == 'true' %}
+                port: 8443
+                tls:
+                  verification:
+                    server:
+                      caCert:
+                        secretClass: keycloak-tls-$NAMESPACE
+{% else %}
+                port: 8080
+{% endif %}
+                clientCredentialsSecret: user-info-fetcher-client-credentials
+                adminRealm: test
+                userRealm: test
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+          vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
+        servers:
+          config:
+            logging:
+              enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+              containers:
+                opa:
+                  loggers:
+                    decision:
+                      level: INFO
+          roleGroups:
+            default: {}

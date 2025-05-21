@@ -1,0 +1,192 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: user-info-fetcher-client-credentials
+stringData:
+  clientId: user-info-fetcher
+  clientSecret: user-info-fetcher-client-secret
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nifi-client-credentials
+stringData:
+  clientId: nifi
+  clientSecret: nifi-client-secret
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-test-realm
+data:
+  realm.json: |
+    {
+      "realm": "test",
+      "enabled": true,
+      "attributes": {
+        "frontendUrl": "keycloak.$NAMESPACE.svc.cluster.local"
+      },
+      "groups": [
+        {
+          "name": "nifi-admin",
+          "path": "/nifi-admin"
+        },
+        {
+          "name": "nifi-user",
+          "path": "/nifi-user"
+        },
+        {
+          "name": "nifi-process-group-a",
+          "path": "/nifi-process-group-a"
+        },
+        {
+          "name": "nifi-process-group-b",
+          "path": "/nifi-process-group-b"
+        }
+      ],
+      "users": [
+        {
+          "username": "nifi-admin",
+          "enabled": true,
+          "emailVerified": true,
+          "firstName": "nifi-admin",
+          "lastName": "nifi-admin",
+          "email": "nifi-admin@example.com",
+          "credentials": [
+            {
+              "type": "password",
+              "value": "nifi-admin"
+            }
+          ],
+          "realmRoles": [
+            "default-roles-my-dataspace"
+          ],
+          "groups": [
+            "/nifi-admin"
+          ]
+        },
+        {
+          "username": "alice",
+          "enabled": true,
+          "emailVerified": true,
+          "firstName": "alice",
+          "lastName": "alice",
+          "email": "alice@example.com",
+          "credentials": [
+            {
+              "type": "password",
+              "value": "alice"
+            }
+          ],
+          "realmRoles": [
+            "default-roles-my-dataspace"
+          ],
+          "groups": [
+            "/nifi-user",
+            "/nifi-process-group-a"
+          ]
+        },
+        {
+          "username": "bob",
+          "enabled": true,
+          "emailVerified": true,
+          "firstName": "bob",
+          "lastName": "bob",
+          "email": "bob@example.com",
+          "credentials": [
+            {
+              "type": "password",
+              "value": "bob"
+            }
+          ],
+          "realmRoles": [],
+          "groups": [
+            "/nifi-user",
+            "/nifi-process-group-b"
+          ]
+        },
+        {
+          "username": "charlie",
+          "enabled": true,
+          "emailVerified": true,
+          "firstName": "charlie",
+          "lastName": "charlie",
+          "email": "charlie@example.com",
+          "credentials": [
+            {
+              "type": "password",
+              "value": "charlie"
+            }
+          ],
+          "realmRoles": [
+            "default-roles-my-dataspace"
+          ],
+          "groups": [
+            "/nifi-user"
+          ]
+        },
+        {
+          "username": "service-account-user-info-fetcher",
+          "enabled": true,
+          "totp": false,
+          "emailVerified": false,
+          "serviceAccountClientId": "user-info-fetcher",
+          "credentials": [],
+          "disableableCredentialTypes": [],
+          "requiredActions": [],
+          "realmRoles": [
+            "default-roles-my-dataspace"
+          ],
+          "clientRoles": {
+            "realm-management": [
+              "view-users"
+            ]
+          },
+          "notBefore": 0,
+          "groups": []
+        }
+      ],
+      "clients": [
+        {
+          "clientId": "user-info-fetcher",
+          "surrogateAuthRequired": false,
+          "enabled": true,
+          "alwaysDisplayInConsole": false,
+          "clientAuthenticatorType": "client-secret",
+          "secret": "user-info-fetcher-client-secret",
+          "redirectUris": [
+            "/*"
+          ],
+          "webOrigins": [
+            "/*"
+          ],
+          "notBefore": 0,
+          "bearerOnly": false,
+          "serviceAccountsEnabled": true,
+          "publicClient": false,
+          "frontchannelLogout": true,
+          "protocol": "openid-connect",
+          "attributes": {
+            "oidc.ciba.grant.enabled": "true",
+            "oauth2.device.authorization.grant.enabled": "false"
+          },
+          "authenticationFlowBindingOverrides": {},
+          "fullScopeAllowed": true
+        },
+        {
+          "clientId": "nifi",
+          "enabled": true,
+          "clientAuthenticatorType": "client-secret",
+          "secret": "nifi-client-secret",
+          "redirectUris": [
+            "*"
+          ],
+          "webOrigins": [
+            "*"
+          ],
+          "standardFlowEnabled": true,
+          "protocol": "openid-connect"
+        }
+      ]
+    }

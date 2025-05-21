@@ -1,0 +1,5 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: envsubst < 19_keycloak.yaml | kubectl apply -n $NAMESPACE -f -

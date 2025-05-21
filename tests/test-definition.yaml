@@ -105,11 +105,12 @@ tests:
       - nifi-latest
       - zookeeper-latest
       - openshift
-  - name: oidc
+  - name: oidc-opa
     dimensions:
       - nifi
       - zookeeper-latest
       - oidc-use-tls
+      - opa-l
       - openshift
   - name: iceberg
     dimensions:
