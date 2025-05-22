@@ -24,6 +24,7 @@ All notable changes to this project will be documented in this file.
 - BREAKING: Inject the vector aggregator address into the vector config using the env var `VECTOR_AGGREGATOR_ADDRESS` instead
     of having the operator write it to the vector config ([#772]).
 - test: Bump to Vector `0.46.1` ([#789]).
+- Use versioned common structs ([#798]).
 
 ### Fixed
 
@@ -43,6 +44,7 @@ All notable changes to this project will be documented in this file.
 [#785]: https://github.com/stackabletech/nifi-operator/pull/785
 [#787]: https://github.com/stackabletech/nifi-operator/pull/787
 [#789]: https://github.com/stackabletech/nifi-operator/pull/789
+[#798]: https://github.com/stackabletech/nifi-operator/pull/798
 
 ## [25.3.0] - 2025-03-21
 
