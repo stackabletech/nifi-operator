@@ -88,6 +88,7 @@ impl NifiSensitiveKeyAlgorithm {
             NifiSensitiveKeyAlgorithm::NifiPbkdf2AesGcm256
             | NifiSensitiveKeyAlgorithm::NifiArgon2AesGcm256 => {}
             // All others are deprecated in 1.x.x and removed in 2.x.x
+            // see https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#property-encryption-algorithms
             _ => {
                 if product_version.starts_with("1.") {
                     tracing::warn!(
