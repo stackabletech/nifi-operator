@@ -5,7 +5,7 @@ use futures::stream::StreamExt;
 use stackable_operator::{
     YamlSchema,
     cli::{Command, ProductOperatorRun},
-    commons::authentication::AuthenticationClass,
+    crd::authentication::core,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Service},
@@ -119,7 +119,7 @@ async fn main() -> anyhow::Result<()> {
                 )
                 .shutdown_on_signal()
                 .watches(
-                    client.get_api::<DeserializeGuard<AuthenticationClass>>(&()),
+                    client.get_api::<DeserializeGuard<core::v1alpha1::AuthenticationClass>>(&()),
                     watcher::Config::default(),
                     move |_| {
                         authentication_class_store

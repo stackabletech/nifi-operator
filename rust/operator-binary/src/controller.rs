@@ -26,11 +26,9 @@ use stackable_operator::{
     },
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
-    commons::{
-        authentication::oidc::AuthenticationProvider,
-        product_image_selection::ResolvedProductImage, rbac::build_rbac_resources,
-    },
+    commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
     config::fragment,
+    crd::authentication::oidc,
     k8s_openapi::{
         DeepMerge,
         api::{
@@ -940,9 +938,11 @@ async fn build_node_rolegroup_statefulset(
     ));
 
     if let NifiAuthenticationConfig::Oidc { oidc, .. } = authentication_config {
-        env_vars.extend(AuthenticationProvider::client_credentials_env_var_mounts(
-            oidc.client_credentials_secret_ref.clone(),
-        ));
+        env_vars.extend(
+            oidc::v1alpha1::AuthenticationProvider::client_credentials_env_var_mounts(
+                oidc.client_credentials_secret_ref.clone(),
+            ),
+        );
     }
 
     env_vars.extend(authorization_config.get_env_vars());
@@ -1393,7 +1393,7 @@ async fn build_node_rolegroup_statefulset(
                 ),
                 ..LabelSelector::default()
             },
-            service_name: rolegroup_ref.object_name(),
+            service_name: Some(rolegroup_ref.object_name()),
             template: pod_template,
             update_strategy: Some(StatefulSetUpdateStrategy {
                 type_: if rolling_update_supported {
