@@ -74,15 +74,10 @@ pub enum NifiAuthenticationConfig {
 }
 
 impl NifiAuthenticationConfig {
-    pub fn get_auth_config(&self) -> Result<(String, String), Error> {
+    pub fn get_authentication_config(&self) -> Result<String, Error> {
         let mut login_identity_provider_xml = indoc! {r#"
             <?xml version="1.0" encoding="UTF-8" standalone="no"?>
             <loginIdentityProviders>
-        "#}
-        .to_string();
-        let mut authorizers_xml = indoc! {r#"
-            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-            <authorizers>
         "#}
         .to_string();
 
@@ -97,28 +92,17 @@ impl NifiAuthenticationConfig {
                     </provider>
                 "#,
                 });
-
-                authorizers_xml.push_str(indoc! {r#"
-                    <authorizer>
-                        <identifier>authorizer</identifier>
-                        <class>org.apache.nifi.authorization.single.user.SingleUserAuthorizer</class>
-                    </authorizer>
-                "#});
             }
             Self::Ldap { provider } => {
                 login_identity_provider_xml.push_str(&get_ldap_login_identity_provider(provider)?);
-                authorizers_xml.push_str(&get_ldap_authorizer(provider)?);
             }
         }
 
         login_identity_provider_xml.push_str(indoc! {r#"
             </loginIdentityProviders>
         "#});
-        authorizers_xml.push_str(indoc! {r#"
-            </authorizers>
-        "#});
 
-        Ok((login_identity_provider_xml, authorizers_xml))
+        Ok(login_identity_provider_xml)
     }
 
     pub fn get_user_and_password_file_paths(&self) -> (String, String) {
@@ -338,45 +322,4 @@ fn get_ldap_login_identity_provider(
         search_base = ldap.search_base,
         keystore_path = STACKABLE_SERVER_TLS_DIR,
     })
-}
-
-fn get_ldap_authorizer(ldap: &ldap::v1alpha1::AuthenticationProvider) -> Result<String, Error> {
-    let (username_file, _) = ldap
-        .bind_credentials_mount_paths()
-        .context(LdapAuthenticationClassMissingBindCredentialsSnafu)?;
-
-    Ok(formatdoc! {r#"
-        <userGroupProvider>
-            <identifier>file-user-group-provider</identifier>
-            <class>org.apache.nifi.authorization.FileUserGroupProvider</class>
-            <property name="Users File">./conf/users.xml</property>
-
-            <!-- As we currently don't have authorization (including admin user) configurable we simply paste in the ldap bind user in here -->
-            <!-- In the future the whole authorization may be reworked to OPA -->
-            <property name="Initial User Identity admin">${{file:UTF-8:{username_file}}}</property>
-
-            <!-- As the secret-operator provides the NiFi nodes with cert with a common name of "generated certificate for pod" we have to put that here -->
-            <property name="Initial User Identity other-nifis">CN=generated certificate for pod</property>
-        </userGroupProvider>
-
-        <accessPolicyProvider>
-            <identifier>file-access-policy-provider</identifier>
-            <class>org.apache.nifi.authorization.FileAccessPolicyProvider</class>
-            <property name="User Group Provider">file-user-group-provider</property>
-            <property name="Authorizations File">./conf/authorizations.xml</property>
-
-            <!-- As we currently don't have authorization (including admin user) configurable we simply paste in the ldap bind user in here -->
-            <!-- In the future the whole authorization may be reworked to OPA -->
-            <property name="Initial Admin Identity">${{file:UTF-8:{username_file}}}</property>
-
-            <!-- As the secret-operator provides the NiFi nodes with cert with a common name of "generated certificate for pod" we have to put that here -->
-            <property name="Node Identity other-nifis">CN=generated certificate for pod</property>
-        </accessPolicyProvider>
-
-        <authorizer>
-            <identifier>authorizer</identifier>
-            <class>org.apache.nifi.authorization.StandardManagedAuthorizer</class>
-            <property name="Access Policy Provider">file-access-policy-provider</property>
-        </authorizer>
-    "#})
 }

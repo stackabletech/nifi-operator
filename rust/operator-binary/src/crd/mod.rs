@@ -10,7 +10,9 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
+        cache::UserInformationCache,
         cluster_operation::ClusterOperation,
+        opa::OpaConfig,
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
@@ -115,9 +117,14 @@ pub mod versioned {
     #[serde(rename_all = "camelCase")]
     pub struct NifiClusterConfig {
         /// Authentication options for NiFi (required).
-        /// Read more about authentication in the [security documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/security).
+        /// Read more about authentication in the [security documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/security#authentication).
         // We don't add `#[serde(default)]` here, as we require authentication
         pub authentication: Vec<auth_core::v1alpha1::ClientAuthenticationDetails>,
+
+        /// Authorization options.
+        /// Learn more in the [NiFi authorization usage guide](DOCS_BASE_URL_PLACEHOLDER/nifi/usage-guide/security#authorization).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub authorization: Option<NifiAuthorization>,
 
         /// Configuration of allowed proxies e.g. load balancers or Kubernetes Ingress. Using a proxy that is not allowed by NiFi results
         /// in a failed host header check.
@@ -276,6 +283,22 @@ impl v1alpha1::NifiCluster {
         tracing::debug!("Merged config: {:?}", conf_rolegroup);
         fragment::validate(conf_rolegroup).context(FragmentValidationFailureSnafu)
     }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NifiAuthorization {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub opa: Option<NifiOpaConfig>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NifiOpaConfig {
+    #[serde(flatten)]
+    pub opa: OpaConfig,
+    #[serde(default)]
+    pub cache: UserInformationCache,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
