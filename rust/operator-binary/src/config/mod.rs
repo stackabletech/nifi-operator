@@ -575,9 +575,9 @@ pub fn build_nifi_properties(
         "${env:ZOOKEEPER_CHROOT}".to_string(),
     );
 
-    //##########################
-    // Python-based processors #
-    //##########################
+    //####################
+    // Custom components #
+    //####################
     if git_sync_resources.is_git_sync_enabled() {
         // The command used to launch Python.
         // This property must be set to enable Python-based processors.
@@ -605,11 +605,15 @@ pub fn build_nifi_properties(
             .enumerate()
         {
             // The directory that NiFi should look in to find custom Python-based
-            // Processors.
+            // components.
             properties.insert(
                 format!("nifi.python.extensions.source.directory.{i}"),
-                git_folder,
+                git_folder.clone(),
             );
+
+            // The directory that NiFi should look in to find custom Java-based
+            // components.
+            properties.insert(format!("nifi.nar.library.directory.{i}"), git_folder);
         }
     }
     //##########################

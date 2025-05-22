@@ -1195,18 +1195,22 @@ async fn build_node_rolegroup_statefulset(
             .context(AddVolumeMountSnafu)?;
     }
 
+    container_nifi
+        .add_volume_mounts(git_sync_resources.git_content_volume_mounts.to_owned())
+        .context(AddVolumeMountSnafu)?;
+
     // We want to add nifi container first for easier defaulting into this container
     pod_builder.add_container(container_nifi.build());
 
     for container in git_sync_resources.git_sync_containers.iter().cloned() {
         pod_builder.add_container(container);
     }
+    for container in git_sync_resources.git_sync_init_containers.iter().cloned() {
+        pod_builder.add_init_container(container);
+    }
     pod_builder
         .add_volumes(git_sync_resources.git_content_volumes.to_owned())
         .context(AddVolumeSnafu)?;
-    container_nifi
-        .add_volume_mounts(git_sync_resources.git_content_volume_mounts.to_owned())
-        .context(AddVolumeMountSnafu)?;
 
     if let Some(ContainerLogConfig {
         choice:

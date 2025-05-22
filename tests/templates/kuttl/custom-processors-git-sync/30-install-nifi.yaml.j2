@@ -53,19 +53,19 @@ spec:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
     podOverrides:
       spec:
-        # initContainers:
-        #   - name: init-flow
-        #     image: oci.stackable.tech/sdp/testing-tools:0.2.0-stackable0.0.0-dev
-        #     command:
-        #       - /bin/bash
-        #       - -c
-        #     args:
-        #       - gzip --stdout /stackable/nifi/flow/flow.json > /stackable/data/database/flow.json.gz
-        #     volumeMounts:
-        #       - name: nifi-flow
-        #         mountPath: /stackable/nifi/flow
-        #       - name: database-repository
-        #         mountPath: /stackable/data/database
+        initContainers:
+          - name: init-flow
+            image: oci.stackable.tech/sdp/testing-tools:0.2.0-stackable0.0.0-dev
+            command:
+              - /bin/bash
+              - -c
+            args:
+              - gzip --stdout /stackable/nifi/flow/flow.json > /stackable/data/database/flow.json.gz
+            volumeMounts:
+              - name: nifi-flow
+                mountPath: /stackable/nifi/flow
+              - name: database-repository
+                mountPath: /stackable/data/database
         containers:
           - name: nifi
             ports:
@@ -115,8 +115,8 @@ data:
       "reportingTasks": [],
       "flowAnalysisRules": [],
       "rootGroup": {
-        "identifier": "a0c74b17-4386-3e84-8de4-6cefe4328565",
-        "instanceIdentifier": "243351c2-0196-1000-9730-38306d34ae6d",
+        "identifier": "a0cca604-51c7-32b2-9529-72ec3566e93c",
+        "instanceIdentifier": "f7cda0ce-0196-1000-30b6-0f5577f07b63",
         "name": "NiFi Flow",
         "comments": "",
         "position": {
@@ -127,80 +127,21 @@ data:
         "remoteProcessGroups": [],
         "processors": [
           {
-            "identifier": "a36b7e9b-c90a-3fad-9a53-53450ff2efd7",
-            "instanceIdentifier": "25736232-0196-1000-0000-00003edfe17e",
-            "name": "HandleHttpResponse",
+            "identifier": "238c6f6f-9e6b-3faf-bcdc-7058c9473c76",
+            "instanceIdentifier": "f80dee83-0196-1000-0000-000051a29aa3",
+            "name": "ShoutProcessor",
             "comments": "",
             "position": {
-              "x": -248.0,
-              "y": -24.0
+              "x": -112.0,
+              "y": 96.0
             },
-            "type": "org.apache.nifi.processors.standard.HandleHttpResponse",
+            "type": "tech.stackable.nifi.processors.sample.ShoutProcessor",
             "bundle": {
-              "group": "org.apache.nifi",
-              "artifact": "nifi-standard-nar",
-              "version": "2.2.0"
+              "group": "tech.stackable.nifi",
+              "artifact": "nifi-sample-nar",
+              "version": "1.0.0"
             },
-            "properties": {
-              "HTTP Context Map": "2572dfc2-0196-1000-ffff-ffffb3493dd1",
-              "HTTP Status Code": "200"
-            },
-            "propertyDescriptors": {},
-            "style": {},
-            "schedulingPeriod": "0 sec",
-            "schedulingStrategy": "TIMER_DRIVEN",
-            "executionNode": "ALL",
-            "penaltyDuration": "30 sec",
-            "yieldDuration": "1 sec",
-            "bulletinLevel": "WARN",
-            "runDurationMillis": 0,
-            "concurrentlySchedulableTaskCount": 1,
-            "autoTerminatedRelationships": [
-              "success",
-              "failure"
-            ],
-            "scheduledState": "RUNNING",
-            "retryCount": 10,
-            "retriedRelationships": [],
-            "backoffMechanism": "PENALIZE_FLOWFILE",
-            "maxBackoffPeriod": "10 mins",
-            "componentType": "PROCESSOR",
-            "groupIdentifier": "a0c74b17-4386-3e84-8de4-6cefe4328565"
-          },
-          {
-            "identifier": "c331dc17-5ded-398b-bce0-2a96fa6d8005",
-            "instanceIdentifier": "257286eb-0196-1000-ffff-ffffcfa02e60",
-            "name": "HandleHttpRequest",
-            "comments": "",
-            "position": {
-              "x": -248.0,
-              "y": -664.0
-            },
-            "type": "org.apache.nifi.processors.standard.HandleHttpRequest",
-            "bundle": {
-              "group": "org.apache.nifi",
-              "artifact": "nifi-standard-nar",
-              "version": "2.2.0"
-            },
-            "properties": {
-              "multipart-request-max-size": "1 MB",
-              "Allow POST": "false",
-              "Default URL Character Set": "UTF-8",
-              "Allow DELETE": "false",
-              "Request Header Maximum Size": "8 KB",
-              "Maximum Threads": "200",
-              "HTTP Protocols": "HTTP_1_1",
-              "container-queue-size": "50",
-              "HTTP Context Map": "2572dfc2-0196-1000-ffff-ffffb3493dd1",
-              "multipart-read-buffer-size": "512 KB",
-              "Allow OPTIONS": "false",
-              "Allowed Paths": "/greeting",
-              "Allow GET": "true",
-              "Allow HEAD": "false",
-              "Listening Port": "8090",
-              "Client Authentication": "No Authentication",
-              "Allow PUT": "false"
-            },
+            "properties": {},
             "propertyDescriptors": {},
             "style": {},
             "schedulingPeriod": "0 sec",
@@ -218,54 +159,16 @@ data:
             "backoffMechanism": "PENALIZE_FLOWFILE",
             "maxBackoffPeriod": "10 mins",
             "componentType": "PROCESSOR",
-            "groupIdentifier": "a0c74b17-4386-3e84-8de4-6cefe4328565"
+            "groupIdentifier": "a0cca604-51c7-32b2-9529-72ec3566e93c"
           },
           {
-            "identifier": "aa2534ff-9199-3e7e-9e38-9a974864599f",
-            "instanceIdentifier": "25731de4-0196-1000-ffff-ffffdac9784b",
-            "name": "Shout",
-            "comments": "",
-            "position": {
-              "x": -248.0,
-              "y": -240.0
-            },
-            "type": "Shout",
-            "bundle": {
-              "group": "org.apache.nifi",
-              "artifact": "python-extensions",
-              "version": "1.0.0"
-            },
-            "properties": {},
-            "propertyDescriptors": {},
-            "style": {},
-            "schedulingPeriod": "0 sec",
-            "schedulingStrategy": "TIMER_DRIVEN",
-            "executionNode": "ALL",
-            "penaltyDuration": "30 sec",
-            "yieldDuration": "1 sec",
-            "bulletinLevel": "WARN",
-            "runDurationMillis": 25,
-            "concurrentlySchedulableTaskCount": 1,
-            "autoTerminatedRelationships": [
-              "original",
-              "failure"
-            ],
-            "scheduledState": "RUNNING",
-            "retryCount": 10,
-            "retriedRelationships": [],
-            "backoffMechanism": "PENALIZE_FLOWFILE",
-            "maxBackoffPeriod": "10 mins",
-            "componentType": "PROCESSOR",
-            "groupIdentifier": "a0c74b17-4386-3e84-8de4-6cefe4328565"
-          },
-          {
-            "identifier": "d897a9e1-fb76-3cfe-93af-9cb7fa07a307",
-            "instanceIdentifier": "25723295-0196-1000-0000-0000467c4e68",
+            "identifier": "1975618d-36bc-32b4-9d14-06a14d4dcba0",
+            "instanceIdentifier": "f80d8c53-0196-1000-ffff-ffffb40a54f8",
             "name": "Greet",
             "comments": "",
             "position": {
-              "x": -248.0,
-              "y": -448.0
+              "x": -112.0,
+              "y": -128.0
             },
             "type": "Greet",
             "bundle": {
@@ -294,31 +197,125 @@ data:
             "backoffMechanism": "PENALIZE_FLOWFILE",
             "maxBackoffPeriod": "10 mins",
             "componentType": "PROCESSOR",
-            "groupIdentifier": "a0c74b17-4386-3e84-8de4-6cefe4328565"
+            "groupIdentifier": "a0cca604-51c7-32b2-9529-72ec3566e93c"
+          },
+          {
+            "identifier": "0b7338da-d770-365b-bff5-bba3f0236229",
+            "instanceIdentifier": "f80e3b3f-0196-1000-0000-00004590be6a",
+            "name": "HandleHttpResponse",
+            "comments": "",
+            "position": {
+              "x": -112.0,
+              "y": 320.0
+            },
+            "type": "org.apache.nifi.processors.standard.HandleHttpResponse",
+            "bundle": {
+              "group": "org.apache.nifi",
+              "artifact": "nifi-standard-nar",
+              "version": "2.2.0"
+            },
+            "properties": {
+              "HTTP Context Map": "f80ef95f-0196-1000-ffff-ffffabf564cb",
+              "HTTP Status Code": "200"
+            },
+            "propertyDescriptors": {},
+            "style": {},
+            "schedulingPeriod": "0 sec",
+            "schedulingStrategy": "TIMER_DRIVEN",
+            "executionNode": "ALL",
+            "penaltyDuration": "30 sec",
+            "yieldDuration": "1 sec",
+            "bulletinLevel": "WARN",
+            "runDurationMillis": 0,
+            "concurrentlySchedulableTaskCount": 1,
+            "autoTerminatedRelationships": [
+              "success",
+              "failure"
+            ],
+            "scheduledState": "RUNNING",
+            "retryCount": 10,
+            "retriedRelationships": [],
+            "backoffMechanism": "PENALIZE_FLOWFILE",
+            "maxBackoffPeriod": "10 mins",
+            "componentType": "PROCESSOR",
+            "groupIdentifier": "a0cca604-51c7-32b2-9529-72ec3566e93c"
+          },
+          {
+            "identifier": "522d46b7-8c43-35b7-ab91-2e5150e44e5b",
+            "instanceIdentifier": "f809987c-0196-1000-ffff-fffff71b58df",
+            "name": "HandleHttpRequest",
+            "comments": "",
+            "position": {
+              "x": -112.0,
+              "y": -352.0
+            },
+            "type": "org.apache.nifi.processors.standard.HandleHttpRequest",
+            "bundle": {
+              "group": "org.apache.nifi",
+              "artifact": "nifi-standard-nar",
+              "version": "2.2.0"
+            },
+            "properties": {
+              "multipart-request-max-size": "1 MB",
+              "Allow POST": "false",
+              "Default URL Character Set": "UTF-8",
+              "Allow DELETE": "false",
+              "Request Header Maximum Size": "8 KB",
+              "Maximum Threads": "200",
+              "HTTP Protocols": "HTTP_1_1",
+              "container-queue-size": "50",
+              "HTTP Context Map": "f80ef95f-0196-1000-ffff-ffffabf564cb",
+              "multipart-read-buffer-size": "512 KB",
+              "Allow OPTIONS": "false",
+              "Allowed Paths": "/greeting",
+              "Allow GET": "true",
+              "Allow HEAD": "false",
+              "Listening Port": "8090",
+              "Client Authentication": "No Authentication",
+              "Allow PUT": "false"
+            },
+            "propertyDescriptors": {},
+            "style": {},
+            "schedulingPeriod": "0 sec",
+            "schedulingStrategy": "TIMER_DRIVEN",
+            "executionNode": "ALL",
+            "penaltyDuration": "30 sec",
+            "yieldDuration": "1 sec",
+            "bulletinLevel": "WARN",
+            "runDurationMillis": 0,
+            "concurrentlySchedulableTaskCount": 1,
+            "autoTerminatedRelationships": [],
+            "scheduledState": "RUNNING",
+            "retryCount": 10,
+            "retriedRelationships": [],
+            "backoffMechanism": "PENALIZE_FLOWFILE",
+            "maxBackoffPeriod": "10 mins",
+            "componentType": "PROCESSOR",
+            "groupIdentifier": "a0cca604-51c7-32b2-9529-72ec3566e93c"
           }
         ],
         "inputPorts": [],
         "outputPorts": [],
         "connections": [
           {
-            "identifier": "0cc1ce67-1998-3338-8777-7b2b4dbc37f8",
-            "instanceIdentifier": "25729ba3-0196-1000-0000-0000198b702d",
+            "identifier": "5f7beeba-4cdc-3099-aef6-96ced3560ecc",
+            "instanceIdentifier": "f80e0681-0196-1000-ffff-ffffc59964fa",
             "name": "",
             "source": {
-              "id": "c331dc17-5ded-398b-bce0-2a96fa6d8005",
+              "id": "1975618d-36bc-32b4-9d14-06a14d4dcba0",
               "type": "PROCESSOR",
-              "groupId": "a0c74b17-4386-3e84-8de4-6cefe4328565",
-              "name": "HandleHttpRequest",
-              "comments": "",
-              "instanceIdentifier": "257286eb-0196-1000-ffff-ffffcfa02e60"
-            },
-            "destination": {
-              "id": "d897a9e1-fb76-3cfe-93af-9cb7fa07a307",
-              "type": "PROCESSOR",
-              "groupId": "a0c74b17-4386-3e84-8de4-6cefe4328565",
+              "groupId": "a0cca604-51c7-32b2-9529-72ec3566e93c",
               "name": "Greet",
               "comments": "",
-              "instanceIdentifier": "25723295-0196-1000-0000-0000467c4e68"
+              "instanceIdentifier": "f80d8c53-0196-1000-ffff-ffffb40a54f8"
+            },
+            "destination": {
+              "id": "238c6f6f-9e6b-3faf-bcdc-7058c9473c76",
+              "type": "PROCESSOR",
+              "groupId": "a0cca604-51c7-32b2-9529-72ec3566e93c",
+              "name": "ShoutProcessor",
+              "comments": "",
+              "instanceIdentifier": "f80dee83-0196-1000-0000-000051a29aa3"
             },
             "labelIndex": 0,
             "zIndex": 0,
@@ -334,27 +331,27 @@ data:
             "partitioningAttribute": "",
             "loadBalanceCompression": "DO_NOT_COMPRESS",
             "componentType": "CONNECTION",
-            "groupIdentifier": "a0c74b17-4386-3e84-8de4-6cefe4328565"
+            "groupIdentifier": "a0cca604-51c7-32b2-9529-72ec3566e93c"
           },
           {
-            "identifier": "daccc7eb-0ed3-3bc8-89a9-942a6f21608e",
-            "instanceIdentifier": "2573957c-0196-1000-ffff-ffffaad0c8c0",
+            "identifier": "5165254a-e18c-3ccb-b8cb-25c55d7151a7",
+            "instanceIdentifier": "f80e54a1-0196-1000-ffff-ffffa1c1bed7",
             "name": "",
             "source": {
-              "id": "aa2534ff-9199-3e7e-9e38-9a974864599f",
+              "id": "238c6f6f-9e6b-3faf-bcdc-7058c9473c76",
               "type": "PROCESSOR",
-              "groupId": "a0c74b17-4386-3e84-8de4-6cefe4328565",
-              "name": "Shout",
+              "groupId": "a0cca604-51c7-32b2-9529-72ec3566e93c",
+              "name": "ShoutProcessor",
               "comments": "",
-              "instanceIdentifier": "25731de4-0196-1000-ffff-ffffdac9784b"
+              "instanceIdentifier": "f80dee83-0196-1000-0000-000051a29aa3"
             },
             "destination": {
-              "id": "a36b7e9b-c90a-3fad-9a53-53450ff2efd7",
+              "id": "0b7338da-d770-365b-bff5-bba3f0236229",
               "type": "PROCESSOR",
-              "groupId": "a0c74b17-4386-3e84-8de4-6cefe4328565",
+              "groupId": "a0cca604-51c7-32b2-9529-72ec3566e93c",
               "name": "HandleHttpResponse",
               "comments": "",
-              "instanceIdentifier": "25736232-0196-1000-0000-00003edfe17e"
+              "instanceIdentifier": "f80e3b3f-0196-1000-0000-00004590be6a"
             },
             "labelIndex": 0,
             "zIndex": 0,
@@ -370,27 +367,27 @@ data:
             "partitioningAttribute": "",
             "loadBalanceCompression": "DO_NOT_COMPRESS",
             "componentType": "CONNECTION",
-            "groupIdentifier": "a0c74b17-4386-3e84-8de4-6cefe4328565"
+            "groupIdentifier": "a0cca604-51c7-32b2-9529-72ec3566e93c"
           },
           {
-            "identifier": "3f4602ba-25b1-37d3-b377-d734750e49ca",
-            "instanceIdentifier": "25733c86-0196-1000-0000-0000142bd2e3",
+            "identifier": "ad7fc77b-6b4b-3750-8e22-fcbb228a6fb4",
+            "instanceIdentifier": "f80dbacc-0196-1000-0000-0000274b2561",
             "name": "",
             "source": {
-              "id": "d897a9e1-fb76-3cfe-93af-9cb7fa07a307",
+              "id": "522d46b7-8c43-35b7-ab91-2e5150e44e5b",
               "type": "PROCESSOR",
-              "groupId": "a0c74b17-4386-3e84-8de4-6cefe4328565",
-              "name": "Greet",
+              "groupId": "a0cca604-51c7-32b2-9529-72ec3566e93c",
+              "name": "HandleHttpRequest",
               "comments": "",
-              "instanceIdentifier": "25723295-0196-1000-0000-0000467c4e68"
+              "instanceIdentifier": "f809987c-0196-1000-ffff-fffff71b58df"
             },
             "destination": {
-              "id": "aa2534ff-9199-3e7e-9e38-9a974864599f",
+              "id": "1975618d-36bc-32b4-9d14-06a14d4dcba0",
               "type": "PROCESSOR",
-              "groupId": "a0c74b17-4386-3e84-8de4-6cefe4328565",
-              "name": "Shout",
+              "groupId": "a0cca604-51c7-32b2-9529-72ec3566e93c",
+              "name": "Greet",
               "comments": "",
-              "instanceIdentifier": "25731de4-0196-1000-ffff-ffffdac9784b"
+              "instanceIdentifier": "f80d8c53-0196-1000-ffff-ffffb40a54f8"
             },
             "labelIndex": 0,
             "zIndex": 0,
@@ -406,15 +403,15 @@ data:
             "partitioningAttribute": "",
             "loadBalanceCompression": "DO_NOT_COMPRESS",
             "componentType": "CONNECTION",
-            "groupIdentifier": "a0c74b17-4386-3e84-8de4-6cefe4328565"
+            "groupIdentifier": "a0cca604-51c7-32b2-9529-72ec3566e93c"
           }
         ],
         "labels": [],
         "funnels": [],
         "controllerServices": [
           {
-            "identifier": "1989ed4e-5edf-3df1-a1a1-6ed4a5c49d7f",
-            "instanceIdentifier": "2572dfc2-0196-1000-ffff-ffffb3493dd1",
+            "identifier": "68712a48-5a26-3bee-8bfc-dafafda62660",
+            "instanceIdentifier": "f80ef95f-0196-1000-ffff-ffffabf564cb",
             "name": "StandardHttpContextMap",
             "comments": "",
             "type": "org.apache.nifi.http.StandardHttpContextMap",
@@ -441,7 +438,7 @@ data:
             "scheduledState": "ENABLED",
             "bulletinLevel": "WARN",
             "componentType": "CONTROLLER_SERVICE",
-            "groupIdentifier": "a0c74b17-4386-3e84-8de4-6cefe4328565"
+            "groupIdentifier": "a0cca604-51c7-32b2-9529-72ec3566e93c"
           }
         ],
         "defaultFlowFileExpiration": "0 sec",
