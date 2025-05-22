@@ -40,10 +40,10 @@ spec:
     customProcessorsGitSync:
       - repo: https://github.com/stackabletech/nifi-operator
         branch: feat/custom-processors # TODO Change to commit
-        gitFolder: tests/templates/kuttl/custom-processors-git-sync/processors-0
+        gitFolder: tests/templates/kuttl/custom-processors-git-sync/java-processors
       - repo: https://github.com/stackabletech/nifi-operator
         branch: feat/custom-processors # TODO Change to commit
-        gitFolder: tests/templates/kuttl/custom-processors-git-sync/processors-1
+        gitFolder: tests/templates/kuttl/custom-processors-git-sync/python-processors
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
@@ -53,19 +53,19 @@ spec:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
     podOverrides:
       spec:
-        initContainers:
-          - name: init-flow
-            image: oci.stackable.tech/sdp/testing-tools:0.2.0-stackable0.0.0-dev
-            command:
-              - /bin/bash
-              - -c
-            args:
-              - gzip --stdout /stackable/nifi/flow/flow.json > /stackable/data/database/flow.json.gz
-            volumeMounts:
-              - name: nifi-flow
-                mountPath: /stackable/nifi/flow
-              - name: database-repository
-                mountPath: /stackable/data/database
+        # initContainers:
+        #   - name: init-flow
+        #     image: oci.stackable.tech/sdp/testing-tools:0.2.0-stackable0.0.0-dev
+        #     command:
+        #       - /bin/bash
+        #       - -c
+        #     args:
+        #       - gzip --stdout /stackable/nifi/flow/flow.json > /stackable/data/database/flow.json.gz
+        #     volumeMounts:
+        #       - name: nifi-flow
+        #         mountPath: /stackable/nifi/flow
+        #       - name: database-repository
+        #         mountPath: /stackable/data/database
         containers:
           - name: nifi
             ports:
