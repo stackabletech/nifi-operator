@@ -78,7 +78,9 @@ pub enum NifiSensitiveKeyAlgorithm {
 }
 
 impl NifiSensitiveKeyAlgorithm {
-    pub fn check_for_nifi_version(&self, product_version: &str) -> Result<String, Error> {
+    /// Checks if the used encryption algorithm is supported or deprecated.
+    /// Will warn for deprecation and error out for missing support.
+    pub fn check_for_nifi_version(&self, product_version: &str) -> Result<(), Error> {
         let algorithm = self.to_string();
 
         match self {
@@ -99,7 +101,7 @@ impl NifiSensitiveKeyAlgorithm {
             }
         }
 
-        Ok(algorithm)
+        Ok(())
     }
 }
 
