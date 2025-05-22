@@ -90,7 +90,7 @@ tests:
       - zookeeper-latest
       - oidc-use-tls
       - openshift
-  - name: custom-processors-git-sync
+  - name: custom-components-git-sync
     dimensions:
       - nifi-latest
       - zookeeper-latest

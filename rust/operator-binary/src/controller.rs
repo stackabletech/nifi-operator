@@ -506,7 +506,7 @@ pub async fn reconcile_nifi(
                 .context(FailedToResolveConfigSnafu)?;
 
             let git_sync_resources = git_sync::v1alpha1::GitSyncResources::new(
-                &nifi.spec.cluster_config.custom_processors_git_sync,
+                &nifi.spec.cluster_config.custom_components_git_sync,
                 &resolved_product_image,
                 &env_vars_from_rolegroup_config(rolegroup_config),
                 &[],

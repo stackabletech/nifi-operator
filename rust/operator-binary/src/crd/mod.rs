@@ -144,11 +144,11 @@ pub mod versioned {
         /// to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
         pub zookeeper_config_map_name: String,
 
-        /// The `gitSync` settings allow configuring Python processors to mount via `git-sync`.
+        /// The `customComponentsGitSync` setting allows configuring custom components to mount via `git-sync`.
         /// Learn more in the
-        /// [mounting DAGs documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/usage-guide/mounting-processors#_via_git_sync).
+        /// [Custom Python processors documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/custom-components/custom-python-processors/#git-sync).
         #[serde(default)]
-        pub custom_processors_git_sync: Vec<git_sync::v1alpha1::GitSync>,
+        pub custom_components_git_sync: Vec<git_sync::v1alpha1::GitSync>,
 
         /// Extra volumes similar to `.spec.volumes` on a Pod to mount into every container, this can be useful to for
         /// example make client certificates, keytabs or similar things available to processors. These volumes will be
