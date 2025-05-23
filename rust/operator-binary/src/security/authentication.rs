@@ -37,7 +37,9 @@ pub enum Error {
     },
 
     #[snafu(display("Failed to add LDAP volumes and volumeMounts to the Pod and containers"))]
-    AddLdapVolumes { source: ldap::v1alpha1::Error },
+    AddLdapVolumes {
+        source: stackable_operator::crd::authentication::ldap::v1alpha1::Error,
+    },
 
     #[snafu(display("Failed to add OIDC volumes and volumeMounts to the Pod and containers"))]
     AddOidcVolumes {

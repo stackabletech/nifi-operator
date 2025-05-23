@@ -42,7 +42,9 @@ pub enum Error {
     },
 
     #[snafu(display("invalid OIDC configuration"))]
-    OidcConfigurationInvalid { source: auth_core::v1alpha1::Error },
+    OidcConfigurationInvalid {
+        source: stackable_operator::crd::authentication::core::v1alpha1::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;

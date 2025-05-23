@@ -31,7 +31,9 @@ pub enum Error {
     MissingAdminPasswordKey { secret: ObjectRef<Secret> },
 
     #[snafu(display("invalid well-known OIDC configuration URL"))]
-    InvalidWellKnownConfigUrl { source: oidc::v1alpha1::Error },
+    InvalidWellKnownConfigUrl {
+        source: stackable_operator::crd::authentication::oidc::v1alpha1::Error,
+    },
 
     #[snafu(display("Nifi doesn't support skipping the OIDC TLS verification"))]
     SkippingTlsVerificationNotSupported {},
