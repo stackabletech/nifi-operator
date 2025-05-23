@@ -152,15 +152,24 @@ pub fn build_nifi_properties(
     // The nifi.flow.configuration.file property in nifi.properties must be changed to reference
     // "flow.json.gz" instead of "flow.xml.gz"
     // TODO: Remove once we dropped support for all 1.x.x versions
-    let flow_file_name = if product_version.starts_with("1.") {
-        "flow.xml.gz"
+    // TODO(malte): In order to use CLI tools like: ./bin/nifi.sh set-sensitive-properties-algorithm NIFI_PBKDF2_AES_GCM_256
+    // we have to set both "nifi.flow.configuration.file" and "nifi.flow.configuration.json.file" in NiFi 1.x.x.
+    if product_version.starts_with("1.") {
+        properties.insert(
+            "nifi.flow.configuration.file".to_string(),
+            NifiRepository::Database.mount_path() + "/flow.xml.gz",
+        );
+        properties.insert(
+            "nifi.flow.configuration.json.file".to_string(),
+            NifiRepository::Database.mount_path() + "/flow.json.gz",
+        );
     } else {
-        "flow.json.gz"
-    };
-    properties.insert(
-        "nifi.flow.configuration.file".to_string(),
-        NifiRepository::Database.mount_path() + "/" + flow_file_name,
-    );
+        properties.insert(
+            "nifi.flow.configuration.file".to_string(),
+            NifiRepository::Database.mount_path() + "/flow.json.gz",
+        );
+    }
+
     properties.insert(
         "nifi.flow.configuration.archive.enabled".to_string(),
         "true".to_string(),
