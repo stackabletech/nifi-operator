@@ -423,7 +423,7 @@ sensitiveProperties:
   algorithm: nifiArgon2AesGcm256
 ----
 
-If you want to change the algorithm to `nifiPbkdf2AesGcm256`, you have to run the following command on each node:
+If you want to change the algorithm to `nifiPbkdf2AesGcm256`, you have to run the following command on each NiFi Pod:
 
 [source,bash]
 ----
