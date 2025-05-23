@@ -24,7 +24,7 @@ NiFi clusters cannot be upgraded or downgraded in a rolling fashion due to a lim
 When upgrading between NiFi 1 versions or from NiFi 1 to NiFi 2, any change to the NiFi version in the CRD triggers a full cluster restart with brief downtime.
 However, the Stackable image version can be updated in a rolling manner, provided the NiFi version remains unchanged.
 
-For upgrades between NiFi 2 versions, e.g. from `2.0.0` to `2.2.0`, rolling upgrades are supported.
+For upgrades between NiFi 2 versions, e.g. from `2.0.0` to `2.4.0`, rolling upgrades are supported.
 ====
 
 == NiFi 2.0.0

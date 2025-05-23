@@ -4,4 +4,4 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 timeout: 600
 commands:
-  - script: kubectl exec -n $NAMESPACE --container nifi test-nifi-node-default-0 -- cat /stackable/log/containerdebug-state.json | jq --exit-status '"valid JSON"'
+  - script: kubectl exec -n $NAMESPACE --container nifi nifi-node-default-0 -- cat /stackable/log/containerdebug-state.json | jq --exit-status '"valid JSON"'
