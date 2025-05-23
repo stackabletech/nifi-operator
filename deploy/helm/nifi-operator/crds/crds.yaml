@@ -159,12 +159,12 @@ spec:
 
                             Learn more about the specifics of the algorithm parameters in the [NiFi documentation](https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#property-encryption-algorithms).
                           enum:
-                            - nifiArgon2AesGcm128
+                            - nifiPbkdf2AesGcm256
                             - nifiArgon2AesGcm256
                             - nifiBcryptAesGcm128
                             - nifiBcryptAesGcm256
                             - nifiPbkdf2AesGcm128
-                            - nifiPbkdf2AesGcm256
+                            - nifiArgon2AesGcm128
                             - nifiScryptAesGcm128
                             - nifiScryptAesGcm256
                           nullable: true
