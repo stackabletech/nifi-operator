@@ -579,6 +579,8 @@ pub fn build_nifi_properties(
     // Custom components #
     //####################
     if git_sync_resources.is_git_sync_enabled() {
+        // NiFi 1.x does not support Python components. The Python configuration is just ignored.
+
         // The command used to launch Python.
         // This property must be set to enable Python-based processors.
         properties.insert("nifi.python.command".to_string(), "python3".to_string());
