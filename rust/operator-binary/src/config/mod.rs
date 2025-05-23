@@ -20,7 +20,7 @@ use strum::{Display, EnumIter};
 use crate::{
     crd::{
         HTTPS_PORT, NifiConfig, NifiConfigFragment, NifiRole, NifiStorageConfig, PROTOCOL_PORT,
-        v1alpha1,
+        sensitive_properties, v1alpha1,
     },
     operations::graceful_shutdown::graceful_shutdown_config_properties,
     security::{
@@ -96,6 +96,9 @@ pub enum Error {
 
     #[snafu(display("failed to generate OIDC config"))]
     GenerateOidcConfig { source: oidc::Error },
+
+    #[snafu(display("failed to configure sensitive properties"))]
+    ConfigureSensitiveProperties { source: sensitive_properties::Error },
 }
 
 /// Create the NiFi bootstrap.conf
@@ -149,15 +152,24 @@ pub fn build_nifi_properties(
     // The nifi.flow.configuration.file property in nifi.properties must be changed to reference
     // "flow.json.gz" instead of "flow.xml.gz"
     // TODO: Remove once we dropped support for all 1.x.x versions
-    let flow_file_name = if product_version.starts_with("1.") {
-        "flow.xml.gz"
+    // TODO(malte): In order to use CLI tools like: ./bin/nifi.sh set-sensitive-properties-algorithm NIFI_PBKDF2_AES_GCM_256
+    // we have to set both "nifi.flow.configuration.file" and "nifi.flow.configuration.json.file" in NiFi 1.x.x.
+    if product_version.starts_with("1.") {
+        properties.insert(
+            "nifi.flow.configuration.file".to_string(),
+            NifiRepository::Database.mount_path() + "/flow.xml.gz",
+        );
+        properties.insert(
+            "nifi.flow.configuration.json.file".to_string(),
+            NifiRepository::Database.mount_path() + "/flow.json.gz",
+        );
     } else {
-        "flow.json.gz"
-    };
-    properties.insert(
-        "nifi.flow.configuration.file".to_string(),
-        NifiRepository::Database.mount_path() + "/" + flow_file_name,
-    );
+        properties.insert(
+            "nifi.flow.configuration.file".to_string(),
+            NifiRepository::Database.mount_path() + "/flow.json.gz",
+        );
+    }
+
     properties.insert(
         "nifi.flow.configuration.archive.enabled".to_string(),
         "true".to_string(),
@@ -473,15 +485,20 @@ pub fn build_nifi_properties(
         "".to_string(),
     );
 
-    let algorithm = &spec
+    let sensitive_properties_algorithm = &spec
         .cluster_config
         .sensitive_properties
         .algorithm
         .clone()
         .unwrap_or_default();
+
+    sensitive_properties_algorithm
+        .check_for_nifi_version(spec.image.product_version())
+        .context(ConfigureSensitivePropertiesSnafu)?;
+
     properties.insert(
         "nifi.sensitive.props.algorithm".to_string(),
-        algorithm.to_string(),
+        sensitive_properties_algorithm.to_string(),
     );
 
     // key and trust store
