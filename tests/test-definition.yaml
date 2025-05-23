@@ -126,7 +126,7 @@ tests:
       - openshift
   - name: custom-components-git-sync
     dimensions:
-      - nifi-latest
+      - nifi
       - zookeeper-latest
       - openshift
 suites:
