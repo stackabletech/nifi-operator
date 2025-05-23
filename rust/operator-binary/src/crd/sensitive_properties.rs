@@ -5,7 +5,7 @@ use stackable_operator::schemars::{self, JsonSchema};
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display(
-        "The sensitive key algorithm '{algorithm}' is not supported in NiFi 2.X.X. Please see https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#updating-the-sensitive-properties-algorithm on how to upgrade the algorithm."
+        "The sensitive properties algorithm '{algorithm}' is not supported in NiFi 2.X.X. Please see https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#updating-the-sensitive-properties-algorithm on how to upgrade the algorithm."
     ))]
     UnsupportedSensitivePropertiesAlgorithm { algorithm: String },
 }
@@ -92,7 +92,7 @@ impl NifiSensitiveKeyAlgorithm {
             _ => {
                 if product_version.starts_with("1.") {
                     tracing::warn!(
-                        "You are using a deprecated sensitive key algorithm '{algorithm}'. Please update to '{pbkd}' or '{argon}'.",
+                        "You are using a deprecated sensitive properties algorithm '{algorithm}'. Please update to '{pbkd}' or '{argon}'.",
                         pbkd = NifiSensitiveKeyAlgorithm::NifiPbkdf2AesGcm256,
                         argon = NifiSensitiveKeyAlgorithm::NifiArgon2AesGcm256
                     )
