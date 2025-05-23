@@ -31,7 +31,9 @@ use stackable_operator::{
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{
         authentication::oidc::AuthenticationProvider,
-        product_image_selection::ResolvedProductImage, rbac::build_rbac_resources,
+        listener::{Listener, ListenerPort, ListenerSpec},
+        product_image_selection::ResolvedProductImage,
+        rbac::build_rbac_resources,
     },
     config::fragment,
     k8s_openapi::{
@@ -86,8 +88,8 @@ use crate::{
         APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, Container, HTTPS_PORT, HTTPS_PORT_NAME,
         LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, METRICS_PORT, METRICS_PORT_NAME, NifiConfig,
         NifiConfigFragment, NifiRole, NifiStatus, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
-        STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR, SupportedListenerClasses,
-        authentication::AuthenticationClassResolved, v1alpha1,
+        STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR, authentication::AuthenticationClassResolved,
+        v1alpha1,
     },
     operations::{
         graceful_shutdown::add_graceful_shutdown_config,
@@ -360,6 +362,12 @@ pub enum Error {
     BuildListenerVolume {
         source: ListenerOperatorVolumeSourceBuilderError,
     },
+
+    #[snafu(display("failed to apply group listener for {rolegroup}"))]
+    ApplyGroupListener {
+        source: stackable_operator::cluster_resources::Error,
+        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -499,7 +507,8 @@ pub async fn reconcile_nifi(
             // Since we cannot predict which of the addresses a user might decide to use we will simply
             // add all of them to the setting for now.
             // For more information see <https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#proxy_configuration>
-            let proxy_hosts = get_proxy_hosts(client, nifi, &merged_config).await?;
+            // let proxy_hosts = get_proxy_hosts(client, nifi, &merged_config).await?;
+            let proxy_hosts = get_proxy_hosts(client, nifi).await?;
 
             let rg_configmap = build_node_rolegroup_config_map(
                 nifi,
@@ -536,6 +545,19 @@ pub async fn reconcile_nifi(
             )
             .await?;
 
+            let rg_group_listener = build_group_listener(
+                nifi,
+                &resolved_product_image,
+                &rolegroup,
+                merged_config.listener_class,
+            )?;
+
+            cluster_resources
+                .add(client, rg_group_listener)
+                .await
+                .with_context(|_| ApplyGroupListenerSnafu {
+                    rolegroup: rolegroup.clone(),
+                })?;
             cluster_resources
                 .add(client, rg_service)
                 .await
@@ -752,49 +774,90 @@ fn build_node_rolegroup_service(
     resolved_product_image: &ResolvedProductImage,
     rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>,
 ) -> Result<Service> {
-    Ok(Service {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(nifi)
-            .name(rolegroup.object_name())
-            .ownerreference_from_resource(nifi, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(build_recommended_labels(
-                nifi,
-                &resolved_product_image.app_version_label,
-                &rolegroup.role,
-                &rolegroup.role_group,
-            ))
-            .context(MetadataBuildSnafu)?
-            .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
-            .build(),
-        spec: Some(ServiceSpec {
-            // Internal communication does not need to be exposed
-            type_: Some("ClusterIP".to_string()),
-            cluster_ip: Some("None".to_string()),
-            ports: Some(vec![
-                ServicePort {
-                    name: Some(HTTPS_PORT_NAME.to_string()),
-                    port: HTTPS_PORT.into(),
-                    protocol: Some("TCP".to_string()),
-                    ..ServicePort::default()
-                },
-                ServicePort {
-                    name: Some(METRICS_PORT_NAME.to_string()),
-                    port: METRICS_PORT.into(),
-                    protocol: Some("TCP".to_string()),
-                    ..ServicePort::default()
-                },
-            ]),
-            selector: Some(
-                Labels::role_group_selector(nifi, APP_NAME, &rolegroup.role, &rolegroup.role_group)
-                    .context(LabelBuildSnafu)?
-                    .into(),
-            ),
-            publish_not_ready_addresses: Some(true),
-            ..ServiceSpec::default()
-        }),
+    let metadata = ObjectMetaBuilder::new()
+        .name_and_namespace(nifi)
+        .name(format!("{name}-metrics", name = rolegroup.object_name()))
+        .ownerreference_from_resource(nifi, None, Some(true))
+        .context(ObjectMissingMetadataForOwnerRefSnafu)?
+        .with_recommended_labels(build_recommended_labels(
+            nifi,
+            &resolved_product_image.app_version_label,
+            &rolegroup.role,
+            &rolegroup.role_group,
+        ))
+        .context(MetadataBuildSnafu)?
+        .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
+        .build();
+
+    let spec = Some(ServiceSpec {
+        // Internal communication does not need to be exposed
+        type_: Some("ClusterIP".to_owned()),
+        cluster_ip: Some("None".to_owned()),
+        ports: Some(vec![ServicePort {
+            name: Some(METRICS_PORT_NAME.to_owned()),
+            port: METRICS_PORT.into(),
+            protocol: Some("TCP".to_owned()),
+            ..ServicePort::default()
+        }]),
+        selector: Some(
+            Labels::role_group_selector(nifi, APP_NAME, &rolegroup.role, &rolegroup.role_group)
+                .context(LabelBuildSnafu)?
+                .into(),
+        ),
+        publish_not_ready_addresses: Some(true),
+        ..ServiceSpec::default()
+    });
+
+    let service = Service {
+        metadata,
+        spec,
         status: None,
-    })
+    };
+
+    Ok(service)
+}
+
+pub fn build_group_listener(
+    nifi: &v1alpha1::NifiCluster,
+    resolved_product_image: &ResolvedProductImage,
+    rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>,
+    listener_class: String,
+) -> Result<Listener> {
+    let metadata = ObjectMetaBuilder::new()
+        .name_and_namespace(nifi)
+        .name(nifi.group_listener_name(rolegroup))
+        .ownerreference_from_resource(nifi, None, Some(true))
+        .context(ObjectMissingMetadataForOwnerRefSnafu)?
+        .with_recommended_labels(build_recommended_labels(
+            nifi,
+            &resolved_product_image.app_version_label,
+            &rolegroup.role,
+            &rolegroup.role_group,
+        ))
+        .context(MetadataBuildSnafu)?
+        .build();
+
+    let spec = ListenerSpec {
+        class_name: Some(listener_class),
+        ports: Some(listener_ports()),
+        ..Default::default()
+    };
+
+    let listener = Listener {
+        metadata,
+        spec,
+        status: None,
+    };
+
+    Ok(listener)
+}
+
+fn listener_ports() -> Vec<ListenerPort> {
+    vec![ListenerPort {
+        name: HTTPS_PORT_NAME.to_owned(),
+        port: HTTPS_PORT.into(),
+        protocol: Some("TCP".to_owned()),
+    }]
 }
 
 const USERDATA_MOUNTPOINT: &str = "/stackable/userdata";
@@ -921,16 +984,16 @@ async fn build_node_rolegroup_statefulset(
             .as_slice(),
     );
 
-    if merged_config.listener_class == SupportedListenerClasses::ExternalUnstable {
-        prepare_args.extend(vec![
-            "export LISTENER_DEFAULT_ADDRESS=$(cat /stackable/listener/default-address/address)"
-                .to_string(),
-        ]);
-        prepare_args.extend(vec![
+    // if merged_config.listener_class == SupportedListenerClasses::ExternalUnstable {
+    prepare_args.extend(vec![
+        "export LISTENER_DEFAULT_ADDRESS=$(cat /stackable/listener/default-address/address)"
+            .to_string(),
+    ]);
+    prepare_args.extend(vec![
         "export LISTENER_DEFAULT_PORT_HTTPS=$(cat /stackable/listener/default-address/ports/https)"
             .to_string(),
-        ]);
-    }
+    ]);
+    // }
 
     prepare_args.extend(vec![
         "echo Templating config files".to_string(),
@@ -1405,7 +1468,7 @@ fn zookeeper_env_var(name: &str, configmap_name: &str) -> EnvVar {
 async fn get_proxy_hosts(
     client: &Client,
     nifi: &v1alpha1::NifiCluster,
-    merged_config: &NifiConfig,
+    // merged_config: &NifiConfig,
 ) -> Result<String> {
     let host_header_check = nifi.spec.cluster_config.host_header_check.clone();
 
@@ -1438,11 +1501,10 @@ async fn get_proxy_hosts(
     proxy_hosts_set.extend(host_header_check.additional_allowed_hosts);
 
     // If NodePort is used inject the address and port from the listener volume in the prepare container
-    if merged_config.listener_class == SupportedListenerClasses::ExternalUnstable {
-        proxy_hosts_set.insert(
-            "${env:LISTENER_DEFAULT_ADDRESS}:${env:LISTENER_DEFAULT_PORT_HTTPS}".to_string(),
-        );
-    }
+    // if merged_config.listener_class == SupportedListenerClasses::ExternalUnstable {
+    proxy_hosts_set
+        .insert("${env:LISTENER_DEFAULT_ADDRESS}:${env:LISTENER_DEFAULT_PORT_HTTPS}".to_string());
+    // }
 
     let mut proxy_hosts = Vec::from_iter(proxy_hosts_set);
     proxy_hosts.sort();

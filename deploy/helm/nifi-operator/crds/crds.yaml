@@ -262,10 +262,6 @@ spec:
                           type: string
                         listenerClass:
                           description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose the webserver.
-                          enum:
-                            - cluster-internal
-                            - external-unstable
-                            - external-stable
                           nullable: true
                           type: string
                         logging:
@@ -757,10 +753,6 @@ spec:
                                 type: string
                               listenerClass:
                                 description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose the webserver.
-                                enum:
-                                  - cluster-internal
-                                  - external-unstable
-                                  - external-stable
                                 nullable: true
                                 type: string
                               logging:

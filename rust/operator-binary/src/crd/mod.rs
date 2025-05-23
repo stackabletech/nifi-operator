@@ -21,7 +21,7 @@ use stackable_operator::{
     },
     config::{
         fragment::{self, Fragment, ValidationError},
-        merge::{Atomic, Merge},
+        merge::Merge,
     },
     k8s_openapi::{
         api::core::v1::{PodTemplateSpec, Volume},
@@ -41,9 +41,8 @@ use stackable_operator::{
     },
     versioned::versioned,
 };
-use strum::Display;
 use tls::NifiTls;
-use utils::{PodRef, get_listener_podrefs};
+use utils::PodRef;
 
 pub const APP_NAME: &str = "nifi";
 
@@ -178,6 +177,13 @@ impl HasStatusCondition for v1alpha1::NifiCluster {
 }
 
 impl v1alpha1::NifiCluster {
+    /// The name of the group-listener provided for a specific role-group.
+    /// The UI will use this group listener so that only one load balancer
+    /// is needed (per role group).
+    pub fn group_listener_name(&self, rolegroup: &RoleGroupRef<Self>) -> String {
+        rolegroup.object_name()
+    }
+
     /// The name of the role-level load-balanced Kubernetes `Service`
     pub fn node_role_service_name(&self) -> String {
         self.name_any()
@@ -273,100 +279,6 @@ impl v1alpha1::NifiCluster {
         tracing::debug!("Merged config: {:?}", conf_rolegroup);
         fragment::validate(conf_rolegroup).context(FragmentValidationFailureSnafu)
     }
-
-    pub fn merged_listener_class(
-        &self,
-        rolegroup_name: &String,
-    ) -> Result<Option<SupportedListenerClasses>, Error> {
-        let listener_class_default = Some(SupportedListenerClasses::ClusterInternal);
-        let role = self.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?;
-
-        let mut listener_class_role = role.config.config.listener_class.to_owned();
-        let mut listener_class_rolegroup = role
-            .role_groups
-            .get(rolegroup_name)
-            .map(|rg| rg.config.config.listener_class.clone())
-            .unwrap_or_default();
-        listener_class_role.merge(&listener_class_default);
-        listener_class_rolegroup.merge(&listener_class_role);
-        tracing::debug!("Merged listener-class: {:?}", listener_class_rolegroup);
-        Ok(listener_class_rolegroup)
-    }
-
-    pub fn rolegroup_ref(
-        &self,
-        role_name: impl Into<String>,
-        group_name: impl Into<String>,
-    ) -> RoleGroupRef<v1alpha1::NifiCluster> {
-        RoleGroupRef {
-            cluster: ObjectRef::from_obj(self),
-            role: role_name.into(),
-            role_group: group_name.into(),
-        }
-    }
-
-    pub fn rolegroup_ref_and_replicas(&self) -> Vec<(RoleGroupRef<v1alpha1::NifiCluster>, u16)> {
-        self.spec
-            .nodes
-            .iter()
-            .flat_map(|role| &role.role_groups)
-            // Order rolegroups consistently, to avoid spurious downstream rewrites
-            .collect::<BTreeMap<_, _>>()
-            .into_iter()
-            .filter(|(rolegroup_name, _)| self.resolved_listener_class_discoverable(rolegroup_name))
-            .map(|(rolegroup_name, role_group)| {
-                (
-                    self.rolegroup_ref(NifiRole::Node.to_string(), rolegroup_name),
-                    role_group.replicas.unwrap_or_default(),
-                )
-            })
-            .collect()
-    }
-
-    fn resolved_listener_class_discoverable(&self, rolegroup_name: &&String) -> bool {
-        if let Ok(Some(listener_class)) = self.merged_listener_class(rolegroup_name) {
-            listener_class.discoverable()
-        } else {
-            // merged_listener_class returns an error if one of the roles was not found:
-            // all roles are mandatory for airflow to work, but a missing role will by
-            // definition not have a listener class
-            false
-        }
-    }
-
-    pub fn pod_refs(&self) -> Result<Vec<PodRef>, Error> {
-        let ns = self.metadata.namespace.clone().context(NoNamespaceSnafu)?;
-        let rolegroup_ref_and_replicas = self.rolegroup_ref_and_replicas();
-
-        Ok(rolegroup_ref_and_replicas
-            .iter()
-            .flat_map(|(rolegroup_ref, replicas)| {
-                let ns = ns.clone();
-                (0..*replicas).map(move |i| PodRef {
-                    namespace: ns.clone(),
-                    role_group_service_name: rolegroup_ref.object_name(),
-                    pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
-                    ports: HashMap::from([
-                        (HTTPS_PORT_NAME.to_owned(), HTTPS_PORT),
-                        (METRICS_PORT_NAME.to_owned(), METRICS_PORT),
-                    ]),
-                    fqdn_override: None,
-                })
-            })
-            .collect())
-    }
-
-    pub async fn listener_refs(
-        &self,
-        client: &stackable_operator::client::Client,
-    ) -> Result<Vec<PodRef>, Error> {
-        let pod_refs = self.pod_refs()?;
-
-        tracing::debug!("Pod references: {:#?}", pod_refs);
-        get_listener_podrefs(client, pod_refs, LISTENER_VOLUME_NAME)
-            .await
-            .context(ListenerPodRefSnafu)
-    }
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -392,55 +304,6 @@ impl Default for HostHeaderCheckConfig {
 
 pub fn default_allow_all() -> bool {
     true
-}
-
-// // TODO: Temporary solution until listener-operator is finished
-// #[derive(Clone, Debug, Default, Display, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-// #[serde(rename_all = "PascalCase")]
-// pub enum CurrentlySupportedListenerClasses {
-//     #[default]
-//     #[serde(rename = "cluster-internal")]
-//     ClusterInternal,
-//     #[serde(rename = "external-unstable")]
-//     ExternalUnstable,
-// }
-
-// impl CurrentlySupportedListenerClasses {
-//     pub fn k8s_service_type(&self) -> String {
-//         match self {
-//             CurrentlySupportedListenerClasses::ClusterInternal => "ClusterIP".to_string(),
-//             CurrentlySupportedListenerClasses::ExternalUnstable => "NodePort".to_string(),
-//         }
-//     }
-// }
-
-#[derive(Clone, Debug, Default, Display, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "PascalCase")]
-pub enum SupportedListenerClasses {
-    #[default]
-    #[serde(rename = "cluster-internal")]
-    #[strum(serialize = "cluster-internal")]
-    ClusterInternal,
-
-    #[serde(rename = "external-unstable")]
-    #[strum(serialize = "external-unstable")]
-    ExternalUnstable,
-
-    #[serde(rename = "external-stable")]
-    #[strum(serialize = "external-stable")]
-    ExternalStable,
-}
-
-impl Atomic for SupportedListenerClasses {}
-
-impl SupportedListenerClasses {
-    pub fn discoverable(&self) -> bool {
-        match self {
-            SupportedListenerClasses::ClusterInternal => false,
-            SupportedListenerClasses::ExternalUnstable => true,
-            SupportedListenerClasses::ExternalStable => true,
-        }
-    }
 }
 
 /// These settings configure the encryption of sensitive properties in NiFi processors.
@@ -633,7 +496,7 @@ pub struct NifiConfig {
 
     /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose the webserver.
     #[serde(default)]
-    pub listener_class: SupportedListenerClasses,
+    pub listener_class: String,
 }
 
 impl NifiConfig {
@@ -683,7 +546,7 @@ impl NifiConfig {
             affinity: get_affinity(cluster_name, role),
             graceful_shutdown_timeout: Some(DEFAULT_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
             requested_secret_lifetime: Some(Self::DEFAULT_NODE_SECRET_LIFETIME),
-            listener_class: Some(SupportedListenerClasses::ClusterInternal),
+            listener_class: Some("cluster-internal".to_owned()),
         }
     }
 }

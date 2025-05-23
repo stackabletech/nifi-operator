@@ -2,8 +2,8 @@
 dimensions:
   - name: nifi
     values:
-      - 1.27.0
-      - 1.28.1
+      # - 1.27.0
+      # - 1.28.1
       - 2.4.0
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
