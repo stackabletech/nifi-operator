@@ -37,11 +37,11 @@ use stackable_operator::{
             apps::v1::{StatefulSet, StatefulSetSpec, StatefulSetUpdateStrategy},
             core::v1::{
                 ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource, EmptyDirVolumeSource,
-                EnvVar, EnvVarSource, Node, ObjectFieldSelector, Probe, SecretVolumeSource,
-                Service, ServicePort, ServiceSpec, TCPSocketAction, Volume,
+                EnvVar, EnvVarSource, ExecAction, Node, ObjectFieldSelector, Probe,
+                SecretVolumeSource, Service, ServicePort, ServiceSpec, Volume,
             },
         },
-        apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
+        apimachinery::pkg::apis::meta::v1::LabelSelector,
     },
     kube::{
         Resource, ResourceExt,
@@ -826,6 +826,23 @@ fn build_node_rolegroup_service(
     resolved_product_image: &ResolvedProductImage,
     rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>,
 ) -> Result<Service> {
+    let mut enabled_ports = vec![ServicePort {
+        name: Some(HTTPS_PORT_NAME.to_string()),
+        port: HTTPS_PORT.into(),
+        protocol: Some("TCP".to_string()),
+        ..ServicePort::default()
+    }];
+
+    // Nifi 2.x.x offers nifi-api/flow/metrics/prometheus at the HTTPS_PORT, therefore METRICS_PORT is not necessary anymore.
+    if resolved_product_image.product_version.starts_with("1.") {
+        enabled_ports.push(ServicePort {
+            name: Some(METRICS_PORT_NAME.to_string()),
+            port: METRICS_PORT.into(),
+            protocol: Some("TCP".to_string()),
+            ..ServicePort::default()
+        })
+    }
+
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(nifi)
@@ -845,20 +862,7 @@ fn build_node_rolegroup_service(
             // Internal communication does not need to be exposed
             type_: Some("ClusterIP".to_string()),
             cluster_ip: Some("None".to_string()),
-            ports: Some(vec![
-                ServicePort {
-                    name: Some(HTTPS_PORT_NAME.to_string()),
-                    port: HTTPS_PORT.into(),
-                    protocol: Some("TCP".to_string()),
-                    ..ServicePort::default()
-                },
-                ServicePort {
-                    name: Some(METRICS_PORT_NAME.to_string()),
-                    port: METRICS_PORT.into(),
-                    protocol: Some("TCP".to_string()),
-                    ..ServicePort::default()
-                },
-            ]),
+            ports: Some(enabled_ports),
             selector: Some(
                 Labels::role_group_selector(nifi, APP_NAME, &rolegroup.role, &rolegroup.role_group)
                     .context(LabelBuildSnafu)?
@@ -1140,13 +1144,18 @@ async fn build_node_rolegroup_statefulset(
         .add_container_port(HTTPS_PORT_NAME, HTTPS_PORT.into())
         .add_container_port(PROTOCOL_PORT_NAME, PROTOCOL_PORT.into())
         .add_container_port(BALANCE_PORT_NAME, BALANCE_PORT.into())
-        .add_container_port(METRICS_PORT_NAME, METRICS_PORT.into())
+        // Probes have been changed to exec as we introduced nifi.web.https.network.interface.lo=lo by default.
+        // Probe will succeed for any HTTPS errors ( SIN Invalid, 400 ) as this confirms the port to be open.
         .liveness_probe(Probe {
             initial_delay_seconds: Some(10),
             period_seconds: Some(10),
-            tcp_socket: Some(TCPSocketAction {
-                port: IntOrString::String(HTTPS_PORT_NAME.to_string()),
-                ..TCPSocketAction::default()
+            exec: Some(ExecAction {
+                command: Some(vec![
+                    "/bin/bash".to_string(),
+                    "-c".to_string(),
+                    "curl --insecure --silent --head https://127.0.0.1:8443/nifi > /dev/null || true"
+                        .to_string(),
+                ]),
             }),
             ..Probe::default()
         })
@@ -1154,13 +1163,22 @@ async fn build_node_rolegroup_statefulset(
             initial_delay_seconds: Some(10),
             period_seconds: Some(10),
             failure_threshold: Some(20 * 6),
-            tcp_socket: Some(TCPSocketAction {
-                port: IntOrString::String(HTTPS_PORT_NAME.to_string()),
-                ..TCPSocketAction::default()
+            exec: Some(ExecAction {
+                command: Some(vec![
+                    "/bin/bash".to_string(),
+                    "-c".to_string(),
+                    "curl --insecure --silent --head https://127.0.0.1:8443/nifi > /dev/null || true"
+                        .to_string(),
+                ]),
             }),
             ..Probe::default()
         })
         .resources(merged_config.resources.clone().into());
+
+    // Nifi 2.x.x offers nifi-api/flow/metrics/prometheus at the HTTPS_PORT, therefore METRICS_PORT is not necessary anymore.
+    if resolved_product_image.product_version.starts_with("1.") {
+        container_nifi.add_container_port(METRICS_PORT_NAME, METRICS_PORT.into());
+    }
 
     let mut pod_builder = PodBuilder::new();
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
