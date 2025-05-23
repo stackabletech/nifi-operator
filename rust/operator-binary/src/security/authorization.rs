@@ -1,7 +1,7 @@
 use indoc::{formatdoc, indoc};
 use snafu::{OptionExt, Snafu};
 use stackable_operator::{
-    commons::authentication::ldap,
+    crd::authentication::ldap,
     k8s_openapi::api::core::v1::{ConfigMapKeySelector, EnvVar, EnvVarSource},
 };
 
@@ -91,7 +91,7 @@ impl NifiAuthorizationConfig {
 
     fn get_default_ldap_authorizer(
         &self,
-        ldap: &ldap::AuthenticationProvider,
+        ldap: &ldap::v1alpha1::AuthenticationProvider,
     ) -> Result<String, Error> {
         let (username_file, _) = ldap
             .bind_credentials_mount_paths()

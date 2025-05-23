@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
   - Use `--file-log-rotation-period` (or `FILE_LOG_ROTATION_PERIOD`) to configure the frequency of rotation.
   - Use `--console-log-format` (or `CONSOLE_LOG_FORMAT`) to set the format to `plain` (default) or `json`.
 - Add test for Apache Iceberg integration ([#785]).
+- Add support for custom components via git-sync ([#793]).
 
 ### Changed
 
@@ -43,6 +44,7 @@ All notable changes to this project will be documented in this file.
 [#785]: https://github.com/stackabletech/nifi-operator/pull/785
 [#787]: https://github.com/stackabletech/nifi-operator/pull/787
 [#789]: https://github.com/stackabletech/nifi-operator/pull/789
+[#793]: https://github.com/stackabletech/nifi-operator/pull/793
 
 ## [25.3.0] - 2025-03-21
 

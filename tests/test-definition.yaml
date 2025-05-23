@@ -124,6 +124,11 @@ tests:
       - iceberg-use-kerberos
       - kerberos-realm
       - openshift
+  - name: custom-components-git-sync
+    dimensions:
+      - nifi
+      - zookeeper-latest
+      - openshift
 suites:
   - name: nightly
     patch:
