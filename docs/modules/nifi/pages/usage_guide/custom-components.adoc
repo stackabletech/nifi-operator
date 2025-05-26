@@ -1,0 +1,87 @@
+= Loading custom components
+:description: Load custom NiFi components for enhanced functionality.
+:nifi-docs-developers-guide: https://nifi.apache.org/docs/nifi-docs/html/developer-guide.html
+:nifi-docs-python-developers-guide: https://nifi.apache.org/nifi-docs/python-developer-guide.html
+:git-sync-docs: https://github.com/kubernetes/git-sync/tree/v4.2.4#manual
+
+You can develop or use custom components for Apache NiFi, typically custom processors, to extend its functionality.
+
+There are currently two types of custom components:
+
+1. Custom NiFi Archives (NARs) +
+   The {nifi-docs-developers-guide}[NiFi Developer’s Guide] provides further information on how to develop custom NARs.
+2. Starting with NiFi 2.0, also custom Python extensions can be used. +
+   In {nifi-docs-python-developers-guide}, the development of custom components using Python is described.
+
+The Stackable image contains the required tooling for both types.
+For instance, a supported Python version is included.
+NARs are only loaded once, but for Python scripts, hot-reloading is supported.
+
+TIP: You might need to refresh your browser window to see the new or changed Python components.
+
+Several options are described below, to add custom components to NiFi.
+
+== git-sync
+
+Custom NiFi components can be synchronized from a Git repository directly into the NiFi pods with git-sync.
+The {crd-docs}/nifi.stackable.tech/nificluster/v1alpha1[NifiCluster CRD] allows the specification of one or multiple Git repositories:
+
+[source,yaml]
+----
+---
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+spec:
+  clusterConfig:
+    customComponentsGitSync:  # <1>
+    - repo: https://example.com/git/custom-nifi-components  # <2>
+      branch: main  # <3>
+      gitFolder: path/to/the/components  # <4>
+      depth: 10  # <5>
+      wait: 10s  # <6>
+      credentialsSecret: git-credentials  # <7>
+      gitSyncConf:  # <8>
+      --git-config: http.sslCAInfo:/tmp/ca-cert/ca.crt
+    - repo: https://example.com/git/other-nifi-components  # <9>
+  nodes:
+    config:
+      logging:
+        enableVectorAgent: true
+        containers:
+          git-sync:  # <10>
+            console:
+              level: INFO
+            file:
+              level: INFO
+            loggers:
+              ROOT:
+                level: INFO
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: git-credentials
+type: Opaque
+data:
+  user: ...
+  password: ...
+----
+<1> If the optional field `customComponentsGitSync` is defined, then containers running git-sync are deployed to synchronize the specified repositories.
+<2> The git repository URL that will be cloned
+<3> The branch to clone; defaults to `main`
+<4> Location in the Git repository containing the NiFi components; defaults to the root folder
+<5> The depth of synchronizing, i.e. the number of commits to clone; defaults to 1
+<6> The synchronization interval, e.g. `20s` or `5m`; defaults to `20s`
+<7> The name of the Secret used to access the repository if it is not public. +
+    The referenced Secret must include two fields: `user` and `password`.
+    The `password` field can either be an actual password (not recommended) or a GitHub token, as described in the {git-sync-docs}[git-sync documentation].
+<8> A map of optional configuration settings that are listed in the {git-sync-docs}[git-sync documentation]. +
+    These settings are not verified.
+<9> Multiple repositories can be defined. Only the `repo` field is mandatory.
+<10> Logging can be configured as described in xref:concepts:logging.adoc[].
+     As git-sync is a command-line tool, just its output is logged and no fine-grained log configuration is possible.
+     All git-sync containers are configured via the one `git-sync` field.
+
+It cannot be specified, if a repository contains NiFi Archives or Python components.
+The operator just configures each repository for both types.
+In particular, the parameters `nifi.nar.library.directory` and `nifi.python.extensions.source.directory` are set.
