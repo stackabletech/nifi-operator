@@ -1207,16 +1207,13 @@ async fn build_node_rolegroup_statefulset(
             .context(AddVolumeMountSnafu)?;
     }
 
-    if git_sync_resources.is_git_sync_enabled() {
-        let volume_name = "nifi-python-working-directory".to_string();
-
-        pod_builder
-            .add_empty_dir_volume(&volume_name, None)
-            .context(AddVolumeSnafu)?;
-        container_nifi
-            .add_volume_mount(&volume_name, NIFI_PYTHON_WORKING_DIRECTORY)
-            .context(AddVolumeMountSnafu)?;
-    }
+    let volume_name = "nifi-python-working-directory".to_string();
+    pod_builder
+        .add_empty_dir_volume(&volume_name, None)
+        .context(AddVolumeSnafu)?;
+    container_nifi
+        .add_volume_mount(&volume_name, NIFI_PYTHON_WORKING_DIRECTORY)
+        .context(AddVolumeMountSnafu)?;
 
     container_nifi
         .add_volume_mounts(git_sync_resources.git_content_volume_mounts.to_owned())

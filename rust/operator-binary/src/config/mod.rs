@@ -578,45 +578,49 @@ pub fn build_nifi_properties(
     //####################
     // Custom components #
     //####################
-    if git_sync_resources.is_git_sync_enabled() {
-        // NiFi 1.x does not support Python components. The Python configuration is just ignored.
+    // NiFi 1.x does not support Python components and the Python configuration below is just
+    // ignored.
 
-        // The command used to launch Python.
-        // This property must be set to enable Python-based processors.
-        properties.insert("nifi.python.command".to_string(), "python3".to_string());
+    // The command used to launch Python.
+    // This property must be set to enable Python-based processors.
+    properties.insert("nifi.python.command".to_string(), "python3".to_string());
 
-        // The directory that contains the Python framework for communicating between the Python and
-        // Java processes.
+    // The directory that contains the Python framework for communicating between the Python and
+    // Java processes.
+    properties.insert(
+        "nifi.python.framework.source.directory".to_string(),
+        "/stackable/nifi/python/framework/".to_string(),
+    );
+
+    // The working directory where NiFi should store artifacts;
+    // This property defaults to ./work/python but if you want to mount an emptyDir for the working
+    // directory then another directory has to be set to avoid ownership conflicts with ./work/nar.
+    properties.insert(
+        "nifi.python.working.directory".to_string(),
+        NIFI_PYTHON_WORKING_DIRECTORY.to_string(),
+    );
+
+    // The default directory that NiFi should look in to find custom Python-based components.
+    // This directory is mentioned in the documentation
+    // (docs/modules/nifi/pages/usage_guide/custom-components.adoc), so do not change it!
+    properties.insert(
+        "nifi.python.extensions.source.directory.default".to_string(),
+        "/stackable/nifi/python/extensions/".to_string(),
+    );
+
+    for (i, git_folder) in git_sync_resources
+        .git_content_folders_as_string()
+        .into_iter()
+        .enumerate()
+    {
+        // The directory that NiFi should look in to find custom Python-based components.
         properties.insert(
-            "nifi.python.framework.source.directory".to_string(),
-            "/stackable/nifi/python/framework/".to_string(),
+            format!("nifi.python.extensions.source.directory.{i}"),
+            git_folder.clone(),
         );
 
-        // The working directory where NiFi should store artifacts;
-        // This property defaults to ./work/python but if you want to mount an
-        // emptyDir for the working directory then another directory has to be
-        // set to avoid ownership conflicts with ./work/nar.
-        properties.insert(
-            "nifi.python.working.directory".to_string(),
-            NIFI_PYTHON_WORKING_DIRECTORY.to_string(),
-        );
-
-        for (i, git_folder) in git_sync_resources
-            .git_content_folders_as_string()
-            .into_iter()
-            .enumerate()
-        {
-            // The directory that NiFi should look in to find custom Python-based
-            // components.
-            properties.insert(
-                format!("nifi.python.extensions.source.directory.{i}"),
-                git_folder.clone(),
-            );
-
-            // The directory that NiFi should look in to find custom Java-based
-            // components.
-            properties.insert(format!("nifi.nar.library.directory.{i}"), git_folder);
-        }
+        // The directory that NiFi should look in to find custom Java-based components.
+        properties.insert(format!("nifi.nar.library.directory.{i}"), git_folder);
     }
     //##########################
 
@@ -744,7 +748,9 @@ mod tests {
         "#;
         let bootstrap_conf = construct_bootstrap_conf(input);
 
-        assert_eq!(bootstrap_conf, indoc! {"
+        assert_eq!(
+            bootstrap_conf,
+            indoc! {"
                 conf.dir=./conf
                 graceful.shutdown.seconds=300
                 java=java
@@ -763,7 +769,8 @@ mod tests {
                 lib.dir=./lib
                 preserve.environment=false
                 run.as=
-            "});
+            "}
+        );
     }
 
     #[test]
@@ -809,7 +816,9 @@ mod tests {
         "#;
         let bootstrap_conf = construct_bootstrap_conf(input);
 
-        assert_eq!(bootstrap_conf, indoc! {"
+        assert_eq!(
+            bootstrap_conf,
+            indoc! {"
                 conf.dir=./conf
                 graceful.shutdown.seconds=300
                 java=java
@@ -830,7 +839,8 @@ mod tests {
                 lib.dir=./lib
                 preserve.environment=false
                 run.as=
-            "});
+            "}
+        );
     }
 
     fn construct_bootstrap_conf(nifi_cluster: &str) -> String {
