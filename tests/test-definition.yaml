@@ -23,12 +23,12 @@ dimensions:
     values:
       - 2.4.0 # oci.stackable.tech/sandbox/nifi:2.4.0-stackable0.0.0-dev
     # TODO: Can be removed once NiFi 1.x.x is removed - only for seperate smoke tests
-  - name: smoke-nifi-v1
+  - name: nifi-v1
     values:
       - 1.27.0
       - 1.28.1
     # TODO: Can be removed once NiFi 1.x.x is removed - only for seperate smoke tests
-  - name: smoke-nifi-v2
+  - name: nifi-v2
     values:
       - 2.4.0
     # Use Kubernetes manager if set to false
@@ -95,14 +95,14 @@ tests:
   # TODO: Can be removed once NiFi 1.x.x is removed - only for seperate smoke tests
   - name: smoke_v1
     dimensions:
-      - smoke-nifi-v1
+      - nifi-v1
       - zookeeper
       - listener-class
       - openshift
   # TODO: Can be renamed to smoke once NiFi 1.x.x is removed - only for seperate smoke tests
   - name: smoke_v2
     dimensions:
-      - smoke-nifi-v2
+      - nifi-v2
       - zookeeper
       - use-zookeeper-manager
       - listener-class

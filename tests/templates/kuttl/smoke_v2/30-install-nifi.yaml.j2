@@ -5,12 +5,12 @@ metadata:
   name: nifi
 spec:
   image:
-{% if test_scenario['values']['smoke-nifi-v2'].find(",") > 0 %}
-    custom: "{{ test_scenario['values']['smoke-nifi-v2'].split(',')[1] }}"
-    productVersion: "{{ test_scenario['values']['smoke-nifi-v2'].split(',')[0] }}"
+{% if test_scenario['values']['nifi-v2'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['nifi-v2'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['nifi-v2'].split(',')[0] }}"
 {% else %}
     custom: null
-    productVersion: "{{ test_scenario['values']['smoke-nifi-v2'] }}"
+    productVersion: "{{ test_scenario['values']['nifi-v2'] }}"
 {% endif %}
     pullPolicy: IfNotPresent
   clusterConfig:
