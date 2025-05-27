@@ -107,7 +107,6 @@ use crate::{
 
 pub const NIFI_CONTROLLER_NAME: &str = "nificluster";
 pub const NIFI_FULL_CONTROLLER_NAME: &str = concatcp!(NIFI_CONTROLLER_NAME, '.', OPERATOR_NAME);
-pub const NIFI_UID: i64 = 1000;
 
 const DOCKER_IMAGE_BASE_NAME: &str = "nifi";
 
@@ -1366,13 +1365,7 @@ async fn build_node_rolegroup_statefulset(
         })
         .context(AddVolumeSnafu)?
         .service_account_name(service_account_name)
-        .security_context(
-            PodSecurityContextBuilder::new()
-                .run_as_user(NIFI_UID)
-                .run_as_group(0)
-                .fs_group(1000)
-                .build(),
-        );
+        .security_context(PodSecurityContextBuilder::new().fs_group(1000).build());
 
     let mut labels = BTreeMap::new();
     labels.insert(
