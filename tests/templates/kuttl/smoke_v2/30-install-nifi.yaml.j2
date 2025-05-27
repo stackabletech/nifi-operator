@@ -5,16 +5,18 @@ metadata:
   name: nifi
 spec:
   image:
-{% if test_scenario['values']['nifi'].find(",") > 0 %}
-    custom: "{{ test_scenario['values']['nifi'].split(',')[1] }}"
-    productVersion: "{{ test_scenario['values']['nifi'].split(',')[0] }}"
+{% if test_scenario['values']['smoke-nifi-v2'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['smoke-nifi-v2'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['smoke-nifi-v2'].split(',')[0] }}"
 {% else %}
     custom: null
-    productVersion: "{{ test_scenario['values']['nifi'] }}"
+    productVersion: "{{ test_scenario['values']['smoke-nifi-v2'] }}"
 {% endif %}
     pullPolicy: IfNotPresent
   clusterConfig:
+{% if test_scenario['values']['use-zookeeper-manager'] == 'true' %}  
     zookeeperConfigMapName: nifi-znode
+{% endif %}    
     listenerClass: {{ test_scenario['values']['listener-class'] }}
     authentication:
       - authenticationClass: nifi-users
@@ -73,6 +75,7 @@ metadata:
   name: nifi-sensitive-property-key
 stringData:
   nifiSensitivePropsKey: mYsUp3rS3cr3tk3y
+{% if test_scenario['values']['use-zookeeper-manager'] == 'true' %}    
 ---
 apiVersion: zookeeper.stackable.tech/v1alpha1
 kind: ZookeeperZnode
@@ -81,3 +84,4 @@ metadata:
 spec:
   clusterRef:
     name: zookeeper
+{% endif %}

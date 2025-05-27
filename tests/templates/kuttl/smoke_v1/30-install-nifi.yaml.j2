@@ -1,46 +1,23 @@
 ---
-apiVersion: authentication.stackable.tech/v1alpha1
-kind: AuthenticationClass
-metadata:
-  name: simple-nifi-users
-spec:
-  provider:
-    static:
-      userCredentialsSecret:
-        name: simple-nifi-admin-credentials
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: simple-nifi-admin-credentials
-stringData:
-  admin: >
-    passwordWithSpecialCharacter\@<&>"'
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: nifi-sensitive-property-key
-stringData:
-  nifiSensitivePropsKey: mYsUp3rS3cr3tk3y
----
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
 metadata:
-  name: test-nifi
+  name: nifi
 spec:
   image:
-{% if test_scenario['values']['nifi_new'].find(",") > 0 %}
-    custom: "{{ test_scenario['values']['nifi_new'].split(',')[1] }}"
-    productVersion: "{{ test_scenario['values']['nifi_new'].split(',')[0] }}"
+{% if test_scenario['values']['smoke-nifi-v1'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['smoke-nifi-v1'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['smoke-nifi-v1'].split(',')[0] }}"
 {% else %}
-    productVersion: "{{ test_scenario['values']['nifi_new'] }}"
+    custom: null
+    productVersion: "{{ test_scenario['values']['smoke-nifi-v1'] }}"
 {% endif %}
     pullPolicy: IfNotPresent
   clusterConfig:
+    zookeeperConfigMapName: nifi-znode
     listenerClass: {{ test_scenario['values']['listener-class'] }}
     authentication:
-      - authenticationClass: simple-nifi-users
+      - authenticationClass: nifi-users
     hostHeaderCheck:
       allowAll: false
       additionalAllowedHosts:
@@ -71,3 +48,36 @@ spec:
           "nifi.properties":
             "nifi.diagnostics.on.shutdown.enabled": "false"
             "nifi.diagnostics.on.shutdown.max.filecount": "20"
+---
+apiVersion: authentication.stackable.tech/v1alpha1
+kind: AuthenticationClass
+metadata:
+  name: nifi-users
+spec:
+  provider:
+    static:
+      userCredentialsSecret:
+        name: nifi-users
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nifi-users
+stringData:
+  admin: >
+    passwordWithSpecialCharacter\@<&>"'
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nifi-sensitive-property-key
+stringData:
+  nifiSensitivePropsKey: mYsUp3rS3cr3tk3y
+---
+apiVersion: zookeeper.stackable.tech/v1alpha1
+kind: ZookeeperZnode
+metadata:
+  name: nifi-znode
+spec:
+  clusterRef:
+    name: zookeeper

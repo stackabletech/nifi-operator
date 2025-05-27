@@ -4,6 +4,4 @@ kind: TestAssert
 timeout: 300
 commands:
   - script: kubectl exec -n $NAMESPACE test-nifi-0 -- python /tmp/test_nifi.py -u admin -p 'passwordWithSpecialCharacter\@<&>"'"'" -n $NAMESPACE -c 3
-{% if test_scenario['values']['nifi'].startswith('1.') %}
-  - script: kubectl exec -n $NAMESPACE test-nifi-0 -- python /tmp/test_nifi_metrics.py -n $NAMESPACE
-{% endif %}
+
