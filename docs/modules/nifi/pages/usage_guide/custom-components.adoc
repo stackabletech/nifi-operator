@@ -1,3 +1,4 @@
+[#custom-components]
 = Loading custom components
 :description: Load custom NiFi components for enhanced functionality.
 :nifi-docs-developers-guide: https://nifi.apache.org/docs/nifi-docs/html/developer-guide.html
@@ -37,6 +38,7 @@ $ kubectl logs nifi-node-default-0
 ----
 ====
 
+[#git-sync]
 == Synchronize with git-sync
 
 Custom NiFi components can be synchronized from a Git repository directly into the NiFi pods with git-sync.
@@ -101,6 +103,7 @@ It cannot be specified, if a repository contains NiFi Archives or Python compone
 The operator just configures each repository for both types.
 In particular, the parameters `nifi.nar.library.directory.+*+` and `nifi.python.extensions.source.directory.+*+` are set.
 
+[#config-map]
 == Mount as a ConfigMap
 
 Custom components can also be stored in ConfigMaps.
@@ -176,6 +179,7 @@ spec:
 <1> Specify your ConfigMaps here.
 <2> The directory name after `userdata` has to match the name of the volume, while `myCustomLibs` is a name you can freely change.
 
+[#custom-image]
 == Custom Docker image
 
 You can extend the official Stackable NiFi image by copying the required NAR files into NiFi's classpath or the Python files into the default extension directory.
@@ -203,6 +207,7 @@ spec:
 
 Also read the xref:guides:custom-images.adoc[Using customized product images] guide for additional information.
 
+[#pvc]
 == Using the official image
 
 If you do not want to create a custom image or do not have access to an image registry, you can use the extra volume mount functionality to mount a volume containing your custom components and configure NiFi to read these from the mounted volumes.
