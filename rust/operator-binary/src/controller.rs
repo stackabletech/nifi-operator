@@ -808,7 +808,10 @@ async fn build_node_rolegroup_config_map(
                 rolegroup: rolegroup.clone(),
             })?,
         )
-        .add_data(NIFI_STATE_MANAGEMENT_XML, build_state_management_xml())
+        .add_data(
+            NIFI_STATE_MANAGEMENT_XML,
+            build_state_management_xml(&nifi.spec.cluster_config.clustering_backend),
+        )
         .add_data(
             LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME,
             login_identity_provider_xml,
@@ -908,7 +911,7 @@ async fn build_node_rolegroup_statefulset(
     authorization_config: &NifiAuthorizationConfig,
     rolling_update_supported: bool,
     replicas: Option<i32>,
-    sa_name: &str,
+    service_account_name: &str,
     git_sync_resources: &git_sync::v1alpha1::GitSyncResources,
 ) -> Result<StatefulSet> {
     tracing::debug!("Building statefulset");
@@ -945,18 +948,36 @@ async fn build_node_rolegroup_statefulset(
     env_vars.push(EnvVar {
         name: "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
         value: Some(format!("{STACKABLE_LOG_DIR}/containerdebug")),
-        value_from: None,
+        ..Default::default()
     });
 
-    env_vars.push(zookeeper_env_var(
-        "ZOOKEEPER_HOSTS",
-        &nifi.spec.cluster_config.zookeeper_config_map_name,
-    ));
+    env_vars.push(EnvVar {
+        name: "STACKLET_NAME".to_string(),
+        value: Some(nifi.name_unchecked().to_string()),
+        ..Default::default()
+    });
 
-    env_vars.push(zookeeper_env_var(
-        "ZOOKEEPER_CHROOT",
-        &nifi.spec.cluster_config.zookeeper_config_map_name,
-    ));
+    match &nifi.spec.cluster_config.clustering_backend {
+        v1alpha1::NifiClusteringBackend::ZooKeeper {
+            zookeeper_config_map_name,
+        } => {
+            let zookeeper_env_var = |name: &str| EnvVar {
+                name: name.to_string(),
+                value_from: Some(EnvVarSource {
+                    config_map_key_ref: Some(ConfigMapKeySelector {
+                        name: zookeeper_config_map_name.to_string(),
+                        key: name.to_string(),
+                        ..ConfigMapKeySelector::default()
+                    }),
+                    ..EnvVarSource::default()
+                }),
+                ..EnvVar::default()
+            };
+            env_vars.push(zookeeper_env_var("ZOOKEEPER_HOSTS"));
+            env_vars.push(zookeeper_env_var("ZOOKEEPER_CHROOT"));
+        }
+        v1alpha1::NifiClusteringBackend::Kubernetes {} => {}
+    }
 
     if let NifiAuthenticationConfig::Oidc { oidc, .. } = authentication_config {
         env_vars.extend(
@@ -1005,11 +1026,17 @@ async fn build_node_rolegroup_statefulset(
         format!("echo Importing {KEYSTORE_NIFI_CONTAINER_MOUNT}/keystore.p12 to {STACKABLE_SERVER_TLS_DIR}/keystore.p12"),
         format!("cp {KEYSTORE_NIFI_CONTAINER_MOUNT}/keystore.p12 {STACKABLE_SERVER_TLS_DIR}/keystore.p12"),
         format!("echo Importing {KEYSTORE_NIFI_CONTAINER_MOUNT}/truststore.p12 to {STACKABLE_SERVER_TLS_DIR}/truststore.p12"),
+        // secret-operator currently encrypts keystores with RC2, which NiFi is unable to read: https://github.com/stackabletech/nifi-operator/pull/510
+        // As a workaround, reencrypt the keystore with keytool.
+        // keytool crashes if the target truststore already exists (covering up the true error
+        // if the init container fails later on in the script), so delete it first.
+        format!("test ! -e {STACKABLE_SERVER_TLS_DIR}/truststore.p12 || rm {STACKABLE_SERVER_TLS_DIR}/truststore.p12"),
         format!("keytool -importkeystore -srckeystore {KEYSTORE_NIFI_CONTAINER_MOUNT}/truststore.p12 -destkeystore {STACKABLE_SERVER_TLS_DIR}/truststore.p12 -srcstorepass {STACKABLE_TLS_STORE_PASSWORD} -deststorepass {STACKABLE_TLS_STORE_PASSWORD}"),
+
         "echo Replacing config directory".to_string(),
         "cp /conf/* /stackable/nifi/conf".to_string(),
-        "ln -sf /stackable/log_config/logback.xml /stackable/nifi/conf/logback.xml".to_string(),
-        format!("export NODE_ADDRESS=\"{node_address}\""),
+        "test -L /stackable/nifi/conf/logback.xml || ln -sf /stackable/log_config/logback.xml /stackable/nifi/conf/logback.xml".to_string(),
+        format!(r#"export NODE_ADDRESS="{node_address}""#),
     ]);
 
     // This commands needs to go first, as they might set env variables needed by the templating
@@ -1381,7 +1408,7 @@ async fn build_node_rolegroup_statefulset(
             ..Volume::default()
         })
         .context(AddVolumeSnafu)?
-        .service_account_name(sa_name)
+        .service_account_name(service_account_name)
         .security_context(
             PodSecurityContextBuilder::new()
                 .run_as_user(NIFI_UID)
@@ -1491,22 +1518,6 @@ fn external_node_port(nifi_service: &Service) -> Result<i32> {
         .with_context(|| ExternalPortSnafu {})?;
 
     port.node_port.with_context(|| ExternalPortSnafu {})
-}
-
-/// Used for the `ZOOKEEPER_HOSTS` and `ZOOKEEPER_CHROOT` env vars.
-fn zookeeper_env_var(name: &str, configmap_name: &str) -> EnvVar {
-    EnvVar {
-        name: name.to_string(),
-        value_from: Some(EnvVarSource {
-            config_map_key_ref: Some(ConfigMapKeySelector {
-                name: configmap_name.to_string(),
-                key: name.to_string(),
-                ..ConfigMapKeySelector::default()
-            }),
-            ..EnvVarSource::default()
-        }),
-        ..EnvVar::default()
-    }
 }
 
 async fn get_proxy_hosts(
