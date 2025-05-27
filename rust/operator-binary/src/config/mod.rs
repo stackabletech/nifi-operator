@@ -20,8 +20,7 @@ use strum::{Display, EnumIter};
 use crate::{
     crd::{
         HTTPS_PORT, NifiConfig, NifiConfigFragment, NifiRole, NifiStorageConfig, PROTOCOL_PORT,
-        sensitive_properties, v1alpha1,
-        v1alpha1::{self, NifiClusteringBackend},
+        sensitive_properties, v1alpha1, v1alpha1::NifiClusteringBackend,
     },
     operations::graceful_shutdown::graceful_shutdown_config_properties,
     security::{
