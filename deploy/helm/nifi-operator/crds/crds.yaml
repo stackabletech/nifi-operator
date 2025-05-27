@@ -109,7 +109,7 @@ spec:
                       type: object
                     customComponentsGitSync:
                       default: []
-                      description: The `customComponentsGitSync` setting allows configuring custom components to mount via `git-sync`. Learn more in the [Custom Python processors documentation](https://docs.stackable.tech/home/nightly/nifi/usage_guide/custom-components/custom-python-processors/#git-sync).
+                      description: The `customComponentsGitSync` setting allows configuring custom components to mount via `git-sync`. Learn more in the documentation for [Loading custom components](https://docs.stackable.tech/home/nightly/nifi/usage_guide/custom-components.html#git_sync).
                       items:
                         properties:
                           branch:
