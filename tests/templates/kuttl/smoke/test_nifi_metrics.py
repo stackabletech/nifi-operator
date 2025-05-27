@@ -23,7 +23,7 @@ if __name__ == '__main__':
     port = args["port"]
     timeout = int(args["timeout"])
 
-    url = f"http://test-nifi-node-default-0.test-nifi-node-default.{namespace}.svc.cluster.local:{port}/metrics"
+    url = f"http://nifi-node-default-0.nifi-node-default.{namespace}.svc.cluster.local:{port}/metrics"
 
     # wait for 'timeout' seconds
     t_end = time.time() + timeout

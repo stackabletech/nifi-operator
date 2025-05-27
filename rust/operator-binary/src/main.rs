@@ -180,10 +180,26 @@ fn references_config_map(
         return false;
     };
 
-    match &nifi.spec.cluster_config.clustering_backend {
+    let references_zookeeper_config_map = match &nifi.spec.cluster_config.clustering_backend {
         NifiClusteringBackend::ZooKeeper {
             zookeeper_config_map_name,
         } => *zookeeper_config_map_name == config_map.name_any(),
         NifiClusteringBackend::Kubernetes {} => false,
-    }
+    };
+    let references_authorization_config_map = references_authorization_config_map(nifi, config_map);
+
+    references_zookeeper_config_map || references_authorization_config_map
+}
+
+fn references_authorization_config_map(
+    nifi: &v1alpha1::NifiCluster,
+    config_map: &DeserializeGuard<ConfigMap>,
+) -> bool {
+    nifi.spec
+        .cluster_config
+        .authorization
+        .as_ref()
+        .and_then(|authz| authz.opa.as_ref())
+        .map(|opa_config| opa_config.opa.config_map_name == config_map.name_any())
+        .unwrap_or(false)
 }

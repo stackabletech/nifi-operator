@@ -1,0 +1,75 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opa-nifi-uif-rego
+  labels:
+    opa.stackable.tech/bundle: "true"
+data:
+  nifi.rego: |
+    package nifi
+
+    # Setting "resourceNotFound" to true results in the parent resource beingevaluated for authorization,
+    # e.g. the parent of a processor is the processor-group.
+    # If a resource is matched by a rego rule that is not the default the parent resource will be ignored.
+    default allow := {
+      "resourceNotFound": true
+    }
+
+    # The nifi-admin has access to everything
+    allow := {
+      "allowed": true,
+    } if {
+      some group in user_groups
+      group == "nifi-admin"
+    }
+
+    # Every user in the group "nifi-user" has access to the UI
+    allow := {
+      "allowed": true,
+      "dumpCache": true
+    } if {
+      input.resource.id in ["/flow"]
+      some group in user_groups
+      group == "nifi-user"
+    }
+
+    # Allow access to process groups A & B only to users in the corresponding group
+    allow := {
+      "allowed": true,
+    } if {
+      input.resource.id == "/process-groups/c9186a05-0196-1000-ffff-ffffd8474359"
+      some group in user_groups
+      group in ["nifi-process-group-a"]
+    }
+
+    allow := {
+      "allowed": true
+    } if {
+      input.resource.id == "/process-groups/7e08561b-447d-3acb-b510-744d886c3ca4"
+      some group in user_groups
+      group in ["nifi-process-group-b"]
+    }
+
+    # Allow read-only access to group "nifi-user" to proccess group C
+    allow := {
+      "allowed": true
+    } if {
+      input.resource.id == "/process-groups/f3b78341-b2ff-3ae3-b7fc-4b518617c802"
+      input.action.name == "read"
+      some group in user_groups
+      group == "nifi-user"
+    }
+
+    allow := {
+      "allowed": true,
+      "dumpCache": true
+    } if {
+      input.identity.name == "CN=generated certificate for pod"
+      input.resource.id == "/proxy"
+    }
+
+    user_groups := user_groups if {
+      user_group_paths := data.stackable.opa.userinfo.v1.userInfoByUsername(input.identity.name).groups
+      user_groups := [ trim(user_group,"/") | user_group := user_group_paths[_] ]
+    }

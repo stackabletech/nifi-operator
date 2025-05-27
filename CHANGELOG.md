@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
   - Use `--file-log-rotation-period` (or `FILE_LOG_ROTATION_PERIOD`) to configure the frequency of rotation.
   - Use `--console-log-format` (or `CONSOLE_LOG_FORMAT`) to set the format to `plain` (default) or `json`.
 - NiFi 2.x now supports storing cluster state in Kubernetes instead of ZooKeeper ([#775]).
+- Add test for Apache Iceberg integration ([#785]).
 
 ### Changed
 
@@ -41,6 +42,7 @@ All notable changes to this project will be documented in this file.
 [#775]: https://github.com/stackabletech/nifi-operator/pull/775
 [#776]: https://github.com/stackabletech/nifi-operator/pull/776
 [#782]: https://github.com/stackabletech/nifi-operator/pull/782
+[#785]: https://github.com/stackabletech/nifi-operator/pull/785
 [#787]: https://github.com/stackabletech/nifi-operator/pull/787
 [#789]: https://github.com/stackabletech/nifi-operator/pull/789
 

@@ -4,31 +4,45 @@ dimensions:
     values:
       - 1.27.0
       - 1.28.1
-      - 2.2.0
+      - 2.4.0
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
-      # - 2.2.0,oci.stackable.tech/sandbox/nifi:2.2.0-stackable0.0.0-dev
+      # - 2.4.0,oci.stackable.tech/sandbox/nifi:2.4.0-stackable0.0.0-dev
   - name: nifi_old
     values:
       - 1.27.0
   - name: nifi_new
     values:
-      - 2.2.0
-      # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
-      # as in the example below.
-      # - 2.2.0,oci.stackable.tech/sandbox/nifi:2.2.0-stackable0.0.0-dev
+      - 2.4.0 # oci.stackable.tech/sandbox/nifi:2.4.0-stackable0.0.0-dev
   - name: nifi-latest
     values:
-      - 2.2.0
-      # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
-      # as in the example below.
-      # - 2.2.0,oci.stackable.tech/sandbox/nifi:2.2.0-stackable0.0.0-dev
+      - 2.4.0 # oci.stackable.tech/sandbox/nifi:2.4.0-stackable0.0.0-dev
+  - name: nifi-iceberg
+    # Not all NiFi versions support Iceberg with the same functionality!
+    # E.g. our own implementation started with NiFi 2.2.0
+    values:
+      - 2.4.0 # oci.stackable.tech/sandbox/nifi:2.4.0-stackable0.0.0-dev
   - name: zookeeper
     values:
       - 3.9.3
   - name: zookeeper-latest
     values:
       - 3.9.3
+  - name: opa-l
+    values:
+      - 1.4.2
+  - name: hdfs-l
+    values:
+      - 3.4.1
+  - name: hive-l
+    values:
+      - 4.0.1
+  - name: trino-l
+    values:
+      - "470"
+  - name: krb5
+    values:
+      - 1.21.1
   - name: ldap-use-tls
     values:
       - "false"
@@ -37,6 +51,13 @@ dimensions:
     values:
       - "false"
       - "true"
+  - name: iceberg-use-kerberos
+    values:
+      - "false"
+      - "true"
+  - name: kerberos-realm
+    values:
+      - "PROD.MYCORP"
   - name: openshift
     values:
       - "false"
@@ -90,11 +111,24 @@ tests:
       - nifi-latest
       - zookeeper-latest
       - openshift
-  - name: oidc
+  - name: oidc-opa
     dimensions:
       - nifi
       - zookeeper-latest
       - oidc-use-tls
+      - opa-l
+      - openshift
+  - name: iceberg
+    dimensions:
+      - nifi-iceberg
+      - opa-l
+      - zookeeper-latest
+      - hdfs-l
+      - hive-l
+      - trino-l
+      - krb5
+      - iceberg-use-kerberos
+      - kerberos-realm
       - openshift
 suites:
   - name: nightly
