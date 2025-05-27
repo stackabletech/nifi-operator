@@ -152,8 +152,8 @@ pub mod versioned {
         pub zookeeper_config_map_name: String,
 
         /// The `customComponentsGitSync` setting allows configuring custom components to mount via `git-sync`.
-        /// Learn more in the
-        /// [Custom Python processors documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/custom-components.html#git_sync).
+        /// Learn more in the documentation for
+        /// [Loading custom components](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/custom-components.html#git_sync).
         #[serde(default)]
         pub custom_components_git_sync: Vec<git_sync::v1alpha1::GitSync>,
 
