@@ -16,7 +16,7 @@ spec:
   clusterConfig:
 {% if test_scenario['values']['use-zookeeper-manager'] == 'true' %}
     zookeeperConfigMapName: nifi-znode
-{% endif %}    
+{% endif %}
     listenerClass: {{ test_scenario['values']['listener-class'] }}
     authentication:
       - authenticationClass: nifi-users
