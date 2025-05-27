@@ -14,7 +14,7 @@ spec:
 {% endif %}
     pullPolicy: IfNotPresent
   clusterConfig:
-{% if test_scenario['values']['use-zookeeper-manager'] == 'true' %}  
+{% if test_scenario['values']['use-zookeeper-manager'] == 'true' %}
     zookeeperConfigMapName: nifi-znode
 {% endif %}    
     listenerClass: {{ test_scenario['values']['listener-class'] }}
@@ -75,7 +75,7 @@ metadata:
   name: nifi-sensitive-property-key
 stringData:
   nifiSensitivePropsKey: mYsUp3rS3cr3tk3y
-{% if test_scenario['values']['use-zookeeper-manager'] == 'true' %}    
+{% if test_scenario['values']['use-zookeeper-manager'] == 'true' %}
 ---
 apiVersion: zookeeper.stackable.tech/v1alpha1
 kind: ZookeeperZnode
