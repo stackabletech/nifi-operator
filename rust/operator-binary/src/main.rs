@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use clap::Parser;
+use crd::v1alpha1::NifiClusteringBackend;
 use futures::stream::StreamExt;
 use stackable_operator::{
     YamlSchema,
@@ -179,8 +180,12 @@ fn references_config_map(
         return false;
     };
 
-    let references_zookeeper_config_map =
-        nifi.spec.cluster_config.zookeeper_config_map_name == config_map.name_any();
+    let references_zookeeper_config_map = match &nifi.spec.cluster_config.clustering_backend {
+        NifiClusteringBackend::ZooKeeper {
+            zookeeper_config_map_name,
+        } => *zookeeper_config_map_name == config_map.name_any(),
+        NifiClusteringBackend::Kubernetes {} => false,
+    };
     let references_authorization_config_map = references_authorization_config_map(nifi, config_map);
 
     references_zookeeper_config_map || references_authorization_config_map

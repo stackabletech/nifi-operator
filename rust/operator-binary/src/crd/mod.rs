@@ -145,11 +145,8 @@ pub mod versioned {
         #[serde(skip_serializing_if = "Option::is_none")]
         pub vector_aggregator_config_map_name: Option<String>,
 
-        /// NiFi requires a ZooKeeper cluster connection to run.
-        /// Provide the name of the ZooKeeper [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery)
-        /// here. When using the [Stackable operator for Apache ZooKeeper](DOCS_BASE_URL_PLACEHOLDER/zookeeper/)
-        /// to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
-        pub zookeeper_config_map_name: String,
+        #[serde(flatten)]
+        pub clustering_backend: NifiClusteringBackend,
 
         /// Extra volumes similar to `.spec.volumes` on a Pod to mount into every container, this can be useful to for
         /// example make client certificates, keytabs or similar things available to processors. These volumes will be
@@ -174,6 +171,25 @@ pub mod versioned {
         // Docs are on the struct
         #[serde(default)]
         pub create_reporting_task_job: CreateReportingTaskJob,
+    }
+
+    // This is flattened in for backwards compatibility reasons, `zookeeper_config_map_name` already existed and used to be mandatory.
+    // For v1alpha2, consider migrating this to a tagged enum for consistency.
+    #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[serde(untagged)]
+    pub enum NifiClusteringBackend {
+        #[serde(rename_all = "camelCase")]
+        ZooKeeper {
+            /// NiFi can either use ZooKeeper or Kubernetes for managing its cluster state. To use ZooKeeper, provide the name of the
+            /// ZooKeeper [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery) here.
+            /// When using the [Stackable operator for Apache ZooKeeper](DOCS_BASE_URL_PLACEHOLDER/zookeeper/)
+            /// to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
+            ///
+            /// The Kubernetes provider will be used if this field is unset. Kubernetes is only supported for NiFi 2.x and newer,
+            /// NiFi 1.x requires ZooKeeper.
+            zookeeper_config_map_name: String,
+        },
+        Kubernetes {},
     }
 }
 
