@@ -414,7 +414,7 @@ WARNING: Please make sure to backup any flows before upgrading the sensitive pro
 
 The sensitive properties algorithm can be changed via the `nifi.sh` CLI tool as described in the https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#updating-the-sensitive-properties-algorithm[Apache NiFi documentation].
 
-Assuming the you deployed a cluster like:
+Assuming that you deployed a cluster with this:
 
 [source,yaml]
 ----
@@ -432,7 +432,7 @@ If you want to change the algorithm to `nifiPbkdf2AesGcm256`, you have to run th
 
 NOTE: Be careful with the notation used in the NiFiCluster `nifiPbkdf2AesGcm256` versus the setting in the NiFi CLI `NIFI_PBKDF2_AES_GCM_256`!
 
-Or use this shell script to automatically execute this in each pod via `kubectl` (make sure to edit the `NAMESPACE` and `STATEFULSET_NAME` accordingly):
+Alternatively, you can use this shell script to automatically execute this in each pod via `kubectl` (make sure to edit the `NAMESPACE` and `STATEFULSET_NAME` accordingly):
 
 [source,bash]
 ----
