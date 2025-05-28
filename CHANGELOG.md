@@ -31,6 +31,7 @@ All notable changes to this project will be documented in this file.
 
 - Use `json` file extension for log files ([#774]).
 - Fix a bug where changes to ConfigMaps that are referenced in the NifiCluster spec didn't trigger a reconciliation ([#772]).
+- The operator now emits a warning (1.x.x) or errors out (2.x.x) if a deprecated or unsupported sensitive properties algorithm is used ([#799]).
 
 ### Removed
 
@@ -47,6 +48,7 @@ All notable changes to this project will be documented in this file.
 [#787]: https://github.com/stackabletech/nifi-operator/pull/787
 [#789]: https://github.com/stackabletech/nifi-operator/pull/789
 [#793]: https://github.com/stackabletech/nifi-operator/pull/793
+[#799]: https://github.com/stackabletech/nifi-operator/pull/799
 
 ## [25.3.0] - 2025-03-21
 

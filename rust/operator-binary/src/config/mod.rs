@@ -21,7 +21,7 @@ use strum::{Display, EnumIter};
 use crate::{
     crd::{
         HTTPS_PORT, NifiConfig, NifiConfigFragment, NifiRole, NifiStorageConfig, PROTOCOL_PORT,
-        v1alpha1::{self, NifiClusteringBackend},
+        sensitive_properties, v1alpha1, v1alpha1::NifiClusteringBackend,
     },
     operations::graceful_shutdown::graceful_shutdown_config_properties,
     security::{
@@ -103,6 +103,9 @@ pub enum Error {
         "NiFi 1.x requires ZooKeeper (hint: upgrade to NiFi 2.x or set .spec.clusterConfig.zookeeperConfigMapName)"
     ))]
     Nifi1RequiresZookeeper,
+
+    #[snafu(display("failed to configure sensitive properties"))]
+    ConfigureSensitiveProperties { source: sensitive_properties::Error },
 }
 
 /// Create the NiFi bootstrap.conf
@@ -159,15 +162,25 @@ pub fn build_nifi_properties(
     // According to https://cwiki.apache.org/confluence/display/NIFI/Migration+Guidance#MigrationGuidance-Migratingto2.0.0-M1
     // The nifi.flow.configuration.file property in nifi.properties must be changed to reference
     // "flow.json.gz" instead of "flow.xml.gz"
-    let flow_file_name = if is_nifi_1 {
-        "flow.xml.gz"
+    // TODO: Remove once we dropped support for all 1.x.x versions
+    // TODO(malte): In order to use CLI tools like: ./bin/nifi.sh set-sensitive-properties-algorithm NIFI_PBKDF2_AES_GCM_256
+    // we have to set both "nifi.flow.configuration.file" and "nifi.flow.configuration.json.file" in NiFi 1.x.x.
+    if is_nifi_1 {
+        properties.insert(
+            "nifi.flow.configuration.file".to_string(),
+            NifiRepository::Database.mount_path() + "/flow.xml.gz",
+        );
+        properties.insert(
+            "nifi.flow.configuration.json.file".to_string(),
+            NifiRepository::Database.mount_path() + "/flow.json.gz",
+        );
     } else {
-        "flow.json.gz"
-    };
-    properties.insert(
-        "nifi.flow.configuration.file".to_string(),
-        NifiRepository::Database.mount_path() + "/" + flow_file_name,
-    );
+        properties.insert(
+            "nifi.flow.configuration.file".to_string(),
+            NifiRepository::Database.mount_path() + "/flow.json.gz",
+        );
+    }
+
     properties.insert(
         "nifi.flow.configuration.archive.enabled".to_string(),
         "true".to_string(),
@@ -486,15 +499,20 @@ pub fn build_nifi_properties(
         "".to_string(),
     );
 
-    let algorithm = &spec
+    let sensitive_properties_algorithm = &spec
         .cluster_config
         .sensitive_properties
         .algorithm
         .clone()
         .unwrap_or_default();
+
+    sensitive_properties_algorithm
+        .check_for_nifi_version(spec.image.product_version())
+        .context(ConfigureSensitivePropertiesSnafu)?;
+
     properties.insert(
         "nifi.sensitive.props.algorithm".to_string(),
-        algorithm.to_string(),
+        sensitive_properties_algorithm.to_string(),
     );
 
     // key and trust store
