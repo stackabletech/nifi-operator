@@ -3,10 +3,7 @@ use std::future::Future;
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     client::Client,
-    commons::authentication::{
-        AuthenticationClass, AuthenticationClassProvider, ClientAuthenticationDetails, ldap, oidc,
-        static_,
-    },
+    crd::authentication::{core as auth_core, ldap, oidc, r#static},
     kube::{ResourceExt, runtime::reflector::ObjectRef},
 };
 
@@ -34,19 +31,19 @@ pub enum Error {
     ))]
     AuthenticationClassProviderNotSupported {
         authentication_class_provider: String,
-        authentication_class: ObjectRef<AuthenticationClass>,
+        authentication_class: ObjectRef<auth_core::v1alpha1::AuthenticationClass>,
     },
 
     #[snafu(display(
         "Nifi doesn't support skipping the LDAP TLS verification of the AuthenticationClass {authentication_class}"
     ))]
     NoLdapTlsVerificationNotSupported {
-        authentication_class: ObjectRef<AuthenticationClass>,
+        authentication_class: ObjectRef<auth_core::v1alpha1::AuthenticationClass>,
     },
 
     #[snafu(display("invalid OIDC configuration"))]
     OidcConfigurationInvalid {
-        source: stackable_operator::commons::authentication::Error,
+        source: stackable_operator::crd::authentication::core::v1alpha1::Error,
     },
 }
 
@@ -55,14 +52,14 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Clone)]
 pub enum AuthenticationClassResolved {
     Static {
-        provider: static_::AuthenticationProvider,
+        provider: r#static::v1alpha1::AuthenticationProvider,
     },
     Ldap {
-        provider: ldap::AuthenticationProvider,
+        provider: ldap::v1alpha1::AuthenticationProvider,
     },
     Oidc {
-        provider: oidc::AuthenticationProvider,
-        oidc: oidc::ClientAuthenticationOptions<()>,
+        provider: oidc::v1alpha1::AuthenticationProvider,
+        oidc: oidc::v1alpha1::ClientAuthenticationOptions<()>,
         nifi: v1alpha1::NifiCluster,
     },
 }
@@ -72,19 +69,25 @@ impl AuthenticationClassResolved {
         nifi: &v1alpha1::NifiCluster,
         client: &Client,
     ) -> Result<Vec<AuthenticationClassResolved>> {
-        let resolve_auth_class = |auth_details: ClientAuthenticationDetails| async move {
-            auth_details.resolve_class(client).await
-        };
+        let resolve_auth_class =
+            |auth_details: auth_core::v1alpha1::ClientAuthenticationDetails| async move {
+                auth_details.resolve_class(client).await
+            };
         AuthenticationClassResolved::resolve(nifi, resolve_auth_class).await
     }
 
     /// Retrieve all provided `AuthenticationClass` references.
     pub async fn resolve<R>(
         nifi: &v1alpha1::NifiCluster,
-        resolve_auth_class: impl Fn(ClientAuthenticationDetails) -> R,
+        resolve_auth_class: impl Fn(auth_core::v1alpha1::ClientAuthenticationDetails) -> R,
     ) -> Result<Vec<AuthenticationClassResolved>>
     where
-        R: Future<Output = Result<AuthenticationClass, stackable_operator::client::Error>>,
+        R: Future<
+            Output = Result<
+                auth_core::v1alpha1::AuthenticationClass,
+                stackable_operator::client::Error,
+            >,
+        >,
     {
         let mut resolved_auth_classes = vec![];
         let auth_details = &nifi.spec.cluster_config.authentication;
@@ -103,16 +106,18 @@ impl AuthenticationClassResolved {
             let auth_class_name = auth_class.name_any();
 
             match &auth_class.spec.provider {
-                AuthenticationClassProvider::Static(provider) => {
+                auth_core::v1alpha1::AuthenticationClassProvider::Static(provider) => {
                     resolved_auth_classes.push(AuthenticationClassResolved::Static {
                         provider: provider.to_owned(),
                     })
                 }
-                AuthenticationClassProvider::Ldap(provider) => {
+                auth_core::v1alpha1::AuthenticationClassProvider::Ldap(provider) => {
                     if provider.tls.uses_tls() && !provider.tls.uses_tls_verification() {
                         NoLdapTlsVerificationNotSupportedSnafu {
-                            authentication_class: ObjectRef::<AuthenticationClass>::new(
-                                &auth_class_name,
+                            authentication_class: ObjectRef::<
+                                auth_core::v1alpha1::AuthenticationClass,
+                            >::new(
+                                &auth_class_name
                             ),
                         }
                         .fail()?
@@ -121,7 +126,7 @@ impl AuthenticationClassResolved {
                         provider: provider.to_owned(),
                     })
                 }
-                AuthenticationClassProvider::Oidc(provider) => {
+                auth_core::v1alpha1::AuthenticationClassProvider::Oidc(provider) => {
                     resolved_auth_classes.push(Ok(AuthenticationClassResolved::Oidc {
                         provider: provider.to_owned(),
                         oidc: entry
@@ -131,11 +136,16 @@ impl AuthenticationClassResolved {
                         nifi: nifi.clone(),
                     })?)
                 }
-                _ => AuthenticationClassProviderNotSupportedSnafu {
-                    authentication_class_provider: auth_class.spec.provider.to_string(),
-                    authentication_class: ObjectRef::<AuthenticationClass>::new(&auth_class_name),
+                _ => {
+                    AuthenticationClassProviderNotSupportedSnafu {
+                        authentication_class_provider: auth_class.spec.provider.to_string(),
+                        authentication_class:
+                            ObjectRef::<auth_core::v1alpha1::AuthenticationClass>::new(
+                                &auth_class_name,
+                            ),
+                    }
+                    .fail()?
                 }
-                .fail()?,
             };
         }
 

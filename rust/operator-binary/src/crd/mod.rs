@@ -12,7 +12,6 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
-        authentication::ClientAuthenticationDetails,
         cache::UserInformationCache,
         cluster_operation::ClusterOperation,
         opa::OpaConfig,
@@ -26,6 +25,7 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
+    crd::{authentication::core as auth_core, git_sync},
     k8s_openapi::{
         api::core::v1::{PodTemplateSpec, Volume},
         apimachinery::pkg::api::resource::Quantity,
@@ -121,7 +121,7 @@ pub mod versioned {
         /// Authentication options for NiFi (required).
         /// Read more about authentication in the [security documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/security#authentication).
         // We don't add `#[serde(default)]` here, as we require authentication
-        pub authentication: Vec<ClientAuthenticationDetails>,
+        pub authentication: Vec<auth_core::v1alpha1::ClientAuthenticationDetails>,
 
         /// Authorization options.
         /// Learn more in the [NiFi authorization usage guide](DOCS_BASE_URL_PLACEHOLDER/nifi/usage-guide/security#authorization).
@@ -149,6 +149,12 @@ pub mod versioned {
 
         #[serde(flatten)]
         pub clustering_backend: NifiClusteringBackend,
+
+        /// The `customComponentsGitSync` setting allows configuring custom components to mount via `git-sync`.
+        /// Learn more in the documentation for
+        /// [Loading custom components](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/custom-components.html#git_sync).
+        #[serde(default)]
+        pub custom_components_git_sync: Vec<git_sync::v1alpha1::GitSync>,
 
         /// Extra volumes similar to `.spec.volumes` on a Pod to mount into every container, this can be useful to for
         /// example make client certificates, keytabs or similar things available to processors. These volumes will be
@@ -443,6 +449,7 @@ pub enum Container {
     Prepare,
     Vector,
     Nifi,
+    GitSync,
 }
 
 #[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]

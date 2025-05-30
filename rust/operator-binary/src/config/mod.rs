@@ -8,6 +8,7 @@ use product_config::{ProductConfigManager, types::PropertyNameKind};
 use snafu::{ResultExt, Snafu, ensure};
 use stackable_operator::{
     commons::resources::Resources,
+    crd::git_sync,
     memory::MemoryQuantity,
     product_config_utils::{
         ValidatedRoleConfigByPropertyKind, transform_all_roles_to_config,
@@ -34,6 +35,7 @@ use crate::{
 pub mod jvm;
 
 pub const NIFI_CONFIG_DIRECTORY: &str = "/stackable/nifi/conf";
+pub const NIFI_PYTHON_WORKING_DIRECTORY: &str = "/nifi-python-working-directory";
 
 pub const NIFI_BOOTSTRAP_CONF: &str = "bootstrap.conf";
 pub const NIFI_PROPERTIES: &str = "nifi.properties";
@@ -150,6 +152,7 @@ pub fn build_nifi_properties(
     auth_config: &NifiAuthenticationConfig,
     overrides: BTreeMap<String, String>,
     product_version: &str,
+    git_sync_resources: &git_sync::v1alpha1::GitSyncResources,
 ) -> Result<String, Error> {
     // TODO: Remove once we dropped support for all NiFi 1.x versions
     let is_nifi_1 = product_version.starts_with("1.");
@@ -622,6 +625,55 @@ pub fn build_nifi_properties(
             );
         }
     }
+
+    //####################
+    // Custom components #
+    //####################
+    // NiFi 1.x does not support Python components and the Python configuration below is just
+    // ignored.
+
+    // The command used to launch Python.
+    // This property must be set to enable Python-based processors.
+    properties.insert("nifi.python.command".to_string(), "python3".to_string());
+
+    // The directory that contains the Python framework for communicating between the Python and
+    // Java processes.
+    properties.insert(
+        "nifi.python.framework.source.directory".to_string(),
+        "/stackable/nifi/python/framework/".to_string(),
+    );
+
+    // The working directory where NiFi should store artifacts;
+    // This property defaults to ./work/python but if you want to mount an emptyDir for the working
+    // directory then another directory has to be set to avoid ownership conflicts with ./work/nar.
+    properties.insert(
+        "nifi.python.working.directory".to_string(),
+        NIFI_PYTHON_WORKING_DIRECTORY.to_string(),
+    );
+
+    // The default directory that NiFi should look in to find custom Python-based components.
+    // This directory is mentioned in the documentation
+    // (docs/modules/nifi/pages/usage_guide/custom-components.adoc), so do not change it!
+    properties.insert(
+        "nifi.python.extensions.source.directory.default".to_string(),
+        "/stackable/nifi/python/extensions/".to_string(),
+    );
+
+    for (i, git_folder) in git_sync_resources
+        .git_content_folders_as_string()
+        .into_iter()
+        .enumerate()
+    {
+        // The directory that NiFi should look in to find custom Python-based components.
+        properties.insert(
+            format!("nifi.python.extensions.source.directory.{i}"),
+            git_folder.clone(),
+        );
+
+        // The directory that NiFi should look in to find custom Java-based components.
+        properties.insert(format!("nifi.nar.library.directory.{i}"), git_folder);
+    }
+    //##########################
 
     // override with config overrides
     properties.extend(overrides);

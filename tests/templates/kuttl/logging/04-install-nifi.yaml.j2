@@ -96,6 +96,10 @@ spec:
       - authenticationClass: simple-nifi-users
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
+    customComponentsGitSync:
+      - repo: https://github.com/stackabletech/nifi-operator
+        branch: ef61c87311ad2f57484c33245c9ed50908a1c785
+        gitFolder: tests/templates/kuttl/custom-processors-git-sync/processors-0
     vectorAggregatorConfigMapName: nifi-vector-aggregator-discovery
     zookeeperConfigMapName: test-nifi-znode
   nodes:
@@ -109,6 +113,14 @@ spec:
             enableVectorAgent: true
             containers:
               nifi:
+                console:
+                  level: INFO
+                file:
+                  level: INFO
+                loggers:
+                  ROOT:
+                    level: INFO
+              git-sync:
                 console:
                   level: INFO
                 file:
