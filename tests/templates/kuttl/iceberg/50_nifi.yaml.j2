@@ -14,7 +14,6 @@ spec:
 {% endif %}
     pullPolicy: IfNotPresent
   clusterConfig:
-    zookeeperConfigMapName: nifi-znode
     listenerClass: external-unstable
     authentication:
       - authenticationClass: nifi-users
@@ -125,14 +124,6 @@ metadata:
   name: nifi-sensitive-property-key
 stringData:
   nifiSensitivePropsKey: mYsUp3rS3cr3tk3y
----
-apiVersion: zookeeper.stackable.tech/v1alpha1
-kind: ZookeeperZnode
-metadata:
-  name: nifi-znode
-spec:
-  clusterRef:
-    name: zookeeper
 {% if test_scenario['values']['iceberg-use-kerberos'] == 'true' %}
 ---
 apiVersion: v1
