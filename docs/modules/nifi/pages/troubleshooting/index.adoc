@@ -23,13 +23,24 @@ spec:
 
 === Local PORT-FORWARD
 
-Since NiFi requires a valid SNI (Server Name Indication), we need to configure `/etc/hosts` by adding e.g. from NiFi xref:getting_started/index.adoc[getting started]
+Since NiFi requires a valid SNI (Server Name Indication), we need to configure the nifi property
+[source,yaml]
+----
+    configOverrides:
+      nifi.properties:
+        nifi.web.https.network.interface.lo: "lo"
+----
+
+and change `/etc/hosts` by adding e.g. from NiFi xref:getting_started/index.adoc[getting started]
+
 [source,text]
 ----
 127.0.0.1       simple-nifi-node-default-0.simple-nifi-node-default.default.svc.cluster.local
 ----
 
 from here you should be able to access your local Nifi instance from `https://127.0.0.1:8443`
+
+WARNING: Although this should add to existing binds, testing revealed it is not. Hence cluster internal communication won't work at this point.
 
 === NGINX ingress-controller
 
