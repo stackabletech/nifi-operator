@@ -23,7 +23,7 @@ spec:
 
 === Local PORT-FORWARD
 
-Since NiFi requires a valid SIN, we need to configure `/etc/hosts` by adding e.g. from NiFi xref:getting_started/index.adoc[getting started]
+Since NiFi requires a valid SNI (Server Name Indication), we need to configure `/etc/hosts` by adding e.g. from NiFi xref:getting_started/index.adoc[getting started]
 [source,text]
 ----
 127.0.0.1       simple-nifi-node-default-0.simple-nifi-node-default.default.svc.cluster.local
