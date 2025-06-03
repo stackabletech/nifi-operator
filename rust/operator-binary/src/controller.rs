@@ -1145,7 +1145,7 @@ async fn build_node_rolegroup_statefulset(
         .add_container_port(PROTOCOL_PORT_NAME, PROTOCOL_PORT.into())
         .add_container_port(BALANCE_PORT_NAME, BALANCE_PORT.into())
         // Probes have been changed to exec as we introduced nifi.web.https.network.interface.lo=lo by default.
-        // Probe will succeed for any HTTPS errors ( SIN Invalid, 400 ) as this confirms the port to be open.
+        // Probe will succeed for any HTTPS errors (SNI Invalid, 400) as this confirms the port to be open.
         .liveness_probe(Probe {
             initial_delay_seconds: Some(10),
             period_seconds: Some(10),
