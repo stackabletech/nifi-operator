@@ -8,7 +8,6 @@ spec:
   clusterConfig:
     authentication:
       - authenticationClass: nifi-users
-    listenerClass: external-unstable
     sensitiveProperties:
       keySecret: nifi-interactive-sensitive-property-key
       autoGenerate: true
@@ -39,6 +38,8 @@ spec:
                   storage: "1"
               storageClassName: secrets.stackable.tech
   nodes:
+    config:
+      listenerClass: external-unstable
     configOverrides:
       nifi.properties:
         nifi.nar.library.directory.myCustomLibs: /stackable/userdata/nifi-processors/

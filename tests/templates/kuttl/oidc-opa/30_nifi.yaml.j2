@@ -37,12 +37,12 @@ spec:
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
     zookeeperConfigMapName: nifi-znode
-    listenerClass: external-unstable
   nodes:
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
       gracefulShutdownTimeout: 1s # let the tests run faster
+      listenerClass: external-unstable
     configOverrides:
       nifi.properties:
         # speed up tests

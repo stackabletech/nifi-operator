@@ -1,0 +1,21 @@
+---
+apiVersion: listeners.stackable.tech/v1alpha1
+kind: ListenerClass
+metadata:
+  name: test-cluster-internal-$NAMESPACE
+spec:
+  serviceType: ClusterIP
+---
+apiVersion: listeners.stackable.tech/v1alpha1
+kind: ListenerClass
+metadata:
+  name: test-external-stable-$NAMESPACE
+spec:
+  serviceType: NodePort
+---
+apiVersion: listeners.stackable.tech/v1alpha1
+kind: ListenerClass
+metadata:
+  name: test-external-unstable-$NAMESPACE
+spec:
+  serviceType: NodePort
