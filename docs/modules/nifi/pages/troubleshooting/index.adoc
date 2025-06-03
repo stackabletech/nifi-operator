@@ -21,8 +21,6 @@ spec:
 
 == `HTTP ERROR 400 Invalid SNI`
 
-=== NGINX ingress-controller
-
 You are very likely accessing a NiFi >= 2.0 stacklet using HTTPS to secure its WebUI and an Ingress in front of it.
 The URL requested by the ingress-controller (such as nginx) needs to be the FQDN of the nifi service, not only the service name.
 You can instruct nginx ingress to use the FQDN by setting the following annotation:
