@@ -5,10 +5,8 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     client::Client,
-    commons::{
-        authentication::oidc::{self, AuthenticationProvider, ClientAuthenticationOptions},
-        tls_verification::{CaCert, TlsServerVerification, TlsVerification},
-    },
+    commons::tls_verification::{CaCert, TlsServerVerification, TlsVerification},
+    crd::authentication::oidc,
     k8s_openapi::api::core::v1::Secret,
     kube::{ResourceExt, runtime::reflector::ObjectRef},
 };
@@ -34,7 +32,7 @@ pub enum Error {
 
     #[snafu(display("invalid well-known OIDC configuration URL"))]
     InvalidWellKnownConfigUrl {
-        source: stackable_operator::commons::authentication::oidc::Error,
+        source: stackable_operator::crd::authentication::oidc::v1alpha1::Error,
     },
 
     #[snafu(display("Nifi doesn't support skipping the OIDC TLS verification"))]
@@ -105,8 +103,8 @@ pub fn build_oidc_admin_password_secret_name(nifi: &v1alpha1::NifiCluster) -> St
 
 /// Adds all the required configuration properties to enable OIDC authentication.
 pub fn add_oidc_config_to_properties(
-    provider: &oidc::AuthenticationProvider,
-    client_auth_options: &ClientAuthenticationOptions,
+    provider: &oidc::v1alpha1::AuthenticationProvider,
+    client_auth_options: &oidc::v1alpha1::ClientAuthenticationOptions,
     properties: &mut BTreeMap<String, String>,
 ) -> Result<(), Error> {
     let well_known_url = provider
@@ -118,7 +116,7 @@ pub fn add_oidc_config_to_properties(
         well_known_url.to_string(),
     );
     let (oidc_client_id_env, oidc_client_secret_env) =
-        AuthenticationProvider::client_credentials_env_names(
+        oidc::v1alpha1::AuthenticationProvider::client_credentials_env_names(
             &client_auth_options.client_credentials_secret_ref,
         );
     properties.insert(
@@ -171,7 +169,7 @@ mod tests {
     #[case("/realms/sdp/////")]
     fn test_add_oidc_config(#[case] root_path: String) {
         let mut properties = BTreeMap::new();
-        let provider = oidc::AuthenticationProvider::new(
+        let provider = oidc::v1alpha1::AuthenticationProvider::new(
             "keycloak.mycorp.org".to_owned().try_into().unwrap(),
             Some(443),
             root_path,
@@ -186,7 +184,7 @@ mod tests {
             vec!["openid".to_owned()],
             None,
         );
-        let oidc = ClientAuthenticationOptions {
+        let oidc = oidc::v1alpha1::ClientAuthenticationOptions {
             client_credentials_secret_ref: "nifi-keycloak-client".to_owned(),
             extra_scopes: vec![],
             product_specific_fields: (),

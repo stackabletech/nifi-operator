@@ -49,7 +49,7 @@ use stackable_operator::{
 };
 
 use crate::{
-    controller::{NIFI_UID, build_recommended_labels},
+    controller::build_recommended_labels,
     crd::{APP_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, NifiRole, v1alpha1},
     security::{
         authentication::{NifiAuthenticationConfig, STACKABLE_ADMIN_USERNAME},
@@ -130,7 +130,7 @@ pub fn build_maybe_reporting_task(
     nifi: &v1alpha1::NifiCluster,
     resolved_product_image: &ResolvedProductImage,
     cluster_info: &KubernetesClusterInfo,
-    nifi_auth_config: &NifiAuthenticationConfig,
+    authentication_config: &NifiAuthenticationConfig,
     sa_name: &str,
 ) -> Result<Option<(Job, Service)>> {
     if resolved_product_image.product_version.starts_with("1.") {
@@ -139,7 +139,7 @@ pub fn build_maybe_reporting_task(
                 nifi,
                 resolved_product_image,
                 cluster_info,
-                nifi_auth_config,
+                authentication_config,
                 sa_name,
             )?,
             build_reporting_task_service(nifi, resolved_product_image)?,
@@ -345,13 +345,7 @@ fn build_reporting_task_job(
         .image_pull_secrets_from_product_image(resolved_product_image)
         .restart_policy("OnFailure")
         .service_account_name(sa_name)
-        .security_context(
-            PodSecurityContextBuilder::new()
-                .run_as_user(NIFI_UID)
-                .run_as_group(0)
-                .fs_group(1000)
-                .build(),
-        )
+        .security_context(PodSecurityContextBuilder::new().fs_group(1000).build())
         .add_container(cb.build())
         .add_volume(
             build_tls_volume(

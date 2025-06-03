@@ -2,7 +2,7 @@ use std::{borrow::Cow, collections::HashMap, num::TryFromIntError};
 
 use snafu::Snafu;
 use stackable_operator::{
-    commons::listener::Listener, k8s_openapi::api::core::v1::Pod,
+    crd::listener::v1alpha1::Listener, k8s_openapi::api::core::v1::Pod,
     kube::runtime::reflector::ObjectRef, utils::cluster_info::KubernetesClusterInfo,
 };
 

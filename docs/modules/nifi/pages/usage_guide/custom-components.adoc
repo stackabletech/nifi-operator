@@ -1,0 +1,299 @@
+[#custom-components]
+= Loading custom components
+:description: Load custom NiFi components for enhanced functionality.
+:nifi-docs-developers-guide: https://nifi.apache.org/docs/nifi-docs/html/developer-guide.html
+:nifi-docs-python-developers-guide: https://nifi.apache.org/nifi-docs/python-developer-guide.html
+:nifi-docs-flowfile-source: https://nifi.apache.org/nifi-docs/python-developer-guide.html#flowfile-source
+:git-sync-docs: https://github.com/kubernetes/git-sync/tree/v4.2.4#manual
+
+You can develop or use custom components for Apache NiFi, typically custom processors, to extend its functionality.
+
+There are currently two types of custom components:
+
+1. Custom NiFi Archives (NARs) +
+   The {nifi-docs-developers-guide}[NiFi Developer’s Guide] provides further information on how to develop custom NARs.
+2. Starting with NiFi 2.0, also custom Python extensions can be used. +
+   In the {nifi-docs-python-developers-guide}[NiFi Python Developer’s Guide], the development of custom components using Python is described.
+
+The Stackable image contains the required tooling for both types.
+For instance, a supported Python version is included.
+NARs are only loaded once, but for Python scripts, hot-reloading is supported.
+
+TIP: You might need to refresh your browser window to see the new or changed Python components.
+
+Several options are described below, to add custom components to NiFi.
+
+[TIP]
+====
+Check the logs of a NiFi node to ensure that the custom components are actually loaded, e.g.:
+
+[source,console]
+----
+$ kubectl logs nifi-node-default-0
+…
+… INFO [main] o.a.n.n.StandardExtensionDiscoveringManager Loaded extensions for tech.stackable.nifi:nifi-sample-nar:1.0.0 in 6 millis
+…
+… INFO [main] o.a.n.n.StandardExtensionDiscoveringManager Discovered Python Processor Greet
+…
+----
+====
+
+[#git-sync]
+== Synchronize with git-sync
+
+Custom NiFi components can be synchronized from a Git repository directly into the NiFi pods with git-sync.
+The {crd-docs}/nifi.stackable.tech/nificluster/v1alpha1[NifiCluster CRD] allows the specification of one or multiple Git repositories:
+
+[source,yaml]
+----
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+spec:
+  clusterConfig:
+    customComponentsGitSync:  # <1>
+    - repo: https://example.com/git/custom-nifi-components  # <2>
+      branch: main  # <3>
+      gitFolder: path/to/the/components  # <4>
+      depth: 10  # <5>
+      wait: 10s  # <6>
+      credentialsSecret: git-credentials  # <7>
+      gitSyncConf:  # <8>
+      --git-config: http.sslCAInfo:/tmp/ca-cert/ca.crt
+    - repo: https://example.com/git/other-nifi-components  # <9>
+  nodes:
+    config:
+      logging:
+        enableVectorAgent: true
+        containers:
+          git-sync:  # <10>
+            console:
+              level: INFO
+            file:
+              level: INFO
+            loggers:
+              ROOT:
+                level: INFO
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: git-credentials
+type: Opaque
+data:
+  user: ...
+  password: ...
+----
+<1> If the optional field `customComponentsGitSync` is defined, then containers running git-sync are deployed to synchronize the specified repositories.
+<2> The git repository URL that will be cloned
+<3> The git revision (branch, tag, or hash) to check out; defaults to the `main` branch
+<4> Location in the Git repository containing the NiFi components; defaults to the root folder
+<5> The depth of synchronizing, i.e. the number of commits to clone; defaults to 1
+<6> The synchronization interval, e.g. `20s` or `5m`; defaults to `20s`
+<7> The name of the Secret used to access the repository if it is not public. +
+    The referenced Secret must include two fields: `user` and `password`.
+    The `password` field can either be an actual password (not recommended) or a GitHub token, as described in the {git-sync-docs}[git-sync documentation].
+<8> A map of optional configuration settings that are listed in the {git-sync-docs}[git-sync documentation]. +
+    These settings are not verified.
+<9> Multiple repositories can be defined. Only the `repo` field is mandatory.
+<10> Logging can be configured as described in xref:concepts:logging.adoc[].
+     As git-sync is a command-line tool, just its output is logged and no fine-grained log configuration is possible.
+     All git-sync containers are configured via the one `git-sync` field.
+
+It cannot be specified, if a repository contains NiFi Archives or Python components.
+The operator just configures each repository for both types.
+In particular, the parameters `nifi.nar.library.directory.+*+` and `nifi.python.extensions.source.directory.+*+` are set.
+
+[#config-map]
+== Mount as a ConfigMap
+
+Custom components can also be stored in ConfigMaps.
+This makes especially sense for Python components, but NAR files work as well.
+This way, the components are stored and versioned alongside your NifiCluster itself.
+
+// Technically it's yaml, but most of the content is Python
+[source,python]
+----
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nifi-processors
+data:
+  CreateFlowFileProcessor.py: |
+    from nifiapi.flowfilesource import FlowFileSource, FlowFileSourceResult
+
+    class CreateFlowFile(FlowFileSource):
+        class Java:
+            implements = ['org.apache.nifi.python.processor.FlowFileSource']
+
+        class ProcessorDetails:
+            version = '0.0.1-SNAPSHOT'
+            description = '''A Python processor that creates FlowFiles.'''
+
+        def __init__(self, **kwargs):
+            pass
+
+        def create(self, context):
+            return FlowFileSourceResult(
+                relationship = 'success',
+                attributes = {'greeting': 'hello'},
+                contents = 'Hello World!'
+            )
+binaryData:
+  custom-nifi-processor-1.0.0.nar: ...
+----
+
+The Python script is taken from {nifi-docs-flowfile-source}[the offical NiFi Python developer guide].
+
+Afterwards, we need to mount the ConfigMap as described in xref:nifi:usage_guide/extra-volumes.adoc[] and extend the `nifi.properties` file:
+
+[source,yaml]
+----
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: simple-nifi
+spec:
+  image:
+    productVersion: 2.2.0
+  clusterConfig:
+    authentication:
+    - authenticationClass: simple-nifi-admin-user
+    extraVolumes:  # <1>
+    - name: nifi-processors
+      configMap:
+        name: nifi-processors
+    listenerClass: external-unstable
+    sensitiveProperties:
+      keySecret: nifi-sensitive-property-key
+      autoGenerate: true
+    zookeeperConfigMapName: simple-nifi-znode
+  nodes:
+    configOverrides:
+      nifi.properties:
+        nifi.nar.library.directory.myCustomLibs: /stackable/userdata/nifi-processors/  # <2>
+        nifi.python.extensions.source.directory.myCustomLibs: /stackable/userdata/nifi-processors/
+    roleGroups:
+      default:
+        replicas: 1
+----
+<1> Specify your ConfigMaps here.
+<2> The directory name after `userdata` has to match the name of the volume, while `myCustomLibs` is a name you can freely change.
+
+[#custom-image]
+== Custom Docker image
+
+You can extend the official Stackable NiFi image by copying the required NAR files into NiFi's classpath or the Python files into the default extension directory.
+The benefit of this method is that there is no need for any config overrides or extra mounts, you can use any of the NiFi examples, swap the image and your components will be available.
+But this means, you will need to have access to a registry to push your custom image to.
+
+The basic Dockerfile below shows how to achieve this:
+
+[source,Dockerfile]
+----
+FROM oci.stackable.tech/sdp/nifi:2.2.0-stackable25.3.0
+COPY /path/to/your/nar.file /stackable/nifi/lib/
+COPY /path/to/your/Python.file /stackable/nifi/python/extensions/
+----
+
+You then need to make this image available to your Kubernetes cluster and specify it in your NiFi resource as described in xref:concepts:product_image_selection.adoc[].
+
+[source,yaml]
+----
+spec:
+  image:
+    productVersion: 2.2.0
+    custom: oci-registry.company.org/nifi:2.2.0-customprocessors
+----
+
+Also read the xref:guides:custom-images.adoc[Using customized product images] guide for additional information.
+
+[#pvc]
+== Using the official image
+
+If you do not want to create a custom image or do not have access to an image registry, you can use the extra volume mount functionality to mount a volume containing your custom components and configure NiFi to read these from the mounted volumes.
+
+For this to work, you will need to prepare a PersistentVolumeClaim (PVC) containing your components.
+Usually the best way to do this is to mount the PVC into a temporary container and then `kubectl cp` the NAR or Python files into that volume.
+
+The following listing shows an example of creating the PVC and the Pod:
+
+[source, yaml]
+----
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nifi-processors
+spec:
+  accessModes:
+  - ReadWriteOnce  # <1>
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: processorcopy
+spec:
+  volumes:
+  - name: nifi-processors
+    persistentVolumeClaim:
+      claimName: nifi-processors
+  containers:
+  - name: copycontainer
+    image: alpine
+    command:
+    - tail
+    - -f
+    - /dev/null
+    volumeMounts:
+    - mountPath: /volume
+      name: nifi-processors
+----
+<1> Please note that this access mode means that you can only use this volume with a single NiFi Pod.
+    For a distributed scenario, an additional list value of `ReadOnlyMany` could be specified here if this is supported.
+
+The commands to then copy the NAR bundle and Python files into the PVC is:
+
+[source,bash]
+----
+kubectl cp /path/to/component.nar processorcopy:/volume/
+kubectl cp /path/to/Python.files processorcopy:/volume/
+----
+
+Now you can mount the extra volume into your NiFi instance as described in xref:nifi:usage_guide/extra-volumes.adoc[].
+
+After this is done, your components are available within the NiFi Pods and NiFi can be configured to load components from the volume:
+
+[source,yaml]
+----
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: simple-nifi
+spec:
+  image:
+    productVersion: 2.2.0
+  clusterConfig:
+    authentication:
+    - authenticationClass: simple-nifi-admin-user
+    extraVolumes:  # <1>
+    - name: nifi-processors
+      persistentVolumeClaim:
+        claimName: nifi-processors
+    listenerClass: external-unstable
+    sensitiveProperties:
+      keySecret: nifi-sensitive-property-key
+      autoGenerate: true
+    zookeeperConfigMapName: simple-nifi-znode
+  nodes:
+    configOverrides:
+      nifi.properties:
+        nifi.nar.library.directory.myCustomLibs: /stackable/userdata/nifi-processors/  # <2>
+        nifi.python.extensions.source.directory.myCustomLibs: /stackable/userdata/nifi-processors/
+    roleGroups:
+      default:
+        replicas: 1
+----
+<1> Specify your prepared PVC here.
+<2> The directory name after `userdata` has to match the name of the volume, while `myCustomLibs` is a name you can freely change.

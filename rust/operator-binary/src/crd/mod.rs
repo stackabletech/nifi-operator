@@ -1,18 +1,21 @@
 pub mod affinity;
 pub mod authentication;
+pub mod sensitive_properties;
 pub mod tls;
 pub mod utils;
 
 use std::collections::{BTreeMap, HashMap};
 
 use affinity::get_affinity;
+use sensitive_properties::NifiSensitivePropertiesConfig;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
-        authentication::ClientAuthenticationDetails,
+        cache::UserInformationCache,
         cluster_operation::ClusterOperation,
+        opa::OpaConfig,
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
@@ -23,6 +26,7 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
+    crd::{authentication::core as auth_core, git_sync},
     k8s_openapi::{
         api::core::v1::{PodTemplateSpec, Volume},
         apimachinery::pkg::api::resource::Quantity,
@@ -124,9 +128,14 @@ pub mod versioned {
     #[serde(rename_all = "camelCase")]
     pub struct NifiClusterConfig {
         /// Authentication options for NiFi (required).
-        /// Read more about authentication in the [security documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/security).
+        /// Read more about authentication in the [security documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/security#authentication).
         // We don't add `#[serde(default)]` here, as we require authentication
-        pub authentication: Vec<ClientAuthenticationDetails>,
+        pub authentication: Vec<auth_core::v1alpha1::ClientAuthenticationDetails>,
+
+        /// Authorization options.
+        /// Learn more in the [NiFi authorization usage guide](DOCS_BASE_URL_PLACEHOLDER/nifi/usage-guide/security#authorization).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub authorization: Option<NifiAuthorization>,
 
         /// Configuration of allowed proxies e.g. load balancers or Kubernetes Ingress. Using a proxy that is not allowed by NiFi results
         /// in a failed host header check.
@@ -147,11 +156,14 @@ pub mod versioned {
         #[serde(skip_serializing_if = "Option::is_none")]
         pub vector_aggregator_config_map_name: Option<String>,
 
-        /// NiFi requires a ZooKeeper cluster connection to run.
-        /// Provide the name of the ZooKeeper [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery)
-        /// here. When using the [Stackable operator for Apache ZooKeeper](DOCS_BASE_URL_PLACEHOLDER/zookeeper/)
-        /// to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
-        pub zookeeper_config_map_name: String,
+        #[serde(flatten)]
+        pub clustering_backend: NifiClusteringBackend,
+
+        /// The `customComponentsGitSync` setting allows configuring custom components to mount via `git-sync`.
+        /// Learn more in the documentation for
+        /// [Loading custom components](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/custom-components.html#git_sync).
+        #[serde(default)]
+        pub custom_components_git_sync: Vec<git_sync::v1alpha1::GitSync>,
 
         /// Extra volumes similar to `.spec.volumes` on a Pod to mount into every container, this can be useful to for
         /// example make client certificates, keytabs or similar things available to processors. These volumes will be
@@ -164,6 +176,25 @@ pub mod versioned {
         // Docs are on the struct
         #[serde(default)]
         pub create_reporting_task_job: CreateReportingTaskJob,
+    }
+
+    // This is flattened in for backwards compatibility reasons, `zookeeper_config_map_name` already existed and used to be mandatory.
+    // For v1alpha2, consider migrating this to a tagged enum for consistency.
+    #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[serde(untagged)]
+    pub enum NifiClusteringBackend {
+        #[serde(rename_all = "camelCase")]
+        ZooKeeper {
+            /// NiFi can either use ZooKeeper or Kubernetes for managing its cluster state. To use ZooKeeper, provide the name of the
+            /// ZooKeeper [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery) here.
+            /// When using the [Stackable operator for Apache ZooKeeper](DOCS_BASE_URL_PLACEHOLDER/zookeeper/)
+            /// to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
+            ///
+            /// The Kubernetes provider will be used if this field is unset. Kubernetes is only supported for NiFi 2.x and newer,
+            /// NiFi 1.x requires ZooKeeper.
+            zookeeper_config_map_name: String,
+        },
+        Kubernetes {},
     }
 }
 
@@ -281,6 +312,22 @@ impl v1alpha1::NifiCluster {
     }
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NifiAuthorization {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub opa: Option<NifiOpaConfig>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NifiOpaConfig {
+    #[serde(flatten)]
+    pub opa: OpaConfig,
+    #[serde(default)]
+    pub cache: UserInformationCache,
+}
+
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostHeaderCheckConfig {
@@ -304,71 +351,6 @@ impl Default for HostHeaderCheckConfig {
 
 pub fn default_allow_all() -> bool {
     true
-}
-
-/// These settings configure the encryption of sensitive properties in NiFi processors.
-/// NiFi supports encrypting sensitive properties in processors as they are written to disk.
-/// You can configure the encryption algorithm and the key to use.
-/// You can also let the operator generate an encryption key for you.
-#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NifiSensitivePropertiesConfig {
-    /// A reference to a Secret. The Secret needs to contain a key `nifiSensitivePropsKey`.
-    /// If `autoGenerate` is false and this object is missing, the Operator will raise an error.
-    /// The encryption key needs to be at least 12 characters long.
-    pub key_secret: String,
-
-    /// Whether to generate the `keySecret` if it is missing.
-    /// Defaults to `false`.
-    #[serde(default)]
-    pub auto_generate: bool,
-
-    /// This is setting the `nifi.sensitive.props.algorithm` property in NiFi.
-    /// This setting configures the encryption algorithm to use to encrypt sensitive properties.
-    /// Valid values are:
-    ///
-    /// `nifiPbkdf2AesGcm256` (the default value),
-    /// `nifiArgon2AesGcm256`,
-    ///
-    /// The following algorithms are deprecated and will be removed in future versions:
-    ///
-    /// `nifiArgon2AesGcm128`,
-    /// `nifiBcryptAesGcm128`,
-    /// `nifiBcryptAesGcm256`,
-    /// `nifiPbkdf2AesGcm128`,
-    /// `nifiScryptAesGcm128`,
-    /// `nifiScryptAesGcm256`.
-    ///
-    /// Learn more about the specifics of the algorithm parameters in the
-    /// [NiFi documentation](https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#property-encryption-algorithms).
-    pub algorithm: Option<NifiSensitiveKeyAlgorithm>,
-}
-
-#[derive(strum::Display, Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub enum NifiSensitiveKeyAlgorithm {
-    #[strum(serialize = "NIFI_ARGON2_AES_GCM_128")]
-    NifiArgon2AesGcm128,
-    #[strum(serialize = "NIFI_ARGON2_AES_GCM_256")]
-    NifiArgon2AesGcm256,
-    #[strum(serialize = "NIFI_BCRYPT_AES_GCM_128")]
-    NifiBcryptAesGcm128,
-    #[strum(serialize = "NIFI_BCRYPT_AES_GCM_256")]
-    NifiBcryptAesGcm256,
-    #[strum(serialize = "NIFI_PBKDF2_AES_GCM_128")]
-    NifiPbkdf2AesGcm128,
-    #[strum(serialize = "NIFI_PBKDF2_AES_GCM_256")]
-    NifiPbkdf2AesGcm256,
-    #[strum(serialize = "NIFI_SCRYPT_AES_GCM_128")]
-    NifiScryptAesGcm128,
-    #[strum(serialize = "NIFI_SCRYPT_AES_GCM_256")]
-    NifiScryptAesGcm256,
-}
-
-impl Default for NifiSensitiveKeyAlgorithm {
-    fn default() -> Self {
-        Self::NifiArgon2AesGcm256
-    }
 }
 
 #[derive(strum::Display, Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -456,6 +438,7 @@ pub enum Container {
     Prepare,
     Vector,
     Nifi,
+    GitSync,
 }
 
 #[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
