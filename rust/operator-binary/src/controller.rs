@@ -833,7 +833,7 @@ fn build_node_rolegroup_service(
         ..ServicePort::default()
     }];
 
-    // Nifi 2.x.x offers nifi-api/flow/metrics/prometheus at the HTTPS_PORT, therefore METRICS_PORT is not necessary anymore.
+    // NiFi 2.x.x offers nifi-api/flow/metrics/prometheus at the HTTPS_PORT, therefore METRICS_PORT is only required for NiFi 1.x.x...
     if resolved_product_image.product_version.starts_with("1.") {
         enabled_ports.push(ServicePort {
             name: Some(METRICS_PORT_NAME.to_string()),
@@ -1165,7 +1165,7 @@ async fn build_node_rolegroup_statefulset(
         })
         .resources(merged_config.resources.clone().into());
 
-    // Nifi 2.x.x offers nifi-api/flow/metrics/prometheus at the HTTPS_PORT, therefore METRICS_PORT is not necessary anymore.
+    // NiFi 2.x.x offers nifi-api/flow/metrics/prometheus at the HTTPS_PORT, therefore METRICS_PORT is only required for NiFi 1.x.x.
     if resolved_product_image.product_version.starts_with("1.") {
         container_nifi.add_container_port(METRICS_PORT_NAME, METRICS_PORT.into());
     }
