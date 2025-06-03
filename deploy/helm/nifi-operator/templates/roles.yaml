@@ -96,6 +96,11 @@ rules:
       - listeners
     verbs:
       - get
+      - list
+      - watch
+      - patch
+      - create
+      - delete
   - apiGroups:
       - {{ include "operator.name" . }}.stackable.tech
     resources:

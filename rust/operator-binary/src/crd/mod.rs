@@ -477,7 +477,7 @@ pub struct NifiConfig {
     #[fragment_attrs(serde(default))]
     pub requested_secret_lifetime: Option<Duration>,
 
-    /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose the webserver.
+    /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose the nodes.
     #[serde(default)]
     pub listener_class: String,
 }

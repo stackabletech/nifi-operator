@@ -40,7 +40,6 @@ spec:
     pullPolicy: IfNotPresent
   clusterConfig:
     zookeeperConfigMapName: test-nifi-znode
-    listenerClass: {{ test_scenario['values']['listener-class'] }}
     authentication:
       - authenticationClass: simple-nifi-users
     hostHeaderCheck:

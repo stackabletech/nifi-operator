@@ -24,7 +24,10 @@ use stackable_operator::{
             container::ContainerBuilder,
             resources::ResourceRequirementsBuilder,
             security::PodSecurityContextBuilder,
-            volume::{ListenerOperatorVolumeSourceBuilderError, SecretFormat},
+            volume::{
+                ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
+                ListenerReference, SecretFormat,
+            },
         },
     },
     client::Client,
@@ -1050,7 +1053,6 @@ async fn build_node_rolegroup_statefulset(
             .as_slice(),
     );
 
-    // if merged_config.listener_class == SupportedListenerClasses::ExternalUnstable {
     prepare_args.extend(vec![
         "export LISTENER_DEFAULT_ADDRESS=$(cat /stackable/listener/default-address/address)"
             .to_string(),
@@ -1059,7 +1061,6 @@ async fn build_node_rolegroup_statefulset(
         "export LISTENER_DEFAULT_PORT_HTTPS=$(cat /stackable/listener/default-address/ports/https)"
             .to_string(),
     ]);
-    // }
 
     prepare_args.extend(vec![
         "echo Templating config files".to_string(),
@@ -1237,20 +1238,27 @@ async fn build_node_rolegroup_statefulset(
         &rolegroup_ref.role,
         &rolegroup_ref.role_group,
     );
-    let recommended_labels =
-        Labels::recommended(recommended_object_labels.clone()).context(LabelBuildSnafu)?;
 
-    let listener_class = &merged_config.listener_class;
-    // all listeners will use ephemeral volumes as they can/should
-    // be removed when the pods are *terminated* (ephemeral PVCs will
-    // survive re-starts)
-    pod_builder
-        .add_listener_volume_by_listener_class(
-            LISTENER_VOLUME_NAME,
-            &listener_class.to_string(),
-            &recommended_labels,
-        )
-        .context(AddVolumeSnafu)?;
+    // Used for PVC templates that cannot be modified once they are deployed
+    let unversioned_recommended_labels = Labels::recommended(build_recommended_labels(
+        nifi,
+        // A version value is required, and we do want to use the "recommended" format for the other desired labels
+        "none",
+        &rolegroup_ref.role,
+        &rolegroup_ref.role_group,
+    ))
+    .context(LabelBuildSnafu)?;
+
+    // listener endpoints will use persistent volumes
+    // so that load balancers can hard-code the target addresses and
+    // that it is possible to connect to a consistent address
+    let listener_pvc = ListenerOperatorVolumeSourceBuilder::new(
+        &ListenerReference::ListenerName(nifi.group_listener_name(rolegroup_ref)),
+        &unversioned_recommended_labels,
+    )
+    .context(BuildListenerVolumeSnafu)?
+    .build_pvc(LISTENER_VOLUME_NAME.to_owned())
+    .context(BuildListenerVolumeSnafu)?;
 
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
 
@@ -1524,6 +1532,7 @@ async fn build_node_rolegroup_statefulset(
                     &NifiRepository::State.repository(),
                     Some(vec!["ReadWriteOnce"]),
                 ),
+                listener_pvc,
             ]),
             ..StatefulSetSpec::default()
         }),
@@ -1566,11 +1575,9 @@ async fn get_proxy_hosts(
 
     proxy_hosts_set.extend(host_header_check.additional_allowed_hosts);
 
-    // If NodePort is used inject the address and port from the listener volume in the prepare container
-    // if merged_config.listener_class == SupportedListenerClasses::ExternalUnstable {
+    // Inject the address and port from the listener volume during the prepare container
     proxy_hosts_set
         .insert("${env:LISTENER_DEFAULT_ADDRESS}:${env:LISTENER_DEFAULT_PORT_HTTPS}".to_string());
-    // }
 
     let mut proxy_hosts = Vec::from_iter(proxy_hosts_set);
     proxy_hosts.sort();

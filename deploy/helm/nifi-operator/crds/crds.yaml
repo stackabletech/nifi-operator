@@ -363,7 +363,7 @@ spec:
                           nullable: true
                           type: string
                         listenerClass:
-                          description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose the webserver.
+                          description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose the nodes.
                           nullable: true
                           type: string
                         logging:
@@ -854,7 +854,7 @@ spec:
                                 nullable: true
                                 type: string
                               listenerClass:
-                                description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose the webserver.
+                                description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose the nodes.
                                 nullable: true
                                 type: string
                               logging:
