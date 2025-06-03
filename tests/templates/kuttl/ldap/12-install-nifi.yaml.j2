@@ -44,10 +44,10 @@ spec:
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
     zookeeperConfigMapName: nifi-with-ldap-znode
-    listenerClass: external-unstable
   nodes:
     config:
       gracefulShutdownTimeout: 1m
+      listenerClass: external-unstable
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
     roleGroups:

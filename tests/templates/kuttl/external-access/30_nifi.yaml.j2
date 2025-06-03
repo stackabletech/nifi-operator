@@ -51,9 +51,9 @@ spec:
 {% endif %}
   nodes:
     config:
-      listenerClass: test-external-stable-$NAMESPACE
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+      listenerClass: test-external-stable-$NAMESPACE
     roleGroups:
       default:
         replicas: 2

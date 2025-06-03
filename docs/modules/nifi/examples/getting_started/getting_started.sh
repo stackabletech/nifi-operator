@@ -143,15 +143,17 @@ spec:
   clusterConfig:
     authentication:
       - authenticationClass: simple-nifi-users
-    listenerClass: external-unstable
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
       autoGenerate: true
     zookeeperConfigMapName: simple-nifi-znode
   nodes:
+    config:
+      listenerClass: external-unstable
     roleGroups:
       default:
         replicas: 1
+
 EOF
 # end::install-nifi[]
 
