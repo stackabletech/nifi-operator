@@ -5,9 +5,10 @@ use std::{
 
 use jvm::build_merged_jvm_config;
 use product_config::{ProductConfigManager, types::PropertyNameKind};
-use snafu::{ResultExt, Snafu};
+use snafu::{ResultExt, Snafu, ensure};
 use stackable_operator::{
     commons::resources::Resources,
+    crd::git_sync,
     memory::MemoryQuantity,
     product_config_utils::{
         ValidatedRoleConfigByPropertyKind, transform_all_roles_to_config,
@@ -20,7 +21,7 @@ use strum::{Display, EnumIter};
 use crate::{
     crd::{
         HTTPS_PORT, NifiConfig, NifiConfigFragment, NifiRole, NifiStorageConfig, PROTOCOL_PORT,
-        v1alpha1,
+        sensitive_properties, v1alpha1, v1alpha1::NifiClusteringBackend,
     },
     operations::graceful_shutdown::graceful_shutdown_config_properties,
     security::{
@@ -34,6 +35,7 @@ use crate::{
 pub mod jvm;
 
 pub const NIFI_CONFIG_DIRECTORY: &str = "/stackable/nifi/conf";
+pub const NIFI_PYTHON_WORKING_DIRECTORY: &str = "/nifi-python-working-directory";
 
 pub const NIFI_BOOTSTRAP_CONF: &str = "bootstrap.conf";
 pub const NIFI_PROPERTIES: &str = "nifi.properties";
@@ -96,6 +98,14 @@ pub enum Error {
 
     #[snafu(display("failed to generate OIDC config"))]
     GenerateOidcConfig { source: oidc::Error },
+
+    #[snafu(display(
+        "NiFi 1.x requires ZooKeeper (hint: upgrade to NiFi 2.x or set .spec.clusterConfig.zookeeperConfigMapName)"
+    ))]
+    Nifi1RequiresZookeeper,
+
+    #[snafu(display("failed to configure sensitive properties"))]
+    ConfigureSensitiveProperties { source: sensitive_properties::Error },
 }
 
 /// Create the NiFi bootstrap.conf
@@ -142,22 +152,35 @@ pub fn build_nifi_properties(
     auth_config: &NifiAuthenticationConfig,
     overrides: BTreeMap<String, String>,
     product_version: &str,
+    git_sync_resources: &git_sync::v1alpha1::GitSyncResources,
 ) -> Result<String, Error> {
+    // TODO: Remove once we dropped support for all NiFi 1.x versions
+    let is_nifi_1 = product_version.starts_with("1.");
+
     let mut properties = BTreeMap::new();
     // Core Properties
     // According to https://cwiki.apache.org/confluence/display/NIFI/Migration+Guidance#MigrationGuidance-Migratingto2.0.0-M1
     // The nifi.flow.configuration.file property in nifi.properties must be changed to reference
     // "flow.json.gz" instead of "flow.xml.gz"
     // TODO: Remove once we dropped support for all 1.x.x versions
-    let flow_file_name = if product_version.starts_with("1.") {
-        "flow.xml.gz"
+    // TODO(malte): In order to use CLI tools like: ./bin/nifi.sh set-sensitive-properties-algorithm NIFI_PBKDF2_AES_GCM_256
+    // we have to set both "nifi.flow.configuration.file" and "nifi.flow.configuration.json.file" in NiFi 1.x.x.
+    if is_nifi_1 {
+        properties.insert(
+            "nifi.flow.configuration.file".to_string(),
+            NifiRepository::Database.mount_path() + "/flow.xml.gz",
+        );
+        properties.insert(
+            "nifi.flow.configuration.json.file".to_string(),
+            NifiRepository::Database.mount_path() + "/flow.json.gz",
+        );
     } else {
-        "flow.json.gz"
-    };
-    properties.insert(
-        "nifi.flow.configuration.file".to_string(),
-        NifiRepository::Database.mount_path() + "/" + flow_file_name,
-    );
+        properties.insert(
+            "nifi.flow.configuration.file".to_string(),
+            NifiRepository::Database.mount_path() + "/flow.json.gz",
+        );
+    }
+
     properties.insert(
         "nifi.flow.configuration.archive.enabled".to_string(),
         "true".to_string(),
@@ -250,7 +273,10 @@ pub fn build_nifi_properties(
     // The ID of the cluster-wide state provider. This will be ignored if NiFi is not clustered but must be populated if running in a cluster.
     properties.insert(
         "nifi.state.management.provider.cluster".to_string(),
-        "zk-provider".to_string(),
+        match spec.cluster_config.clustering_backend {
+            v1alpha1::NifiClusteringBackend::ZooKeeper { .. } => "zk-provider".to_string(),
+            v1alpha1::NifiClusteringBackend::Kubernetes { .. } => "kubernetes-provider".to_string(),
+        },
     );
     // Specifies whether or not this instance of NiFi should run an embedded ZooKeeper server
     properties.insert(
@@ -473,15 +499,20 @@ pub fn build_nifi_properties(
         "".to_string(),
     );
 
-    let algorithm = &spec
+    let sensitive_properties_algorithm = &spec
         .cluster_config
         .sensitive_properties
         .algorithm
         .clone()
         .unwrap_or_default();
+
+    sensitive_properties_algorithm
+        .check_for_nifi_version(spec.image.product_version())
+        .context(ConfigureSensitivePropertiesSnafu)?;
+
     properties.insert(
         "nifi.sensitive.props.algorithm".to_string(),
-        algorithm.to_string(),
+        sensitive_properties_algorithm.to_string(),
     );
 
     // key and trust store
@@ -559,18 +590,90 @@ pub fn build_nifi_properties(
         "".to_string(),
     );
 
-    // zookeeper properties, used for cluster management
-    // this will be replaced via a container command script
+    match spec.cluster_config.clustering_backend {
+        v1alpha1::NifiClusteringBackend::ZooKeeper { .. } => {
+            properties.insert(
+                "nifi.cluster.leader.election.implementation".to_string(),
+                "CuratorLeaderElectionManager".to_string(),
+            );
+
+            // this will be replaced via a container command script
+            properties.insert(
+                "nifi.zookeeper.connect.string".to_string(),
+                "${env:ZOOKEEPER_HOSTS}".to_string(),
+            );
+
+            // this will be replaced via a container command script
+            properties.insert(
+                "nifi.zookeeper.root.node".to_string(),
+                "${env:ZOOKEEPER_CHROOT}".to_string(),
+            );
+        }
+
+        v1alpha1::NifiClusteringBackend::Kubernetes {} => {
+            ensure!(!is_nifi_1, Nifi1RequiresZookeeperSnafu);
+
+            properties.insert(
+                "nifi.cluster.leader.election.implementation".to_string(),
+                "KubernetesLeaderElectionManager".to_string(),
+            );
+
+            // this will be replaced via a container command script
+            properties.insert(
+                "nifi.cluster.leader.election.kubernetes.lease.prefix".to_string(),
+                "${env:STACKLET_NAME}".to_string(),
+            );
+        }
+    }
+
+    //####################
+    // Custom components #
+    //####################
+    // NiFi 1.x does not support Python components and the Python configuration below is just
+    // ignored.
+
+    // The command used to launch Python.
+    // This property must be set to enable Python-based processors.
+    properties.insert("nifi.python.command".to_string(), "python3".to_string());
+
+    // The directory that contains the Python framework for communicating between the Python and
+    // Java processes.
     properties.insert(
-        "nifi.zookeeper.connect.string".to_string(),
-        "${env:ZOOKEEPER_HOSTS}".to_string(),
+        "nifi.python.framework.source.directory".to_string(),
+        "/stackable/nifi/python/framework/".to_string(),
     );
 
-    // this will be replaced via a container command script
+    // The working directory where NiFi should store artifacts;
+    // This property defaults to ./work/python but if you want to mount an emptyDir for the working
+    // directory then another directory has to be set to avoid ownership conflicts with ./work/nar.
     properties.insert(
-        "nifi.zookeeper.root.node".to_string(),
-        "${env:ZOOKEEPER_CHROOT}".to_string(),
+        "nifi.python.working.directory".to_string(),
+        NIFI_PYTHON_WORKING_DIRECTORY.to_string(),
     );
+
+    // The default directory that NiFi should look in to find custom Python-based components.
+    // This directory is mentioned in the documentation
+    // (docs/modules/nifi/pages/usage_guide/custom-components.adoc), so do not change it!
+    properties.insert(
+        "nifi.python.extensions.source.directory.default".to_string(),
+        "/stackable/nifi/python/extensions/".to_string(),
+    );
+
+    for (i, git_folder) in git_sync_resources
+        .git_content_folders_as_string()
+        .into_iter()
+        .enumerate()
+    {
+        // The directory that NiFi should look in to find custom Python-based components.
+        properties.insert(
+            format!("nifi.python.extensions.source.directory.{i}"),
+            git_folder.clone(),
+        );
+
+        // The directory that NiFi should look in to find custom Java-based components.
+        properties.insert(format!("nifi.nar.library.directory.{i}"), git_folder);
+    }
+    //##########################
 
     // override with config overrides
     properties.extend(overrides);
@@ -578,28 +681,42 @@ pub fn build_nifi_properties(
     Ok(format_properties(properties))
 }
 
-pub fn build_state_management_xml() -> String {
+pub fn build_state_management_xml(clustering_backend: &NifiClusteringBackend) -> String {
+    // Inert providers are ignored by NiFi itself, but templating still fails if they refer to invalid environment variables,
+    // so only include the actually used provider.
+    let cluster_provider = match clustering_backend {
+        NifiClusteringBackend::ZooKeeper { .. } => {
+            r#"<cluster-provider>
+              <id>zk-provider</id>
+              <class>org.apache.nifi.controller.state.providers.zookeeper.ZooKeeperStateProvider</class>
+              <property name="Connect String">${env:ZOOKEEPER_HOSTS}</property>
+              <property name="Root Node">${env:ZOOKEEPER_CHROOT}</property>
+              <property name="Session Timeout">10 seconds</property>
+              <property name="Access Control">Open</property>
+            </cluster-provider>"#
+        }
+        NifiClusteringBackend::Kubernetes {} => {
+            r#"<cluster-provider>
+              <id>kubernetes-provider</id>
+              <class>org.apache.nifi.kubernetes.state.provider.KubernetesConfigMapStateProvider</class>
+              <property name="ConfigMap Name Prefix">${env:STACKLET_NAME}</property>
+            </cluster-provider>"#
+        }
+    };
     format!(
-        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
         <stateManagement>
           <local-provider>
-          <id>local-provider</id>
+            <id>local-provider</id>
             <class>org.apache.nifi.controller.state.providers.local.WriteAheadLocalStateProvider</class>
-            <property name=\"Directory\">{}</property>
-            <property name=\"Always Sync\">false</property>
-            <property name=\"Partitions\">16</property>
-            <property name=\"Checkpoint Interval\">2 mins</property>
+            <property name="Directory">{local_state_path}</property>
+            <property name="Always Sync">false</property>
+            <property name="Partitions">16</property>
+            <property name="Checkpoint Interval">2 mins</property>
           </local-provider>
-          <cluster-provider>
-            <id>zk-provider</id>
-            <class>org.apache.nifi.controller.state.providers.zookeeper.ZooKeeperStateProvider</class>
-            <property name=\"Connect String\">${{env:ZOOKEEPER_HOSTS}}</property>
-            <property name=\"Root Node\">${{env:ZOOKEEPER_CHROOT}}</property>
-            <property name=\"Session Timeout\">10 seconds</property>
-            <property name=\"Access Control\">Open</property>
-          </cluster-provider>
-        </stateManagement>",
-        &NifiRepository::State.mount_path(),
+          {cluster_provider}
+        </stateManagement>"#,
+        local_state_path = NifiRepository::State.mount_path(),
     )
 }
 
@@ -696,7 +813,9 @@ mod tests {
         "#;
         let bootstrap_conf = construct_bootstrap_conf(input);
 
-        assert_eq!(bootstrap_conf, indoc! {"
+        assert_eq!(
+            bootstrap_conf,
+            indoc! {"
                 conf.dir=./conf
                 graceful.shutdown.seconds=300
                 java=java
@@ -715,7 +834,8 @@ mod tests {
                 lib.dir=./lib
                 preserve.environment=false
                 run.as=
-            "});
+            "}
+        );
     }
 
     #[test]
@@ -761,7 +881,9 @@ mod tests {
         "#;
         let bootstrap_conf = construct_bootstrap_conf(input);
 
-        assert_eq!(bootstrap_conf, indoc! {"
+        assert_eq!(
+            bootstrap_conf,
+            indoc! {"
                 conf.dir=./conf
                 graceful.shutdown.seconds=300
                 java=java
@@ -782,7 +904,8 @@ mod tests {
                 lib.dir=./lib
                 preserve.environment=false
                 run.as=
-            "});
+            "}
+        );
     }
 
     fn construct_bootstrap_conf(nifi_cluster: &str) -> String {

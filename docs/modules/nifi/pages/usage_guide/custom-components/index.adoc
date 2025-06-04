@@ -1,9 +1,0 @@
-= Loading custom components
-:description: Load custom NiFi components for enhanced functionality.
-
-You can develop or use custom components for Apache NiFi, typically custom processors, to extend its functionality.
-
-There are currently two types of custom components:
-
-1. xref:nifi:usage_guide/custom-components/custom-nars.adoc[]
-2. Starting with NiFi 2.0 you can also use xref:nifi:usage_guide/custom-components/custom-python-processors.adoc[]

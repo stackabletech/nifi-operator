@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
 use clap::Parser;
+use crd::v1alpha1::NifiClusteringBackend;
 use futures::stream::StreamExt;
 use stackable_operator::{
     YamlSchema,
     cli::{Command, ProductOperatorRun},
-    commons::authentication::AuthenticationClass,
+    crd::authentication::core as auth_core,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Service},
@@ -91,10 +92,13 @@ async fn main() -> anyhow::Result<()> {
             )
             .await?;
 
-            let event_recorder = Arc::new(Recorder::new(client.as_kube_client(), Reporter {
-                controller: NIFI_FULL_CONTROLLER_NAME.to_string(),
-                instance: None,
-            }));
+            let event_recorder = Arc::new(Recorder::new(
+                client.as_kube_client(),
+                Reporter {
+                    controller: NIFI_FULL_CONTROLLER_NAME.to_string(),
+                    instance: None,
+                },
+            ));
 
             let nifi_controller = Controller::new(
                 watch_namespace.get_api::<DeserializeGuard<v1alpha1::NifiCluster>>(&client),
@@ -119,7 +123,8 @@ async fn main() -> anyhow::Result<()> {
                 )
                 .shutdown_on_signal()
                 .watches(
-                    client.get_api::<DeserializeGuard<AuthenticationClass>>(&()),
+                    client
+                        .get_api::<DeserializeGuard<auth_core::v1alpha1::AuthenticationClass>>(&()),
                     watcher::Config::default(),
                     move |_| {
                         authentication_class_store
@@ -179,8 +184,12 @@ fn references_config_map(
         return false;
     };
 
-    let references_zookeeper_config_map =
-        nifi.spec.cluster_config.zookeeper_config_map_name == config_map.name_any();
+    let references_zookeeper_config_map = match &nifi.spec.cluster_config.clustering_backend {
+        NifiClusteringBackend::ZooKeeper {
+            zookeeper_config_map_name,
+        } => *zookeeper_config_map_name == config_map.name_any(),
+        NifiClusteringBackend::Kubernetes {} => false,
+    };
     let references_authorization_config_map = references_authorization_config_map(nifi, config_map);
 
     references_zookeeper_config_map || references_authorization_config_map

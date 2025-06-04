@@ -133,9 +133,11 @@ rules:
   - apiGroups:
       - ""
     resources:
-      - configmaps
       - secrets
       - serviceaccounts
+      # This is redundant with the rule for specifically about configmaps
+      # (due to clustering), but we read them for other purposes too
+      - configmaps
     verbs:
       - get
   - apiGroups:
@@ -144,6 +146,29 @@ rules:
       - events
     verbs:
       - create
+  # Required for Kubernetes-managed clustering, see https://nifi.apache.org/nifi-docs/administration-guide.html#kubernetes-clustering
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - create
+      - get
+      - update
+      # undocumented but required
+      - patch
+  # Required for Kubernetes cluster state provider, see https://nifi.apache.org/nifi-docs/administration-guide.html#kubernetes-configmap-cluster-state-provider
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
 {{ if .Capabilities.APIVersions.Has "security.openshift.io/v1" }}
   - apiGroups:
       - security.openshift.io

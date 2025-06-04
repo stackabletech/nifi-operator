@@ -30,6 +30,18 @@ customConfig:
       condition: >-
         .pod == "test-nifi-node-automatic-log-config-0" &&
         .container == "nifi"
+    filteredAutomaticLogConfigNodeGitSync:
+      type: filter
+      inputs: [validEvents]
+      condition: >-
+        .pod == "test-nifi-node-automatic-log-config-0" &&
+        .container == "git-sync-0"
+    filteredAutomaticLogConfigNodeGitSyncInit:
+      type: filter
+      inputs: [validEvents]
+      condition: >-
+        .pod == "test-nifi-node-automatic-log-config-0" &&
+        .container == "git-sync-0-init"
     filteredAutomaticLogConfigNodeVector:
       type: filter
       inputs: [validEvents]

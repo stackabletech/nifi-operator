@@ -11,7 +11,9 @@ All notable changes to this project will be documented in this file.
   - Use `--file-log-max-files` (or `FILE_LOG_MAX_FILES`) to limit the number of log files kept.
   - Use `--file-log-rotation-period` (or `FILE_LOG_ROTATION_PERIOD`) to configure the frequency of rotation.
   - Use `--console-log-format` (or `CONSOLE_LOG_FORMAT`) to set the format to `plain` (default) or `json`.
+- NiFi 2.x now supports storing cluster state in Kubernetes instead of ZooKeeper ([#775]).
 - Add test for Apache Iceberg integration ([#785]).
+- Add support for custom components via git-sync ([#793]).
 
 ### Changed
 
@@ -25,11 +27,16 @@ All notable changes to this project will be documented in this file.
     of having the operator write it to the vector config ([#772]).
 - test: Bump to Vector `0.46.1` ([#789]).
 - The ReportingTask metrics ports now is only exposed in NiFi 1.x.x ([#794])
+- BREAKING: Previously this operator would hardcode the UID and GID of the Pods being created to 1000/0, this has changed now ([#801])
+  - The `runAsUser` and `runAsGroup` fields will not be set anymore by the operator
+  - The defaults from the docker images itself will now apply, which will be different from 1000/0 going forward
+  - This is marked as breaking because tools and policies might exist, which require these fields to be set
 
 ### Fixed
 
 - Use `json` file extension for log files ([#774]).
 - Fix a bug where changes to ConfigMaps that are referenced in the NifiCluster spec didn't trigger a reconciliation ([#772]).
+- The operator now emits a warning (1.x.x) or errors out (2.x.x) if a deprecated or unsupported sensitive properties algorithm is used ([#799]).
 
 ### Removed
 
@@ -39,12 +46,17 @@ All notable changes to this project will be documented in this file.
 [#771]: https://github.com/stackabletech/nifi-operator/pull/771
 [#772]: https://github.com/stackabletech/nifi-operator/pull/772
 [#774]: https://github.com/stackabletech/nifi-operator/pull/774
+[#775]: https://github.com/stackabletech/nifi-operator/pull/775
 [#776]: https://github.com/stackabletech/nifi-operator/pull/776
 [#782]: https://github.com/stackabletech/nifi-operator/pull/782
 [#785]: https://github.com/stackabletech/nifi-operator/pull/785
 [#787]: https://github.com/stackabletech/nifi-operator/pull/787
 [#789]: https://github.com/stackabletech/nifi-operator/pull/789
+[#793]: https://github.com/stackabletech/nifi-operator/pull/793
 [#794]: https://github.com/stackabletech/nifi-operator/pull/794
+[#799]: https://github.com/stackabletech/nifi-operator/pull/799
+[#801]: https://github.com/stackabletech/nifi-operator/pull/801
+
 
 ## [25.3.0] - 2025-03-21
 
