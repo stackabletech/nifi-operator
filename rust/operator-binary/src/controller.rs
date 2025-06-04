@@ -846,6 +846,23 @@ fn build_node_rolegroup_service(
     resolved_product_image: &ResolvedProductImage,
     rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>,
 ) -> Result<Service> {
+    let mut enabled_ports = vec![ServicePort {
+        name: Some(HTTPS_PORT_NAME.to_string()),
+        port: HTTPS_PORT.into(),
+        protocol: Some("TCP".to_string()),
+        ..ServicePort::default()
+    }];
+
+    // NiFi 2.x.x offers nifi-api/flow/metrics/prometheus at the HTTPS_PORT, therefore METRICS_PORT is only required for NiFi 1.x.x...
+    if resolved_product_image.product_version.starts_with("1.") {
+        enabled_ports.push(ServicePort {
+            name: Some(METRICS_PORT_NAME.to_string()),
+            port: METRICS_PORT.into(),
+            protocol: Some("TCP".to_string()),
+            ..ServicePort::default()
+        })
+    }
+
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(nifi)
@@ -865,20 +882,7 @@ fn build_node_rolegroup_service(
             // Internal communication does not need to be exposed
             type_: Some("ClusterIP".to_string()),
             cluster_ip: Some("None".to_string()),
-            ports: Some(vec![
-                ServicePort {
-                    name: Some(HTTPS_PORT_NAME.to_string()),
-                    port: HTTPS_PORT.into(),
-                    protocol: Some("TCP".to_string()),
-                    ..ServicePort::default()
-                },
-                ServicePort {
-                    name: Some(METRICS_PORT_NAME.to_string()),
-                    port: METRICS_PORT.into(),
-                    protocol: Some("TCP".to_string()),
-                    ..ServicePort::default()
-                },
-            ]),
+            ports: Some(enabled_ports),
             selector: Some(
                 Labels::role_group_selector(nifi, APP_NAME, &rolegroup.role, &rolegroup.role_group)
                     .context(LabelBuildSnafu)?
@@ -1187,7 +1191,6 @@ async fn build_node_rolegroup_statefulset(
         .add_container_port(HTTPS_PORT_NAME, HTTPS_PORT.into())
         .add_container_port(PROTOCOL_PORT_NAME, PROTOCOL_PORT.into())
         .add_container_port(BALANCE_PORT_NAME, BALANCE_PORT.into())
-        .add_container_port(METRICS_PORT_NAME, METRICS_PORT.into())
         .liveness_probe(Probe {
             initial_delay_seconds: Some(10),
             period_seconds: Some(10),
@@ -1208,6 +1211,11 @@ async fn build_node_rolegroup_statefulset(
             ..Probe::default()
         })
         .resources(merged_config.resources.clone().into());
+
+    // NiFi 2.x.x offers nifi-api/flow/metrics/prometheus at the HTTPS_PORT, therefore METRICS_PORT is only required for NiFi 1.x.x.
+    if resolved_product_image.product_version.starts_with("1.") {
+        container_nifi.add_container_port(METRICS_PORT_NAME, METRICS_PORT.into());
+    }
 
     let mut pod_builder = PodBuilder::new();
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
