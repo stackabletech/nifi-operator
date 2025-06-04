@@ -57,7 +57,6 @@ All notable changes to this project will be documented in this file.
 [#799]: https://github.com/stackabletech/nifi-operator/pull/799
 [#801]: https://github.com/stackabletech/nifi-operator/pull/801
 
-
 ## [25.3.0] - 2025-03-21
 
 ### Added
