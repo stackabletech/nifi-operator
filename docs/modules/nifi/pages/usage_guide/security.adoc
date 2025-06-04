@@ -1,9 +1,14 @@
 = Security
 :description: Secure Apache NiFi on Kubernetes with TLS, authentication, and authorization using the Stackable operator. Configure LDAP, OIDC, and sensitive data encryption.
 :nifi-docs-authorization: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#multi-tenant-authorization
+:nifi-docs-access-policies: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#access-policies
+:nifi-docs-component-level-access-policies: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#component-level-access-policies
+:nifi-docs-access-policy-inheritance: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#access-policy-inheritance
 :nifi-docs-fileusergroupprovider: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#fileusergroupprovider
 :nifi-docs-fileaccesspolicyprovider: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#fileaccesspolicyprovider
 :nifi-docs-sensitive-properties-key: https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#nifi_sensitive_props_key
+:nifi-opa-plugin: https://github.com/DavidGitter/nifi-opa-plugin/
+:opa-rego-docs: https://www.openpolicyagent.org/docs/latest/#rego
 
 == TLS
 
@@ -166,9 +171,7 @@ stringData:
 [#authorization]
 == Authorization
 
-NiFi supports {nifi-docs-authorization}[multiple authorization methods], the available authorization methods depend on the chosen authentication method.
-
-Authorization is not fully implemented by the Stackable Operator for Apache NiFi.
+The Stackable Operator for Apache NiFi supports {nifi-docs-authorization}[multiple authorization methods], the available authorization methods depend on the chosen authentication method. Using Open Policy Agent for authorization is independent of the authentication method.
 
 [#authorization-single-user]
 === Single user
@@ -190,6 +193,171 @@ With this authorization method, all authenticated users have administrator capab
 An admin user with an auto-generated password is created that can access the NiFi API.
 The password for this user is stored in a Kubernetes Secret called `<nifi-name>-oidc-admin-password`.
 
+[#authorization-opa]
+=== Open Policy Agent (OPA)
+
+NiFi can be configured to delegate authorization decisions to an Open Policy Agent (OPA) instance. More information on the setup and configuration of OPA can be found in the xref:opa:index.adoc[OPA Operator documentation].
+
+A NiFi cluster can be configured with OPA authorization by adding this section to the configuration:
+
+[source,yaml]
+----
+spec:
+  clusterConfig:
+    authorization:
+      opa:
+        configMapName: simple-opa # <1>
+        package: my-nifi-rules # <2>
+        cache:
+          entryTimeToLive: 5s # <3>
+          maxEntries: 10 # <4>
+----
+<1> The name of your OPA Stacklet (`simple-opa` in this case)
+<2> The rego rule package to use for policy decisions.
+The package needs to contain an `allow` rule.
+This is optional and defaults to the name of the NiFi Stacklet.
+<3> TTL for items in the cache in NiFi. Optional, defaults to 30 seconds.
+<4> Maximum number of concurrent entries in the cache in NiFi. Optional, defaults to 10000 entries.
+
+[#defining-rego-rules]
+=== Defining rego rules
+
+For a general explanation of how rules are written, please refer to the {opa-rego-docs}[OPA documentation]. Authorization with OPA is done using a {nifi-opa-plugin}[custom authorizer provided by a plugin for NiFi].
+
+[#opa-inputs]
+==== OPA Inputs
+The payload sent by NiFi with each request to OPA, that is accessible within the rego rules, has the following structure:
+
+[cols="1,2,1"]
+|===
+| Payload Field| Description| Possible Values
+| action.name
+| The action taken against the resource.
+|`read`, `write`
+| resource.id
+| The unique identifier of the resource that is being authorized. This might be a parent component in the case of `resourceNotFound` is set to `true`.
+|
+| resource.name
+| The name of the resource that is being authorized. This might be a parent component in the case of `resourceNotFound` is set to `true`.
+|
+| resource.safeDescription
+| The description of the resource that is being authorized.
+|
+| requestedResource.id
+| The unique identifier of the original resource that was requested (see <<component-level-access-policies>>).
+|
+| requestedResource.name
+| The name of the original resource that is being authorized on  (see <<component-level-access-policies>>).
+|
+| requestedResource.safeDescription
+| The description of the original resource that is being authorized on (see <<component-level-access-policies>>).
+|
+| identity.name
+| The name of the identity/user accessing the resource.
+|
+| identity.groups
+| Comma-separated list of groups that the identity/user accessing the resource belongs to.
+|
+| properties.isAccessAttempt
+| Whether this is a direct access attempt of the resource or if it's being checked as part of another response.
+| `true`, `false` (String)
+| isAnonymous
+| Whether the entity accessing the resource is anonymous.
+| `true`, `false` (String)
+| resourceContext
+| Object containing the event attributes to make additional access decisions for provenance events.
+| ```{"": ""}``` if empty
+| userContext
+| Additional context for the user to make additional access decisions.
+| ```{"": ""}``` if empty
+|===
+
+[#opa-result]
+==== OPA Result
+
+The OPA authorizer plugin expects rego rules to be named `allow` and to return a result following this schema:
+[source]
+----
+{
+    "allowed": <Boolean>, # <1>
+    "resourceNotFound": <Boolean>, # <2>
+    "dumpCache": <Boolean>, # <3>
+    "message": <String>, # <4>
+}
+----
+<1> Whether the action against the resource is allowed. Optional, defaults to false.
+<2> Whether no rule was found for the authorization request. This should only be set to true in the default rule to e.g. forward policy decisions to parent components. If set to true the value of the "allowed" field will be ignored. Optional, defaults to false.
+<3> Whether the whole local cache in the OPA authorizer plugin in NiFi should be invalidated. Optional, defaults to false.
+<4> An optional error message that is shown to the user when access is denied.
+
+[#access-policies]
+==== Access Policies
+NiFi uses {nifi-docs-access-policies}[access policies] to manage access to system-wide resources like the user interface.
+
+[#component-level-access-policies]
+==== Component Level Access Policies and Access Policy Inheritance
+
+{nifi-docs-component-level-access-policies}[Component Level Access Policies] allow managing granular access to components like process-groups and processors. Components can {nifi-docs-access-policy-inheritance}[inherite access policies] defined for parent components, e.g. a process group is the parent component for a contained processor component.
+
+The payload field `requestedResource` contains the id, name and description of the original resource that was requested. In cases with inherited policies, this will be an ancestor resource of the current resource. For the initial request, and cases without inheritance, the requested resource will be the same as the current resource.
+
+When an authorizer returns "resourceNotFound" as result instead of an authorization decision, NiFi will send an authorization request for the parent component. Access policy inheritance can be recursive up to the root component. If "resourceNotFound" is returned for an authorization request and the component doesn't have a parent component, NiFi will deny access to the component.
+
+To manage access for all process groups in the NiFi instance a rule has to be defined for the root process group which is identified by the resource name "NiFi Flow" and a resource id generated at random ("/process-groups/<uuid>").
+
+[source,rego]
+----
+default allow := {
+  "resourceNotFound": true
+} # <1>
+
+allow := {
+  "allowed": true
+} if {
+  input.resource.name == "NiFi Flow"
+  startswith(input.resource.id, "/process-groups")
+} # <2>
+
+allow := {
+  "allowed": false
+} if {
+  input.resource.id == "/process-groups/a10c311e-0196-1000-2856-dc0606d3c5d7"
+  input.identity.name == "alice"
+} # <3>
+----
+<1> The default rule should return `"resourceNotFound": true`. If this is not set, NiFi's access policy inheritance will not work. Any values for the `allowed` field in the response will be ignored.
+<2> A rule that grants all users access to the root process group and thus to all components in the NiFi instance.
+<3> A rule that denies access to a specific process group for the user "alice". For this process group the default rego rule will not be applied and NiFi's component inhertiance will not be used. All child components of this process group will also be authorized based on this rule unless a more granular rule overrides it.
+
+[#communication-between-nifi-nodes]
+==== Communication between NiFi nodes
+To allow communication between NiFi nodes an additional rego rule is required:
+[source,rego]
+----
+allow := {
+  "allowed": true
+} if {
+  input.identity.name == "CN=generated certificate for pod" # <1>
+  input.resource.id == "/proxy" # <2>
+}
+----
+<1> The identity of NiFi nodes authenticated with TLS certificates provided by the secrets operator.
+<2> Only access to the `/proxy` API is required.
+
+[#caching]
+==== Caching
+
+The OPA authorizer has a mechanism to cache results from OPA which can be configured in the NifiCluster spec (see above). To delete the whole cache add `"dumpCache": true` to the result.
+[source,rego]
+----
+allow := {
+  "allowed": false
+  "dumpCache": true
+} if {
+  ...
+}
+----
+
 [#encrypting-sensitive-properties]
 == Encrypting sensitive properties on disk
 
@@ -206,7 +374,7 @@ If `autoGenerate` is false and no Secret with the given name in `keySecret` is f
 The `algorithm` property configures the encryption algorithm used to encrypt the sensitive properties.
 Consult the {crd-docs}/nifi.stackable.tech/nificluster/v1alpha1/#spec-clusterConfig-sensitiveProperties-algorithm[reference documentation {external-link-icon}^] for a list of supported algorithms.
 
-=== Autogenerated key example
+=== Autogenerated sensitive properties key
 
 Let the operator generate a Secret with the name `nifi-sensitive-property-key`:
 
@@ -217,7 +385,7 @@ sensitiveProperties:
   autoGenerate: true
 ----
 
-=== Custom key and encryption algorithm example
+=== Custom sensitive properties key and sensitive properties algorithm
 
 Create the Secret yourself:
 
@@ -231,7 +399,7 @@ stringData:
   nifiSensitivePropsKey: my-encryption-key
 ----
 
-Configure the Secret and a different encryption algrithm:
+Configure the Secret and a different sensitive properties algorithm:
 
 [source,yaml]
 ----
@@ -239,6 +407,64 @@ sensitiveProperties:
   keySecret: nifi-sensitive-property-key
   algorithm: nifiArgon2AesGcm256
 ----
+
+=== Upgrading sensitive properties algorithm
+
+WARNING: Please make sure to backup any flows before upgrading the sensitive properties algorithm!
+
+The sensitive properties algorithm can be changed via the `nifi.sh` CLI tool as described in the https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#updating-the-sensitive-properties-algorithm[Apache NiFi documentation].
+
+Assuming that you deployed a cluster with this:
+
+[source,yaml]
+----
+sensitiveProperties:
+  keySecret: nifi-sensitive-property-key
+  algorithm: nifiArgon2AesGcm256
+----
+
+If you want to change the algorithm to `nifiPbkdf2AesGcm256`, you have to run the following command on each NiFi Pod:
+
+[source,bash]
+----
+/stackable/nifi/bin/nifi.sh set-sensitive-properties-algorithm NIFI_PBKDF2_AES_GCM_256
+----
+
+NOTE: Be careful with the notation used in the NiFiCluster `nifiPbkdf2AesGcm256` versus the setting in the NiFi CLI `NIFI_PBKDF2_AES_GCM_256`!
+
+Alternatively, you can use this shell script to automatically execute this in each pod via `kubectl` (make sure to edit the `NAMESPACE` and `STATEFULSET_NAME` accordingly):
+
+[source,bash]
+----
+NAMESPACE="default"
+STATEFULSET_NAME="simple-nifi-node-default"
+COMMAND="/stackable/nifi/bin/nifi.sh set-sensitive-properties-algorithm NIFI_PBKDF2_AES_GCM_256"
+
+kubectl get pods -n "$NAMESPACE" --no-headers -o custom-columns=":metadata.name" | grep "^$STATEFULSET_NAME" | \
+while read pod; do
+  echo "Running on $pod"
+  kubectl exec -n "$NAMESPACE" -c "nifi" "$pod" -- sh -c "$COMMAND"
+done
+----
+
+Afterwards, update your NiFiCluster to the required algorithm `nifiPbkdf2AesGcm256`:
+
+[source,yaml]
+----
+sensitiveProperties:
+  keySecret: nifi-sensitive-property-key
+  algorithm: nifiPbkdf2AesGcm256
+----
+
+Finally, apply the updated NiFiCluster and restart / delete the StatefulSet:
+
+[source,bash]
+----
+kubectl apply -n "$NAMESPACE" -f <nifi-yaml>
+kubectl delete -n "$NAMESPACE" statefulsets ${STATEFULSET_NAME}
+----
+
+
 
 [#host-header-check]
 == Host Header Check

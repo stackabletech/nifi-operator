@@ -26,14 +26,18 @@ spec:
               description: A NiFi cluster stacklet. This resource is managed by the Stackable operator for Apache NiFi. Find more information on how to use it and the resources that the operator generates in the [operator documentation](https://docs.stackable.tech/home/nightly/nifi/).
               properties:
                 clusterConfig:
+                  anyOf:
+                    - required:
+                        - zookeeperConfigMapName
+                    - {}
                   description: Settings that affect all roles and role groups. The settings in the `clusterConfig` are cluster wide settings that do not need to be configurable at role or role group level.
                   properties:
                     authentication:
-                      description: Authentication options for NiFi (required). Read more about authentication in the [security documentation](https://docs.stackable.tech/home/nightly/nifi/usage_guide/security).
+                      description: Authentication options for NiFi (required). Read more about authentication in the [security documentation](https://docs.stackable.tech/home/nightly/nifi/usage_guide/security#authentication).
                       items:
                         properties:
                           authenticationClass:
-                            description: Name of the [AuthenticationClass](https://docs.stackable.tech/home/nightly/concepts/authentication) used to authenticate users.
+                            description: Name of the [AuthenticationClass](https://docs.stackable.tech/home/nightly/concepts/authentication) used to authenticate users
                             type: string
                           oidc:
                             description: This field contains OIDC-specific configuration. It is only required in case OIDC is used.
@@ -44,7 +48,7 @@ spec:
                                 type: string
                               extraScopes:
                                 default: []
-                                description: An optional list of extra scopes which get merged with the scopes defined in the [`AuthenticationClass`].
+                                description: An optional list of extra scopes which get merged with the scopes defined in the `AuthenticationClass`.
                                 items:
                                   type: string
                                 type: array
@@ -55,6 +59,42 @@ spec:
                           - authenticationClass
                         type: object
                       type: array
+                    authorization:
+                      description: Authorization options. Learn more in the [NiFi authorization usage guide](https://docs.stackable.tech/home/nightly/nifi/usage-guide/security#authorization).
+                      nullable: true
+                      properties:
+                        opa:
+                          description: Configure the OPA stacklet [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery) and the name of the Rego package containing your authorization rules. Consult the [OPA authorization documentation](https://docs.stackable.tech/home/nightly/concepts/opa) to learn how to deploy Rego authorization rules with OPA.
+                          nullable: true
+                          properties:
+                            cache:
+                              default:
+                                entryTimeToLive: 30s
+                                maxEntries: 10000
+                              description: Least Recently Used (LRU) cache with per-entry time-to-live (TTL) value.
+                              properties:
+                                entryTimeToLive:
+                                  default: 30s
+                                  description: Time to live per entry
+                                  type: string
+                                maxEntries:
+                                  default: 10000
+                                  description: Maximum number of entries in the cache; If this threshold is reached then the least recently used item is removed.
+                                  format: uint32
+                                  minimum: 0.0
+                                  type: integer
+                              type: object
+                            configMapName:
+                              description: The [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery) for the OPA stacklet that should be used for authorization requests.
+                              type: string
+                            package:
+                              description: The name of the Rego package containing the Rego rules for the product.
+                              nullable: true
+                              type: string
+                          required:
+                            - configMapName
+                          type: object
+                      type: object
                     createReportingTaskJob:
                       default:
                         enabled: true
@@ -71,6 +111,66 @@ spec:
                           type: object
                           x-kubernetes-preserve-unknown-fields: true
                       type: object
+                    customComponentsGitSync:
+                      default: []
+                      description: The `customComponentsGitSync` setting allows configuring custom components to mount via `git-sync`. Learn more in the documentation for [Loading custom components](https://docs.stackable.tech/home/nightly/nifi/usage_guide/custom-components.html#git_sync).
+                      items:
+                        properties:
+                          branch:
+                            default: main
+                            description: |-
+                              The branch to clone; defaults to `main`.
+
+                              Since git-sync v4.x.x this field is mapped to the flag `--ref`.
+                            type: string
+                          credentialsSecret:
+                            description: |-
+                              The name of the Secret used to access the repository if it is not public.
+
+                              The referenced Secret must include two fields: `user` and `password`. The `password` field can either be an actual password (not recommended) or a GitHub token, as described in the git-sync [documentation].
+
+                              [documentation]: https://github.com/kubernetes/git-sync/tree/v4.2.4?tab=readme-ov-file#manual
+                            nullable: true
+                            type: string
+                          depth:
+                            default: 1
+                            description: The depth of syncing, i.e. the number of commits to clone; defaults to 1.
+                            format: uint32
+                            minimum: 0.0
+                            type: integer
+                          gitFolder:
+                            default: /
+                            description: |-
+                              Location in the Git repository containing the resource; defaults to the root folder.
+
+                              It can optionally start with `/`, however, no trailing slash is recommended. An empty string (``) or slash (`/`) corresponds to the root folder in Git.
+                            type: string
+                          gitSyncConf:
+                            additionalProperties:
+                              type: string
+                            default: {}
+                            description: |-
+                              A map of optional configuration settings that are listed in the git-sync [documentation].
+
+                              Also read the git-sync [example] in our documentation. These settings are not verified.
+
+                              [documentation]: https://github.com/kubernetes/git-sync/tree/v4.2.4?tab=readme-ov-file#manual [example]: https://docs.stackable.tech/home/nightly/airflow/usage-guide/mounting-dags#_example
+                            type: object
+                          repo:
+                            description: 'The git repository URL that will be cloned, for example: `https://github.com/stackabletech/airflow-operator`.'
+                            format: uri
+                            type: string
+                          wait:
+                            default: 20s
+                            description: |-
+                              The synchronization interval, e.g. `20s` or `5m`; defaults to `20s`.
+
+                              Since git-sync v4.x.x this field is mapped to the flag `--period`.
+                            type: string
+                        required:
+                          - repo
+                        type: object
+                      type: array
                     extraVolumes:
                       description: Extra volumes similar to `.spec.volumes` on a Pod to mount into every container, this can be useful to for example make client certificates, keytabs or similar things available to processors. These volumes will be mounted into all pods at `/stackable/userdata/{volumename}`. See also the [external files usage guide](https://docs.stackable.tech/home/nightly/nifi/usage_guide/extra-volumes).
                       items:
@@ -123,12 +223,12 @@ spec:
 
                             Learn more about the specifics of the algorithm parameters in the [NiFi documentation](https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#property-encryption-algorithms).
                           enum:
-                            - nifiArgon2AesGcm128
+                            - nifiPbkdf2AesGcm256
                             - nifiArgon2AesGcm256
                             - nifiBcryptAesGcm128
                             - nifiBcryptAesGcm256
                             - nifiPbkdf2AesGcm128
-                            - nifiPbkdf2AesGcm256
+                            - nifiArgon2AesGcm128
                             - nifiScryptAesGcm128
                             - nifiScryptAesGcm256
                           nullable: true
@@ -158,12 +258,14 @@ spec:
                       nullable: true
                       type: string
                     zookeeperConfigMapName:
-                      description: NiFi requires a ZooKeeper cluster connection to run. Provide the name of the ZooKeeper [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery) here. When using the [Stackable operator for Apache ZooKeeper](https://docs.stackable.tech/home/nightly/zookeeper/) to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
+                      description: |-
+                        NiFi can either use ZooKeeper or Kubernetes for managing its cluster state. To use ZooKeeper, provide the name of the ZooKeeper [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery) here. When using the [Stackable operator for Apache ZooKeeper](https://docs.stackable.tech/home/nightly/zookeeper/) to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
+
+                        The Kubernetes provider will be used if this field is unset. Kubernetes is only supported for NiFi 2.x and newer, NiFi 1.x requires ZooKeeper.
                       type: string
                   required:
                     - authentication
                     - sensitiveProperties
-                    - zookeeperConfigMapName
                   type: object
                 clusterOperation:
                   default:

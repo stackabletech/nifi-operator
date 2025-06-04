@@ -26,11 +26,9 @@ use stackable_operator::{
     },
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
-    commons::{
-        authentication::oidc::AuthenticationProvider,
-        product_image_selection::ResolvedProductImage, rbac::build_rbac_resources,
-    },
+    commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
     config::fragment,
+    crd::{authentication::oidc, git_sync},
     k8s_openapi::{
         DeepMerge,
         api::{
@@ -52,6 +50,7 @@ use stackable_operator::{
     kvp::{Label, Labels, ObjectLabels},
     logging::controller::ReconcilerError,
     memory::{BinaryMultiple, MemoryQuantity},
+    product_config_utils::env_vars_from_rolegroup_config,
     product_logging::{
         self,
         framework::{
@@ -77,8 +76,9 @@ use crate::{
     OPERATOR_NAME,
     config::{
         self, JVM_SECURITY_PROPERTIES_FILE, NIFI_BOOTSTRAP_CONF, NIFI_CONFIG_DIRECTORY,
-        NIFI_PROPERTIES, NIFI_STATE_MANAGEMENT_XML, NifiRepository, build_bootstrap_conf,
-        build_nifi_properties, build_state_management_xml, validated_product_config,
+        NIFI_PROPERTIES, NIFI_PYTHON_WORKING_DIRECTORY, NIFI_STATE_MANAGEMENT_XML, NifiRepository,
+        build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
+        validated_product_config,
     },
     crd::{
         APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, Container, CurrentlySupportedListenerClasses,
@@ -99,6 +99,7 @@ use crate::{
             AUTHORIZERS_XML_FILE_NAME, LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME,
             NifiAuthenticationConfig, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
         },
+        authorization::NifiAuthorizationConfig,
         build_tls_volume, check_or_generate_oidc_admin_password, check_or_generate_sensitive_key,
         tls::{KEYSTORE_NIFI_CONTAINER_MOUNT, KEYSTORE_VOLUME_NAME, TRUSTSTORE_VOLUME_NAME},
     },
@@ -106,9 +107,9 @@ use crate::{
 
 pub const NIFI_CONTROLLER_NAME: &str = "nificluster";
 pub const NIFI_FULL_CONTROLLER_NAME: &str = concatcp!(NIFI_CONTROLLER_NAME, '.', OPERATOR_NAME);
-pub const NIFI_UID: i64 = 1000;
 
 const DOCKER_IMAGE_BASE_NAME: &str = "nifi";
+const LOG_VOLUME_NAME: &str = "log";
 
 pub struct Ctx {
     pub client: Client,
@@ -258,6 +259,9 @@ pub enum Error {
     #[snafu(display("failed to resolve and merge config for role and role group"))]
     FailedToResolveConfig { source: crate::crd::Error },
 
+    #[snafu(display("invalid git-sync specification"))]
+    InvalidGitSyncSpec { source: git_sync::v1alpha1::Error },
+
     #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
     VectorAggregatorConfigMapMissing,
 
@@ -294,6 +298,11 @@ pub enum Error {
     #[snafu(display("Invalid NiFi Authentication Configuration"))]
     InvalidNifiAuthenticationConfig {
         source: crate::security::authentication::Error,
+    },
+
+    #[snafu(display("Invalid NiFi Authorization Configuration"))]
+    InvalidNifiAuthorizationConfig {
+        source: crate::security::authorization::Error,
     },
 
     #[snafu(display("Failed to resolve NiFi Authentication Configuration"))]
@@ -455,18 +464,21 @@ pub async fn reconcile_nifi(
             obj_ref: ObjectRef::new(&nifi.name_any()).within(namespace),
         })?;
 
-    let nifi_authentication_config = NifiAuthenticationConfig::try_from(
+    let authentication_config = NifiAuthenticationConfig::try_from(
         AuthenticationClassResolved::from(nifi, client)
             .await
             .context(FailedResolveNifiAuthenticationConfigSnafu)?,
     )
     .context(InvalidNifiAuthenticationConfigSnafu)?;
 
-    if let NifiAuthenticationConfig::Oidc { .. } = nifi_authentication_config {
+    if let NifiAuthenticationConfig::Oidc { .. } = authentication_config {
         check_or_generate_oidc_admin_password(client, nifi)
             .await
             .context(SecuritySnafu)?;
     }
+
+    let authorization_config =
+        NifiAuthorizationConfig::from(&nifi.spec.cluster_config.authorization);
 
     let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
         nifi,
@@ -501,6 +513,16 @@ pub async fn reconcile_nifi(
                 .merged_config(&NifiRole::Node, rolegroup_name)
                 .context(FailedToResolveConfigSnafu)?;
 
+            let git_sync_resources = git_sync::v1alpha1::GitSyncResources::new(
+                &nifi.spec.cluster_config.custom_components_git_sync,
+                &resolved_product_image,
+                &env_vars_from_rolegroup_config(rolegroup_config),
+                &[],
+                LOG_VOLUME_NAME,
+                &merged_config.logging.for_container(&Container::GitSync),
+            )
+            .context(InvalidGitSyncSpecSnafu)?;
+
             let rg_service =
                 build_node_rolegroup_service(nifi, &resolved_product_image, &rolegroup)?;
 
@@ -516,12 +538,14 @@ pub async fn reconcile_nifi(
             let rg_configmap = build_node_rolegroup_config_map(
                 nifi,
                 &resolved_product_image,
-                &nifi_authentication_config,
+                &authentication_config,
+                &authorization_config,
                 role,
                 &rolegroup,
                 rolegroup_config,
                 &merged_config,
                 &proxy_hosts,
+                &git_sync_resources,
             )
             .await?;
 
@@ -541,10 +565,12 @@ pub async fn reconcile_nifi(
                 role,
                 rolegroup_config,
                 &merged_config,
-                &nifi_authentication_config,
+                &authentication_config,
+                &authorization_config,
                 rolling_upgrade_supported,
                 replicas,
                 &rbac_sa.name_any(),
+                &git_sync_resources,
             )
             .await?;
 
@@ -591,7 +617,7 @@ pub async fn reconcile_nifi(
             nifi,
             &resolved_product_image,
             &client.kubernetes_cluster_info,
-            &nifi_authentication_config,
+            &authentication_config,
             &rbac_sa.name_any(),
         )
         .context(ReportingTaskSnafu)?
@@ -699,18 +725,24 @@ pub fn build_node_role_service(
 async fn build_node_rolegroup_config_map(
     nifi: &v1alpha1::NifiCluster,
     resolved_product_image: &ResolvedProductImage,
-    nifi_auth_config: &NifiAuthenticationConfig,
+    authentication_config: &NifiAuthenticationConfig,
+    authorization_config: &NifiAuthorizationConfig,
     role: &Role<NifiConfigFragment, GenericRoleConfig, JavaCommonConfig>,
     rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &NifiConfig,
     proxy_hosts: &str,
+    git_sync_resources: &git_sync::v1alpha1::GitSyncResources,
 ) -> Result<ConfigMap> {
     tracing::debug!("building rolegroup configmaps");
 
-    let (login_identity_provider_xml, authorizers_xml) = nifi_auth_config
-        .get_auth_config()
+    let login_identity_provider_xml = authentication_config
+        .get_authentication_config()
         .context(InvalidNifiAuthenticationConfigSnafu)?;
+
+    let authorizers_xml = authorization_config
+        .get_authorizers_config(authentication_config)
+        .context(InvalidNifiAuthorizationConfigSnafu)?;
 
     let jvm_sec_props: BTreeMap<String, Option<String>> = rolegroup_config
         .get(&PropertyNameKind::File(
@@ -761,7 +793,7 @@ async fn build_node_rolegroup_config_map(
                 &nifi.spec,
                 &merged_config.resources,
                 proxy_hosts,
-                nifi_auth_config,
+                authentication_config,
                 rolegroup_config
                     .get(&PropertyNameKind::File(NIFI_PROPERTIES.to_string()))
                     .with_context(|| ProductConfigKindNotSpecifiedSnafu {
@@ -769,12 +801,16 @@ async fn build_node_rolegroup_config_map(
                     })?
                     .clone(),
                 resolved_product_image.product_version.as_ref(),
+                git_sync_resources,
             )
             .with_context(|_| BuildProductConfigSnafu {
                 rolegroup: rolegroup.clone(),
             })?,
         )
-        .add_data(NIFI_STATE_MANAGEMENT_XML, build_state_management_xml())
+        .add_data(
+            NIFI_STATE_MANAGEMENT_XML,
+            build_state_management_xml(&nifi.spec.cluster_config.clustering_backend),
+        )
         .add_data(
             LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME,
             login_identity_provider_xml,
@@ -810,6 +846,23 @@ fn build_node_rolegroup_service(
     resolved_product_image: &ResolvedProductImage,
     rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>,
 ) -> Result<Service> {
+    let mut enabled_ports = vec![ServicePort {
+        name: Some(HTTPS_PORT_NAME.to_string()),
+        port: HTTPS_PORT.into(),
+        protocol: Some("TCP".to_string()),
+        ..ServicePort::default()
+    }];
+
+    // NiFi 2.x.x offers nifi-api/flow/metrics/prometheus at the HTTPS_PORT, therefore METRICS_PORT is only required for NiFi 1.x.x...
+    if resolved_product_image.product_version.starts_with("1.") {
+        enabled_ports.push(ServicePort {
+            name: Some(METRICS_PORT_NAME.to_string()),
+            port: METRICS_PORT.into(),
+            protocol: Some("TCP".to_string()),
+            ..ServicePort::default()
+        })
+    }
+
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(nifi)
@@ -829,20 +882,7 @@ fn build_node_rolegroup_service(
             // Internal communication does not need to be exposed
             type_: Some("ClusterIP".to_string()),
             cluster_ip: Some("None".to_string()),
-            ports: Some(vec![
-                ServicePort {
-                    name: Some(HTTPS_PORT_NAME.to_string()),
-                    port: HTTPS_PORT.into(),
-                    protocol: Some("TCP".to_string()),
-                    ..ServicePort::default()
-                },
-                ServicePort {
-                    name: Some(METRICS_PORT_NAME.to_string()),
-                    port: METRICS_PORT.into(),
-                    protocol: Some("TCP".to_string()),
-                    ..ServicePort::default()
-                },
-            ]),
+            ports: Some(enabled_ports),
             selector: Some(
                 Labels::role_group_selector(nifi, APP_NAME, &rolegroup.role, &rolegroup.role_group)
                     .context(LabelBuildSnafu)?
@@ -870,10 +910,12 @@ async fn build_node_rolegroup_statefulset(
     role: &Role<NifiConfigFragment, GenericRoleConfig, JavaCommonConfig>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &NifiConfig,
-    nifi_auth_config: &NifiAuthenticationConfig,
+    authentication_config: &NifiAuthenticationConfig,
+    authorization_config: &NifiAuthorizationConfig,
     rolling_update_supported: bool,
     replicas: Option<i32>,
-    sa_name: &str,
+    service_account_name: &str,
+    git_sync_resources: &git_sync::v1alpha1::GitSyncResources,
 ) -> Result<StatefulSet> {
     tracing::debug!("Building statefulset");
     let role_group = role.role_groups.get(&rolegroup_ref.role_group);
@@ -909,24 +951,46 @@ async fn build_node_rolegroup_statefulset(
     env_vars.push(EnvVar {
         name: "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
         value: Some(format!("{STACKABLE_LOG_DIR}/containerdebug")),
-        value_from: None,
+        ..Default::default()
     });
 
-    env_vars.push(zookeeper_env_var(
-        "ZOOKEEPER_HOSTS",
-        &nifi.spec.cluster_config.zookeeper_config_map_name,
-    ));
+    env_vars.push(EnvVar {
+        name: "STACKLET_NAME".to_string(),
+        value: Some(nifi.name_unchecked().to_string()),
+        ..Default::default()
+    });
 
-    env_vars.push(zookeeper_env_var(
-        "ZOOKEEPER_CHROOT",
-        &nifi.spec.cluster_config.zookeeper_config_map_name,
-    ));
-
-    if let NifiAuthenticationConfig::Oidc { oidc, .. } = nifi_auth_config {
-        env_vars.extend(AuthenticationProvider::client_credentials_env_var_mounts(
-            oidc.client_credentials_secret_ref.clone(),
-        ));
+    match &nifi.spec.cluster_config.clustering_backend {
+        v1alpha1::NifiClusteringBackend::ZooKeeper {
+            zookeeper_config_map_name,
+        } => {
+            let zookeeper_env_var = |name: &str| EnvVar {
+                name: name.to_string(),
+                value_from: Some(EnvVarSource {
+                    config_map_key_ref: Some(ConfigMapKeySelector {
+                        name: zookeeper_config_map_name.to_string(),
+                        key: name.to_string(),
+                        ..ConfigMapKeySelector::default()
+                    }),
+                    ..EnvVarSource::default()
+                }),
+                ..EnvVar::default()
+            };
+            env_vars.push(zookeeper_env_var("ZOOKEEPER_HOSTS"));
+            env_vars.push(zookeeper_env_var("ZOOKEEPER_CHROOT"));
+        }
+        v1alpha1::NifiClusteringBackend::Kubernetes {} => {}
     }
+
+    if let NifiAuthenticationConfig::Oidc { oidc, .. } = authentication_config {
+        env_vars.extend(
+            oidc::v1alpha1::AuthenticationProvider::client_credentials_env_var_mounts(
+                oidc.client_credentials_secret_ref.clone(),
+            ),
+        );
+    }
+
+    env_vars.extend(authorization_config.get_env_vars());
 
     let node_address = format!(
         "$POD_NAME.{}-node-{}.{}.svc.{}",
@@ -965,15 +1029,25 @@ async fn build_node_rolegroup_statefulset(
         format!("echo Importing {KEYSTORE_NIFI_CONTAINER_MOUNT}/keystore.p12 to {STACKABLE_SERVER_TLS_DIR}/keystore.p12"),
         format!("cp {KEYSTORE_NIFI_CONTAINER_MOUNT}/keystore.p12 {STACKABLE_SERVER_TLS_DIR}/keystore.p12"),
         format!("echo Importing {KEYSTORE_NIFI_CONTAINER_MOUNT}/truststore.p12 to {STACKABLE_SERVER_TLS_DIR}/truststore.p12"),
+        // secret-operator currently encrypts keystores with RC2, which NiFi is unable to read: https://github.com/stackabletech/nifi-operator/pull/510
+        // As a workaround, reencrypt the keystore with keytool.
+        // keytool crashes if the target truststore already exists (covering up the true error
+        // if the init container fails later on in the script), so delete it first.
+        format!("test ! -e {STACKABLE_SERVER_TLS_DIR}/truststore.p12 || rm {STACKABLE_SERVER_TLS_DIR}/truststore.p12"),
         format!("keytool -importkeystore -srckeystore {KEYSTORE_NIFI_CONTAINER_MOUNT}/truststore.p12 -destkeystore {STACKABLE_SERVER_TLS_DIR}/truststore.p12 -srcstorepass {STACKABLE_TLS_STORE_PASSWORD} -deststorepass {STACKABLE_TLS_STORE_PASSWORD}"),
+
         "echo Replacing config directory".to_string(),
         "cp /conf/* /stackable/nifi/conf".to_string(),
-        "ln -sf /stackable/log_config/logback.xml /stackable/nifi/conf/logback.xml".to_string(),
-        format!("export NODE_ADDRESS=\"{node_address}\""),
+        "test -L /stackable/nifi/conf/logback.xml || ln -sf /stackable/log_config/logback.xml /stackable/nifi/conf/logback.xml".to_string(),
+        format!(r#"export NODE_ADDRESS="{node_address}""#),
     ]);
 
     // This commands needs to go first, as they might set env variables needed by the templating
-    prepare_args.extend_from_slice(nifi_auth_config.get_additional_container_args().as_slice());
+    prepare_args.extend_from_slice(
+        authentication_config
+            .get_additional_container_args()
+            .as_slice(),
+    );
 
     prepare_args.extend(vec![
         "echo Templating config files".to_string(),
@@ -1034,7 +1108,7 @@ async fn build_node_rolegroup_statefulset(
         .context(AddVolumeMountSnafu)?
         .add_volume_mount("sensitiveproperty", "/stackable/sensitiveproperty")
         .context(AddVolumeMountSnafu)?
-        .add_volume_mount("log", STACKABLE_LOG_DIR)
+        .add_volume_mount(LOG_VOLUME_NAME, STACKABLE_LOG_DIR)
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(TRUSTSTORE_VOLUME_NAME, STACKABLE_SERVER_TLS_DIR)
         .context(AddVolumeMountSnafu)?
@@ -1110,14 +1184,13 @@ async fn build_node_rolegroup_statefulset(
         .context(AddVolumeMountSnafu)?
         .add_volume_mount("log-config", STACKABLE_LOG_CONFIG_DIR)
         .context(AddVolumeMountSnafu)?
-        .add_volume_mount("log", STACKABLE_LOG_DIR)
+        .add_volume_mount(LOG_VOLUME_NAME, STACKABLE_LOG_DIR)
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(TRUSTSTORE_VOLUME_NAME, STACKABLE_SERVER_TLS_DIR)
         .context(AddVolumeMountSnafu)?
         .add_container_port(HTTPS_PORT_NAME, HTTPS_PORT.into())
         .add_container_port(PROTOCOL_PORT_NAME, PROTOCOL_PORT.into())
         .add_container_port(BALANCE_PORT_NAME, BALANCE_PORT.into())
-        .add_container_port(METRICS_PORT_NAME, METRICS_PORT.into())
         .liveness_probe(Probe {
             initial_delay_seconds: Some(10),
             period_seconds: Some(10),
@@ -1138,6 +1211,11 @@ async fn build_node_rolegroup_statefulset(
             ..Probe::default()
         })
         .resources(merged_config.resources.clone().into());
+
+    // NiFi 2.x.x offers nifi-api/flow/metrics/prometheus at the HTTPS_PORT, therefore METRICS_PORT is only required for NiFi 1.x.x.
+    if resolved_product_image.product_version.starts_with("1.") {
+        container_nifi.add_container_port(METRICS_PORT_NAME, METRICS_PORT.into());
+    }
 
     let mut pod_builder = PodBuilder::new();
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
@@ -1163,8 +1241,30 @@ async fn build_node_rolegroup_statefulset(
             .context(AddVolumeMountSnafu)?;
     }
 
+    let volume_name = "nifi-python-working-directory".to_string();
+    pod_builder
+        .add_empty_dir_volume(&volume_name, None)
+        .context(AddVolumeSnafu)?;
+    container_nifi
+        .add_volume_mount(&volume_name, NIFI_PYTHON_WORKING_DIRECTORY)
+        .context(AddVolumeMountSnafu)?;
+
+    container_nifi
+        .add_volume_mounts(git_sync_resources.git_content_volume_mounts.to_owned())
+        .context(AddVolumeMountSnafu)?;
+
     // We want to add nifi container first for easier defaulting into this container
     pod_builder.add_container(container_nifi.build());
+
+    for container in git_sync_resources.git_sync_containers.iter().cloned() {
+        pod_builder.add_container(container);
+    }
+    for container in git_sync_resources.git_sync_init_containers.iter().cloned() {
+        pod_builder.add_init_container(container);
+    }
+    pod_builder
+        .add_volumes(git_sync_resources.git_content_volumes.to_owned())
+        .context(AddVolumeSnafu)?;
 
     if let Some(ContainerLogConfig {
         choice:
@@ -1203,7 +1303,7 @@ async fn build_node_rolegroup_statefulset(
                     product_logging::framework::vector_container(
                         resolved_product_image,
                         "config",
-                        "log",
+                        LOG_VOLUME_NAME,
                         merged_config.logging.containers.get(&Container::Vector),
                         ResourceRequirementsBuilder::new()
                             .with_cpu_request("250m")
@@ -1222,11 +1322,11 @@ async fn build_node_rolegroup_statefulset(
         }
     }
 
-    nifi_auth_config
-        .add_volumes_and_mounts(&mut pod_builder, vec![
-            &mut container_prepare,
-            container_nifi,
-        ])
+    authentication_config
+        .add_volumes_and_mounts(
+            &mut pod_builder,
+            vec![&mut container_prepare, container_nifi],
+        )
         .context(AddAuthVolumesSnafu)?;
 
     let metadata = ObjectMetaBuilder::new()
@@ -1269,7 +1369,7 @@ async fn build_node_rolegroup_statefulset(
         })
         .context(AddVolumeSnafu)?
         .add_empty_dir_volume(
-            "log",
+            LOG_VOLUME_NAME,
             // Set volume size to higher than theoretically necessary to avoid running out of disk space as log rotation triggers are only checked by Logback every 5s.
             Some(
                 MemoryQuantity {
@@ -1315,14 +1415,8 @@ async fn build_node_rolegroup_statefulset(
             ..Volume::default()
         })
         .context(AddVolumeSnafu)?
-        .service_account_name(sa_name)
-        .security_context(
-            PodSecurityContextBuilder::new()
-                .run_as_user(NIFI_UID)
-                .run_as_group(0)
-                .fs_group(1000)
-                .build(),
-        );
+        .service_account_name(service_account_name)
+        .security_context(PodSecurityContextBuilder::new().fs_group(1000).build());
 
     let mut labels = BTreeMap::new();
     labels.insert(
@@ -1370,7 +1464,7 @@ async fn build_node_rolegroup_statefulset(
                 ),
                 ..LabelSelector::default()
             },
-            service_name: rolegroup_ref.object_name(),
+            service_name: Some(rolegroup_ref.object_name()),
             template: pod_template,
             update_strategy: Some(StatefulSetUpdateStrategy {
                 type_: if rolling_update_supported {
@@ -1425,22 +1519,6 @@ fn external_node_port(nifi_service: &Service) -> Result<i32> {
         .with_context(|| ExternalPortSnafu {})?;
 
     port.node_port.with_context(|| ExternalPortSnafu {})
-}
-
-/// Used for the `ZOOKEEPER_HOSTS` and `ZOOKEEPER_CHROOT` env vars.
-fn zookeeper_env_var(name: &str, configmap_name: &str) -> EnvVar {
-    EnvVar {
-        name: name.to_string(),
-        value_from: Some(EnvVarSource {
-            config_map_key_ref: Some(ConfigMapKeySelector {
-                name: configmap_name.to_string(),
-                key: name.to_string(),
-                ..ConfigMapKeySelector::default()
-            }),
-            ..EnvVarSource::default()
-        }),
-        ..EnvVar::default()
-    }
 }
 
 async fn get_proxy_hosts(
