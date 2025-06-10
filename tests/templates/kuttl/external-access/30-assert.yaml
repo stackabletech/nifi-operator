@@ -5,7 +5,7 @@ metadata:
   name: install-nifi
 timeout: 300
 commands:
-  - script: kubectl -n $NAMESPACE wait --for=condition=available=true nificlusters.nifi.stackable.tech/nifi --timeout 301s
+  - script: kubectl -n $NAMESPACE wait --for=condition=available=true nificlusters.nifi.stackable.tech/test-nifi --timeout 301s
 ---
 apiVersion: apps/v1
 kind: StatefulSet

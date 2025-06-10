@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Add rolling upgrade support for upgrades between NiFi 2 versions ([#771]).
-- Added listener support for Nifi ([#784]).
+- Added Listener support for NiFi ([#784]).
 - Adds new telemetry CLI arguments and environment variables ([#782]).
   - Use `--file-log-max-files` (or `FILE_LOG_MAX_FILES`) to limit the number of log files kept.
   - Use `--file-log-rotation-period` (or `FILE_LOG_ROTATION_PERIOD`) to configure the frequency of rotation.

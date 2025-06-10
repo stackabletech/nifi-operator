@@ -140,9 +140,6 @@ pub enum Error {
     #[snafu(display("object defines no name"))]
     ObjectHasNoName,
 
-    #[snafu(display("object defines no spec"))]
-    ObjectHasNoSpec,
-
     #[snafu(display("object defines no namespace"))]
     ObjectHasNoNamespace,
 
@@ -222,20 +219,11 @@ pub enum Error {
     #[snafu(display("Failed to find information about file [{}] in product config", kind))]
     ProductConfigKindNotSpecified { kind: String },
 
-    #[snafu(display("Failed to find any nodes in cluster {obj_ref}",))]
-    MissingNodes {
-        source: stackable_operator::client::Error,
-        obj_ref: ObjectRef<v1alpha1::NifiCluster>,
-    },
-
     #[snafu(display("Failed to find service {obj_ref}"))]
     MissingService {
         source: stackable_operator::client::Error,
         obj_ref: ObjectRef<Service>,
     },
-
-    #[snafu(display("Failed to find an external port to use for proxy hosts"))]
-    ExternalPort,
 
     #[snafu(display("Could not build role service fqdn"))]
     NoRoleServiceFqdn,
@@ -534,8 +522,7 @@ pub async fn reconcile_nifi(
             // Since we cannot predict which of the addresses a user might decide to use we will simply
             // add all of them to the setting for now.
             // For more information see <https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#proxy_configuration>
-            // let proxy_hosts = get_proxy_hosts(client, nifi, &merged_config).await?;
-            let proxy_hosts = get_proxy_hosts(client, nifi).await?;
+            let proxy_hosts = get_proxy_hosts(client, nifi, &resolved_product_image).await?;
 
             let rg_configmap = build_node_rolegroup_config_map(
                 nifi,
@@ -1560,7 +1547,7 @@ async fn build_node_rolegroup_statefulset(
 async fn get_proxy_hosts(
     client: &Client,
     nifi: &v1alpha1::NifiCluster,
-    // merged_config: &NifiConfig,
+    resolved_product_image: &ResolvedProductImage,
 ) -> Result<String> {
     let host_header_check = nifi.spec.cluster_config.host_header_check.clone();
 
@@ -1576,27 +1563,24 @@ async fn get_proxy_hosts(
         return Ok("*".to_string());
     }
 
-    let node_role_service_fqdn = nifi
-        .node_role_service_fqdn(&client.kubernetes_cluster_info)
-        .context(NoRoleServiceFqdnSnafu)?;
-    let reporting_task_service_name = reporting_task::build_reporting_task_fqdn_service_name(
-        nifi,
-        &client.kubernetes_cluster_info,
-    )
-    .context(ReportingTaskSnafu)?;
-    let mut proxy_hosts_set = HashSet::from([
-        node_role_service_fqdn.clone(),
-        format!("{node_role_service_fqdn}:{HTTPS_PORT}"),
-        format!("{reporting_task_service_name}:{HTTPS_PORT}"),
+    // Address and port are injected from the listener volume during the prepare container
+    let mut proxy_hosts = HashSet::from([
+        "${env:LISTENER_DEFAULT_ADDRESS}:${env:LISTENER_DEFAULT_PORT_HTTPS}".to_string(),
     ]);
+    proxy_hosts.extend(host_header_check.additional_allowed_hosts);
 
-    proxy_hosts_set.extend(host_header_check.additional_allowed_hosts);
+    // Reporting task only exists for NiFi 1.x
+    if resolved_product_image.product_version.starts_with("1.") {
+        let reporting_task_service_name = reporting_task::build_reporting_task_fqdn_service_name(
+            nifi,
+            &client.kubernetes_cluster_info,
+        )
+        .context(ReportingTaskSnafu)?;
 
-    // Inject the address and port from the listener volume during the prepare container
-    proxy_hosts_set
-        .insert("${env:LISTENER_DEFAULT_ADDRESS}:${env:LISTENER_DEFAULT_PORT_HTTPS}".to_string());
+        proxy_hosts.insert(format!("{reporting_task_service_name}:{HTTPS_PORT}"));
+    }
 
-    let mut proxy_hosts = Vec::from_iter(proxy_hosts_set);
+    let mut proxy_hosts = Vec::from_iter(proxy_hosts);
     proxy_hosts.sort();
 
     Ok(proxy_hosts.join(","))

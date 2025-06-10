@@ -2,9 +2,8 @@ pub mod affinity;
 pub mod authentication;
 pub mod sensitive_properties;
 pub mod tls;
-pub mod utils;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 use affinity::get_affinity;
 use sensitive_properties::NifiSensitivePropertiesConfig;
@@ -46,7 +45,6 @@ use stackable_operator::{
     versioned::versioned,
 };
 use tls::NifiTls;
-use utils::PodRef;
 
 pub const APP_NAME: &str = "nifi";
 
@@ -84,9 +82,6 @@ pub enum Error {
 
     #[snafu(display("object has no nodes defined"))]
     NoNodesDefined,
-
-    #[snafu(display("listener podrefs could not be resolved"))]
-    ListenerPodRef { source: utils::Error },
 }
 
 #[versioned(version(name = "v1alpha1"))]
@@ -248,36 +243,6 @@ impl v1alpha1::NifiCluster {
     /// Return user provided server TLS settings
     pub fn server_tls_secret_class(&self) -> &str {
         &self.spec.cluster_config.tls.server_secret_class
-    }
-
-    /// List all pods expected to form the cluster
-    ///
-    /// We try to predict the pods here rather than looking at the current cluster state in order to
-    /// avoid instance churn.
-    pub fn pods(&self) -> Result<impl Iterator<Item = PodRef> + '_, Error> {
-        let ns = self.metadata.namespace.clone().context(NoNamespaceSnafu)?;
-        Ok(self
-            .spec
-            .nodes
-            .iter()
-            .flat_map(|role| &role.role_groups)
-            // Order rolegroups consistently, to avoid spurious downstream rewrites
-            .collect::<BTreeMap<_, _>>()
-            .into_iter()
-            .flat_map(move |(rolegroup_name, rolegroup)| {
-                let rolegroup_ref = self.node_rolegroup_ref(rolegroup_name);
-                let ns = ns.clone();
-                (0..rolegroup.replicas.unwrap_or(0)).map(move |i| PodRef {
-                    namespace: ns.clone(),
-                    role_group_service_name: rolegroup_ref.object_name(),
-                    pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
-                    ports: HashMap::from([
-                        (HTTPS_PORT_NAME.to_owned(), HTTPS_PORT),
-                        (METRICS_PORT_NAME.to_owned(), METRICS_PORT),
-                    ]),
-                    fqdn_override: None,
-                })
-            }))
     }
 
     /// Retrieve and merge resource configs for role and role groups
