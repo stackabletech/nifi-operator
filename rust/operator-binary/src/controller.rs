@@ -830,11 +830,19 @@ fn build_node_rolegroup_service(
         .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
         .build();
 
+    // In NiFi 2.x metrics are scraped from the HTTPS endpoint
     let mut service_ports = vec![];
     if resolved_product_image.product_version.starts_with("1.") {
         service_ports.push(ServicePort {
             name: Some(METRICS_PORT_NAME.to_owned()),
             port: METRICS_PORT.into(),
+            protocol: Some("TCP".to_owned()),
+            ..ServicePort::default()
+        });
+    } else {
+        service_ports.push(ServicePort {
+            name: Some(HTTPS_PORT_NAME.to_owned()),
+            port: HTTPS_PORT.into(),
             protocol: Some("TCP".to_owned()),
             ..ServicePort::default()
         });
