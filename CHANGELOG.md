@@ -27,6 +27,7 @@ All notable changes to this project will be documented in this file.
 - BREAKING: Inject the vector aggregator address into the vector config using the env var `VECTOR_AGGREGATOR_ADDRESS` instead
     of having the operator write it to the vector config ([#772]).
 - test: Bump to Vector `0.46.1` ([#789]).
+- The ReportingTask metrics ports now is only exposed in NiFi 1.x.x ([#794])
 - BREAKING: Previously this operator would hardcode the UID and GID of the Pods being created to 1000/0, this has changed now ([#801])
   - The `runAsUser` and `runAsGroup` fields will not be set anymore by the operator
   - The defaults from the docker images itself will now apply, which will be different from 1000/0 going forward
@@ -54,6 +55,7 @@ All notable changes to this project will be documented in this file.
 [#784]: https://github.com/stackabletech/nifi-operator/pull/784
 [#789]: https://github.com/stackabletech/nifi-operator/pull/789
 [#793]: https://github.com/stackabletech/nifi-operator/pull/793
+[#794]: https://github.com/stackabletech/nifi-operator/pull/794
 [#799]: https://github.com/stackabletech/nifi-operator/pull/799
 [#801]: https://github.com/stackabletech/nifi-operator/pull/801
 

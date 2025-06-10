@@ -830,16 +830,21 @@ fn build_node_rolegroup_service(
         .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
         .build();
 
-    let spec = Some(ServiceSpec {
-        // Internal communication does not need to be exposed
-        type_: Some("ClusterIP".to_owned()),
-        cluster_ip: Some("None".to_owned()),
-        ports: Some(vec![ServicePort {
+    let mut service_ports = vec![];
+    if resolved_product_image.product_version.starts_with("1.") {
+        service_ports.push(ServicePort {
             name: Some(METRICS_PORT_NAME.to_owned()),
             port: METRICS_PORT.into(),
             protocol: Some("TCP".to_owned()),
             ..ServicePort::default()
-        }]),
+        });
+    }
+
+    let spec = Some(ServiceSpec {
+        // Internal communication does not need to be exposed
+        type_: Some("ClusterIP".to_owned()),
+        cluster_ip: Some("None".to_owned()),
+        ports: Some(service_ports),
         selector: Some(
             Labels::role_group_selector(nifi, APP_NAME, &rolegroup.role, &rolegroup.role_group)
                 .context(LabelBuildSnafu)?
@@ -1208,7 +1213,6 @@ async fn build_node_rolegroup_statefulset(
         .add_container_port(HTTPS_PORT_NAME, HTTPS_PORT.into())
         .add_container_port(PROTOCOL_PORT_NAME, PROTOCOL_PORT.into())
         .add_container_port(BALANCE_PORT_NAME, BALANCE_PORT.into())
-        .add_container_port(METRICS_PORT_NAME, METRICS_PORT.into())
         .liveness_probe(Probe {
             initial_delay_seconds: Some(10),
             period_seconds: Some(10),
@@ -1229,6 +1233,11 @@ async fn build_node_rolegroup_statefulset(
             ..Probe::default()
         })
         .resources(merged_config.resources.clone().into());
+
+    // NiFi 2.x.x offers nifi-api/flow/metrics/prometheus at the HTTPS_PORT, therefore METRICS_PORT is only required for NiFi 1.x.x.
+    if resolved_product_image.product_version.starts_with("1.") {
+        container_nifi.add_container_port(METRICS_PORT_NAME, METRICS_PORT.into());
+    }
 
     let mut pod_builder = PodBuilder::new();
 
