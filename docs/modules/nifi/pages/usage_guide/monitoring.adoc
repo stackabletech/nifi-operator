@@ -129,7 +129,7 @@ spec:
   jobLabel: app.kubernetes.io/instance
 ----
 <1> Authorization via Bearer Token stored in a secret
-<2> Relabel __address__ to be a FQDN rather then the IP-Address of target pod
+<2> Relabel \\__address__ to be a FQDN rather then the IP-Address of target pod
 
 NOTE: As of xref:listener-operator:listener.adoc[Listener] integration, SDP exposes a Service with `-metrics` thus we need to regex this suffix.
 
