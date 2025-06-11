@@ -72,9 +72,9 @@ static_configs:
   - targets:
     - '<pod>.<statefulset>.svc.cluster.local:8443' <1>
 ----
-<1> Static targets only scrapes one pod. More about this in Known Limitations.
+<1> Static targets only scrapes one pod.
 
-or use it in a nifi secret which should look like
+or use it in a NiFi secret which should look like
 [source,yaml]
 ----
 ---
