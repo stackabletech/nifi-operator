@@ -83,7 +83,7 @@ kind: Secret
 metadata:
   name: nifi-authorization-secret
 type: Opaque
-stringData: 
+stringData:
   nifi_token: "<Bearer_token>"
 ----
 
