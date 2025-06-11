@@ -71,6 +71,8 @@ tls_config:
 static_configs:
   - targets:
     - '<pod>.<statefulset>.svc.cluster.local:8443' <1>
+metrics_path: '/nifi-api/flow/metrics/prometheus'
+scheme: https
 ----
 <1> Static targets only scrapes one pod.
 
