@@ -59,6 +59,7 @@ You then can use the bearer token to authenticate with Prometheus replacing `bas
 
 [source,yaml]
 ----
+---
 # basic_auth:
   # username: <user>
   # password: <password>
@@ -67,6 +68,72 @@ authorization:
   credentials: "<Bearer Token>"
 tls_config:
   insecure_skip_verify: true
+static_configs:
+  - targets:
+    - '<pod>.<statefulset>.svc.cluster.local:8443' <1>
+----
+<1> Static targets only scrapes one pod. More about this in Known Limitations.
+
+or use it in a nifi secret which should look like
+[source,yaml]
+----
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nifi-authorization-secret
+type: Opaque
+stringData: 
+  nifi_token: "<Bearer_token>"
 ----
 
-according to https://prometheus.io/docs/prometheus/latest/configuration/configuration/#http_config[Prometheus documentation].
+If you want to use a `ServiceMonitor` you'd need to configure it as follows:
+[source,yaml]
+----
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: scrape-nifi2
+  labels:
+    stackable.tech/vendor: Stackable
+    release: prometheus
+spec:
+  endpoints:
+  - port: https 
+    path: 'nifi-api/flow/metrics/prometheus'
+    scheme: https
+    interval: 5s
+    tlsConfig:
+      insecureSkipVerify: true
+    authorization:
+      credentials: <1>
+        key: "nifi_token"
+        name: "nifi-authorization-secret" 
+        optional: false
+      type: "Bearer"
+    relabelings: <2>
+      - sourceLabels:
+          - __meta_kubernetes_pod_name
+          - __meta_kubernetes_service_name
+          - __meta_kubernetes_namespace
+          - __meta_kubernetes_pod_container_port_number
+        targetLabel: __address__ 
+        replacement: ${1}.${2}.${3}.svc.cluster.local:${4}
+        regex: (.+);(.+?)(?:-metrics)?;(.+);(.+)
+  selector:
+    matchLabels:
+      prometheus.io/scrape: "true"
+  namespaceSelector:
+    any: true
+  jobLabel: app.kubernetes.io/instance
+----
+<1> Authorization via Bearer Token stored in a secret
+<2> Relabel __address__ to be a FQDN rather then the IP-Address of target pod
+
+NOTE: As of xref:listener-operator:listener.adoc[Listener] integration, SDP exposes a Service with `-metrics` thus we need to regex this suffix.
+
+==== Known Limitations
+
+NiFi only allows authentication with JWT on pod level. Therefore you will need one endpoint per NiFi pod and a valid bearer token for each. This is a consequence of NiFi
+moving their metrics endpoint behind a strong authentication mechanism.
