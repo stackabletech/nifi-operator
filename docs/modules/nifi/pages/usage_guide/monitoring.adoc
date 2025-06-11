@@ -100,7 +100,7 @@ metadata:
     release: prometheus
 spec:
   endpoints:
-  - port: https 
+  - port: https
     path: 'nifi-api/flow/metrics/prometheus'
     scheme: https
     interval: 5s
@@ -109,7 +109,7 @@ spec:
     authorization:
       credentials: <1>
         key: "nifi_token"
-        name: "nifi-authorization-secret" 
+        name: "nifi-authorization-secret"
         optional: false
       type: "Bearer"
     relabelings: <2>
@@ -118,7 +118,7 @@ spec:
           - __meta_kubernetes_service_name
           - __meta_kubernetes_namespace
           - __meta_kubernetes_pod_container_port_number
-        targetLabel: __address__ 
+        targetLabel: __address__
         replacement: ${1}.${2}.${3}.svc.cluster.local:${4}
         regex: (.+);(.+?)(?:-metrics)?;(.+);(.+)
   selector:
