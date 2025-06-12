@@ -38,10 +38,7 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
     time::Duration,
-    utils::{
-        cluster_info::KubernetesClusterInfo,
-        crds::{raw_object_list_schema, raw_object_schema},
-    },
+    utils::crds::{raw_object_list_schema, raw_object_schema},
     versioned::versioned,
 };
 use tls::NifiTls;
@@ -199,21 +196,6 @@ impl v1alpha1::NifiCluster {
     /// is needed (per role group).
     pub fn group_listener_name(&self, rolegroup: &RoleGroupRef<Self>) -> String {
         rolegroup.object_name()
-    }
-
-    /// The name of the role-level load-balanced Kubernetes `Service`
-    pub fn node_role_service_name(&self) -> String {
-        self.name_any()
-    }
-
-    /// The fully-qualified domain name of the role-level load-balanced Kubernetes `Service`
-    pub fn node_role_service_fqdn(&self, cluster_info: &KubernetesClusterInfo) -> Option<String> {
-        Some(format!(
-            "{}.{}.svc.{}",
-            self.node_role_service_name(),
-            self.metadata.namespace.as_ref()?,
-            cluster_info.cluster_domain,
-        ))
     }
 
     /// Metadata about a metastore rolegroup
