@@ -14,7 +14,6 @@ spec:
 {% endif %}
     pullPolicy: IfNotPresent
   clusterConfig:
-    listenerClass: external-unstable
     authentication:
       - authenticationClass: nifi-users
     sensitiveProperties:
@@ -50,6 +49,7 @@ spec:
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+      listenerClass: external-unstable
     configOverrides:
       nifi.properties:
 {% if test_scenario['values']['iceberg-use-kerberos'] == 'true' %}

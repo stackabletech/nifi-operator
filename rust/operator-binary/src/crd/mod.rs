@@ -38,13 +38,9 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
     time::Duration,
-    utils::{
-        cluster_info::KubernetesClusterInfo,
-        crds::{raw_object_list_schema, raw_object_schema},
-    },
+    utils::crds::{raw_object_list_schema, raw_object_schema},
     versioned::versioned,
 };
-use strum::Display;
 use tls::NifiTls;
 
 pub const APP_NAME: &str = "nifi";
@@ -58,6 +54,8 @@ pub const BALANCE_PORT: u16 = 6243;
 pub const METRICS_PORT_NAME: &str = "metrics";
 pub const METRICS_PORT: u16 = 8081;
 
+pub const LISTENER_VOLUME_NAME: &str = "listener";
+pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
 pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
 pub const STACKABLE_LOG_CONFIG_DIR: &str = "/stackable/log_config";
 
@@ -67,14 +65,8 @@ const DEFAULT_NODE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_minutes_
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("object has no namespace associated"))]
-    NoNamespace,
-
     #[snafu(display("the NiFi role [{role}] is missing from spec"))]
     MissingNifiRole { role: String },
-
-    #[snafu(display("the NiFi node role group [{role_group}] is missing from spec"))]
-    MissingNifiRoleGroup { role_group: String },
 
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
@@ -164,18 +156,6 @@ pub mod versioned {
         #[schemars(schema_with = "raw_object_list_schema")]
         pub extra_volumes: Vec<Volume>,
 
-        /// This field controls which type of Service the Operator creates for this NifiCluster:
-        ///
-        /// * cluster-internal: Use a ClusterIP service
-        ///
-        /// * external-unstable: Use a NodePort service
-        ///
-        /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
-        /// In the future, this setting will control which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html)
-        /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
-        #[serde(default)]
-        pub listener_class: CurrentlySupportedListenerClasses,
-
         // Docs are on the struct
         #[serde(default)]
         pub create_reporting_task_job: CreateReportingTaskJob,
@@ -211,19 +191,11 @@ impl HasStatusCondition for v1alpha1::NifiCluster {
 }
 
 impl v1alpha1::NifiCluster {
-    /// The name of the role-level load-balanced Kubernetes `Service`
-    pub fn node_role_service_name(&self) -> String {
-        self.name_any()
-    }
-
-    /// The fully-qualified domain name of the role-level load-balanced Kubernetes `Service`
-    pub fn node_role_service_fqdn(&self, cluster_info: &KubernetesClusterInfo) -> Option<String> {
-        Some(format!(
-            "{}.{}.svc.{}",
-            self.node_role_service_name(),
-            self.metadata.namespace.as_ref()?,
-            cluster_info.cluster_domain,
-        ))
+    /// The name of the group-listener provided for a specific role-group.
+    /// The UI will use this group listener so that only one load balancer
+    /// is needed (per role group).
+    pub fn group_listener_name(&self, rolegroup: &RoleGroupRef<Self>) -> String {
+        rolegroup.object_name()
     }
 
     /// Metadata about a metastore rolegroup
@@ -244,31 +216,6 @@ impl v1alpha1::NifiCluster {
     /// Return user provided server TLS settings
     pub fn server_tls_secret_class(&self) -> &str {
         &self.spec.cluster_config.tls.server_secret_class
-    }
-
-    /// List all pods expected to form the cluster
-    ///
-    /// We try to predict the pods here rather than looking at the current cluster state in order to
-    /// avoid instance churn.
-    pub fn pods(&self) -> Result<impl Iterator<Item = PodRef> + '_, Error> {
-        let ns = self.metadata.namespace.clone().context(NoNamespaceSnafu)?;
-        Ok(self
-            .spec
-            .nodes
-            .iter()
-            .flat_map(|role| &role.role_groups)
-            // Order rolegroups consistently, to avoid spurious downstream rewrites
-            .collect::<BTreeMap<_, _>>()
-            .into_iter()
-            .flat_map(move |(rolegroup_name, rolegroup)| {
-                let rolegroup_ref = self.node_rolegroup_ref(rolegroup_name);
-                let ns = ns.clone();
-                (0..rolegroup.replicas.unwrap_or(0)).map(move |i| PodRef {
-                    namespace: ns.clone(),
-                    role_group_service_name: rolegroup_ref.object_name(),
-                    pod_name: format!("{}-{}", rolegroup_ref.object_name(), i),
-                })
-            }))
     }
 
     /// Retrieve and merge resource configs for role and role groups
@@ -342,26 +289,6 @@ impl Default for HostHeaderCheckConfig {
 
 pub fn default_allow_all() -> bool {
     true
-}
-
-// TODO: Temporary solution until listener-operator is finished
-#[derive(Clone, Debug, Default, Display, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "PascalCase")]
-pub enum CurrentlySupportedListenerClasses {
-    #[default]
-    #[serde(rename = "cluster-internal")]
-    ClusterInternal,
-    #[serde(rename = "external-unstable")]
-    ExternalUnstable,
-}
-
-impl CurrentlySupportedListenerClasses {
-    pub fn k8s_service_type(&self) -> String {
-        match self {
-            CurrentlySupportedListenerClasses::ClusterInternal => "ClusterIP".to_string(),
-            CurrentlySupportedListenerClasses::ExternalUnstable => "NodePort".to_string(),
-        }
-    }
 }
 
 #[derive(strum::Display, Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -487,6 +414,10 @@ pub struct NifiConfig {
     /// Please note that this can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
     #[fragment_attrs(serde(default))]
     pub requested_secret_lifetime: Option<Duration>,
+
+    /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose the nodes.
+    #[serde(default)]
+    pub listener_class: String,
 }
 
 impl NifiConfig {
@@ -536,6 +467,7 @@ impl NifiConfig {
             affinity: get_affinity(cluster_name, role),
             graceful_shutdown_timeout: Some(DEFAULT_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
             requested_secret_lifetime: Some(Self::DEFAULT_NODE_SECRET_LIFETIME),
+            listener_class: Some("cluster-internal".to_owned()),
         }
     }
 }
@@ -614,25 +546,4 @@ pub struct NifiStorageConfig {
     /// Default size: 1GB
     #[fragment_attrs(serde(default))]
     pub state_repo: PvcConfig,
-}
-
-/// Reference to a single `Pod` that is a component of a [`NifiCluster`]
-/// Used for service discovery.
-// TODO: this should move to operator-rs
-pub struct PodRef {
-    pub namespace: String,
-    pub role_group_service_name: String,
-    pub pod_name: String,
-}
-
-impl PodRef {
-    pub fn fqdn(&self, cluster_info: &KubernetesClusterInfo) -> String {
-        format!(
-            "{pod_name}.{service_name}.{namespace}.svc.{cluster_domain}",
-            pod_name = self.pod_name,
-            service_name = self.role_group_service_name,
-            namespace = self.namespace,
-            cluster_domain = cluster_info.cluster_domain
-        )
-    }
 }
