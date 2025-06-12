@@ -783,7 +783,7 @@ fn build_node_rolegroup_service(
 ) -> Result<Service> {
     let metadata = ObjectMetaBuilder::new()
         .name_and_namespace(nifi)
-        .name(format!("{name}-metrics", name = rolegroup.object_name()))
+        .name(rolegroup_service_name(rolegroup))
         .ownerreference_from_resource(nifi, None, Some(true))
         .context(ObjectMissingMetadataForOwnerRefSnafu)?
         .with_recommended_labels(build_recommended_labels(
@@ -1484,7 +1484,7 @@ async fn build_node_rolegroup_statefulset(
                 ),
                 ..LabelSelector::default()
             },
-            service_name: Some(rolegroup_ref.object_name()),
+            service_name: Some(rolegroup_service_name(rolegroup_ref)),
             template: pod_template,
             update_strategy: Some(StatefulSetUpdateStrategy {
                 type_: if rolling_update_supported {
@@ -1521,6 +1521,10 @@ async fn build_node_rolegroup_statefulset(
         }),
         status: None,
     })
+}
+
+pub fn rolegroup_service_name(rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>) -> String {
+    format!("{name}-metrics", name = rolegroup.object_name())
 }
 
 async fn get_proxy_hosts(
