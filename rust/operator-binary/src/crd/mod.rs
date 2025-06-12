@@ -68,20 +68,11 @@ const DEFAULT_NODE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_minutes_
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("object has no namespace associated"))]
-    NoNamespace,
-
     #[snafu(display("the NiFi role [{role}] is missing from spec"))]
     MissingNifiRole { role: String },
 
-    #[snafu(display("the NiFi node role group [{role_group}] is missing from spec"))]
-    MissingNifiRoleGroup { role_group: String },
-
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
-
-    #[snafu(display("object has no nodes defined"))]
-    NoNodesDefined,
 }
 
 #[versioned(version(name = "v1alpha1"))]

@@ -33,7 +33,6 @@ use stackable_operator::{
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
-    config::fragment,
     crd::{
         authentication::oidc::v1alpha1::AuthenticationProvider,
         git_sync,
@@ -54,7 +53,7 @@ use stackable_operator::{
     kube::{
         Resource, ResourceExt,
         core::{DeserializeGuard, error_boundary},
-        runtime::{controller::Action, reflector::ObjectRef},
+        runtime::controller::Action,
     },
     kvp::{Label, Labels, ObjectLabels},
     logging::controller::ReconcilerError,
@@ -153,11 +152,6 @@ pub enum Error {
         source: stackable_operator::cluster_resources::Error,
     },
 
-    #[snafu(display("failed to apply global Service"))]
-    ApplyRoleService {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
     #[snafu(display("failed to fetch deployed StatefulSets"))]
     FetchStatefulsets {
         source: stackable_operator::client::Error,
@@ -219,15 +213,6 @@ pub enum Error {
     #[snafu(display("Failed to find information about file [{}] in product config", kind))]
     ProductConfigKindNotSpecified { kind: String },
 
-    #[snafu(display("Failed to find service {obj_ref}"))]
-    MissingService {
-        source: stackable_operator::client::Error,
-        obj_ref: ObjectRef<Service>,
-    },
-
-    #[snafu(display("Could not build role service fqdn"))]
-    NoRoleServiceFqdn,
-
     #[snafu(display("Bootstrap configuration error"))]
     BootstrapConfig {
         #[snafu(source(from(config::Error, Box::new)))]
@@ -245,12 +230,6 @@ pub enum Error {
     IllegalContainerName {
         source: stackable_operator::builder::pod::container::Error,
         container_name: String,
-    },
-
-    #[snafu(display("failed to validate resources for {rolegroup}"))]
-    ResourceValidation {
-        source: fragment::ValidationError,
-        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
     },
 
     #[snafu(display("failed to resolve and merge config for role and role group"))]
