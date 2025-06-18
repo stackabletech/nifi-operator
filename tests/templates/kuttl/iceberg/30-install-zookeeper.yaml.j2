@@ -7,8 +7,6 @@ spec:
   image:
     productVersion: "{{ test_scenario['values']['zookeeper-latest'] }}"
     pullPolicy: IfNotPresent
-  clusterConfig:
-    listenerClass: {{ test_scenario['values']['listener-class'] }}
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
@@ -16,6 +14,8 @@ spec:
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    roleConfig:
+      listenerClass: {{ test_scenario['values']['listener-class'] }}
     roleGroups:
       default:
         replicas: 1

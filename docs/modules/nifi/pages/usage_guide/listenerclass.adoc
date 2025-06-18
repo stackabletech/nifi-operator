@@ -2,13 +2,13 @@
 :description: Configure Apache NiFi service exposure with cluster-internal or external-unstable listener classes.
 
 The operator deploys a xref:listener-operator:listener.adoc[Listener] for the Node pod.
-The listener defaults to only being accessible from within the Kubernetes cluster, but this can be changed by setting `.spec.nodes.config.listenerClass`:
+The listener defaults to only being accessible from within the Kubernetes cluster, but this can be changed by setting `.spec.nodes.roleConfig.listenerClass`:
 
 [source,yaml]
 ----
 spec:
   nodes:
-    config:
+    roleConfig:
       listenerClass: external-unstable  # <1>
 ----
 <1> Specify one of `external-stable`, `external-unstable`, `cluster-internal` (the default setting is `cluster-internal`).

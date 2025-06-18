@@ -38,7 +38,7 @@ spec:
                   storage: "1"
               storageClassName: secrets.stackable.tech
   nodes:
-    config:
+    roleConfig:
       listenerClass: external-unstable
     configOverrides:
       nifi.properties:

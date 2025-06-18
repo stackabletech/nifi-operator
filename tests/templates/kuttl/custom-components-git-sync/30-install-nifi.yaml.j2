@@ -50,6 +50,7 @@ spec:
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    roleConfig:
       listenerClass: external-unstable
     podOverrides:
       spec:

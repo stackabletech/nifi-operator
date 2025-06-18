@@ -97,7 +97,7 @@ pub mod versioned {
 
         // no doc - docs in Role struct.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub nodes: Option<Role<NifiConfigFragment, GenericRoleConfig, JavaCommonConfig>>,
+        pub nodes: Option<Role<NifiConfigFragment, NifiNodeRoleConfig, JavaCommonConfig>>,
 
         // no doc - docs in ProductImage struct.
         pub image: ProductImage,
@@ -191,13 +191,6 @@ impl HasStatusCondition for v1alpha1::NifiCluster {
 }
 
 impl v1alpha1::NifiCluster {
-    /// The name of the group-listener provided for a specific role-group.
-    /// The UI will use this group listener so that only one load balancer
-    /// is needed (per role group).
-    pub fn group_listener_name(&self, rolegroup: &RoleGroupRef<Self>) -> String {
-        rolegroup.object_name()
-    }
-
     /// Metadata about a metastore rolegroup
     pub fn node_rolegroup_ref(&self, group_name: impl Into<String>) -> RoleGroupRef<Self> {
         RoleGroupRef {
@@ -207,7 +200,7 @@ impl v1alpha1::NifiCluster {
         }
     }
 
-    pub fn role_config(&self, role: &NifiRole) -> Option<&GenericRoleConfig> {
+    pub fn role_config(&self, role: &NifiRole) -> Option<&NifiNodeRoleConfig> {
         match role {
             NifiRole::Node => self.spec.nodes.as_ref().map(|n| &n.role_config),
         }
@@ -414,10 +407,6 @@ pub struct NifiConfig {
     /// Please note that this can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
     #[fragment_attrs(serde(default))]
     pub requested_secret_lifetime: Option<Duration>,
-
-    /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose the nodes.
-    #[serde(default)]
-    pub listener_class: String,
 }
 
 impl NifiConfig {
@@ -467,7 +456,6 @@ impl NifiConfig {
             affinity: get_affinity(cluster_name, role),
             graceful_shutdown_timeout: Some(DEFAULT_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
             requested_secret_lifetime: Some(Self::DEFAULT_NODE_SECRET_LIFETIME),
-            listener_class: Some("cluster-internal".to_owned()),
         }
     }
 }
@@ -546,4 +534,27 @@ pub struct NifiStorageConfig {
     /// Default size: 1GB
     #[fragment_attrs(serde(default))]
     pub state_repo: PvcConfig,
+}
+
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NifiNodeRoleConfig {
+    #[serde(flatten)]
+    pub common: GenericRoleConfig,
+
+    #[serde(default = "node_default_listener_class")]
+    pub listener_class: String,
+}
+
+impl Default for NifiNodeRoleConfig {
+    fn default() -> Self {
+        NifiNodeRoleConfig {
+            listener_class: node_default_listener_class(),
+            common: Default::default(),
+        }
+    }
+}
+
+fn node_default_listener_class() -> String {
+    "cluster-internal".to_string()
 }

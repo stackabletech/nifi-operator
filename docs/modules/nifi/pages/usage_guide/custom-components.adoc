@@ -167,7 +167,7 @@ spec:
       autoGenerate: true
     zookeeperConfigMapName: simple-nifi-znode
   nodes:
-    config:
+    roleConfig:
       listenerClass: external-unstable
     configOverrides:
       nifi.properties:
@@ -287,7 +287,7 @@ spec:
       autoGenerate: true
     zookeeperConfigMapName: simple-nifi-znode
   nodes:
-    config:
+    roleConfig:
       listenerClass: external-unstable
     configOverrides:
       nifi.properties:

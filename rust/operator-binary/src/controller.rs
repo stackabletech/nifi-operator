@@ -24,20 +24,13 @@ use stackable_operator::{
             container::ContainerBuilder,
             resources::ResourceRequirementsBuilder,
             security::PodSecurityContextBuilder,
-            volume::{
-                ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
-                ListenerReference, SecretFormat,
-            },
+            volume::{ListenerOperatorVolumeSourceBuilderError, SecretFormat},
         },
     },
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
-    crd::{
-        authentication::oidc::v1alpha1::AuthenticationProvider,
-        git_sync,
-        listener::v1alpha1::{Listener, ListenerPort, ListenerSpec},
-    },
+    crd::{authentication::oidc::v1alpha1::AuthenticationProvider, git_sync},
     k8s_openapi::{
         DeepMerge,
         api::{
@@ -91,10 +84,11 @@ use crate::{
     crd::{
         APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, Container, HTTPS_PORT, HTTPS_PORT_NAME,
         LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, METRICS_PORT, METRICS_PORT_NAME, NifiConfig,
-        NifiConfigFragment, NifiRole, NifiStatus, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
-        STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR, authentication::AuthenticationClassResolved,
-        v1alpha1,
+        NifiConfigFragment, NifiNodeRoleConfig, NifiRole, NifiStatus, PROTOCOL_PORT,
+        PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
+        authentication::AuthenticationClassResolved, v1alpha1,
     },
+    listener::{build_group_listener, build_group_listener_pvc, group_listener_name},
     operations::{
         graceful_shutdown::add_graceful_shutdown_config,
         pdb::add_pdbs,
@@ -343,12 +337,13 @@ pub enum Error {
     BuildListenerVolume {
         source: ListenerOperatorVolumeSourceBuilderError,
     },
-
-    #[snafu(display("failed to apply group listener for {rolegroup}"))]
+    #[snafu(display("failed to apply group listener"))]
     ApplyGroupListener {
         source: stackable_operator::cluster_resources::Error,
-        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
     },
+
+    #[snafu(display("failed to configure listener"))]
+    ListenerConfiguration { source: crate::listener::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -542,19 +537,6 @@ pub async fn reconcile_nifi(
             )
             .await?;
 
-            let rg_group_listener = build_group_listener(
-                nifi,
-                &resolved_product_image,
-                &rolegroup,
-                merged_config.listener_class,
-            )?;
-
-            cluster_resources
-                .add(client, rg_group_listener)
-                .await
-                .with_context(|_| ApplyGroupListenerSnafu {
-                    rolegroup: rolegroup.clone(),
-                })?;
             cluster_resources
                 .add(client, rg_service)
                 .await
@@ -583,13 +565,29 @@ pub async fn reconcile_nifi(
     }
 
     let role_config = nifi.role_config(&nifi_role);
-    if let Some(GenericRoleConfig {
-        pod_disruption_budget: pdb,
+    if let Some(NifiNodeRoleConfig {
+        common: GenericRoleConfig {
+            pod_disruption_budget: pdb,
+        },
+        listener_class,
     }) = role_config
     {
         add_pdbs(pdb, nifi, &nifi_role, client, &mut cluster_resources)
             .await
             .context(FailedToCreatePdbSnafu)?;
+
+        let role_group_listener = build_group_listener(
+            nifi,
+            build_recommended_labels(nifi, NIFI_CONTROLLER_NAME, "node", "none"),
+            listener_class.to_owned(),
+            group_listener_name(nifi),
+        )
+        .context(ListenerConfigurationSnafu)?;
+
+        cluster_resources
+            .add(client, role_group_listener)
+            .await
+            .with_context(|_| ApplyGroupListenerSnafu)?;
     }
 
     // Only add the reporting task in case it is enabled.
@@ -662,7 +660,7 @@ async fn build_node_rolegroup_config_map(
     resolved_product_image: &ResolvedProductImage,
     authentication_config: &NifiAuthenticationConfig,
     authorization_config: &NifiAuthorizationConfig,
-    role: &Role<NifiConfigFragment, GenericRoleConfig, JavaCommonConfig>,
+    role: &Role<NifiConfigFragment, NifiNodeRoleConfig, JavaCommonConfig>,
     rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &NifiConfig,
@@ -837,49 +835,6 @@ fn build_node_rolegroup_service(
     Ok(service)
 }
 
-pub fn build_group_listener(
-    nifi: &v1alpha1::NifiCluster,
-    resolved_product_image: &ResolvedProductImage,
-    rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>,
-    listener_class: String,
-) -> Result<Listener> {
-    let metadata = ObjectMetaBuilder::new()
-        .name_and_namespace(nifi)
-        .name(nifi.group_listener_name(rolegroup))
-        .ownerreference_from_resource(nifi, None, Some(true))
-        .context(ObjectMissingMetadataForOwnerRefSnafu)?
-        .with_recommended_labels(build_recommended_labels(
-            nifi,
-            &resolved_product_image.app_version_label,
-            &rolegroup.role,
-            &rolegroup.role_group,
-        ))
-        .context(MetadataBuildSnafu)?
-        .build();
-
-    let spec = ListenerSpec {
-        class_name: Some(listener_class),
-        ports: Some(listener_ports()),
-        ..Default::default()
-    };
-
-    let listener = Listener {
-        metadata,
-        spec,
-        status: None,
-    };
-
-    Ok(listener)
-}
-
-fn listener_ports() -> Vec<ListenerPort> {
-    vec![ListenerPort {
-        name: HTTPS_PORT_NAME.to_owned(),
-        port: HTTPS_PORT.into(),
-        protocol: Some("TCP".to_owned()),
-    }]
-}
-
 const USERDATA_MOUNTPOINT: &str = "/stackable/userdata";
 
 /// The rolegroup [`StatefulSet`] runs the rolegroup, as configured by the administrator.
@@ -892,7 +847,7 @@ async fn build_node_rolegroup_statefulset(
     resolved_product_image: &ResolvedProductImage,
     cluster_info: &KubernetesClusterInfo,
     rolegroup_ref: &RoleGroupRef<v1alpha1::NifiCluster>,
-    role: &Role<NifiConfigFragment, GenericRoleConfig, JavaCommonConfig>,
+    role: &Role<NifiConfigFragment, NifiNodeRoleConfig, JavaCommonConfig>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &NifiConfig,
     authentication_config: &NifiAuthenticationConfig,
@@ -976,7 +931,7 @@ async fn build_node_rolegroup_statefulset(
     env_vars.extend(authorization_config.get_env_vars());
 
     let node_address = format!(
-        "$POD_NAME.{}-node-{}.{}.svc.{}",
+        "$POD_NAME.{}-node-{}-metrics.{}.svc.{}",
         rolegroup_ref.cluster.name,
         rolegroup_ref.role_group,
         &nifi
@@ -1235,13 +1190,9 @@ async fn build_node_rolegroup_statefulset(
     // listener endpoints will use persistent volumes
     // so that load balancers can hard-code the target addresses and
     // that it is possible to connect to a consistent address
-    let listener_pvc = ListenerOperatorVolumeSourceBuilder::new(
-        &ListenerReference::ListenerName(nifi.group_listener_name(rolegroup_ref)),
-        &unversioned_recommended_labels,
-    )
-    .context(BuildListenerVolumeSnafu)?
-    .build_pvc(LISTENER_VOLUME_NAME.to_owned())
-    .context(BuildListenerVolumeSnafu)?;
+    let listener_pvc =
+        build_group_listener_pvc(&group_listener_name(nifi), &unversioned_recommended_labels)
+            .context(ListenerConfigurationSnafu)?;
 
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
 

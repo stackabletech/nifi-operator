@@ -148,7 +148,7 @@ spec:
       autoGenerate: true
     zookeeperConfigMapName: simple-nifi-znode
   nodes:
-    config:
+    roleConfig:
       listenerClass: external-unstable
     roleGroups:
       default:

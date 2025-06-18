@@ -34,6 +34,7 @@ use crate::{
 mod config;
 mod controller;
 mod crd;
+mod listener;
 mod operations;
 mod product_logging;
 mod reporting_task;

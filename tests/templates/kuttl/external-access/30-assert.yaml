@@ -15,48 +15,21 @@ status:
   readyReplicas: 2
   replicas: 2
 ---
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: test-nifi-node-external-unstable
-status:
-  readyReplicas: 1
-  replicas: 1
----
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: test-nifi-node-cluster-internal
-status:
-  readyReplicas: 1
-  replicas: 1
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: test-nifi-node
 status:
-  expectedPods: 4
-  currentHealthy: 4
+  expectedPods: 2
+  currentHealthy: 2
   disruptionsAllowed: 1
 ---
-apiVersion: v1
-kind: Service
-metadata:
-  name: test-nifi-node-cluster-internal
-spec:
-  type: ClusterIP # cluster-internal
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: test-nifi-node-default
-spec:
-  type: NodePort # external-stable
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: test-nifi-node-external-unstable
+  name: test-nifi-node
 spec:
   type: NodePort # external-unstable
+---

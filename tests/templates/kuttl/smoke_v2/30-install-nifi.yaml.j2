@@ -39,6 +39,7 @@ spec:
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    roleConfig:
       listenerClass: {{ test_scenario['values']['listener-class'] }}
     roleGroups:
       default:

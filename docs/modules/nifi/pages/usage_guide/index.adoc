@@ -30,7 +30,7 @@ spec:
       keySecret: nifi-sensitive-property-key
       autoGenerate: true
   nodes:
-    config:
+    roleConfig:
       listenerClass: external-unstable
   roleGroups:
     default:

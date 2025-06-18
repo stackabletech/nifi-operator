@@ -53,15 +53,8 @@ spec:
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-      listenerClass: test-external-stable-$NAMESPACE
+    roleConfig:
+      listenerClass: test-external-unstable-$NAMESPACE
     roleGroups:
       default:
         replicas: 2
-      external-unstable:
-        replicas: 1
-        config:
-          listenerClass: test-external-unstable-$NAMESPACE
-      cluster-internal:
-        replicas: 1
-        config:
-          listenerClass: test-cluster-internal-$NAMESPACE
