@@ -16,7 +16,6 @@ spec:
     catalogLabelSelector:
       matchLabels:
         trino: trino
-    listenerClass: external-unstable
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
@@ -24,6 +23,8 @@ spec:
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    roleConfig:
+      listenerClass: external-unstable
 {% if test_scenario['values']['iceberg-use-kerberos'] == 'true' %}
     podOverrides: &podOverrides
       spec:

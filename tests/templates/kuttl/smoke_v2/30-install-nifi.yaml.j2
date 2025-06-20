@@ -17,7 +17,6 @@ spec:
 {% if test_scenario['values']['use-zookeeper-manager'] == 'true' %}
     zookeeperConfigMapName: nifi-znode
 {% endif %}
-    listenerClass: {{ test_scenario['values']['listener-class'] }}
     authentication:
       - authenticationClass: nifi-users
     hostHeaderCheck:
@@ -40,6 +39,8 @@ spec:
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    roleConfig:
+      listenerClass: {{ test_scenario['values']['listener-class'] }}
     roleGroups:
       default:
         replicas: 2

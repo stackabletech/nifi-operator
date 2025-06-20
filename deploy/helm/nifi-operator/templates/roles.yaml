@@ -91,6 +91,17 @@ rules:
       - create
       - patch
   - apiGroups:
+      - listeners.stackable.tech
+    resources:
+      - listeners
+    verbs:
+      - get
+      - list
+      - watch
+      - patch
+      - create
+      - delete
+  - apiGroups:
       - {{ include "operator.name" . }}.stackable.tech
     resources:
       - {{ include "operator.name" . }}clusters
