@@ -578,21 +578,18 @@ pub async fn reconcile_nifi(
             .await
             .context(FailedToCreatePdbSnafu)?;
 
-        let role_name = match &nifi_role {
-            NifiRole::Node => "node".to_string(),
-        };
         let role_group_listener = build_group_listener(
             nifi,
             build_recommended_labels(nifi, NIFI_CONTROLLER_NAME, &nifi_role.to_string(), "none"),
             listener_class.to_owned(),
-            group_listener_name(nifi, &role_name),
+            group_listener_name(nifi, &nifi_role.to_string()),
         )
         .context(ListenerConfigurationSnafu)?;
 
         cluster_resources
             .add(client, role_group_listener)
             .await
-            .with_context(|_| ApplyGroupListenerSnafu)?;
+            .context(ApplyGroupListenerSnafu)?;
     }
 
     // Only add the reporting task in case it is enabled.
