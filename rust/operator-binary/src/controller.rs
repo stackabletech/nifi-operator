@@ -580,7 +580,7 @@ pub async fn reconcile_nifi(
 
         let role_group_listener = build_group_listener(
             nifi,
-            build_recommended_labels(nifi, NIFI_CONTROLLER_NAME, "node", "none"),
+            build_recommended_labels(nifi, NIFI_CONTROLLER_NAME, &nifi_role.to_string(), "none"),
             listener_class.to_owned(),
             group_listener_name(nifi),
         )
@@ -933,9 +933,8 @@ async fn build_node_rolegroup_statefulset(
     env_vars.extend(authorization_config.get_env_vars());
 
     let node_address = format!(
-        "$POD_NAME.{}-node-{}-metrics.{}.svc.{}",
-        rolegroup_ref.cluster.name,
-        rolegroup_ref.role_group,
+        "$POD_NAME.{}.{}.svc.{}",
+        rolegroup_service_name(rolegroup_ref),
         &nifi
             .metadata
             .namespace
