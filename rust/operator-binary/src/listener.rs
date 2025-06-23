@@ -74,6 +74,6 @@ pub fn build_group_listener_pvc(
     .context(BuildListenerPersistentVolumeSnafu)
 }
 
-pub fn group_listener_name(nifi: &v1alpha1::NifiCluster) -> String {
-    format!("{cluster_name}-node", cluster_name = nifi.name_any())
+pub fn group_listener_name(nifi: &v1alpha1::NifiCluster, role_name: &String) -> String {
+    format!("{cluster_name}-{role_name}", cluster_name = nifi.name_any(),)
 }

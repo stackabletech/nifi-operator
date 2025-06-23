@@ -578,11 +578,14 @@ pub async fn reconcile_nifi(
             .await
             .context(FailedToCreatePdbSnafu)?;
 
+        let role_name = match &nifi_role {
+            NifiRole::Node => "node".to_string(),
+        };
         let role_group_listener = build_group_listener(
             nifi,
             build_recommended_labels(nifi, NIFI_CONTROLLER_NAME, &nifi_role.to_string(), "none"),
             listener_class.to_owned(),
-            group_listener_name(nifi),
+            group_listener_name(nifi, &role_name),
         )
         .context(ListenerConfigurationSnafu)?;
 
@@ -933,14 +936,14 @@ async fn build_node_rolegroup_statefulset(
     env_vars.extend(authorization_config.get_env_vars());
 
     let node_address = format!(
-        "$POD_NAME.{}.{}.svc.{}",
-        rolegroup_service_name(rolegroup_ref),
-        &nifi
+        "$POD_NAME.{service_name}.{namespace}.svc.{cluster_domain}",
+        service_name = rolegroup_service_name(rolegroup_ref),
+        namespace = &nifi
             .metadata
             .namespace
             .as_ref()
             .context(ObjectHasNoNamespaceSnafu)?,
-        cluster_info.cluster_domain,
+        cluster_domain = cluster_info.cluster_domain,
     );
 
     let sensitive_key_secret = &nifi.spec.cluster_config.sensitive_properties.key_secret;
@@ -1191,9 +1194,11 @@ async fn build_node_rolegroup_statefulset(
     // listener endpoints will use persistent volumes
     // so that load balancers can hard-code the target addresses and
     // that it is possible to connect to a consistent address
-    let listener_pvc =
-        build_group_listener_pvc(&group_listener_name(nifi), &unversioned_recommended_labels)
-            .context(ListenerConfigurationSnafu)?;
+    let listener_pvc = build_group_listener_pvc(
+        &group_listener_name(nifi, &rolegroup_ref.role),
+        &unversioned_recommended_labels,
+    )
+    .context(ListenerConfigurationSnafu)?;
 
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
 
