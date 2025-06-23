@@ -157,18 +157,6 @@ tests:
       - nifi
       - zookeeper-latest
       - openshift
-  - name: iceberg
-    dimensions:
-      - nifi-iceberg
-      - opa-l
-      - zookeeper-latest
-      - hdfs-l
-      - hive-l
-      - trino-l
-      - krb5
-      - iceberg-use-kerberos
-      - kerberos-realm
-      - openshift
 suites:
   - name: nightly
     patch:
