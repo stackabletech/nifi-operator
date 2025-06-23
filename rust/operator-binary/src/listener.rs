@@ -10,7 +10,10 @@ use stackable_operator::{
     kvp::{Labels, ObjectLabels},
 };
 
-use crate::crd::{HTTPS_PORT, HTTPS_PORT_NAME, LISTENER_VOLUME_NAME, v1alpha1};
+use crate::crd::{HTTPS_PORT, HTTPS_PORT_NAME, v1alpha1};
+
+pub const LISTENER_VOLUME_NAME: &str = "listener";
+pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
 
 #[derive(Snafu, Debug)]
 pub enum Error {

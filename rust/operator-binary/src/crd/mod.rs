@@ -54,8 +54,6 @@ pub const BALANCE_PORT: u16 = 6243;
 pub const METRICS_PORT_NAME: &str = "metrics";
 pub const METRICS_PORT: u16 = 8081;
 
-pub const LISTENER_VOLUME_NAME: &str = "listener";
-pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
 pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
 pub const STACKABLE_LOG_CONFIG_DIR: &str = "/stackable/log_config";
 
