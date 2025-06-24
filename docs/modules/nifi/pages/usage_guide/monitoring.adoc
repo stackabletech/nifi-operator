@@ -44,3 +44,98 @@ https://simple-nifi-node-default-0.simple-nifi-node-default.<namespace>.svc.clus
 ```
 
 IMPORTANT: If NiFi is configured to do any user authentication, requests to the metric endpoint must be authenticated and authorized.
+
+=== Authentication with NiFi `2.x.x`
+
+[IMPORTANT]
+===
+The NiFi metrics endpoints are behind a strong authentication mechanism which require credentials for each individual pod.
+===
+
+To authenticate, you can use a bearer token created by your NiFi instance e.g.
+
+[source,bash]
+----
+curl -X POST https://simple-nifi-node-default-0.simple-nifi-node-default.<namespace>.svc.cluster.local:8443/nifi-api/access/token -d 'username=<user>&password=<password>' -k
+----
+
+where `-k` equals `verify=false` to allow self-signed certificates. The reply is your bearer token.
+
+The following example shows how to configure the Prometheus scraper to use the bearer token to authenticate against a NiFi pod.
+
+[source,yaml]
+----
+---
+authorization: <1>
+  type: Bearer
+  credentials: "<Bearer Token>" <2>
+tls_config:
+  insecure_skip_verify: true
+static_configs:
+  - targets:
+    - '<pod>.<statefulset>.svc.cluster.local:8443' <3>
+metrics_path: '/nifi-api/flow/metrics/prometheus'
+scheme: https
+----
+<1> Use the `authorization` property instead if the `basic_auth`.
+<2> Add the previously obtained token here.
+<3> Static targets only scrapes one pod.
+
+or use it in a NiFi secret which should look like
+[source,yaml]
+----
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nifi-authorization-secret
+type: Opaque
+stringData:
+  nifi_token: "<Bearer_token>"
+----
+
+If you want to use a `ServiceMonitor` you'd need to configure it as follows:
+[source,yaml]
+----
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: scrape-nifi2
+  labels:
+    stackable.tech/vendor: Stackable
+    release: prometheus
+spec:
+  endpoints:
+  - port: https
+    path: 'nifi-api/flow/metrics/prometheus'
+    scheme: https
+    interval: 5s
+    tlsConfig:
+      insecureSkipVerify: true
+    authorization:
+      credentials: <1>
+        key: "nifi_token"
+        name: "nifi-authorization-secret"
+        optional: false
+      type: "Bearer"
+    relabelings: <2>
+      - sourceLabels:
+          - __meta_kubernetes_pod_name
+          - __meta_kubernetes_service_name
+          - __meta_kubernetes_namespace
+          - __meta_kubernetes_pod_container_port_number
+        targetLabel: __address__
+        replacement: ${1}.${2}.${3}.svc.cluster.local:${4}
+        regex: (.+);(.+?)(?:-metrics)?;(.+);(.+)
+  selector:
+    matchLabels:
+      prometheus.io/scrape: "true"
+  namespaceSelector:
+    any: true
+  jobLabel: app.kubernetes.io/instance
+----
+<1> Authorization via Bearer Token stored in a secret
+<2> Relabel \\__address__ to be a FQDN rather then the IP-Address of target pod
+
+NOTE: As of xref:listener-operator:listener.adoc[Listener] integration, SDP exposes a Service with `-metrics` thus we need to regex this suffix.
