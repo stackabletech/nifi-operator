@@ -46,6 +46,12 @@ https://simple-nifi-node-default-0.simple-nifi-node-default.<namespace>.svc.clus
 IMPORTANT: If NiFi is configured to do any user authentication, requests to the metric endpoint must be authenticated and authorized.
 
 === Authentication with NiFi `2.x.x`
+
+[IMPORTANT]
+===
+The NiFi metrics endpoints are behind a strong authentication mechanism which require credentials for each individual pod.
+===
+
 To authenticate, you can use a bearer token created by your NiFi instance e.g.
 
 [source,bash]
@@ -53,28 +59,27 @@ To authenticate, you can use a bearer token created by your NiFi instance e.g.
 curl -X POST https://simple-nifi-node-default-0.simple-nifi-node-default.<namespace>.svc.cluster.local:8443/nifi-api/access/token -d 'username=<user>&password=<password>' -k
 ----
 
-where `-k` equals `verify=false`. The reply is your bearer token.
+where `-k` equals `verify=false` to allow self-signed certificates. The reply is your bearer token.
 
-You then can use the bearer token to authenticate with Prometheus replacing `basic_auth` with
+The following example shows how to configure the Prometheus scraper to use the bearer token to authenticate against a NiFi pod.
 
 [source,yaml]
 ----
 ---
-# basic_auth:
-  # username: <user>
-  # password: <password>
-authorization:
+authorization: <1>
   type: Bearer
-  credentials: "<Bearer Token>"
+  credentials: "<Bearer Token>" <2>
 tls_config:
   insecure_skip_verify: true
 static_configs:
   - targets:
-    - '<pod>.<statefulset>.svc.cluster.local:8443' <1>
+    - '<pod>.<statefulset>.svc.cluster.local:8443' <3>
 metrics_path: '/nifi-api/flow/metrics/prometheus'
 scheme: https
 ----
-<1> Static targets only scrapes one pod.
+<1> Use the `authorization` property instead if the `basic_auth`.
+<2> Add the previously obtained token here.
+<3> Static targets only scrapes one pod.
 
 or use it in a NiFi secret which should look like
 [source,yaml]
@@ -134,8 +139,3 @@ spec:
 <2> Relabel \\__address__ to be a FQDN rather then the IP-Address of target pod
 
 NOTE: As of xref:listener-operator:listener.adoc[Listener] integration, SDP exposes a Service with `-metrics` thus we need to regex this suffix.
-
-==== Known Limitations
-
-NiFi only allows authentication with JWT on pod level. Therefore you will need one endpoint per NiFi pod and a valid bearer token for each. This is a consequence of NiFi
-moving their metrics endpoint behind a strong authentication mechanism.
