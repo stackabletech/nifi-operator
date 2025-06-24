@@ -580,7 +580,12 @@ pub async fn reconcile_nifi(
 
         let role_group_listener = build_group_listener(
             nifi,
-            build_recommended_labels(nifi, NIFI_CONTROLLER_NAME, &nifi_role.to_string(), "none"),
+            build_recommended_labels(
+                nifi,
+                &resolved_product_image.app_version_label,
+                &nifi_role.to_string(),
+                "none",
+            ),
             listener_class.to_owned(),
             group_listener_name(nifi, &nifi_role.to_string()),
         )
