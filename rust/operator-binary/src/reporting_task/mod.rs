@@ -295,7 +295,6 @@ fn build_reporting_task_job(
         format!("-n {nifi_connect_url}"),
         user_name_command,
         format!("-p \"$(cat {admin_password_file})\""),
-        format!("-v {product_version}"),
         format!("-m {METRICS_PORT}"),
         format!("-c {REPORTING_TASK_CERT_VOLUME_MOUNT}/ca.crt"),
     ];
