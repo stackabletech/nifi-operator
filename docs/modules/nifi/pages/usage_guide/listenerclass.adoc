@@ -11,4 +11,4 @@ spec:
     roleConfig:
       listenerClass: external-unstable  # <1>
 ----
-<1> Specify one of `external-stable`, `external-unstable`, `cluster-internal` (the default setting is `cluster-internal`).
+<1> Specify one of `external-stable`, `external-unstable`, `cluster-internal` or a custom ListenerClass (the default setting is `cluster-internal`).
