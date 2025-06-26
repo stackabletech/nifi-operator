@@ -162,12 +162,13 @@ spec:
     - name: nifi-processors
       configMap:
         name: nifi-processors
-    listenerClass: external-unstable
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
       autoGenerate: true
     zookeeperConfigMapName: simple-nifi-znode
   nodes:
+    roleConfig:
+      listenerClass: external-unstable
     configOverrides:
       nifi.properties:
         nifi.nar.library.directory.myCustomLibs: /stackable/userdata/nifi-processors/  # <2>
@@ -281,12 +282,13 @@ spec:
     - name: nifi-processors
       persistentVolumeClaim:
         claimName: nifi-processors
-    listenerClass: external-unstable
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
       autoGenerate: true
     zookeeperConfigMapName: simple-nifi-znode
   nodes:
+    roleConfig:
+      listenerClass: external-unstable
     configOverrides:
       nifi.properties:
         nifi.nar.library.directory.myCustomLibs: /stackable/userdata/nifi-processors/  # <2>

@@ -17,7 +17,7 @@ logging.basicConfig(
 namespace = os.environ["NAMESPACE"]
 tls = os.environ["OIDC_USE_TLS"]
 nifi_version = os.environ["NIFI_VERSION"]
-nifi = f"test-nifi-node-default-0.test-nifi-node-default.{namespace}.svc.cluster.local"
+nifi = f"test-nifi-node-default-0.test-nifi-node-default-metrics.{namespace}.svc.cluster.local"
 keycloak_service = f"keycloak.{namespace}.svc.cluster.local"
 
 keycloak_base_url = (

@@ -16,7 +16,6 @@ spec:
     catalogLabelSelector:
       matchLabels:
         trino: trino
-    listenerClass: external-unstable
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
