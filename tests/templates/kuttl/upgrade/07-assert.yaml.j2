@@ -9,7 +9,7 @@ commands:
 {% if test_scenario['values']['nifi_new'].split(',')[0].startswith('1.') %}
   - script: kubectl exec -n $NAMESPACE test-nifi-0 -- python /tmp/test_nifi_metrics.py -n $NAMESPACE
 {% endif %}
-  - script: kubectl exec -n $NAMESPACE test-nifi-0 -- sh -c "python /tmp/flow.py -e https://test-nifi-node-default-0.test-nifi-node-default-metrics.$NAMESPACE.svc.cluster.local:8443 query > /tmp/new_input"
+  - script: kubectl exec -n $NAMESPACE test-nifi-0 -- sh -c "python /tmp/flow.py -e https://test-nifi-node-default-0.test-nifi-node-default-headless.$NAMESPACE.svc.cluster.local:8443 query > /tmp/new_input"
   # This tests if the output contains an Error or zero flow files are queued, which also indicates that something went wrong
   - script: kubectl exec -n $NAMESPACE test-nifi-0 -- sh -c "cat /tmp/new_input | grep -Eov 'Error|\b0\b'"
   # This tests that the number of input records stays the same after the upgrade.

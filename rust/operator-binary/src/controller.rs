@@ -1483,7 +1483,7 @@ async fn build_node_rolegroup_statefulset(
 }
 
 pub fn rolegroup_service_name(rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>) -> String {
-    format!("{name}-metrics", name = rolegroup.object_name())
+    format!("{name}-headless", name = rolegroup.object_name())
 }
 
 async fn get_proxy_hosts(

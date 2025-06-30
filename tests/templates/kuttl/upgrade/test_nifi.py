@@ -46,7 +46,7 @@ if __name__ == "__main__":
     # disable warnings as we have specified non-verified https connections
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-    host = f"https://test-nifi-node-default-1.test-nifi-node-default-metrics.{args['namespace']}.svc.cluster.local:8443"
+    host = f"https://test-nifi-node-default-1.test-nifi-node-default-headless.{args['namespace']}.svc.cluster.local:8443"
     token = get_token(host, args["user"], args["password"])
     headers = {"Authorization": token}
     node_count = int(args["count"])

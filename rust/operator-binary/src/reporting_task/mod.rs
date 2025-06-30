@@ -8,7 +8,7 @@
 //! Due to changes in the JWT validation in 1.25.0, the issuer refers to the FQDN of the Pod that was created, e.g.:
 //! {
 //!     "sub": "admin",
-//!     "iss": "test-nifi-node-default-0.test-nifi-node-default-metrics.default.svc.cluster.local:8443",
+//!     "iss": "test-nifi-node-default-0.test-nifi-node-default-headless.default.svc.cluster.local:8443",
 //! }
 //! which was different in e.g. 1.23.2
 //! {
