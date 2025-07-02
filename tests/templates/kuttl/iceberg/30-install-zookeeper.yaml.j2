@@ -8,6 +8,7 @@ spec:
     productVersion: "{{ test_scenario['values']['zookeeper-latest'] }}"
     pullPolicy: IfNotPresent
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
+  clusterConfig:
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
   servers:
