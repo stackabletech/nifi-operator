@@ -1346,12 +1346,10 @@ async fn build_node_rolegroup_statefulset(
             build_tls_volume(
                 nifi,
                 KEYSTORE_VOLUME_NAME,
-                vec![
-                    &nifi_cluster_name,
-                    &build_reporting_task_service_name(&nifi_cluster_name),
-                ],
+                vec![&build_reporting_task_service_name(&nifi_cluster_name)],
                 SecretFormat::TlsPkcs12,
                 &requested_secret_lifetime,
+                LISTENER_VOLUME_NAME,
             )
             .context(SecuritySnafu)?,
         )

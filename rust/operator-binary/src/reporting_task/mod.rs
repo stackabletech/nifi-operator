@@ -51,6 +51,7 @@ use stackable_operator::{
 use crate::{
     controller::build_recommended_labels,
     crd::{APP_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, NifiRole, v1alpha1},
+    listener::LISTENER_VOLUME_NAME,
     security::{
         authentication::{NifiAuthenticationConfig, STACKABLE_ADMIN_USERNAME},
         build_tls_volume,
@@ -356,6 +357,7 @@ fn build_reporting_task_job(
                 // There is no correct way to configure this job since it's an implementation detail.
                 // Also it will be dropped when support for 1.x is removed.
                 &Duration::from_days_unchecked(1),
+                LISTENER_VOLUME_NAME,
             )
             .context(SecretVolumeBuildFailureSnafu)?,
         )

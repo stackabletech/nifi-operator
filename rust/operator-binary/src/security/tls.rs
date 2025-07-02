@@ -27,6 +27,7 @@ pub(crate) fn build_tls_volume(
     service_scopes: Vec<&str>,
     secret_format: SecretFormat,
     requested_secret_lifetime: &Duration,
+    listener_scope: &str,
 ) -> Result<Volume> {
     let mut secret_volume_source_builder =
         SecretOperatorVolumeSourceBuilder::new(nifi.server_tls_secret_class());
@@ -42,8 +43,8 @@ pub(crate) fn build_tls_volume(
     Ok(VolumeBuilder::new(volume_name)
         .ephemeral(
             secret_volume_source_builder
-                .with_node_scope()
                 .with_pod_scope()
+                .with_listener_volume_scope(listener_scope)
                 .with_format(secret_format)
                 .with_auto_tls_cert_lifetime(*requested_secret_lifetime)
                 .build()
