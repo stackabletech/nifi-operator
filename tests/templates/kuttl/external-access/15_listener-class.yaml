@@ -1,0 +1,7 @@
+---
+apiVersion: listeners.stackable.tech/v1alpha1
+kind: ListenerClass
+metadata:
+  name: test-external-unstable-$NAMESPACE
+spec:
+  serviceType: NodePort

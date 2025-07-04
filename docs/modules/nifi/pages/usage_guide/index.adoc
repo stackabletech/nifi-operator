@@ -26,11 +26,12 @@ spec:
       - name: nifi-client-certs
         secret:
           secretName: nifi-client-certs
-    listenerClass: external-unstable
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
       autoGenerate: true
   nodes:
+    roleConfig:
+      listenerClass: external-unstable
   roleGroups:
     default:
       config:

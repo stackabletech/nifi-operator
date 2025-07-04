@@ -1,0 +1,35 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+metadata:
+  name: install-nifi
+timeout: 300
+commands:
+  - script: kubectl -n $NAMESPACE wait --for=condition=available=true nificlusters.nifi.stackable.tech/test-nifi --timeout 301s
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test-nifi-node-default
+status:
+  readyReplicas: 2
+  replicas: 2
+---
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: test-nifi-node
+status:
+  expectedPods: 2
+  currentHealthy: 2
+  disruptionsAllowed: 1
+---
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-nifi-node
+spec:
+  type: NodePort # external-unstable
+---

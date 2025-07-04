@@ -194,20 +194,6 @@ spec:
                           description: Allow all proxy hosts by turning off host header validation. See <https://github.com/stackabletech/docker-images/pull/694>
                           type: boolean
                       type: object
-                    listenerClass:
-                      default: cluster-internal
-                      description: |-
-                        This field controls which type of Service the Operator creates for this NifiCluster:
-
-                        * cluster-internal: Use a ClusterIP service
-
-                        * external-unstable: Use a NodePort service
-
-                        This is a temporary solution with the goal to keep yaml manifests forward compatible. In the future, this setting will control which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
-                      enum:
-                        - cluster-internal
-                        - external-unstable
-                      type: string
                     sensitiveProperties:
                       description: These settings configure the encryption of sensitive properties in NiFi processors. NiFi supports encrypting sensitive properties in processors as they are written to disk. You can configure the encryption algorithm and the key to use. You can also let the operator generate an encryption key for you.
                       properties:
@@ -790,11 +776,15 @@ spec:
                       x-kubernetes-preserve-unknown-fields: true
                     roleConfig:
                       default:
+                        listenerClass: cluster-internal
                         podDisruptionBudget:
                           enabled: true
                           maxUnavailable: null
                       description: This is a product-agnostic RoleConfig, which is sufficient for most of the products.
                       properties:
+                        listenerClass:
+                          default: cluster-internal
+                          type: string
                         podDisruptionBudget:
                           default:
                             enabled: true

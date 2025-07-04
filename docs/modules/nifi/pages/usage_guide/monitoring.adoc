@@ -127,7 +127,7 @@ spec:
           - __meta_kubernetes_pod_container_port_number
         targetLabel: __address__
         replacement: ${1}.${2}.${3}.svc.cluster.local:${4}
-        regex: (.+);(.+?)(?:-metrics)?;(.+);(.+)
+        regex: (.+);(.+?)(?:-headless)?;(.+);(.+)
   selector:
     matchLabels:
       prometheus.io/scrape: "true"
@@ -138,4 +138,4 @@ spec:
 <1> Authorization via Bearer Token stored in a secret
 <2> Relabel \\__address__ to be a FQDN rather then the IP-Address of target pod
 
-NOTE: As of xref:listener-operator:listener.adoc[Listener] integration, SDP exposes a Service with `-metrics` thus we need to regex this suffix.
+NOTE: As of xref:listener-operator:listener.adoc[Listener] integration, SDP exposes a Service with `-headless` thus we need to regex this suffix.

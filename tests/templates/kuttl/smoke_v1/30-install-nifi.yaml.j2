@@ -15,7 +15,6 @@ spec:
     pullPolicy: IfNotPresent
   clusterConfig:
     zookeeperConfigMapName: nifi-znode
-    listenerClass: {{ test_scenario['values']['listener-class'] }}
     authentication:
       - authenticationClass: nifi-users
     hostHeaderCheck:
@@ -38,6 +37,8 @@ spec:
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    roleConfig:
+      listenerClass: {{ test_scenario['values']['listener-class'] }}
     roleGroups:
       default:
         replicas: 2

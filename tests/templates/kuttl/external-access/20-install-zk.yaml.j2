@@ -2,10 +2,10 @@
 apiVersion: zookeeper.stackable.tech/v1alpha1
 kind: ZookeeperCluster
 metadata:
-  name: zookeeper
+  name: test-zk
 spec:
   image:
-    productVersion: "{{ test_scenario['values']['zookeeper'] }}"
+    productVersion: "{{ test_scenario['values']['zookeeper-latest'] }}"
     pullPolicy: IfNotPresent
   clusterConfig:
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
@@ -15,8 +15,14 @@ spec:
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-    roleConfig:
-      listenerClass: {{ test_scenario['values']['listener-class'] }}
     roleGroups:
       default:
         replicas: 1
+---
+apiVersion: zookeeper.stackable.tech/v1alpha1
+kind: ZookeeperZnode
+metadata:
+  name: test-nifi-znode
+spec:
+  clusterRef:
+    name: test-zk

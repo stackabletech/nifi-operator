@@ -1,12 +1,12 @@
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     memory::{BinaryMultiple, MemoryQuantity},
-    role_utils::{self, GenericRoleConfig, JavaCommonConfig, JvmArgumentOverrides, Role},
+    role_utils::{self, JavaCommonConfig, JvmArgumentOverrides, Role},
 };
 
 use crate::{
     config::{JVM_SECURITY_PROPERTIES_FILE, NIFI_CONFIG_DIRECTORY},
-    crd::{NifiConfig, NifiConfigFragment},
+    crd::{NifiConfig, NifiConfigFragment, NifiNodeRoleConfig},
 };
 
 // Part of memory resources allocated for Java heap
@@ -29,7 +29,7 @@ pub enum Error {
 /// Create the NiFi bootstrap.conf
 pub fn build_merged_jvm_config(
     merged_config: &NifiConfig,
-    role: &Role<NifiConfigFragment, GenericRoleConfig, JavaCommonConfig>,
+    role: &Role<NifiConfigFragment, NifiNodeRoleConfig, JavaCommonConfig>,
     role_group: &str,
 ) -> Result<JvmArgumentOverrides, Error> {
     let heap_size = MemoryQuantity::try_from(

@@ -34,10 +34,12 @@ use crate::{
 mod config;
 mod controller;
 mod crd;
+mod listener;
 mod operations;
 mod product_logging;
 mod reporting_task;
 mod security;
+mod service;
 
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));

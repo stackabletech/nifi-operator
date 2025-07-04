@@ -8,9 +8,9 @@ commands:
   - script: kubectl exec -n $NAMESPACE test-nifi-0 -- python /tmp/test_nifi_metrics.py -n $NAMESPACE
 {% endif %}
 {% if test_scenario['values']['nifi_old'].split(',')[0] == '2.0.0' %}
-  - script: kubectl exec -n $NAMESPACE test-nifi-0 -- sh -c "python /tmp/flow.py -e https://test-nifi-node-default-0.test-nifi-node-default.$NAMESPACE.svc.cluster.local:8443 run json /tmp/generate-and-log-flowfiles.json > /tmp/old_input"
+  - script: kubectl exec -n $NAMESPACE test-nifi-0 -- sh -c "python /tmp/flow.py -e https://test-nifi-node-default-0.test-nifi-node-default-headless.$NAMESPACE.svc.cluster.local:8443 run json /tmp/generate-and-log-flowfiles.json > /tmp/old_input"
 {% else %}
-  - script: kubectl exec -n $NAMESPACE test-nifi-0 -- sh -c "python /tmp/flow.py -e https://test-nifi-node-default-0.test-nifi-node-default.$NAMESPACE.svc.cluster.local:8443 run template /tmp/generate-and-log-flowfiles.xml > /tmp/old_input"
+  - script: kubectl exec -n $NAMESPACE test-nifi-0 -- sh -c "python /tmp/flow.py -e https://test-nifi-node-default-0.test-nifi-node-default-headless.$NAMESPACE.svc.cluster.local:8443 run template /tmp/generate-and-log-flowfiles.xml > /tmp/old_input"
 {% endif %}
   # This tests if the output contains an Error or zero flow files are queued, which also indicates that something went wrong
   - script: kubectl exec -n $NAMESPACE test-nifi-0 -- sh -c "cat /tmp/old_input | grep -Eov 'Error|\b0\b'"
