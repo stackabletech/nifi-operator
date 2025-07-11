@@ -1,3 +1,6 @@
+// TODO: Look into how to properly resolve `clippy::result_large_err`.
+// This will need changes in our and upstream error types.
+#![allow(clippy::result_large_err)]
 use std::sync::Arc;
 
 use clap::Parser;
@@ -28,7 +31,7 @@ use stackable_operator::{
 
 use crate::{
     controller::NIFI_FULL_CONTROLLER_NAME,
-    crd::{NifiCluster, v1alpha1},
+    crd::{NifiCluster, NifiClusterVersion, v1alpha1},
 };
 
 mod config;
@@ -58,7 +61,7 @@ struct Opts {
 async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
-        Command::Crd => NifiCluster::merged_crd(NifiCluster::V1Alpha1)?
+        Command::Crd => NifiCluster::merged_crd(NifiClusterVersion::V1Alpha1)?
             .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?,
         Command::Run(ProductOperatorRun {
             product_config,

@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 - NiFi 2.x now supports storing cluster state in Kubernetes instead of ZooKeeper ([#775]).
 - Add test for Apache Iceberg integration ([#785]).
 - Add support for custom components via git-sync ([#793]).
+- Add RBAC rule to helm template for automatic cluster domain detection ([#817]).
 
 ### Changed
 
@@ -33,16 +34,23 @@ All notable changes to this project will be documented in this file.
   - The defaults from the docker images itself will now apply, which will be different from 1000/0 going forward
   - This is marked as breaking because tools and policies might exist, which require these fields to be set
 - test: Bump trino to 476 ([#808]).
+- BREAKING: Bump stackable-operator to 0.94.0 and update other dependencies ([#817]).
+  - The default Kubernetes cluster domain name is now fetched from the kubelet API unless explicitly configured.
+  - This requires operators to have the RBAC permission to get nodes/proxy in the apiGroup "". The helm-chart takes care of this.
+  - The CLI argument `--kubernetes-node-name` or env variable `KUBERNETES_NODE_NAME` needs to be set. The helm-chart takes care of this.
 
 ### Fixed
 
 - Use `json` file extension for log files ([#774]).
 - Fix a bug where changes to ConfigMaps that are referenced in the NifiCluster spec didn't trigger a reconciliation ([#772]).
 - The operator now emits a warning (1.x.x) or errors out (2.x.x) if a deprecated or unsupported sensitive properties algorithm is used ([#799]).
+- Allow uppercase characters in domain names ([#817]).
 
 ### Removed
 
 - test: ZooKeeper 3.9.2 removed ([#787]).
+- Remove the `lastUpdateTime` field from the stacklet status ([#817]).
+- Remove role binding to legacy service accounts ([#817]).
 
 [#767]: https://github.com/stackabletech/nifi-operator/pull/767
 [#771]: https://github.com/stackabletech/nifi-operator/pull/771
@@ -60,6 +68,7 @@ All notable changes to this project will be documented in this file.
 [#799]: https://github.com/stackabletech/nifi-operator/pull/799
 [#801]: https://github.com/stackabletech/nifi-operator/pull/801
 [#808]: https://github.com/stackabletech/nifi-operator/pull/808
+[#817]: https://github.com/stackabletech/nifi-operator/pull/817
 
 ## [25.3.0] - 2025-03-21
 

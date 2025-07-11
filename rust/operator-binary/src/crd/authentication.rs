@@ -49,6 +49,7 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 pub enum AuthenticationClassResolved {
     Static {
@@ -60,6 +61,8 @@ pub enum AuthenticationClassResolved {
     Oidc {
         provider: oidc::v1alpha1::AuthenticationProvider,
         oidc: oidc::v1alpha1::ClientAuthenticationOptions<()>,
+        // NOTE (@NickLarsenNZ): This is causing clippy::large_enum_variant
+        // can we box it?
         nifi: v1alpha1::NifiCluster,
     },
 }
