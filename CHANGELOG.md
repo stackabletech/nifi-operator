@@ -45,6 +45,7 @@ All notable changes to this project will be documented in this file.
 - Fix a bug where changes to ConfigMaps that are referenced in the NifiCluster spec didn't trigger a reconciliation ([#772]).
 - The operator now emits a warning (1.x.x) or errors out (2.x.x) if a deprecated or unsupported sensitive properties algorithm is used ([#799]).
 - Allow uppercase characters in domain names ([#817]).
+- NiFi v2 now exposes a metrics service (pointing to the same port as the headless service) ([#819]).
 
 ### Removed
 
@@ -69,6 +70,7 @@ All notable changes to this project will be documented in this file.
 [#801]: https://github.com/stackabletech/nifi-operator/pull/801
 [#808]: https://github.com/stackabletech/nifi-operator/pull/808
 [#817]: https://github.com/stackabletech/nifi-operator/pull/817
+[#819]: https://github.com/stackabletech/nifi-operator/pull/819
 
 ## [25.3.0] - 2025-03-21
 
