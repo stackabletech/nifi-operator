@@ -45,7 +45,7 @@ if __name__ == "__main__":
     t_end = time.time() + timeout
     while time.time() < t_end:
         try:
-            response = requests.post(url)
+            response = requests.get(url)
             response.raise_for_status()
             if metric_name in response.text:
                 print("Test metrics succeeded!")
