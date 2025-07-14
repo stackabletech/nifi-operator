@@ -69,6 +69,7 @@ pub fn build_rolegroup_metrics_service(
     role_group_ref: &RoleGroupRef<v1alpha1::NifiCluster>,
     object_labels: ObjectLabels<v1alpha1::NifiCluster>,
     selector: BTreeMap<String, String>,
+    ports: Vec<ServicePort>,
 ) -> Result<Service, Error> {
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
@@ -86,7 +87,7 @@ pub fn build_rolegroup_metrics_service(
             // Internal communication does not need to be exposed
             type_: Some("ClusterIP".to_string()),
             cluster_ip: Some("None".to_string()),
-            ports: Some(metrics_service_ports()),
+            ports: Some(ports),
             selector: Some(selector),
             publish_not_ready_addresses: Some(true),
             ..ServiceSpec::default()
@@ -95,7 +96,7 @@ pub fn build_rolegroup_metrics_service(
     })
 }
 
-fn headless_service_ports() -> Vec<ServicePort> {
+pub fn headless_service_ports() -> Vec<ServicePort> {
     vec![ServicePort {
         name: Some(HTTPS_PORT_NAME.into()),
         port: HTTPS_PORT.into(),
@@ -104,7 +105,7 @@ fn headless_service_ports() -> Vec<ServicePort> {
     }]
 }
 
-fn metrics_service_ports() -> Vec<ServicePort> {
+pub fn metrics_service_ports() -> Vec<ServicePort> {
     vec![ServicePort {
         name: Some(METRICS_PORT_NAME.to_string()),
         port: METRICS_PORT.into(),
