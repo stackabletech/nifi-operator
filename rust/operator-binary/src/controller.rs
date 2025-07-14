@@ -108,7 +108,7 @@ use crate::{
         tls::{KEYSTORE_NIFI_CONTAINER_MOUNT, KEYSTORE_VOLUME_NAME, TRUSTSTORE_VOLUME_NAME},
     },
     service::{
-        build_rolegroup_headless_service, build_rolegroup_metrics_service,
+        build_rolegroup_headless_service, build_rolegroup_metrics_service, metrics_service_port,
         rolegroup_headless_service_name,
     },
 };
@@ -562,22 +562,23 @@ pub async fn reconcile_nifi(
             )
             .await?;
 
-            if resolved_product_image.product_version.starts_with("1.") {
-                let rg_metrics_service = build_rolegroup_metrics_service(
-                    nifi,
-                    &rolegroup,
-                    role_group_service_recommended_labels,
-                    role_group_service_selector.into(),
-                )
-                .context(ServiceConfigurationSnafu)?;
+            let rg_metrics_service = build_rolegroup_metrics_service(
+                nifi,
+                &rolegroup,
+                role_group_service_recommended_labels,
+                role_group_service_selector.into(),
+                vec![metrics_service_port(
+                    &resolved_product_image.product_version,
+                )],
+            )
+            .context(ServiceConfigurationSnafu)?;
 
-                cluster_resources
-                    .add(client, rg_metrics_service)
-                    .await
-                    .with_context(|_| ApplyRoleGroupServiceSnafu {
-                        rolegroup: rolegroup.clone(),
-                    })?;
-            }
+            cluster_resources
+                .add(client, rg_metrics_service)
+                .await
+                .with_context(|_| ApplyRoleGroupServiceSnafu {
+                    rolegroup: rolegroup.clone(),
+                })?;
 
             cluster_resources
                 .add(client, rg_headless_service)
