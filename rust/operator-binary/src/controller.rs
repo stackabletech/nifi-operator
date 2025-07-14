@@ -108,8 +108,8 @@ use crate::{
         tls::{KEYSTORE_NIFI_CONTAINER_MOUNT, KEYSTORE_VOLUME_NAME, TRUSTSTORE_VOLUME_NAME},
     },
     service::{
-        build_rolegroup_headless_service, build_rolegroup_metrics_service, headless_service_ports,
-        metrics_service_ports, rolegroup_headless_service_name,
+        build_rolegroup_headless_service, build_rolegroup_metrics_service, metrics_service_port,
+        rolegroup_headless_service_name,
     },
 };
 
@@ -562,21 +562,14 @@ pub async fn reconcile_nifi(
             )
             .await?;
 
-            // Determine the service ports to expose
-            // 1.X.X: extra metrics ports
-            // 2.X.X: via NiFi HTTP(s) port
-            let service_ports = if resolved_product_image.product_version.starts_with("1.") {
-                metrics_service_ports()
-            } else {
-                headless_service_ports()
-            };
-
             let rg_metrics_service = build_rolegroup_metrics_service(
                 nifi,
                 &rolegroup,
                 role_group_service_recommended_labels,
                 role_group_service_selector.into(),
-                service_ports,
+                vec![metrics_service_port(
+                    &resolved_product_image.product_version,
+                )],
             )
             .context(ServiceConfigurationSnafu)?;
 
