@@ -25,7 +25,7 @@ index 09783fa..23c679f 100644
 @@ -483,7 +485,7 @@
                  "properties": {
                      "AWS Credentials Provider service": "d9e8d00a-c387-3064-add2-c6060f158ae7",
-                     "hive-metastore-uri": "thrift://hive:9083",
+                     "hive-metastore-uri": "thrift://hive-metastore:9083",
 -                    "s3-endpoint": "https://minio.kuttl-test-patient-tarpon.svc.cluster.local:9000",
 +                    "s3-endpoint": "https://minio.${NAMESPACE}.svc.cluster.local:9000",
                      "s3-path-style-access": "true",

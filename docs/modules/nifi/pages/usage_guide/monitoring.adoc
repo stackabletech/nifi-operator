@@ -95,6 +95,9 @@ stringData:
 ----
 
 If you want to use a `ServiceMonitor` you'd need to configure it as follows:
+
+// TODO: The ServiceMonitor should be switched to the -metrics service
+
 [source,yaml]
 ----
 ---

@@ -1350,7 +1350,7 @@ async fn build_node_rolegroup_statefulset(
                 vec![&build_reporting_task_service_name(&nifi_cluster_name)],
                 SecretFormat::TlsPkcs12,
                 &requested_secret_lifetime,
-                LISTENER_VOLUME_NAME,
+                Some(LISTENER_VOLUME_NAME),
             )
             .context(SecuritySnafu)?,
         )
