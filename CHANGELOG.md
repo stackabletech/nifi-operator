@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Add rolling upgrade support for upgrades between NiFi 2 versions ([#771]).
-- Added Listener support for NiFi ([#784]).
+- BREAKING: Added Listener support for NiFi ([#784], [#819]).
 - Adds new telemetry CLI arguments and environment variables ([#782]).
   - Use `--file-log-max-files` (or `FILE_LOG_MAX_FILES`) to limit the number of log files kept.
   - Use `--file-log-rotation-period` (or `FILE_LOG_ROTATION_PERIOD`) to configure the frequency of rotation.
@@ -45,7 +45,6 @@ All notable changes to this project will be documented in this file.
 - Fix a bug where changes to ConfigMaps that are referenced in the NifiCluster spec didn't trigger a reconciliation ([#772]).
 - The operator now emits a warning (1.x.x) or errors out (2.x.x) if a deprecated or unsupported sensitive properties algorithm is used ([#799]).
 - Allow uppercase characters in domain names ([#817]).
-- NiFi v2 now exposes a metrics service (pointing to the same port as the headless service) ([#819]).
 
 ### Removed
 
