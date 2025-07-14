@@ -50,7 +50,7 @@ pub fn build_tls_volume(
     service_scopes: Vec<&str>,
     secret_format: SecretFormat,
     requested_secret_lifetime: &Duration,
-    listener_scope: &str,
+    listener_scope: Option<&str>,
 ) -> Result<Volume> {
     tls::build_tls_volume(
         nifi,
