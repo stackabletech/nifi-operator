@@ -29,7 +29,6 @@ echo "Installing Operators with Helm"
 helm install --wait commons-operator oci://oci.stackable.tech/sdp-charts/commons-operator --version 0.0.0-dev
 helm install --wait secret-operator oci://oci.stackable.tech/sdp-charts/secret-operator --version 0.0.0-dev
 helm install --wait listener-operator oci://oci.stackable.tech/sdp-charts/listener-operator --version 0.0.0-dev
-helm install --wait zookeeper-operator oci://oci.stackable.tech/sdp-charts/zookeeper-operator --version 0.0.0-dev
 helm install --wait nifi-operator oci://oci.stackable.tech/sdp-charts/nifi-operator --version 0.0.0-dev
 # end::helm-install-operators[]
 ;;
@@ -40,7 +39,6 @@ stackablectl operator install \
   commons=0.0.0-dev \
   secret=0.0.0-dev \
   listener=0.0.0-dev \
-  zookeeper=0.0.0-dev \
   nifi=0.0.0-dev
 # end::stackablectl-install-operators[]
 ;;
@@ -49,45 +47,6 @@ echo "Need to provide 'helm' or 'stackablectl' as an argument for which installa
 exit 1
 ;;
 esac
-
-echo "Installing ZooKeeper"
-# tag::install-zookeeper[]
-kubectl apply -f - <<EOF
----
-apiVersion: zookeeper.stackable.tech/v1alpha1
-kind: ZookeeperCluster
-metadata:
-  name: simple-zk
-spec:
-  image:
-    productVersion: 3.9.3
-  servers:
-    roleGroups:
-      default:
-        replicas: 1
-EOF
-# end::install-zookeeper[]
-
-echo "Create a ZNode"
-# tag::install-znode[]
-kubectl apply -f - <<EOF
----
-apiVersion: zookeeper.stackable.tech/v1alpha1
-kind: ZookeeperZnode
-metadata:
-  name: simple-nifi-znode
-spec:
-  clusterRef:
-    name: simple-zk
-EOF
-# end::install-znode[]
-
-sleep 15
-
-echo "Awaiting ZooKeeper rollout finish"
-# tag::watch-zookeeper-rollout[]
-kubectl rollout status --watch --timeout=5m statefulset/simple-zk-server-default
-# end::watch-zookeeper-rollout[]
 
 echo "Create NiFi admin credentials"
 # tag::install-nifi-credentials[]
@@ -129,7 +88,6 @@ spec:
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
       autoGenerate: true
-    zookeeperConfigMapName: simple-nifi-znode
   nodes:
     roleConfig:
       listenerClass: external-unstable
@@ -139,50 +97,32 @@ spec:
 EOF
 # end::install-nifi[]
 
-sleep 5
-
 echo "Awaiting NiFi rollout finish"
 # tag::wait-nifi-rollout[]
-kubectl wait -l statefulset.kubernetes.io/pod-name=simple-nifi-node-default-0 \
---for=condition=ready pod --timeout=1200s
+kubectl wait --for=condition=available --timeout=20m nificluster/simple-nifi
 # end::wait-nifi-rollout[]
 
-sleep 5
-
 case "$1" in
-  "helm")
-    echo "Getting the NiFi endpoint with kubectl"
+"helm")
+    echo "Getting the NiFi URL with kubectl"
 
-    echo "Get first node address from Listener"
-    # tag::get-nifi-node-address[]
-    nifi_node_address=$(kubectl get listener simple-nifi-node -o 'jsonpath={.status.ingressAddresses[0].address}') && \
-    echo "NodeAddress: $nifi_node_address"
-    # end::get-nifi-node-address[]
+    # tag::get-nifi-url[]
+    nifi_url=$(kubectl get listener simple-nifi-node -o 'jsonpath=https://{.status.ingressAddresses[0].address}:{.status.ingressAddresses[0].ports.https}') && \
+    echo "NiFi URL: $nifi_url"
+    # end::get-nifi-url[]
 
-    echo "Get HTTPS node port from Listener"
-    # tag::get-nifi-node-port[]
-    nifi_node_port=$(kubectl get listener simple-nifi-node -o 'jsonpath={.status.nodePorts.https}') && \
-    echo "NodePort: $nifi_node_port"
-    # end::get-nifi-node-port[]
-
-    echo "Create NiFi url"
-    # tag::create-nifi-url[]
-    nifi_url="https://$nifi_node_address:$nifi_node_port" && \
-    echo "NiFi web interface: $nifi_url"
-    # end::create-nifi-url[]
-
-    ;;
-  "stackablectl")
-    echo "Getting NiFi endpoint with stackablectl ..."
-    # tag::stackablectl-nifi-url[]
-    nifi_url=$(stackablectl stacklet ls -o json | jq --raw-output '.[] | select(.name == "simple-nifi") | .endpoints["node-https"]')
-    # end::stackablectl-nifi-url[]
-    echo "Endpoint: $nifi_url"
-    ;;
-  *)
-    echo "Need to provide 'helm' or 'stackablectl' as an argument for which installation method to use!"
-    exit 1
-    ;;
+;;
+"stackablectl")
+echo "Getting NiFi URL with stackablectl ..."
+# tag::stackablectl-nifi-url[]
+nifi_url=$(stackablectl stacklet ls -o json | jq --raw-output '.[] | select(.name == "simple-nifi") | .endpoints["node-https"]')
+# end::stackablectl-nifi-url[]
+echo "NiFi URL: $nifi_url"
+;;
+*)
+echo "Need to provide 'helm' or 'stackablectl' as an argument for which installation method to use!"
+exit 1
+;;
 esac
 
 echo "Starting nifi tests"

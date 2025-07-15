@@ -1,38 +1,13 @@
 = First steps
-:description: Deploy Apache NiFi and ZooKeeper on Kubernetes using manifest files. Verify setup and access NiFi's web interface with stackablectl or kubectl.
+:description: Deploy Apache NiFi on Kubernetes using manifest files. Verify setup and access NiFi's web interface with stackablectl or kubectl.
 
 After going through the xref:getting_started/installation.adoc[] section and having installed all the operators, you deploy a NiFi cluster and the required dependencies.
 Afterward you can <<_verify_that_it_works, verify that it works>> by querying the REST API.
 
 == Setup
 
-Two things need to be installed to create a NiFi cluster:
-
-* A ZooKeeper cluster for internal use by NiFi
-* The NiFi cluster itself
-
-Create them in this order, each one is created by applying a manifest file.
-The operators create the resources according to the manifest.
-
-=== Apache ZooKeeper
-
-To create a ZooKeeper instance run the following command:
-
-[source,bash]
-----
-include::example$getting_started/getting_started.sh[tag=install-zookeeper]
-----
-
-Create a Znode object:
-
-[source,bash]
-----
-include::example$getting_started/getting_started.sh[tag=install-znode]
-----
-
-The xref:zookeeper:znodes.adoc[ZNode] makes sure that the NiFi cluster operates in its own separated directory in ZooKeeper.
-
-=== Apache NiFi
+We are going to install a NiFi cluster by applying a manifest file.
+The operators create the resources according to the manifests.
 
 The NiFi cluster requires authentication.
 Create a set of credentials for this purpose:
@@ -42,7 +17,7 @@ Create a set of credentials for this purpose:
 include::example$getting_started/getting_started.sh[tag=install-nifi-credentials]
 ----
 
-Finally create a NiFi instance:
+Afterwards create a NiFi instance:
 
 [source,bash]
 ----
@@ -92,9 +67,8 @@ stackablectl stacklet list
 which should return something like this:
 
 ----
- PRODUCT    NAME         NAMESPACE  ENDPOINTS                                                  CONDITIONS
- nifi       simple-nifi  default    node-https https://172.18.0.2:30528                        Available, Reconciling, Running
- zookeeper  simple-zk    default    server-zk simple-zk-server.default.svc.cluster.local:2282  Available, Reconciling, Running
+ PRODUCT    NAME         NAMESPACE  ENDPOINTS                           CONDITIONS
+ nifi       simple-nifi  default    node-https https://172.18.0.2:30528 Available, Reconciling, Running
 ----
 
 You can also use the `json` output and parse the endpoint:
@@ -110,48 +84,18 @@ image::nifi-web-ui.png[]
 
 ==== Via kubectl
 
-You can also extract the IP and port from the xref:listener-operator:listener.adoc[Listener] status via `kubectl`.
-
-Retrieve the Kubernetes node address where the NiFi pod is running:
+You can also extract the endpoint from the xref:listener-operator:listener.adoc[Listener] status via `kubectl`:
 
 [source,bash]
 ----
-include::example$getting_started/getting_started.sh[tag=get-nifi-node-address]
+include::example$getting_started/getting_started.sh[tag=get-nifi-url]
 ----
 
-which should output the Kubernetes node address:
-
-[source]
-----
-NodeAddress: 172.18.0.2
-----
-
-Finally, retrieve the NodePort of the `simple-nifi` listener:
-
-[source,bash]
-----
-include::example$getting_started/getting_started.sh[tag=get-nifi-node-port]
-----
-
-which should output the NodePort:
+should output a URL to connect to the NiFi web interface:
 
 [source]
 ----
-NodePort: 30528
-----
-
-Now build the full URL:
-
-[source,bash]
-----
-include::example$getting_started/getting_started.sh[tag=create-nifi-url]
-----
-
-which should output a URL to connect to the NiFi web interface:
-
-[source]
-----
-NiFi web interface: https://172.18.0.2:30528
+NiFi URL: https://172.18.0.2:30528
 ----
 
 Then connect to `https://172.18.0.2:30528/nifi` and you should see the NiFi web login. After providing the username `admin` and password `admin` you are redirected to the NiFi web interface.

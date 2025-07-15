@@ -1,8 +1,8 @@
 = Installation
 :description: Install the Stackable operator for Apache NiFi and its dependencies using stackablectl or Helm. Follow steps for a complete setup on Kubernetes.
 
-On this page you install the Stackable operator for Apache NiFi and operators for its dependencies -- ZooKeeper --
-as well as the commons, secret and listener operator which are required by all Stackable operators.
+On this page you install the Stackable operator for Apache NiFi as well as the commons, secret and listener operator,
+which are required by all Stackable operators.
 
 There are multiple ways to install the Stackable operators.
 xref:management:stackablectl:index.adoc[] is the preferred way, but Helm is also supported.
