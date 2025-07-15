@@ -92,11 +92,9 @@ stackablectl stacklet list
 which should return something like this:
 
 ----
- PRODUCT    NAME         NAMESPACE  ENDPOINTS                       EXTRA INFOS
-
- nifi       simple-nifi  default    https https://172.18.0.3:32595
-
- zookeeper  simple-zk    default    zk    172.18.0.3:30173
+ PRODUCT    NAME         NAMESPACE  ENDPOINTS                                                  CONDITIONS
+ nifi       simple-nifi  default    node-https https://172.18.0.2:30528                        Available, Reconciling, Running
+ zookeeper  simple-zk    default    server-zk simple-zk-server.default.svc.cluster.local:2282  Available, Reconciling, Running
 ----
 
 You can also use the `json` output and parse the endpoint:
@@ -106,54 +104,40 @@ You can also use the `json` output and parse the endpoint:
 include::example$getting_started/getting_started.sh[tag=stackablectl-nifi-url]
 ----
 
-Then connect to `https://172.18.0.3:32595/nifi` and you should see the NiFi web login. After providing the username `admin` and password `admin` you are redirected to the NiFi web interface.
+Then connect to `https://172.18.0.2:30528/nifi` and you should see the NiFi web login. After providing the username `admin` and password `admin` you are redirected to the NiFi web interface.
 
 image::nifi-web-ui.png[]
 
 ==== Via kubectl
 
-Extracting the IP and port via `kubectl` is cumbersome. We recommend using `stackablectl` instead. The following `kubectl` commands store their output for further use in a variable and write its content to stdout afterwards. Make sure to run these commands in the same terminal:
+You can also extract the IP and port from the xref:listener-operator:listener.adoc[Listener] status via `kubectl`.
+
+Retrieve the Kubernetes node address where the NiFi pod is running:
 
 [source,bash]
 ----
-include::example$getting_started/getting_started.sh[tag=get-nifi-node-name]
+include::example$getting_started/getting_started.sh[tag=get-nifi-node-address]
 ----
 
-which should output a single node name where a NiFi pod is scheduled:
+which should output the Kubernetes node address:
 
 [source]
 ----
-NodeName: kind-worker
+NodeAddress: 172.18.0.2
 ----
 
-Retrieve the IP of that node:
+Finally, retrieve the NodePort of the `simple-nifi` listener:
 
 [source,bash]
 ----
-include::example$getting_started/getting_started.sh[tag=get-nifi-node-ip-internal]
-----
-
-which should output the internal IP of that node:
-
-[source]
-----
-NodeIp: 172.18.0.3
-----
-
-You might need to replace `InternalIP` with `ExternalIP` depending on how you connect to your Kubernetes cluster.
-
-Finally, retrieve the NodePort of the `simple-nifi` service:
-
-[source,bash]
-----
-include::example$getting_started/getting_started.sh[tag=get-nifi-service-port]
+include::example$getting_started/getting_started.sh[tag=get-nifi-node-port]
 ----
 
 which should output the NodePort:
 
 [source]
 ----
-NodePort: 32595
+NodePort: 30528
 ----
 
 Now build the full URL:
@@ -167,10 +151,10 @@ which should output a URL to connect to the NiFi web interface:
 
 [source]
 ----
-NiFi web interface: https://172.18.0.3:32595
+NiFi web interface: https://172.18.0.2:30528
 ----
 
-Then connect to `https://172.18.0.3:32595/nifi` and you should see the NiFi web login. After providing the username `admin` and password `admin` you are redirected to the NiFi web interface.
+Then connect to `https://172.18.0.2:30528/nifi` and you should see the NiFi web login. After providing the username `admin` and password `admin` you are redirected to the NiFi web interface.
 
 == What's next
 

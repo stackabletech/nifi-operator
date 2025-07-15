@@ -50,23 +50,6 @@ exit 1
 ;;
 esac
 
-internal=true
-if [ $# -eq 2 ]
-then
-  case "$2" in
-  "InternalIP")
-  internal=true
-  ;;
-  "ExternalIP")
-  internal=false
-  ;;
-  *)
-  echo "Need to provide 'InternalIP' or 'ExternalIP' as the connection type argument."
-  exit 1
-  ;;
-  esac
-fi
-
 echo "Installing ZooKeeper"
 # tag::install-zookeeper[]
 kubectl apply -f - <<EOF
@@ -153,7 +136,6 @@ spec:
     roleGroups:
       default:
         replicas: 1
-
 EOF
 # end::install-nifi[]
 
@@ -168,55 +150,39 @@ kubectl wait -l statefulset.kubernetes.io/pod-name=simple-nifi-node-default-0 \
 sleep 5
 
 case "$1" in
-"helm")
+  "helm")
+    echo "Getting the NiFi endpoint with kubectl"
 
-echo "Get a single node where a NiFi pod is running"
-# tag::get-nifi-node-name[]
-nifi_node_name=$(kubectl get endpoints simple-nifi --output=jsonpath='{.subsets[0].addresses[0].nodeName}') && \
-echo "NodeName: $nifi_node_name"
-# end::get-nifi-node-name[]
+    echo "Get first node address from Listener"
+    # tag::get-nifi-node-address[]
+    nifi_node_address=$(kubectl get listener simple-nifi-node -o 'jsonpath={.status.ingressAddresses[0].address}') && \
+    echo "NodeAddress: $nifi_node_address"
+    # end::get-nifi-node-address[]
 
+    echo "Get HTTPS node port from Listener"
+    # tag::get-nifi-node-port[]
+    nifi_node_port=$(kubectl get listener simple-nifi-node -o 'jsonpath={.status.nodePorts.https}') && \
+    echo "NodePort: $nifi_node_port"
+    # end::get-nifi-node-port[]
 
-if [ "$internal" = true ] ; then
-echo "List $nifi_node_name node internal ip"
-# tag::get-nifi-node-ip-internal[]
-nifi_node_ip=$(kubectl get nodes -o jsonpath="{.items[?(@.metadata.name==\"$nifi_node_name\")].status.addresses[?(@.type==\"InternalIP\")].address}") && \
-echo "NodeIp: $nifi_node_ip"
-# end::get-nifi-node-ip-internal[]
-else
-echo "List $nifi_node_name node external ip"
-# tag::get-nifi-node-ip-external[]
-nifi_node_ip=$(kubectl get nodes -o jsonpath="{.items[?(@.metadata.name==\"$nifi_node_name\")].status.addresses[?(@.type==\"ExternalIP\")].address}") && \
-echo "NodeIp: $nifi_node_ip"
-# end::get-nifi-node-ip-external[]
-fi
+    echo "Create NiFi url"
+    # tag::create-nifi-url[]
+    nifi_url="https://$nifi_node_address:$nifi_node_port" && \
+    echo "NiFi web interface: $nifi_url"
+    # end::create-nifi-url[]
 
-echo "Get node port from service"
-# tag::get-nifi-service-port[]
-nifi_service_port=$(kubectl get service -o jsonpath="{.items[?(@.metadata.name==\"simple-nifi\")].spec.ports[?(@.name==\"https\")].nodePort}") && \
-echo "NodePort: $nifi_service_port"
-# end::get-nifi-service-port[]
-
-echo "Create NiFi url"
-# tag::create-nifi-url[]
-nifi_url="https://$nifi_node_ip:$nifi_service_port" && \
-echo "NiFi web interface: $nifi_url"
-# end::create-nifi-url[]
-
-;;
-"stackablectl")
-
-echo "Getting NiFi endpoint with stackablectl ..."
-# tag::stackablectl-nifi-url[]
-nifi_url=$(stackablectl stacklet ls -o json | jq --raw-output '.[] | select(.name == "simple-nifi") | .endpoints["node-https"]')
-# end::stackablectl-nifi-url[]
-echo "Endpoint: $nifi_url"
-
-;;
-*)
-echo "Need to provide 'helm' or 'stackablectl' as an argument for which installation method to use!"
-exit 1
-;;
+    ;;
+  "stackablectl")
+    echo "Getting NiFi endpoint with stackablectl ..."
+    # tag::stackablectl-nifi-url[]
+    nifi_url=$(stackablectl stacklet ls -o json | jq --raw-output '.[] | select(.name == "simple-nifi") | .endpoints["node-https"]')
+    # end::stackablectl-nifi-url[]
+    echo "Endpoint: $nifi_url"
+    ;;
+  *)
+    echo "Need to provide 'helm' or 'stackablectl' as an argument for which installation method to use!"
+    exit 1
+    ;;
 esac
 
 echo "Starting nifi tests"
