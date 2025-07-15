@@ -23,7 +23,7 @@ fi
 cd "$(dirname "$0")"
 
 case "$1" in
-"helm")
+  "helm")
     echo "Installing Operators with Helm"
     # tag::helm-install-operators[]
     helm install --wait commons-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/commons-operator --version {{ versions.commons }}
@@ -31,8 +31,8 @@ case "$1" in
     helm install --wait listener-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/listener-operator --version {{ versions.listener }}
     helm install --wait nifi-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/nifi-operator --version {{ versions.nifi }}
     # end::helm-install-operators[]
-;;
-"stackablectl")
+    ;;
+  "stackablectl")
     echo "installing Operators with stackablectl"
     # tag::stackablectl-install-operators[]
     stackablectl operator install \
@@ -41,11 +41,11 @@ case "$1" in
       listener={{ versions.listener }} \
       nifi={{ versions.nifi }}
     # end::stackablectl-install-operators[]
-;;
-*)
+    ;;
+  *)
     echo "Need to provide 'helm' or 'stackablectl' as an argument for which installation method to use!"
     exit 1
-;;
+    ;;
 esac
 
 echo "Create NiFi admin credentials"
@@ -103,26 +103,25 @@ kubectl wait --for=condition=available --timeout=20m nificluster/simple-nifi
 # end::wait-nifi-rollout[]
 
 case "$1" in
-"helm")
+  "helm")
     echo "Getting the NiFi URL with kubectl"
 
     # tag::get-nifi-url[]
     nifi_url=$(kubectl get listener simple-nifi-node -o 'jsonpath=https://{.status.ingressAddresses[0].address}:{.status.ingressAddresses[0].ports.https}') && \
     echo "NiFi URL: $nifi_url"
     # end::get-nifi-url[]
-
-;;
-"stackablectl")
+    ;;
+  "stackablectl")
     echo "Getting NiFi URL with stackablectl ..."
     # tag::stackablectl-nifi-url[]
     nifi_url=$(stackablectl stacklet ls -o json | jq --raw-output '.[] | select(.name == "simple-nifi") | .endpoints["node-https"]')
     # end::stackablectl-nifi-url[]
     echo "NiFi URL: $nifi_url"
-;;
-*)
+    ;;
+  *)
     echo "Need to provide 'helm' or 'stackablectl' as an argument for which installation method to use!"
     exit 1
-;;
+    ;;
 esac
 
 echo "Starting nifi tests"
