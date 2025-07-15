@@ -24,27 +24,27 @@ cd "$(dirname "$0")"
 
 case "$1" in
 "helm")
-echo "Installing Operators with Helm"
-# tag::helm-install-operators[]
-helm install --wait commons-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/commons-operator --version {{ versions.commons }}
-helm install --wait secret-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/secret-operator --version {{ versions.secret }}
-helm install --wait listener-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/listener-operator --version {{ versions.listener }}
-helm install --wait nifi-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/nifi-operator --version {{ versions.nifi }}
-# end::helm-install-operators[]
+    echo "Installing Operators with Helm"
+    # tag::helm-install-operators[]
+    helm install --wait commons-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/commons-operator --version {{ versions.commons }}
+    helm install --wait secret-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/secret-operator --version {{ versions.secret }}
+    helm install --wait listener-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/listener-operator --version {{ versions.listener }}
+    helm install --wait nifi-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/nifi-operator --version {{ versions.nifi }}
+    # end::helm-install-operators[]
 ;;
 "stackablectl")
-echo "installing Operators with stackablectl"
-# tag::stackablectl-install-operators[]
-stackablectl operator install \
-  commons={{ versions.commons }} \
-  secret={{ versions.secret }} \
-  listener={{ versions.listener }} \
-  nifi={{ versions.nifi }}
-# end::stackablectl-install-operators[]
+    echo "installing Operators with stackablectl"
+    # tag::stackablectl-install-operators[]
+    stackablectl operator install \
+      commons={{ versions.commons }} \
+      secret={{ versions.secret }} \
+      listener={{ versions.listener }} \
+      nifi={{ versions.nifi }}
+    # end::stackablectl-install-operators[]
 ;;
 *)
-echo "Need to provide 'helm' or 'stackablectl' as an argument for which installation method to use!"
-exit 1
+    echo "Need to provide 'helm' or 'stackablectl' as an argument for which installation method to use!"
+    exit 1
 ;;
 esac
 
@@ -113,15 +113,15 @@ case "$1" in
 
 ;;
 "stackablectl")
-echo "Getting NiFi URL with stackablectl ..."
-# tag::stackablectl-nifi-url[]
-nifi_url=$(stackablectl stacklet ls -o json | jq --raw-output '.[] | select(.name == "simple-nifi") | .endpoints["node-https"]')
-# end::stackablectl-nifi-url[]
-echo "NiFi URL: $nifi_url"
+    echo "Getting NiFi URL with stackablectl ..."
+    # tag::stackablectl-nifi-url[]
+    nifi_url=$(stackablectl stacklet ls -o json | jq --raw-output '.[] | select(.name == "simple-nifi") | .endpoints["node-https"]')
+    # end::stackablectl-nifi-url[]
+    echo "NiFi URL: $nifi_url"
 ;;
 *)
-echo "Need to provide 'helm' or 'stackablectl' as an argument for which installation method to use!"
-exit 1
+    echo "Need to provide 'helm' or 'stackablectl' as an argument for which installation method to use!"
+    exit 1
 ;;
 esac
 
