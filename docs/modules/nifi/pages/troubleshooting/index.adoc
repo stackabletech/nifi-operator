@@ -75,6 +75,6 @@ metadata:
 
 == `packaging.version.InvalidVersion: Invalid version: '1.27.0-stackable0.0.0-dev'` when connecting to NiFi using `nipyapi`
 
-When using {nipyapi}[nipyapi] with version `< 0.20.0`, some functions check the version of the NiFi instance. This results in an error where the custom version strings introduced in SDP release 25.7 can't be parsed.
+When using {nipyapi}[nipyapi] version `< 0.20.0`, some functions check the version of the NiFi instance. This results in an error where the custom version strings introduced in SDP release 25.7 can't be parsed.
 
-Solution: Upgrade to `nipyapi >= 0.20.0` where this is fixed.
+Solution: Upgrade to `nipyapi >= 0.20.0` where this is fixed. Our images are already using a version that is recent enough.
