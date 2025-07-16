@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# DO NOT EDIT THE SCRIPT
+# DO NOT EDIT THE RENDERED SCRIPT
 # Instead, update the j2 template, and regenerate it for dev with `make render-docs`.
 
 # The getting started guide script
@@ -24,27 +24,27 @@ cd "$(dirname "$0")"
 
 case "$1" in
 "helm")
-    echo "Installing Operators with Helm"
-    # tag::helm-install-operators[]
-    helm install --wait commons-operator oci://oci.stackable.tech/sdp-charts/commons-operator --version 0.0.0-dev
-    helm install --wait secret-operator oci://oci.stackable.tech/sdp-charts/secret-operator --version 0.0.0-dev
-    helm install --wait listener-operator oci://oci.stackable.tech/sdp-charts/listener-operator --version 0.0.0-dev
-    helm install --wait nifi-operator oci://oci.stackable.tech/sdp-charts/nifi-operator --version 0.0.0-dev
-    # end::helm-install-operators[]
+echo "Installing Operators with Helm"
+# tag::helm-install-operators[]
+helm install --wait commons-operator oci://oci.stackable.tech/sdp-charts/commons-operator --version 0.0.0-dev
+helm install --wait secret-operator oci://oci.stackable.tech/sdp-charts/secret-operator --version 0.0.0-dev
+helm install --wait listener-operator oci://oci.stackable.tech/sdp-charts/listener-operator --version 0.0.0-dev
+helm install --wait nifi-operator oci://oci.stackable.tech/sdp-charts/nifi-operator --version 0.0.0-dev
+# end::helm-install-operators[]
 ;;
 "stackablectl")
-    echo "installing Operators with stackablectl"
-    # tag::stackablectl-install-operators[]
-    stackablectl operator install \
-      commons=0.0.0-dev \
-      secret=0.0.0-dev \
-      listener=0.0.0-dev \
-      nifi=0.0.0-dev
-    # end::stackablectl-install-operators[]
+echo "installing Operators with stackablectl"
+# tag::stackablectl-install-operators[]
+stackablectl operator install \
+  commons=0.0.0-dev \
+  secret=0.0.0-dev \
+  listener=0.0.0-dev \
+  nifi=0.0.0-dev
+# end::stackablectl-install-operators[]
 ;;
 *)
-    echo "Need to provide 'helm' or 'stackablectl' as an argument for which installation method to use!"
-    exit 1
+echo "Need to provide 'helm' or 'stackablectl' as an argument for which installation method to use!"
+exit 1
 ;;
 esac
 
@@ -104,24 +104,23 @@ kubectl wait --for=condition=available --timeout=20m nificluster/simple-nifi
 
 case "$1" in
 "helm")
-    echo "Getting the NiFi URL with kubectl"
+echo "Getting the NiFi URL with kubectl"
 
-    # tag::get-nifi-url[]
-    nifi_url=$(kubectl get listener simple-nifi-node -o 'jsonpath=https://{.status.ingressAddresses[0].address}:{.status.ingressAddresses[0].ports.https}') && \
-    echo "NiFi URL: $nifi_url"
-    # end::get-nifi-url[]
-
+# tag::get-nifi-url[]
+nifi_url=$(kubectl get listener simple-nifi-node -o 'jsonpath=https://{.status.ingressAddresses[0].address}:{.status.ingressAddresses[0].ports.https}') && \
+echo "NiFi URL: $nifi_url"
+# end::get-nifi-url[]
 ;;
 "stackablectl")
-    echo "Getting NiFi URL with stackablectl ..."
-    # tag::stackablectl-nifi-url[]
-    nifi_url=$(stackablectl stacklet ls -o json | jq --raw-output '.[] | select(.name == "simple-nifi") | .endpoints["node-https"]')
-    # end::stackablectl-nifi-url[]
-    echo "NiFi URL: $nifi_url"
+echo "Getting NiFi URL with stackablectl ..."
+# tag::stackablectl-nifi-url[]
+nifi_url=$(stackablectl stacklet ls -o json | jq --raw-output '.[] | select(.name == "simple-nifi") | .endpoints["node-https"]')
+# end::stackablectl-nifi-url[]
+echo "NiFi URL: $nifi_url"
 ;;
 *)
-    echo "Need to provide 'helm' or 'stackablectl' as an argument for which installation method to use!"
-    exit 1
+echo "Need to provide 'helm' or 'stackablectl' as an argument for which installation method to use!"
+exit 1
 ;;
 esac
 
