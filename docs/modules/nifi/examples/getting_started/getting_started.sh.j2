@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# DO NOT EDIT THE SCRIPT
+# DO NOT EDIT THE RENDERED SCRIPT
 # Instead, update the j2 template, and regenerate it for dev with `make render-docs`.
 
 # The getting started guide script
@@ -29,7 +29,6 @@ echo "Installing Operators with Helm"
 helm install --wait commons-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/commons-operator --version {{ versions.commons }}
 helm install --wait secret-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/secret-operator --version {{ versions.secret }}
 helm install --wait listener-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/listener-operator --version {{ versions.listener }}
-helm install --wait zookeeper-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/zookeeper-operator --version {{ versions.zookeeper }}
 helm install --wait nifi-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/nifi-operator --version {{ versions.nifi }}
 # end::helm-install-operators[]
 ;;
@@ -40,7 +39,6 @@ stackablectl operator install \
   commons={{ versions.commons }} \
   secret={{ versions.secret }} \
   listener={{ versions.listener }} \
-  zookeeper={{ versions.zookeeper }} \
   nifi={{ versions.nifi }}
 # end::stackablectl-install-operators[]
 ;;
@@ -49,62 +47,6 @@ echo "Need to provide 'helm' or 'stackablectl' as an argument for which installa
 exit 1
 ;;
 esac
-
-internal=true
-if [ $# -eq 2 ]
-then
-  case "$2" in
-  "InternalIP")
-  internal=true
-  ;;
-  "ExternalIP")
-  internal=false
-  ;;
-  *)
-  echo "Need to provide 'InternalIP' or 'ExternalIP' as the connection type argument."
-  exit 1
-  ;;
-  esac
-fi
-
-echo "Installing ZooKeeper"
-# tag::install-zookeeper[]
-kubectl apply -f - <<EOF
----
-apiVersion: zookeeper.stackable.tech/v1alpha1
-kind: ZookeeperCluster
-metadata:
-  name: simple-zk
-spec:
-  image:
-    productVersion: 3.9.3
-  servers:
-    roleGroups:
-      default:
-        replicas: 1
-EOF
-# end::install-zookeeper[]
-
-echo "Create a ZNode"
-# tag::install-znode[]
-kubectl apply -f - <<EOF
----
-apiVersion: zookeeper.stackable.tech/v1alpha1
-kind: ZookeeperZnode
-metadata:
-  name: simple-nifi-znode
-spec:
-  clusterRef:
-    name: simple-zk
-EOF
-# end::install-znode[]
-
-sleep 15
-
-echo "Awaiting ZooKeeper rollout finish"
-# tag::watch-zookeeper-rollout[]
-kubectl rollout status --watch --timeout=5m statefulset/simple-zk-server-default
-# end::watch-zookeeper-rollout[]
 
 echo "Create NiFi admin credentials"
 # tag::install-nifi-credentials[]
@@ -139,14 +81,13 @@ metadata:
   name: simple-nifi
 spec:
   image:
-    productVersion: 1.28.1
+    productVersion: 2.4.0
   clusterConfig:
     authentication:
       - authenticationClass: simple-nifi-users
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
       autoGenerate: true
-    zookeeperConfigMapName: simple-nifi-znode
   nodes:
     roleConfig:
       listenerClass: external-unstable
@@ -156,61 +97,26 @@ spec:
 EOF
 # end::install-nifi[]
 
-sleep 5
-
 echo "Awaiting NiFi rollout finish"
 # tag::wait-nifi-rollout[]
-kubectl wait -l statefulset.kubernetes.io/pod-name=simple-nifi-node-default-0 \
---for=condition=ready pod --timeout=1200s
+kubectl wait --for=condition=available --timeout=20m nificluster/simple-nifi
 # end::wait-nifi-rollout[]
-
-sleep 5
 
 case "$1" in
 "helm")
+echo "Getting the NiFi URL with kubectl"
 
-echo "Get a single node where a NiFi pod is running"
-# tag::get-nifi-node-name[]
-nifi_node_name=$(kubectl get endpoints simple-nifi --output=jsonpath='{.subsets[0].addresses[0].nodeName}') && \
-echo "NodeName: $nifi_node_name"
-# end::get-nifi-node-name[]
-
-
-if [ "$internal" = true ] ; then
-echo "List $nifi_node_name node internal ip"
-# tag::get-nifi-node-ip-internal[]
-nifi_node_ip=$(kubectl get nodes -o jsonpath="{.items[?(@.metadata.name==\"$nifi_node_name\")].status.addresses[?(@.type==\"InternalIP\")].address}") && \
-echo "NodeIp: $nifi_node_ip"
-# end::get-nifi-node-ip-internal[]
-else
-echo "List $nifi_node_name node external ip"
-# tag::get-nifi-node-ip-external[]
-nifi_node_ip=$(kubectl get nodes -o jsonpath="{.items[?(@.metadata.name==\"$nifi_node_name\")].status.addresses[?(@.type==\"ExternalIP\")].address}") && \
-echo "NodeIp: $nifi_node_ip"
-# end::get-nifi-node-ip-external[]
-fi
-
-echo "Get node port from service"
-# tag::get-nifi-service-port[]
-nifi_service_port=$(kubectl get service -o jsonpath="{.items[?(@.metadata.name==\"simple-nifi\")].spec.ports[?(@.name==\"https\")].nodePort}") && \
-echo "NodePort: $nifi_service_port"
-# end::get-nifi-service-port[]
-
-echo "Create NiFi url"
-# tag::create-nifi-url[]
-nifi_url="https://$nifi_node_ip:$nifi_service_port" && \
-echo "NiFi web interface: $nifi_url"
-# end::create-nifi-url[]
-
+# tag::get-nifi-url[]
+nifi_url=$(kubectl get listener simple-nifi-node -o 'jsonpath=https://{.status.ingressAddresses[0].address}:{.status.ingressAddresses[0].ports.https}') && \
+echo "NiFi URL: $nifi_url"
+# end::get-nifi-url[]
 ;;
 "stackablectl")
-
-echo "Getting NiFi endpoint with stackablectl ..."
+echo "Getting NiFi URL with stackablectl ..."
 # tag::stackablectl-nifi-url[]
-nifi_url=$(stackablectl stacklet ls -o json | jq --raw-output '.[] | select(.name == "simple-nifi") | .endpoints.https')
+nifi_url=$(stackablectl stacklet ls -o json | jq --raw-output '.[] | select(.name == "simple-nifi") | .endpoints["node-https"]')
 # end::stackablectl-nifi-url[]
-echo "Endpoint: $nifi_url"
-
+echo "NiFi URL: $nifi_url"
 ;;
 *)
 echo "Need to provide 'helm' or 'stackablectl' as an argument for which installation method to use!"
