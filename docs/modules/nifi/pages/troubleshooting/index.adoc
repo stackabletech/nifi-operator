@@ -1,4 +1,5 @@
 = Troubleshooting
+:nipyapi: https://github.com/Chaffelson/nipyapi
 
 == Usage of EmptyDir volume "log" exceeds the limit
 
@@ -71,3 +72,9 @@ metadata:
     nginx.ingress.kubernetes.io/session-cookie-name: "route"
     nginx.ingress.kubernetes.io/session-cookie-max-age: "172800"
 ----
+
+== `packaging.version.InvalidVersion: Invalid version: '1.27.0-stackable0.0.0-dev'` when connecting to NiFi using `nipyapi`
+
+When using {nipyapi}[nipyapi] version `< 0.20.0`, some functions check the version of the NiFi instance. This results in an error where the custom version strings introduced in SDP release 25.7 can't be parsed.
+
+Solution: Upgrade to `nipyapi >= 0.20.0` where this is fixed. Our images are already using a version that is recent enough.
