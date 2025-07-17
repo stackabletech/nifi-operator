@@ -74,9 +74,7 @@ pub fn build_rolegroup_metrics_service(
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(nifi)
-            .name(rolegroup_metrics_service_name(
-                &role_group_ref.object_name(),
-            ))
+            .name(rolegroup_metrics_service_name(role_group_ref.object_name()))
             .ownerreference_from_resource(nifi, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(object_labels)
