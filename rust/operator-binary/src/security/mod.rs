@@ -47,7 +47,7 @@ pub async fn check_or_generate_oidc_admin_password(
 pub fn build_tls_volume(
     nifi: &v1alpha1::NifiCluster,
     volume_name: &str,
-    service_scopes: Vec<&str>,
+    service_scopes: impl IntoIterator<Item = impl AsRef<str>>,
     secret_format: SecretFormat,
     requested_secret_lifetime: &Duration,
     listener_scope: Option<&str>,

@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Add rolling upgrade support for upgrades between NiFi 2 versions ([#771]).
-- BREAKING: Added Listener support for NiFi ([#784], [#818], [#819]).
+- BREAKING: Added Listener support for NiFi ([#784], [#818], [#819], [#822]).
 - Adds new telemetry CLI arguments and environment variables ([#782]).
   - Use `--file-log-max-files` (or `FILE_LOG_MAX_FILES`) to limit the number of log files kept.
   - Use `--file-log-rotation-period` (or `FILE_LOG_ROTATION_PERIOD`) to configure the frequency of rotation.
@@ -71,6 +71,7 @@ All notable changes to this project will be documented in this file.
 [#817]: https://github.com/stackabletech/nifi-operator/pull/817
 [#818]: https://github.com/stackabletech/nifi-operator/pull/818
 [#819]: https://github.com/stackabletech/nifi-operator/pull/819
+[#822]: https://github.com/stackabletech/nifi-operator/pull/822
 
 ## [25.3.0] - 2025-03-21
 

@@ -109,7 +109,7 @@ use crate::{
     },
     service::{
         build_rolegroup_headless_service, build_rolegroup_metrics_service, metrics_service_port,
-        rolegroup_headless_service_name,
+        rolegroup_headless_service_name, rolegroup_metrics_service_name,
     },
 };
 
@@ -1347,7 +1347,10 @@ async fn build_node_rolegroup_statefulset(
             build_tls_volume(
                 nifi,
                 KEYSTORE_VOLUME_NAME,
-                vec![&build_reporting_task_service_name(&nifi_cluster_name)],
+                [
+                    rolegroup_metrics_service_name(rolegroup_ref.object_name()),
+                    build_reporting_task_service_name(&nifi_cluster_name),
+                ],
                 SecretFormat::TlsPkcs12,
                 &requested_secret_lifetime,
                 Some(LISTENER_VOLUME_NAME),

@@ -24,7 +24,7 @@ pub enum Error {
 pub(crate) fn build_tls_volume(
     nifi: &v1alpha1::NifiCluster,
     volume_name: &str,
-    service_scopes: Vec<&str>,
+    service_scopes: impl IntoIterator<Item = impl AsRef<str>>,
     secret_format: SecretFormat,
     requested_secret_lifetime: &Duration,
     listener_scope: Option<&str>,
@@ -36,7 +36,7 @@ pub(crate) fn build_tls_volume(
         secret_volume_source_builder.with_tls_pkcs12_password(STACKABLE_TLS_STORE_PASSWORD);
     }
     for scope in service_scopes {
-        secret_volume_source_builder.with_service_scope(scope);
+        secret_volume_source_builder.with_service_scope(scope.as_ref());
     }
     if let Some(listener_scope) = listener_scope {
         secret_volume_source_builder.with_listener_volume_scope(listener_scope);
