@@ -15,6 +15,8 @@ spec:
       labels:
         app: test-nifi
     spec:
+      securityContext:
+        fsGroup: 1000
       containers:
         - name: test-nifi
           image: oci.stackable.tech/sdp/testing-tools:0.2.0-stackable0.0.0-dev
@@ -26,3 +28,21 @@ spec:
             limits:
               memory: "128Mi"
               cpu: "400m"
+          volumeMounts:
+            - name: tls
+              mountPath: /stackable/tls
+      volumes:
+        - name: tls
+          ephemeral:
+            volumeClaimTemplate:
+              metadata:
+                annotations:
+                  secrets.stackable.tech/class: tls
+                  secrets.stackable.tech/scope: pod
+              spec:
+                storageClassName: secrets.stackable.tech
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: "1"
