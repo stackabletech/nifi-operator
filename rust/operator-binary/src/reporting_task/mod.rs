@@ -350,7 +350,7 @@ fn build_reporting_task_job(
             build_tls_volume(
                 nifi,
                 REPORTING_TASK_CERT_VOLUME_NAME,
-                vec![],
+                Vec::<String>::new(),
                 SecretFormat::TlsPem,
                 // The certificate is only used for the REST API call, so a short lifetime is sufficient.
                 // There is no correct way to configure this job since it's an implementation detail.

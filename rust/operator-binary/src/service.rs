@@ -127,7 +127,8 @@ pub fn metrics_service_port(product_version: &str) -> ServicePort {
 }
 
 /// Returns the metrics rolegroup service name `<cluster>-<role>-<rolegroup>-<METRICS_SERVICE_SUFFIX>`.
-fn rolegroup_metrics_service_name(role_group_ref_object_name: &str) -> String {
+pub fn rolegroup_metrics_service_name(role_group_ref_object_name: impl AsRef<str>) -> String {
+    let role_group_ref_object_name = role_group_ref_object_name.as_ref();
     format!("{role_group_ref_object_name}-{METRICS_SERVICE_SUFFIX}")
 }
 
