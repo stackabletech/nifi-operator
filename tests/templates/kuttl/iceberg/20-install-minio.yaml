@@ -2,4 +2,4 @@
 apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
-  - script: kubectl -n $NAMESPACE apply -f https://raw.githubusercontent.com/stackabletech/demos/refs/heads/release-25.3/stacks/_templates/minio-tls/rendered-chart.yaml
+  - script: kubectl -n $NAMESPACE apply -f https://raw.githubusercontent.com/stackabletech/demos/refs/heads/main/stacks/_templates/minio-tls/rendered-chart.yaml
