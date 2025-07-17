@@ -13,7 +13,7 @@ spec:
     verification:
       server:
         caCert:
-          secretClass: tls
+          secretClass: minio-tls-certificates
 ---
 apiVersion: secrets.stackable.tech/v1alpha1
 kind: SecretClass
@@ -34,3 +34,5 @@ metadata:
 stringData:
   accessKey: admin
   secretKey: adminadmin
+  root-user: admin
+  root-password: adminadmin
