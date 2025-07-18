@@ -4,9 +4,9 @@ kind: TestAssert
 timeout: 600
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
-  name: minio
+  name: postgresql
 status:
   readyReplicas: 1
   replicas: 1
