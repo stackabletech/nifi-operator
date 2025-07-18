@@ -4,7 +4,7 @@ kind: S3Connection
 metadata:
   name: minio
 spec:
-  host: "minio.${NAMESPACE}.svc.cluster.local"
+  host: minio
   port: 9000
   accessStyle: Path
   credentials:
