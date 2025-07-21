@@ -164,6 +164,7 @@ rules:
       - events
     verbs:
       - create
+      - patch
   # Required for Kubernetes-managed clustering, see https://nifi.apache.org/nifi-docs/administration-guide.html#kubernetes-clustering
   - apiGroups:
       - coordination.k8s.io
