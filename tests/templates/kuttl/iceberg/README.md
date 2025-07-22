@@ -6,6 +6,9 @@ TIP: I used `JSON: Sort Document` in VScode to somewhat have consistent formatti
 
 Notable the following diff has been made (may not be up to date!):
 
+NOTE: Due to test changes (in particular changing how Minio is installed) the FQDN for Minio/TLS access is the unqualified service name i.e. m̀inio`.
+The `s3-endpoint` has been changed accordingly to `"s3-endpoint": "https://minio:9000"`.
+
 ```diff
 diff --git a/tests/templates/kuttl/iceberg/60_nifi-flow.json b/tests/templates/kuttl/iceberg/60_nifi-flow.json
 index 09783fa..23c679f 100644
