@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [25.7.0] - 2025-07-23
+
+## [25.7.0-rc1] - 2025-07-18
+
 ### Added
 
 - Add rolling upgrade support for upgrades between NiFi 2 versions ([#771]).
