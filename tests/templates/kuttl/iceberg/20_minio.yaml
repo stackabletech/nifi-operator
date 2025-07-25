@@ -221,8 +221,6 @@ data:
     scheme=https
     connectToMinio $scheme
     
-    
-    
     # Create the users
     echo console > $MINIO_ACCESSKEY_SECRETKEY_TMP
     echo console123 >> $MINIO_ACCESSKEY_SECRETKEY_TMP
