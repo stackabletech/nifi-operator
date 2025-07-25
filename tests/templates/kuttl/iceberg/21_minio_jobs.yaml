@@ -40,7 +40,7 @@ spec:
                   secrets.stackable.tech/scope: service=minio
               spec:
                 accessModes:
-                - ReadWriteOnce
+                  - ReadWriteOnce
                 resources:
                   requests:
                     storage: 1

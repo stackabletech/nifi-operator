@@ -135,8 +135,6 @@ data:
     scheme=https
     connectToMinio $scheme
     
-    
-    
     # Create the buckets
     createBucket demo "public" false false false
     
@@ -291,8 +289,6 @@ data:
     scheme=https
     connectToMinio $scheme
     
-    
-    
   add-svcacct: |-
     #!/bin/sh
     set -e ; # Have script exit in the event of a failed command.
@@ -371,8 +367,6 @@ data:
     # Try connecting to MinIO instance
     scheme=https
     connectToMinio $scheme
-    
-    
     
   custom-command: |-
     #!/bin/sh
@@ -567,7 +561,6 @@ spec:
         - name: minio-user
           secret:
             secretName: minio        
-
         - ephemeral:
             volumeClaimTemplate:
               metadata:
@@ -576,7 +569,7 @@ spec:
                   secrets.stackable.tech/scope: service=minio
               spec:
                 accessModes:
-                - ReadWriteOnce
+                  - ReadWriteOnce
                 resources:
                   requests:
                     storage: 1
