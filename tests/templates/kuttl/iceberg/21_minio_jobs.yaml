@@ -19,7 +19,7 @@ spec:
         release: minio
         stackable.tech/vendor: Stackable
     spec:
-      restartPolicy: OnFailure      
+      restartPolicy: OnFailure
       volumes:
         - name: etc-path
           emptyDir: {}
