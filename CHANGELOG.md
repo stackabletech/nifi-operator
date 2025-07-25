@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [25.7.0] - 2025-07-23
+
+## [25.7.0-rc1] - 2025-07-18
+
 ### Added
 
 - Add rolling upgrade support for upgrades between NiFi 2 versions ([#771]).
@@ -38,6 +42,8 @@ All notable changes to this project will be documented in this file.
   - The default Kubernetes cluster domain name is now fetched from the kubelet API unless explicitly configured.
   - This requires operators to have the RBAC permission to get nodes/proxy in the apiGroup "". The helm-chart takes care of this.
   - The CLI argument `--kubernetes-node-name` or env variable `KUBERNETES_NODE_NAME` needs to be set. The helm-chart takes care of this.
+- The operator helm-chart now grants RBAC `patch` permissions on `events.k8s.io/events`,
+  so events can be aggregated (e.g. "error happened 10 times over the last 5 minutes") ([#824]).
 
 ### Fixed
 
@@ -72,6 +78,7 @@ All notable changes to this project will be documented in this file.
 [#818]: https://github.com/stackabletech/nifi-operator/pull/818
 [#819]: https://github.com/stackabletech/nifi-operator/pull/819
 [#822]: https://github.com/stackabletech/nifi-operator/pull/822
+[#824]: https://github.com/stackabletech/nifi-operator/pull/824
 
 ## [25.3.0] - 2025-03-21
 
