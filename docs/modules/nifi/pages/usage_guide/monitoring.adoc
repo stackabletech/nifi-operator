@@ -99,7 +99,7 @@ If you want to use a `ServiceMonitor` you'd need to configure it as follows:
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: scrape-nifi
+  name: scrape-nifi-2
   labels:
     stackable.tech/vendor: Stackable
     release: prometheus
@@ -119,10 +119,11 @@ spec:
           - __meta_kubernetes_namespace
           - __meta_kubernetes_pod_container_port_number
         targetLabel: __address__
-        replacement: ${1}.${2}.${3}.svc.cluster.local:${4}
-        regex: (.+);(.+?)(?:-headless)?;(.+);(.+) # <3>
+        replacement: ${1}.${2}-headless.${3}.svc.cluster.local:${4} # <3>
+        regex: (.+);(.+?)(?:-metrics)?;(.+);(.+)
   selector:
     matchLabels:
+      stackable.tech/vendor: Stackable
       prometheus.io/scrape: "true"
   namespaceSelector:
     any: true
@@ -132,7 +133,7 @@ spec:
 <2> Relabel \\__address__ to be a FQDN rather then the IP-Address of the target Pod. This is currently necessary for scraping NiFi since it requires a DNS name to address the NiFi REST API
 <3> Currently, the NiFi StatefulSet only offers using FQDNs for NiFi Pods through the `-headless` Service, which is why we use the `-headless` Service instead of the `-metrics` Service for scraping NiFi metrics
 
-NOTE: As of xref:listener-operator:listener.adoc[Listener] integration, SDP exposes a Service with `-headless` thus we need to regex this suffix.
+NOTE: As of xref:listener-operator:listener.adoc[Listener] integration, SDP exposes a Service with `-metrics` thus we need to regex this suffix.
 
 The described example is part of the https://github.com/stackabletech/demos/blob/main/stacks/monitoring/prometheus.yaml[Prometheus,window=_blank]
 and https://github.com/stackabletech/demos/blob/main/stacks/monitoring/prometheus-service-monitors.yaml[ServiceMonitor,window=_blank] manifests
