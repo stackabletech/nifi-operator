@@ -54,7 +54,7 @@ IMPORTANT: If NiFi is configured to do any user authentication, requests to the 
 To authenticate against the NiFi `2.x.x` API, you can configure mTLS between NiFi and the client calling NiFi. For more information about authentication between
 Kubernetes Pods, check out the xref:home:secret-operator:index.adoc[Secret Operator documentation].
 
-For the following example, showing how to configure a Prometheus scraper for NiFi, we use the afore-mentioned method of configuring mTLS
+The following example illustrates the configuration of a Prometheus scraper for NiFi, using the aforementioned method of configuring mTLS
 and utilizing the internally available `tls` xref:home:secret-operator:secretclass.adoc[SecretClass].
 
 To generate a client certificate signed by the `tls` SecretClass CA trusted in NiFi, add the following `volume` and `volumeMount`
