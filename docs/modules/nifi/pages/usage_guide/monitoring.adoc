@@ -137,4 +137,4 @@ NOTE: As of xref:listener-operator:listener.adoc[Listener] integration, SDP expo
 
 The described example is part of the https://github.com/stackabletech/demos/blob/main/stacks/monitoring/prometheus.yaml[Prometheus,window=_blank]
 and https://github.com/stackabletech/demos/blob/main/stacks/monitoring/prometheus-service-monitors.yaml[ServiceMonitor,window=_blank] manifests
-being used in the https://github.com/stackabletech/demos/blob/main/stacks/monitoring[`monitoring` Stack,window=_blank] of the https://github.com/stackabletech/demos[`demos` repository,window=_blank].
+used in the https://github.com/stackabletech/demos/blob/main/stacks/monitoring[monitoring stack,window=_blank] of the https://github.com/stackabletech/demos[demos repository,window=_blank].
