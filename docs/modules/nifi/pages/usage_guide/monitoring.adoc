@@ -88,7 +88,7 @@ prometheus: <1>
 ----
 <1> This given configuration is set in the {prometheus-operator}docs/api-reference/api/#monitoring.coreos.com/v1.Prometheus[Prometheus resource,window=_blank] for the {prometheus-operator}[Prometheus Operator,window=_blank]
 <2> The `tls` SecretClass created by the Secret Operator, storing its CA in a Kubernetes Secret. Any other SecretClass can be used as well
-<3> We add the `service=prometheus-kube-prometheus-prometheus` scope for the Prometheus Service to be included in the `subjectAlternateName` of the TLS certificate. This particular Service name, used here, refers to the Prometheus Service deployed by the {prometheus-operator}[Prometheus Operator,window=_blank]
+<3> The `service=prometheus-kube-prometheus-prometheus` scope is added to include the `subjectAlternateName` of the Prometheus Service in the generated TLS certificate. This particular Service name, used here, refers to the Prometheus Service deployed by the {prometheus-operator}[Prometheus Operator,window=_blank]
 <4> The path where the mTLS certificates are mounted to inside the Prometheus Pod
 
 If you want to use a `ServiceMonitor` you'd need to configure it as follows:
