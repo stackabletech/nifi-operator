@@ -87,7 +87,7 @@ prometheus: <1>
         mountPath: /stackable/tls # <4>
 ----
 <1> This given configuration is set in the {prometheus-operator}docs/api-reference/api/#monitoring.coreos.com/v1.Prometheus[Prometheus resource,window=_blank] for the {prometheus-operator}[Prometheus Operator,window=_blank]
-<2> We use the `tls` SecretClass here, shipped with the Secret Operator, storing its CA in a Kubernetes Secret. Any other SecretClass can be used as well
+<2> The `tls` SecretClass created by the Secret Operator, storing its CA in a Kubernetes Secret. Any other SecretClass can be used as well
 <3> We add the `service=prometheus-kube-prometheus-prometheus` scope for the Prometheus Service to be included in the `subjectAlternateName` of the TLS certificate. This particular Service name, used here, refers to the Prometheus Service deployed by the {prometheus-operator}[Prometheus Operator,window=_blank]
 <4> The path where the mTLS certificates are mounted to inside the Prometheus Pod
 
