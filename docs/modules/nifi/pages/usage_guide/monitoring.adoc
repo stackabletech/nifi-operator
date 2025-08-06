@@ -131,7 +131,7 @@ spec:
 ----
 <1> In the TLS configuration of the ServiceMonitor, specify the location of the cert and key files mounted into the Prometheus Pod
 <2> Relabel \\__address__ to be a FQDN rather then the IP-Address of the target Pod. This is currently necessary for scraping NiFi since it requires a DNS name to address the NiFi REST API
-<3> Currently, the NiFi StatefulSet only offers using FQDNs for NiFi Pods through the `-headless` Service, which is why we use the `-headless` Service instead of the `-metrics` Service for scraping NiFi metrics
+<3> Currently, the NiFi StatefulSet only offers using FQDNs for NiFi Pods through the `headless` Service, which is why we use the `headless` Service instead of the `metrics` Service to scrape NiFi metrics
 
 NOTE: As of xref:listener-operator:listener.adoc[Listener] integration, SDP exposes a Service with `-metrics` thus we need to regex this suffix.
 
