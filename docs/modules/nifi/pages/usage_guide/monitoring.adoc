@@ -36,7 +36,7 @@ spec:
 == Configure metrics in NiFi `2.x.x`
 
 The Prometheus Reporting Task was removed in NiFi `2.x.x` in https://issues.apache.org/jira/browse/NIFI-13507[NIFI-13507,window=_blank].
-Metrics are now always exposed and can be scraped using the NiFi `-metrics` Service and the HTTP path `/nifi-api/flow/metrics/prometheus`.
+Metrics are now always exposed and can be scraped using the NiFi `metrics` Service and the HTTP path `/nifi-api/flow/metrics/prometheus`.
 
 For a deployed NiFi cluster called `simple-nifi`, containing a rolegroup called `default`, the metrics endpoint is reachable under:
 
