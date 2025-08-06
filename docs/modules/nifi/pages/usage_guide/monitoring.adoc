@@ -108,11 +108,11 @@ spec:
   - path: /nifi-api/flow/metrics/prometheus
     port: https
     scheme: https
-    tlsConfig: <1>
+    tlsConfig: # <1>
       caFile: /stackable/tls/ca.crt
       certFile: /stackable/tls/tls.crt
       keyFile: /stackable/tls/tls.key
-    relabelings: <2>
+    relabelings: # <2>
       - sourceLabels:
           - __meta_kubernetes_pod_name
           - __meta_kubernetes_service_name
