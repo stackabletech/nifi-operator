@@ -45,7 +45,7 @@ https://simple-nifi-node-default-metrics.<namespace>.svc.cluster.local:8443/nifi
 ```
 
 NOTE: The above URL connects to one of the Pods, reachable through the specified Service, therefore scraping metrics produced by that Pod only.
-To scrape metrics from a particular Pod the FQDN of the Pod and the `-headless` Service need to be used. For example: `\https://simple-nifi-node-default-0.simple-nifi-node-default-headless.<namespace>.svc.cluster.local:8443/nifi-api/flow/metrics/prometheus`
+To scrape metrics from a particular Pod, the FQDN of the Pod and the `headless` Service need to be used. For example: `\https://simple-nifi-node-default-0.simple-nifi-node-default-headless.<namespace>.svc.cluster.local:8443/nifi-api/flow/metrics/prometheus`
 
 IMPORTANT: If NiFi is configured to do any user authentication, requests to the metrics endpoint must be authenticated and authorized.
 
