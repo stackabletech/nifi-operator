@@ -60,7 +60,7 @@ spec:
 # ...
 ----
 
-For additional details, see https://medium.com/@chnzhoujun/how-to-resolve-sni-issue-when-upgrading-to-nifi-2-0-907e07d465c5[this article].
+For additional details, see https://medium.com/@chnzhoujun/how-to-resolve-sni-issue-when-upgrading-to-nifi-2-0-907e07d465c5[this article{external-link-icon}^].
 
 === When using Load Balancers or other proxies
 
