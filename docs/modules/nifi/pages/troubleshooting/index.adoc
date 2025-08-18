@@ -22,10 +22,10 @@ spec:
 
 == `HTTP ERROR 400 Invalid SNI`
 
-This error occurs when accessing NiFi 2.0 or later, which enforces https://en.wikipedia.org/wiki/Server_Name_Indication[SNI (Server Name Indication)] validation for HTTPS connections.
+This error occurs when accessing NiFi 2.0 or later, which enforces https://en.wikipedia.org/wiki/Server_Name_Indication[SNI (Server Name Indication){external-link-icon}^] validation for HTTPS connections.
 The hostname in the request must match one of the hostnames in NiFi's TLS certificate.
 
-NOTE: For complete technical background, see the https://issues.apache.org/jira/browse/NIFI-14858[upstream issue NIFI-14858].
+NOTE: For complete technical background, see the https://issues.apache.org/jira/browse/NIFI-14858[upstream issue NIFI-14858{external-link-icon}^].
 
 === When using Ingress
 
