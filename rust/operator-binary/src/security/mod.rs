@@ -1,7 +1,7 @@
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::pod::volume::SecretFormat, client::Client, k8s_openapi::api::core::v1::Volume,
-    time::Duration,
+    shared::time::Duration,
 };
 
 use crate::crd::v1alpha1;

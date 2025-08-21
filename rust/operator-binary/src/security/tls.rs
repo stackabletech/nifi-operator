@@ -2,7 +2,7 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::pod::volume::{SecretFormat, SecretOperatorVolumeSourceBuilder, VolumeBuilder},
     k8s_openapi::api::core::v1::Volume,
-    time::Duration,
+    shared::time::Duration,
 };
 
 use crate::{crd::v1alpha1, security::authentication::STACKABLE_TLS_STORE_PASSWORD};
