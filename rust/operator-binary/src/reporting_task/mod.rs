@@ -44,7 +44,7 @@ use stackable_operator::{
     },
     kube::ResourceExt,
     kvp::Labels,
-    time::Duration,
+    shared::time::Duration,
     utils::cluster_info::KubernetesClusterInfo,
 };
 
@@ -230,7 +230,7 @@ fn build_reporting_task_service(
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
                 nifi,
-                &resolved_product_image.app_version_label,
+                &resolved_product_image.app_version_label_value,
                 &role_name,
                 "global",
             ))
@@ -380,7 +380,7 @@ fn build_reporting_task_job(
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(build_recommended_labels(
                 nifi,
-                &resolved_product_image.app_version_label,
+                &resolved_product_image.app_version_label_value,
                 "global",
                 "global",
             ))

@@ -29,7 +29,10 @@ use stackable_operator::{
     },
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
-    commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
+    commons::{
+        product_image_selection::{self, ResolvedProductImage},
+        rbac::build_rbac_resources,
+    },
     crd::{authentication::oidc::v1alpha1::AuthenticationProvider, git_sync},
     k8s_openapi::{
         DeepMerge,
@@ -63,11 +66,11 @@ use stackable_operator::{
         },
     },
     role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroupRef},
+    shared::time::Duration,
     status::condition::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
         statefulset::StatefulSetConditionBuilder,
     },
-    time::Duration,
     utils::{COMMON_BASH_TRAP_FUNCTIONS, cluster_info::KubernetesClusterInfo},
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
@@ -353,6 +356,11 @@ pub enum Error {
 
     #[snafu(display("failed to configure service"))]
     ServiceConfiguration { source: crate::service::Error },
+
+    #[snafu(display("failed to resolve product image"))]
+    ResolveProductImage {
+        source: product_image_selection::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -376,10 +384,11 @@ pub async fn reconcile_nifi(
 
     let client = &ctx.client;
 
-    let resolved_product_image: ResolvedProductImage = nifi
+    let resolved_product_image = nifi
         .spec
         .image
-        .resolve(DOCKER_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION);
+        .resolve(DOCKER_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION)
+        .context(ResolveProductImageSnafu)?;
 
     tracing::info!("Checking for sensitive key configuration");
     check_or_generate_sensitive_key(client, nifi)
@@ -497,7 +506,7 @@ pub async fn reconcile_nifi(
 
             let role_group_service_recommended_labels = build_recommended_labels(
                 nifi,
-                &resolved_product_image.app_version_label,
+                &resolved_product_image.app_version_label_value,
                 &rolegroup.role,
                 &rolegroup.role_group,
             );
@@ -624,7 +633,7 @@ pub async fn reconcile_nifi(
             nifi,
             build_recommended_labels(
                 nifi,
-                &resolved_product_image.app_version_label,
+                &resolved_product_image.app_version_label_value,
                 &nifi_role.to_string(),
                 "none",
             ),
@@ -747,7 +756,7 @@ async fn build_node_rolegroup_config_map(
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
                 .with_recommended_labels(build_recommended_labels(
                     nifi,
-                    &resolved_product_image.app_version_label,
+                    &resolved_product_image.app_version_label_value,
                     &rolegroup.role,
                     &rolegroup.role_group,
                 ))
@@ -1156,7 +1165,7 @@ async fn build_node_rolegroup_statefulset(
 
     let recommended_object_labels = build_recommended_labels(
         nifi,
-        &resolved_product_image.app_version_label,
+        &resolved_product_image.app_version_label_value,
         &rolegroup_ref.role,
         &rolegroup_ref.role_group,
     );
@@ -1294,7 +1303,7 @@ async fn build_node_rolegroup_statefulset(
     let metadata = ObjectMetaBuilder::new()
         .with_recommended_labels(build_recommended_labels(
             nifi,
-            &resolved_product_image.app_version_label,
+            &resolved_product_image.app_version_label_value,
             &rolegroup_ref.role,
             &rolegroup_ref.role_group,
         ))
