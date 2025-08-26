@@ -1220,6 +1220,13 @@ async fn build_node_rolegroup_statefulset(
         .add_volume_mount(&volume_name, NIFI_PYTHON_WORKING_DIRECTORY)
         .context(AddVolumeMountSnafu)?;
 
+    authentication_config
+        .add_volumes_and_mounts(
+            &mut pod_builder,
+            vec![&mut container_prepare, container_nifi],
+        )
+        .context(AddAuthVolumesSnafu)?;
+
     container_nifi
         .add_volume_mounts(git_sync_resources.git_content_volume_mounts.to_owned())
         .context(AddVolumeMountSnafu)?;
@@ -1292,13 +1299,6 @@ async fn build_node_rolegroup_statefulset(
             }
         }
     }
-
-    authentication_config
-        .add_volumes_and_mounts(
-            &mut pod_builder,
-            vec![&mut container_prepare, container_nifi],
-        )
-        .context(AddAuthVolumesSnafu)?;
 
     let metadata = ObjectMetaBuilder::new()
         .with_recommended_labels(build_recommended_labels(
