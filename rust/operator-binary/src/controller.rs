@@ -1240,10 +1240,6 @@ async fn build_node_rolegroup_statefulset(
         .add_volumes(git_sync_resources.git_content_volumes.to_owned())
         .context(AddVolumeSnafu)?;
 
-    authentication_config
-        .add_volumes_and_mounts(&mut pod_builder, vec![&mut container_prepare])
-        .context(AddAuthVolumesSnafu)?;
-
     if let Some(ContainerLogConfig {
         choice:
             Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
@@ -1299,6 +1295,10 @@ async fn build_node_rolegroup_statefulset(
             }
         }
     }
+
+    authentication_config
+        .add_volumes_and_mounts(&mut pod_builder, vec![&mut container_prepare])
+        .context(AddAuthVolumesSnafu)?;
 
     let metadata = ObjectMetaBuilder::new()
         .with_recommended_labels(build_recommended_labels(
