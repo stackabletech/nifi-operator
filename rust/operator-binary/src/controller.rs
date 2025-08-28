@@ -1226,8 +1226,8 @@ async fn build_node_rolegroup_statefulset(
         .context(AddVolumeMountSnafu)?;
 
     // We want to add nifi container first for easier defaulting into this container
-    // After calling `build()` the ContainerBuilder shouldn't be used anymore, so we drop it
     pod_builder.add_container(container_nifi.build());
+    // After calling `build()` the ContainerBuilder shouldn't be used anymore, so we drop it
     drop(container_nifi_builder);
 
     for container in git_sync_resources.git_sync_containers.iter().cloned() {
