@@ -1064,11 +1064,12 @@ async fn build_node_rolegroup_statefulset(
         );
 
     let nifi_container_name = Container::Nifi.to_string();
-    let mut container_builder = ContainerBuilder::new(&nifi_container_name).with_context(|_| {
-        IllegalContainerNameSnafu {
-            container_name: nifi_container_name,
-        }
-    })?;
+    let mut container_nifi_builder =
+        ContainerBuilder::new(&nifi_container_name).with_context(|_| {
+            IllegalContainerNameSnafu {
+                container_name: nifi_container_name,
+            }
+        })?;
 
     let nifi_args = vec![formatdoc! {"
             {COMMON_BASH_TRAP_FUNCTIONS}
@@ -1084,7 +1085,7 @@ async fn build_node_rolegroup_statefulset(
     create_vector_shutdown_file_command =
         create_vector_shutdown_file_command(STACKABLE_LOG_DIR),
     }];
-    let container_nifi = container_builder
+    let container_nifi = container_nifi_builder
         .image_from_product_image(resolved_product_image)
         .command(vec![
             "/bin/bash".to_string(),
@@ -1226,6 +1227,8 @@ async fn build_node_rolegroup_statefulset(
 
     // We want to add nifi container first for easier defaulting into this container
     pod_builder.add_container(container_nifi.build());
+    // After calling `build()` the ContainerBuilder shouldn't be used anymore, so we drop it
+    drop(container_nifi_builder);
 
     for container in git_sync_resources.git_sync_containers.iter().cloned() {
         pod_builder.add_container(container);
@@ -1294,10 +1297,7 @@ async fn build_node_rolegroup_statefulset(
     }
 
     authentication_config
-        .add_volumes_and_mounts(
-            &mut pod_builder,
-            vec![&mut container_prepare, container_nifi],
-        )
+        .add_volumes_and_mounts(&mut pod_builder, vec![&mut container_prepare])
         .context(AddAuthVolumesSnafu)?;
 
     let metadata = ObjectMetaBuilder::new()
