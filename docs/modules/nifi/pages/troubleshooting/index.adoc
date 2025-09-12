@@ -86,7 +86,7 @@ nodes:
 
 These properties control NiFi's SNI validation behavior:
 
-* `nifi.web.https.sni.required`: When `true`, NiFi requires that HTTPS requests include an SNI certificate. Setting to `false` allows connections without SNI certificates.
+* `nifi.web.https.sni.required`: When `true`, NiFi requires that HTTPS requests include the SNI extension (containing the `server_name`). Setting to `false` allows connections without SNI certificates.
 * `nifi.web.https.sni.host.check`: When `true`, NiFi validates that the SNI certificate's hostname matches the incoming request's hostname. Setting to `false` disables this hostname matching check.
 
 WARNING: Disabling SNI validation reduces security by allowing connections with mismatched hostnames. Only use this workaround when proper certificate configuration is not feasible.
