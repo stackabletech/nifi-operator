@@ -29,7 +29,7 @@ NOTE: For complete technical background, see the https://issues.apache.org/jira/
 
 === When using Ingress
 
-If you're accessing NiFi through an Ingress controller, the ingress must forward requests using the FQDN of the NiFi service, not just the service name.
+If you're accessing NiFi through a Load Balancer or Reverse Proxy, it must forward requests using the FQDN of the NiFi service, not just the service name.
 
 For nginx ingress, configure the `upstream-vhost` annotation to use the service FQDN:
 
