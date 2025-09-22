@@ -64,7 +64,7 @@ For additional details, see https://medium.com/@chnzhoujun/how-to-resolve-sni-is
 
 === When using Load Balancers or other proxies
 
-When Load Balancers, API Gateways, or other proxy tools sit in front of NiFi, they may forward requests with hostnames that don't match NiFi's TLS certificates.
+When Load Balancers, API Gateways, or other proxy services sit in front of NiFi, they might forward requests with hostnames that don't match NiFi's TLS certificates.
 This commonly occurs because:
 
 * The proxy uses a different hostname than what's in NiFi's certificate
