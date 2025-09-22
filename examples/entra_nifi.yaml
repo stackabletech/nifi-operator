@@ -1,0 +1,296 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: custom-authorizer
+data:
+  users.xml: |
+    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <tenants>
+          <groups/>
+          <users>
+              <user identifier="node-cert-user" identity="CN=generated certificate for pod"/>
+          </users>
+      </tenants>
+
+  authorizers.xml: |
+    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    <authorizers>
+
+      <userGroupProvider>
+          <identifier>file-user-group-provider</identifier>
+          <class>org.apache.nifi.authorization.FileUserGroupProvider</class>
+          <property name="Users File">./custom-authorizer/users.xml</property>
+          <property name="Initial User Identity other-nifis">CN=generated certificate for pod</property>
+      </userGroupProvider>
+
+      <userGroupProvider>
+          <identifier>aad-user-group-provider</identifier>
+          <class>org.apache.nifi.authorization.azure.AzureGraphUserGroupProvider</class>
+          <property name="Refresh Delay">5 mins</property>
+          <property name="Authority Endpoint">${env:OIDC_AUTHORITY_ENDPOINT}</property>
+          <property name="Directory ID">${env:OIDC_DIRECTORY_ID}</property>
+          <property name="Application ID">${env:OIDC_CLIENT_ID}</property>
+          <property name="Client Secret">${env:OIDC_CLIENT_SECRET}</property>
+          <property name="Group Filter Prefix">${env:OIDC_GROUP_FILTER_PREFIX}</property>
+          <property name="Page Size">100</property>
+      </userGroupProvider>
+
+      <userGroupProvider>
+          <identifier>composite-configurable-user-group-provider</identifier>
+          <class>org.apache.nifi.authorization.CompositeConfigurableUserGroupProvider</class>
+          <property name="Configurable User Group Provider">file-user-group-provider</property>
+          <property name="User Group Provider 1">aad-user-group-provider</property>
+      </userGroupProvider>
+
+      <accessPolicyProvider>
+          <identifier>file-access-policy-provider</identifier>
+          <class>org.apache.nifi.authorization.FileAccessPolicyProvider</class>
+          <property name="User Group Provider">composite-configurable-user-group-provider</property>
+          <property name="Authorizations File">./custom-authorizer/authorizations.xml</property>
+          <property name="Initial Admin Identity">${env:INITIAL_ADMIN}</property>
+          <property name="Node Identity other-nifis">CN=generated certificate for pod</property>
+      </accessPolicyProvider>
+
+      <authorizer>
+          <identifier>managed-authorizer</identifier>
+          <class>org.apache.nifi.authorization.StandardManagedAuthorizer</class>
+          <property name="Access Policy Provider">file-access-policy-provider</property>
+      </authorizer>
+
+    </authorizers>
+
+  authorizations.xml: |
+    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    <authorizations>
+        <policies>
+            <policy identifier="f99bccd1-a30e-3e4a-98a2-dbc708edc67f" resource="/flow" action="R">
+                <group identifier="2d95d093-0e24-482c-ad4c-03e71adadcf4"/>
+                <group identifier="e76abc3f-ff10-4cf4-87a8-b3b6c7d0a369"/>
+                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+            </policy>
+            <policy identifier="b8775bd4-704a-34c6-987b-84f2daf7a515" resource="/restricted-components" action="W">
+                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+            </policy>
+            <policy identifier="627410be-1717-35b4-a06f-e9362b89e0b7" resource="/tenants" action="R">
+                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+            </policy>
+            <policy identifier="15e4e0bd-cb28-34fd-8587-f8d15162cba5" resource="/tenants" action="W">
+                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+            </policy>
+            <policy identifier="ff96062a-fa99-36dc-9942-0f6442ae7212" resource="/policies" action="R">
+                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+            </policy>
+            <policy identifier="ad99ea98-3af6-3561-ae27-5bf09e1d969d" resource="/policies" action="W">
+                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+            </policy>
+            <policy identifier="2e1015cb-0fed-3005-8e0d-722311f21a03" resource="/controller" action="R">
+                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+                <user identifier="node-cert-user"/>
+            </policy>
+            <policy identifier="c6322e6c-4cc1-3bcc-91b3-2ed2111674cf" resource="/controller" action="W">
+                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+                <user identifier="node-cert-user"/>
+            </policy>
+            <policy identifier="287edf48-da72-359b-8f61-da5d4c45a270" resource="/proxy" action="W">
+                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+                <user identifier="node-cert-user"/>
+            </policy>
+            <policy identifier="becc4bd3-0199-1000-ffff-ffff9382e62a" resource="/system" action="R">
+                <group identifier="2d95d093-0e24-482c-ad4c-03e71adadcf4"/>
+                <user identifier="fc078c81-260b-444a-90c0-cf55b6177530"/>
+                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+            </policy>
+                <policy identifier="c884e8e3-0199-1000-ffff-ffffa5b09c80" resource="/provenance" action="R">
+                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+            </policy>
+            <policy identifier="c8856472-0199-1000-0000-00000b8c3534" resource="/site-to-site" action="R">
+                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+            </policy>
+            <policy identifier="c885cf73-0199-1000-0000-00004b25a0fa" resource="/counters" action="R">
+                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+            </policy>
+            <policy identifier="c885eb8c-0199-1000-ffff-ffffbf9dbc2f" resource="/counters" action="W">
+                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+            </policy>
+
+            <policy identifier="c8bd153a-0199-1000-0000-00005ed8e3a5" resource="/process-groups/root" action="W">
+                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+            </policy>
+            <policy identifier="c8be51e3-0199-1000-0000-000004776c26" resource="/process-groups/root" action="R">
+                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+            </policy>
+            <policy identifier="c8c842b2-0199-1000-0000-0000353663f9" resource="/data/process-groups/root" action="R">
+                <user identifier="node-cert-user"/>
+                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+            </policy>
+            <policy identifier="c8d27c6e-0199-1000-0000-00003862b506" resource="/operation/process-groups/root" action="W">
+                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+            </policy>
+            <policy identifier="c8d5a9ba-0199-1000-0000-00003d66cc46" resource="/data/process-groups/root" action="W">
+                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+            </policy>
+
+        </policies>
+    </authorizations>
+
+---
+apiVersion: authentication.stackable.tech/v1alpha1
+kind: AuthenticationClass
+metadata:
+  name: simple-nifi-users
+spec:
+  provider:
+    static:
+      userCredentialsSecret:
+        name: simple-nifi-admin-credentials
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: simple-nifi-admin-credentials
+stringData:
+  admin: adminadmin
+
+# needs to be provided separately...
+# ---
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: oidc-secret
+# stringData:
+#   auth.endpoint:
+#   directory.id:
+#   client.id:
+#   client.secret:
+#   filter.prefix:
+#   initial.admin:
+#   discovery.url:
+
+---
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: test-nifi
+spec:
+  image:
+    custom: null
+    productVersion: 2.4.0
+    pullPolicy: IfNotPresent
+  clusterConfig:
+    zookeeperConfigMapName: null
+    authentication:
+      - authenticationClass: simple-nifi-users
+    hostHeaderCheck:
+      allowAll: false
+    sensitiveProperties:
+      keySecret: nifi-sensitive-property-key
+      autoGenerate: true
+  nodes:
+    roleConfig:
+      listenerClass: external-unstable
+    roleGroups:
+      default:
+        replicas: 1
+    configOverrides:
+      nifi.properties:
+        nifi.web.https.sni.required: "false"
+        nifi.web.https.sni.host.check: "false"
+        nifi.authorizer.configuration.file: "/stackable/nifi/custom-authorizer/authorizers.xml"
+        nifi.security.user.authorizer: "managed-authorizer"
+        nifi.security.user.oidc.discovery.url: "${env:OIDC_DISCOVERY_URL}"
+        nifi.security.user.oidc.connect.timeout: "5 secs"
+        nifi.security.user.oidc.read.timeout: "5 secs"
+        nifi.security.user.oidc.client.id: "${env:OIDC_CLIENT_ID}"
+        nifi.security.user.oidc.client.secret: "${env:OIDC_CLIENT_SECRET}"
+        nifi.security.user.oidc.additional.scopes: "profile"
+        nifi.security.user.oidc.claim.identifying.user: "upn"
+      # bootstrap.conf:
+      #  java.arg.debug: -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8000
+    podOverrides:
+      spec:
+        initContainers:
+          - name: prepare
+            env:
+              - name: OIDC_CLIENT_ID
+                valueFrom:
+                  secretKeyRef:
+                    name: oidc-secret
+                    key: client.id
+              - name: OIDC_CLIENT_SECRET
+                valueFrom:
+                  secretKeyRef:
+                    name: oidc-secret
+                    key: client.secret
+              - name: OIDC_DISCOVERY_URL
+                valueFrom:
+                  secretKeyRef:
+                    name: oidc-secret
+                    key: discovery.url
+          - name: prep-custom-authorizers
+            image: oci.stackable.tech/sdp/nifi:2.4.0-stackable0.0.0-dev
+            env:
+              - name: OIDC_AUTHORITY_ENDPOINT
+                valueFrom:
+                  secretKeyRef:
+                    name: oidc-secret
+                    key: auth.endpoint
+              - name: OIDC_DIRECTORY_ID
+                valueFrom:
+                  secretKeyRef:
+                    name: oidc-secret
+                    key: directory.id
+              - name: OIDC_CLIENT_ID
+                valueFrom:
+                  secretKeyRef:
+                    name: oidc-secret
+                    key: client.id
+              - name: OIDC_CLIENT_SECRET
+                valueFrom:
+                  secretKeyRef:
+                    name: oidc-secret
+                    key: client.secret
+              - name: OIDC_GROUP_FILTER_PREFIX
+                valueFrom:
+                  secretKeyRef:
+                    name: oidc-secret
+                    key: filter.prefix
+              - name: INITIAL_ADMIN
+                valueFrom:
+                  secretKeyRef:
+                    name: oidc-secret
+                    key: initial.admin
+              - name: OIDC_DISCOVERY_URL
+                valueFrom:
+                  secretKeyRef:
+                    name: oidc-secret
+                    key: discovery.url
+            args:
+              - |
+                  echo Copying custom files...
+                  cp /tmp/custom-authorizer/authorizers.xml /stackable/nifi/custom-authorizer/
+                  echo Templating custom authorizer file...
+                  config-utils template /stackable/nifi/custom-authorizer/authorizers.xml
+                  cp /tmp/custom-authorizer/authorizations.xml /stackable/nifi/custom-authorizer/
+                  cp /tmp/custom-authorizer/users.xml /stackable/nifi/custom-authorizer/
+            command:
+              - /bin/bash
+              - -c
+              - -euo
+              - pipefail
+            volumeMounts:
+              - name: custom-authorizer
+                mountPath: /tmp/custom-authorizer
+              - name: nifi-auth-config
+                mountPath: /stackable/nifi/custom-authorizer
+        containers:
+          - name: nifi
+            volumeMounts:
+              - name: nifi-auth-config
+                mountPath: /stackable/nifi/custom-authorizer
+        volumes:
+          - name: custom-authorizer
+            configMap:
+              name: custom-authorizer
+          - name: nifi-auth-config
+            emptyDir: {}
