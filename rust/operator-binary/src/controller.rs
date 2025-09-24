@@ -951,6 +951,9 @@ async fn build_node_rolegroup_statefulset(
         ));
     }
 
+    // Note(sbernauer): In https://github.com/stackabletech/issues/issues/764 we migrated all usages
+    // of keytool to our own cert-utils tool. As it uses the same code as secret-operator, it also
+    // uses RC2. Thus, the keytool usage here LGTM (no alias trickery) and has my nod of approval.
     prepare_args.extend(vec![
         // The source directory is a secret-op mount and we do not want to write / add anything in there
         // Therefore we import all the contents to a truststore in "writeable" empty dirs.

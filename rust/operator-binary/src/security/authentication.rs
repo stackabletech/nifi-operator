@@ -136,22 +136,14 @@ impl NifiAuthenticationConfig {
             }
             Self::Ldap { provider } => {
                 if let Some(ca_path) = provider.tls.tls_ca_cert_mount_path() {
-                    commands.extend(vec![
-                        "echo Adding LDAP tls cert to global truststore".to_string(),
-                        format!("keytool -importcert -file {ca_path} -keystore {STACKABLE_SERVER_TLS_DIR}/truststore.p12 -storetype pkcs12 -noprompt -alias ldap_ca_cert -storepass {STACKABLE_TLS_STORE_PASSWORD}"),
-                    ]);
+                    commands.push(add_cert_to_truststore(&ca_path, STACKABLE_SERVER_TLS_DIR));
                 }
             }
             Self::Oidc { provider, .. } => {
                 let (_, admin_password_file) = self.get_user_and_password_file_paths();
-                commands.extend(vec![
-                format!("export STACKABLE_ADMIN_PASSWORD=\"$(cat {admin_password_file} | java -jar /bin/stackable-bcrypt.jar)\""),
-                ]);
+                commands.push(format!("export STACKABLE_ADMIN_PASSWORD=\"$(cat {admin_password_file} | java -jar /bin/stackable-bcrypt.jar)\""));
                 if let Some(ca_path) = provider.tls.tls_ca_cert_mount_path() {
-                    commands.extend(vec![
-                        "echo Adding OIDC tls cert to global truststore".to_string(),
-                        format!("keytool -importcert -file {ca_path} -keystore {STACKABLE_SERVER_TLS_DIR}/truststore.p12 -storetype pkcs12 -noprompt -alias oidc_ca_cert -storepass {STACKABLE_TLS_STORE_PASSWORD}"),
-                    ]);
+                    commands.push(add_cert_to_truststore(&ca_path, STACKABLE_SERVER_TLS_DIR));
                 }
             }
         }
@@ -257,6 +249,15 @@ impl NifiAuthenticationConfig {
             }),
         }
     }
+}
+
+/// Adds a PEM file to configured PKCS12 truststore (using the [`STACKABLE_TLS_STORE_PASSWORD`]
+/// password)
+fn add_cert_to_truststore(cert_file: &str, destination_directory: &str) -> String {
+    let truststore = format!("{destination_directory}/truststore.p12");
+    format!(
+        "cert-tools generate-pkcs12-truststore --pkcs12 {truststore}:{STACKABLE_TLS_STORE_PASSWORD} --pem {cert_file} --out {truststore} --out-password {STACKABLE_TLS_STORE_PASSWORD}"
+    )
 }
 
 fn get_ldap_login_identity_provider(
