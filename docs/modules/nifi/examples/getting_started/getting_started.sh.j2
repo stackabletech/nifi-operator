@@ -62,7 +62,7 @@ stringData:
 apiVersion: authentication.stackable.tech/v1alpha1
 kind: AuthenticationClass
 metadata:
-  name: simple-nifi-users
+  name: broken-nifi-users
 spec:
   provider:
     static:
@@ -78,13 +78,13 @@ kubectl apply -f - <<EOF
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
 metadata:
-  name: simple-nifi
+  name: broken-nifi
 spec:
   image:
     productVersion: 2.4.0
   clusterConfig:
     authentication:
-      - authenticationClass: simple-nifi-users
+      - authenticationClass: broken-nifi-users
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
       autoGenerate: true
@@ -99,7 +99,7 @@ EOF
 
 echo "Awaiting NiFi rollout finish"
 # tag::wait-nifi-rollout[]
-kubectl wait --for=condition=available --timeout=20m nificluster/simple-nifi
+kubectl wait --for=condition=available --timeout=20m nificluster/broken-nifi
 # end::wait-nifi-rollout[]
 
 case "$1" in
@@ -107,14 +107,14 @@ case "$1" in
 echo "Getting the NiFi URL with kubectl"
 
 # tag::get-nifi-url[]
-nifi_url=$(kubectl get listener simple-nifi-node -o 'jsonpath=https://{.status.ingressAddresses[0].address}:{.status.ingressAddresses[0].ports.https}') && \
+nifi_url=$(kubectl get listener broken-nifi-node -o 'jsonpath=https://{.status.ingressAddresses[0].address}:{.status.ingressAddresses[0].ports.https}') && \
 echo "NiFi URL: $nifi_url"
 # end::get-nifi-url[]
 ;;
 "stackablectl")
 echo "Getting NiFi URL with stackablectl ..."
 # tag::stackablectl-nifi-url[]
-nifi_url=$(stackablectl stacklet ls -o json | jq --raw-output '.[] | select(.name == "simple-nifi") | .endpoints["node-https"]')
+nifi_url=$(stackablectl stacklet ls -o json | jq --raw-output '.[] | select(.name == "broken-nifi") | .endpoints["node-https"]')
 # end::stackablectl-nifi-url[]
 echo "NiFi URL: $nifi_url"
 ;;

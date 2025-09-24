@@ -15,7 +15,7 @@ spec:
     pullPolicy: IfNotPresent
   clusterConfig:
     authentication:
-      - authenticationClass: simple-nifi-users
+      - authenticationClass: broken-nifi-users
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}

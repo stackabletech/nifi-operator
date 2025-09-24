@@ -9,7 +9,7 @@ Stackable doesn't place any restriction on the type of service that can be used 
 == Example
 
 An example for this is shown below.
-It consists of a NiFi cluster with three nodes called `simple-nifi` and has a processor that listens to a TCP port and forwards lines written into that port as flowfiles.
+It consists of a NiFi cluster with three nodes called `broken-nifi` and has a processor that listens to a TCP port and forwards lines written into that port as flowfiles.
 
 image:listening-processor-example.png[A ListenTCP processor]
 
@@ -30,7 +30,7 @@ spec:
   selector:
     app.kubernetes.io/name: nifi
     app.kubernetes.io/component: node
-    app.kubernetes.io/instance: simple-nifi
+    app.kubernetes.io/instance: broken-nifi
   ports:
     - name: tcp-port
       protocol: TCP
@@ -55,7 +55,7 @@ spec:
   selector:
     app.kubernetes.io/name: nifi
     app.kubernetes.io/component: node
-    app.kubernetes.io/instance: simple-nifi
+    app.kubernetes.io/instance: broken-nifi
   ports:
     - port: 8123
       protocol: TCP

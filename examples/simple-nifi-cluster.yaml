@@ -1,5 +1,5 @@
 # Deploy a NiFi cluster, a user secret and a ZooKeeper cluster and a respective
-# ZNode `simple-nifi-znode` which will be referenced
+# ZNode `broken-nifi-znode` which will be referenced
 ---
 apiVersion: zookeeper.stackable.tech/v1alpha1
 kind: ZookeeperCluster
@@ -16,7 +16,7 @@ spec:
 apiVersion: zookeeper.stackable.tech/v1alpha1
 kind: ZookeeperZnode
 metadata:
-  name: simple-nifi-znode
+  name: broken-nifi-znode
 spec:
   clusterRef:
     name: simple-zk
@@ -24,17 +24,17 @@ spec:
 apiVersion: authentication.stackable.tech/v1alpha1
 kind: AuthenticationClass
 metadata:
-  name: simple-nifi-admin-user
+  name: broken-nifi-admin-user
 spec:
   provider:
     static:
       userCredentialsSecret:
-        name: simple-nifi-admin-user-secret
+        name: broken-nifi-admin-user-secret
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: simple-nifi-admin-user-secret
+  name: broken-nifi-admin-user-secret
 stringData:
   # The admin user is required for a working single user NiFi deployment. The password can be changed as desired.
   admin: admin
@@ -44,17 +44,17 @@ stringData:
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
 metadata:
-  name: simple-nifi
+  name: broken-nifi
 spec:
   image:
     productVersion: 1.27.0
   clusterConfig:
     authentication:
-      - authenticationClass: simple-nifi-admin-user
+      - authenticationClass: broken-nifi-admin-user
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
       autoGenerate: true
-    zookeeperConfigMapName: simple-nifi-znode
+    zookeeperConfigMapName: broken-nifi-znode
   nodes:
     roleConfig:
       listenerClass: external-unstable

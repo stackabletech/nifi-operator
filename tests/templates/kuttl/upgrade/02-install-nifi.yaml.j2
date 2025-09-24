@@ -2,17 +2,17 @@
 apiVersion: authentication.stackable.tech/v1alpha1
 kind: AuthenticationClass
 metadata:
-  name: simple-nifi-users
+  name: broken-nifi-users
 spec:
   provider:
     static:
       userCredentialsSecret:
-        name: simple-nifi-admin-credentials
+        name: broken-nifi-admin-credentials
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: simple-nifi-admin-credentials
+  name: broken-nifi-admin-credentials
 stringData:
   admin: supersecretpassword
 ---
@@ -39,7 +39,7 @@ spec:
     pullPolicy: IfNotPresent
   clusterConfig:
     authentication:
-      - authenticationClass: simple-nifi-users
+      - authenticationClass: broken-nifi-users
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}

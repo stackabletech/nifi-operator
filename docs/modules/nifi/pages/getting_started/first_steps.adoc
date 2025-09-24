@@ -45,7 +45,7 @@ The output should show all pods ready:
 [source]
 ----
 NAME                                 READY   AGE
-simple-nifi-node-default             2/2     5m
+broken-nifi-node-default             2/2     5m
 simple-zk-server-default             3/3     7m
 ----
 
@@ -68,7 +68,7 @@ which should return something like this:
 
 ----
  PRODUCT    NAME         NAMESPACE  ENDPOINTS                           CONDITIONS
- nifi       simple-nifi  default    node-https https://172.18.0.2:30528 Available, Reconciling, Running
+ nifi       broken-nifi  default    node-https https://172.18.0.2:30528 Available, Reconciling, Running
 ----
 
 You can also use the `json` output and parse the endpoint:

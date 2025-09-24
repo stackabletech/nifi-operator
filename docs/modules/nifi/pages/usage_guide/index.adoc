@@ -14,14 +14,14 @@ The following listing shows an example configuration:
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
 metadata:
-  name: simple-nifi
+  name: broken-nifi
 spec:
   image:
     productVersion: 1.27.0
   clusterConfig:
-    zookeeperConfigMapName: simple-nifi-znode  # <1>
+    zookeeperConfigMapName: broken-nifi-znode  # <1>
     authentication:  # <2>
-      - authenticationClass: simple-nifi-admin-user
+      - authenticationClass: broken-nifi-admin-user
     extraVolumes:  # <3>
       - name: nifi-client-certs
         secret:

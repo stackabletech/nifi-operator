@@ -47,7 +47,7 @@ However, due to it being a single user with all rights, this is not recommended 
 apiVersion: authentication.stackable.tech/v1alpha1
 kind: AuthenticationClass
 metadata:
-  name: simple-nifi-users # <1>
+  name: broken-nifi-users # <1>
 spec:
   provider:
     static:
@@ -82,7 +82,7 @@ stringData:
 spec:
   clusterConfig:
     authentication:
-      - authenticationClass: simple-nifi-users # <1>
+      - authenticationClass: broken-nifi-users # <1>
 ----
 
 <1> The reference to an AuthenticationClass. NiFi only supports one authentication mechanism at a time.
@@ -437,7 +437,7 @@ Alternatively, you can use this shell script to automatically execute this in ea
 [source,bash]
 ----
 NAMESPACE="default"
-STATEFULSET_NAME="simple-nifi-node-default"
+STATEFULSET_NAME="broken-nifi-node-default"
 COMMAND="/stackable/nifi/bin/nifi.sh set-sensitive-properties-algorithm NIFI_PBKDF2_AES_GCM_256"
 
 kubectl get pods -n "$NAMESPACE" --no-headers -o custom-columns=":metadata.name" | grep "^$STATEFULSET_NAME" | \

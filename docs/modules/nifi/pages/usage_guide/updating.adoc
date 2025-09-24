@@ -9,7 +9,7 @@ Continuing the example above, to change the deployed version from `1.27.0` to `2
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
 metadata:
-  name: simple-nifi
+  name: broken-nifi
 spec:
   image:
     productVersion: 2.0.0 # <1>

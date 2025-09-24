@@ -24,19 +24,19 @@ image:listen-http-1.png[A ListenHTTP processor]
 Afterwards you need to expose the processor to the outside world.
 
 For that to work, first create a Service object as follows.
-In this guide, the NifiCluster is called `simple-nifi`. The name of the Nifi cluster must match the value of the `app.kubernetes.io/instance` as shown below.
+In this guide, the NifiCluster is called `broken-nifi`. The name of the Nifi cluster must match the value of the `app.kubernetes.io/instance` as shown below.
 
 [source,yaml]
 ----
 apiVersion: v1
 kind: Service
 metadata:
-  name: simple-nifi-listen-http # Update according to NifiCluster name
+  name: broken-nifi-listen-http # Update according to NifiCluster name
 spec:
   type: ClusterIP
   selector:
     app.kubernetes.io/component: node
-    app.kubernetes.io/instance: simple-nifi # Update according to NifiCluster name
+    app.kubernetes.io/instance: broken-nifi # Update according to NifiCluster name
     app.kubernetes.io/name: nifi
   ports:
   - name: http
@@ -53,17 +53,17 @@ If you are using an ingress controller, an Ingress could look something like
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: simple-nifi-listen-http # Update according to NifiCluster name
+  name: broken-nifi-listen-http # Update according to NifiCluster name
 spec:
   rules:
-  - host: simple-nifi-listen-http.my.corp # Update to your host
+  - host: broken-nifi-listen-http.my.corp # Update to your host
     http:
       paths:
       - pathType: Prefix
         path: /
         backend:
           service:
-            name: simple-nifi-listen-http # Update to your Service name
+            name: broken-nifi-listen-http # Update to your Service name
             port:
               number: 8042
 ----
@@ -78,7 +78,7 @@ Start the `ListenHTTP` processor.
 image:listen-http-2.png[´RouteOnAttribute connected to ListenHTTP processor]
 
 The `ListenHTTP` processor should now generate a FlowFile for every incoming HTTP request.
-You can test this by calling `curl --verbose --data '{"hello":"NiFi"}' https://simple-nifi-listen-http.my.corp`, you should get a `HTTP/2 200` response.
+You can test this by calling `curl --verbose --data '{"hello":"NiFi"}' https://broken-nifi-listen-http.my.corp`, you should get a `HTTP/2 200` response.
 
 TIP: If you get a `503 Service Temporarily Unavailable`, this probably means your Ingress controller was not able to
 reach your `ListenHTTP` processor. Check that the processor is running and configured correctly.

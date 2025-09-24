@@ -33,7 +33,7 @@ This is enabled by setting the `spec.clusterConfig.zookeeperConfigMapName` to a 
 ----
 spec:
   clusterConfig:
-    zookeeperConfigMapName: simple-nifi-znode
+    zookeeperConfigMapName: broken-nifi-znode
 ----
 
 The ConfigMap needs to contain two keys: `ZOOKEEPER_HOSTS` containing the value being the ZooKeeper connection string, and `ZOOKEEPER_CHROOT` containing the ZooKeeper chroot.

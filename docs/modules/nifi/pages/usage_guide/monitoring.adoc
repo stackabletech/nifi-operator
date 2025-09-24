@@ -38,14 +38,14 @@ spec:
 The Prometheus Reporting Task was removed in NiFi `2.x.x` in https://issues.apache.org/jira/browse/NIFI-13507[NIFI-13507,window=_blank].
 Metrics are now always exposed and can be scraped using the NiFi `metrics` Service and the HTTP path `/nifi-api/flow/metrics/prometheus`.
 
-For a deployed NiFi cluster called `simple-nifi`, containing a rolegroup called `default`, the metrics endpoint is reachable under:
+For a deployed NiFi cluster called `broken-nifi`, containing a rolegroup called `default`, the metrics endpoint is reachable under:
 
 ```
-https://simple-nifi-node-default-metrics.<namespace>.svc.cluster.local:8443/nifi-api/flow/metrics/prometheus
+https://broken-nifi-node-default-metrics.<namespace>.svc.cluster.local:8443/nifi-api/flow/metrics/prometheus
 ```
 
 NOTE: The above URL connects to one of the Pods, reachable through the specified Service, therefore scraping metrics produced by that Pod only.
-To scrape metrics from a particular Pod, the FQDN of the Pod and the `headless` Service need to be used. For example: `\https://simple-nifi-node-default-0.simple-nifi-node-default-headless.<namespace>.svc.cluster.local:8443/nifi-api/flow/metrics/prometheus`
+To scrape metrics from a particular Pod, the FQDN of the Pod and the `headless` Service need to be used. For example: `\https://broken-nifi-node-default-0.broken-nifi-node-default-headless.<namespace>.svc.cluster.local:8443/nifi-api/flow/metrics/prometheus`
 
 IMPORTANT: If NiFi is configured to do any user authentication, requests to the metrics endpoint must be authenticated and authorized.
 

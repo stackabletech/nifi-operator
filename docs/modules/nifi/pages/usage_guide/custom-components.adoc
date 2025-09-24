@@ -151,13 +151,13 @@ Afterwards, we need to mount the ConfigMap as described in xref:nifi:usage_guide
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
 metadata:
-  name: simple-nifi
+  name: broken-nifi
 spec:
   image:
     productVersion: 2.2.0
   clusterConfig:
     authentication:
-    - authenticationClass: simple-nifi-admin-user
+    - authenticationClass: broken-nifi-admin-user
     extraVolumes:  # <1>
     - name: nifi-processors
       configMap:
@@ -165,7 +165,7 @@ spec:
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
       autoGenerate: true
-    zookeeperConfigMapName: simple-nifi-znode
+    zookeeperConfigMapName: broken-nifi-znode
   nodes:
     roleConfig:
       listenerClass: external-unstable
@@ -271,13 +271,13 @@ After this is done, your components are available within the NiFi Pods and NiFi 
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
 metadata:
-  name: simple-nifi
+  name: broken-nifi
 spec:
   image:
     productVersion: 2.2.0
   clusterConfig:
     authentication:
-    - authenticationClass: simple-nifi-admin-user
+    - authenticationClass: broken-nifi-admin-user
     extraVolumes:  # <1>
     - name: nifi-processors
       persistentVolumeClaim:
@@ -285,7 +285,7 @@ spec:
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
       autoGenerate: true
-    zookeeperConfigMapName: simple-nifi-znode
+    zookeeperConfigMapName: broken-nifi-znode
   nodes:
     roleConfig:
       listenerClass: external-unstable

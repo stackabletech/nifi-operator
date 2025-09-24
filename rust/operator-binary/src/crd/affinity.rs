@@ -40,7 +40,7 @@ mod tests {
         apiVersion: nifi.stackable.tech/v1alpha1
         kind: NifiCluster
         metadata:
-          name: simple-nifi
+          name: broken-nifi
         spec:
           image:
             productVersion: 1.27.0
@@ -48,9 +48,9 @@ mod tests {
             authentication:
               - authenticationClass: nifi-admin-credentials-simple
             sensitiveProperties:
-              keySecret: simple-nifi-sensitive-property-key
+              keySecret: broken-nifi-sensitive-property-key
               autoGenerate: true
-            zookeeperConfigMapName: simple-nifi-znode
+            zookeeperConfigMapName: broken-nifi-znode
           nodes:
             roleGroups:
               default:
@@ -75,7 +75,7 @@ mod tests {
                                         ("app.kubernetes.io/name".to_string(), "nifi".to_string(),),
                                         (
                                             "app.kubernetes.io/instance".to_string(),
-                                            "simple-nifi".to_string(),
+                                            "broken-nifi".to_string(),
                                         ),
                                         (
                                             "app.kubernetes.io/component".to_string(),
