@@ -8,7 +8,16 @@ All notable changes to this project will be documented in this file.
 
 - Helm: Allow Pod `priorityClassName` to be configured ([#840]).
 
+### Fixed
+
+- Previously we had a bug that could lead to missing certificates ([#844]).
+
+  This could be the case when you specified multiple CAs in your SecretClass.
+  We now correctly handle multiple certificates in this cases.
+  See [this GitHub issue](https://github.com/stackabletech/issues/issues/764) for details
+
 [#840]: https://github.com/stackabletech/nifi-operator/pull/840
+[#844]: https://github.com/stackabletech/nifi-operator/pull/844
 
 ## [25.7.0] - 2025-07-23
 
