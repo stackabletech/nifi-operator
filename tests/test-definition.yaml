@@ -53,7 +53,7 @@ dimensions:
       - 4.0.1
   - name: trino-l
     values:
-      - "476"
+      - "477"
   - name: krb5
     values:
       - 1.21.1
