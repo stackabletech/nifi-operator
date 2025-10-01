@@ -39,9 +39,10 @@ dimensions:
   - name: zookeeper
     values:
       - 3.9.3
+      - 3.9.4
   - name: zookeeper-latest
     values:
-      - 3.9.3
+      - 3.9.4
   - name: opa-l
     values:
       - 1.8.0
