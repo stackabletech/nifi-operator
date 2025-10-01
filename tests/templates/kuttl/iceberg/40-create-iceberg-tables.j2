@@ -15,7 +15,7 @@ spec:
             - pipefail
             - -c
             - |
-              cat << 'EOF' | java -jar trino-cli-*-executable.jar --server https://trino-coordinator:8443 --insecure --user admin
+              cat << 'EOF' | ./trino-cli --server https://trino-coordinator:8443 --insecure --user admin
               CREATE SCHEMA IF NOT EXISTS iceberg.s3 WITH (location = 's3a://demo/lakehouse/s3');
               CREATE TABLE IF NOT EXISTS iceberg.s3.greetings (hello varchar);
               CREATE SCHEMA IF NOT EXISTS iceberg.hdfs WITH (location = 'hdfs:/lakehouse/hdfs');
