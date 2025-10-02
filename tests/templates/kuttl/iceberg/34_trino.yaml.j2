@@ -61,7 +61,7 @@ spec:
         replicas: 1
   workers:
     config:
-      gracefulShutdownTimeout: 60s # Let the test run faster
+      gracefulShutdownTimeout: 120s # Let the test run faster, but allow for slow queries
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
 {% if test_scenario['values']['iceberg-use-kerberos'] == 'true' %}
