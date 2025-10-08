@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Helm: Allow Pod `priorityClassName` to be configured ([#840]).
+- Add end-of-support checker ([#852]).
+  - `EOS_CHECK_MODE` (`--eos-check-mode`) to set the EoS check mode. Currently, only "offline" is supported.
+  - `EOS_INTERVAL` (`--eos-interval`) to set the interval in which the operator checks if it is EoS.
+  - `EOS_DISABLED` (`--eos-disabled`) to disable the EoS checker completely.
+
+### Fixed
+
+- Previously we had a bug that could lead to missing certificates ([#844]).
+
+  This could be the case when you specified multiple CAs in your SecretClass.
+  We now correctly handle multiple certificates in this cases.
+  See [this GitHub issue](https://github.com/stackabletech/issues/issues/764) for details
+
+[#840]: https://github.com/stackabletech/nifi-operator/pull/840
+[#844]: https://github.com/stackabletech/nifi-operator/pull/844
+[#852]: https://github.com/stackabletech/nifi-operator/pull/852
+
 ## [25.7.0] - 2025-07-23
 
 ## [25.7.0-rc1] - 2025-07-18

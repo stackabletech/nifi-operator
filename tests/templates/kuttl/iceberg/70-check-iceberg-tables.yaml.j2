@@ -16,7 +16,7 @@ spec:
             - -c
             - |
               for SCHEMA in iceberg.s3 iceberg.hdfs; do
-                COUNT=$(cat << EOF | java -jar trino-cli-*-executable.jar --server https://trino-coordinator:8443 --insecure --user admin
+                COUNT=$(cat << EOF | ./trino-cli --server https://trino-coordinator:8443 --insecure --user admin
                 SELECT COUNT(*) FROM $SCHEMA.greetings WHERE hello = 'world from NiFi :)';
               EOF
                 )

@@ -36,8 +36,8 @@ use stackable_operator::{
     product_logging::{self, spec::Logging},
     role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroupRef},
     schemars::{self, JsonSchema},
+    shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
-    time::Duration,
     utils::crds::{raw_object_list_schema, raw_object_schema},
     versioned::versioned,
 };
