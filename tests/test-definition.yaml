@@ -41,15 +41,16 @@ dimensions:
   - name: zookeeper
     values:
       - 3.9.3
+      - 3.9.4
   - name: zookeeper-latest
     values:
-      - 3.9.3
+      - 3.9.4
   - name: opa-l
     values:
       - 1.8.0
   - name: hdfs-l
     values:
-      - 3.4.1
+      - 3.4.2
   - name: hive-l
     values:
       - 4.0.1
