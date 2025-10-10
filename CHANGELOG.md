@@ -7,6 +7,11 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Helm: Allow Pod `priorityClassName` to be configured ([#840]).
+- Add support for `2.6.0` ([#849]).
+
+### Changed
+
+- Deprecate support for `1.27.0`, `1.28.1`, and `2.4.0` ([#849]).
 
 ### Fixed
 
@@ -18,6 +23,7 @@ All notable changes to this project will be documented in this file.
 
 [#840]: https://github.com/stackabletech/nifi-operator/pull/840
 [#844]: https://github.com/stackabletech/nifi-operator/pull/844
+[#849]: https://github.com/stackabletech/nifi-operator/pull/849
 
 ## [25.7.0] - 2025-07-23
 
