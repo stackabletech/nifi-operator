@@ -126,16 +126,16 @@ fn prometheus_labels() -> Labels {
 ///
 /// see also <https://github.com/prometheus-community/helm-charts/blob/prometheus-27.32.0/charts/prometheus/values.yaml#L983-L1036>
 fn prometheus_annotations(product_version: &str) -> Annotations {
-    let port = if product_version.starts_with("1.") {
-        METRICS_PORT
+    let (path, port, scheme) = if product_version.starts_with("1.") {
+        ("/metrics", METRICS_PORT, "http")
     } else {
-        HTTPS_PORT
+        ("/nifi-api/flow/metrics/prometheus", HTTPS_PORT, "https")
     };
 
     Annotations::try_from([
-        ("prometheus.io/path".to_owned(), "/metrics".to_owned()),
+        ("prometheus.io/path".to_owned(), path.to_owned()),
         ("prometheus.io/port".to_owned(), port.to_string()),
-        ("prometheus.io/scheme".to_owned(), "http".to_owned()),
+        ("prometheus.io/scheme".to_owned(), scheme.to_owned()),
         ("prometheus.io/scrape".to_owned(), "true".to_owned()),
     ])
     .expect("should be valid annotations")
