@@ -110,10 +110,7 @@ use crate::{
         build_tls_volume, check_or_generate_oidc_admin_password, check_or_generate_sensitive_key,
         tls::{KEYSTORE_NIFI_CONTAINER_MOUNT, KEYSTORE_VOLUME_NAME, TRUSTSTORE_VOLUME_NAME},
     },
-    service::{
-        build_rolegroup_headless_service, build_rolegroup_metrics_service, metrics_service_port,
-        rolegroup_headless_service_name, rolegroup_metrics_service_name,
-    },
+    service::{build_rolegroup_headless_service, build_rolegroup_metrics_service},
 };
 
 pub const NIFI_CONTROLLER_NAME: &str = "nificluster";
@@ -576,9 +573,7 @@ pub async fn reconcile_nifi(
                 &rolegroup,
                 role_group_service_recommended_labels,
                 role_group_service_selector.into(),
-                vec![metrics_service_port(
-                    &resolved_product_image.product_version,
-                )],
+                &resolved_product_image.product_version,
             )
             .context(ServiceConfigurationSnafu)?;
 
@@ -926,7 +921,7 @@ async fn build_node_rolegroup_statefulset(
 
     let node_address = format!(
         "$POD_NAME.{service_name}.{namespace}.svc.{cluster_domain}",
-        service_name = rolegroup_headless_service_name(&rolegroup_ref.object_name()),
+        service_name = rolegroup_ref.rolegroup_headless_service_name(),
         namespace = &nifi
             .metadata
             .namespace
@@ -1360,7 +1355,7 @@ async fn build_node_rolegroup_statefulset(
                 nifi,
                 KEYSTORE_VOLUME_NAME,
                 [
-                    rolegroup_metrics_service_name(rolegroup_ref.object_name()),
+                    rolegroup_ref.rolegroup_metrics_service_name(),
                     build_reporting_task_service_name(&nifi_cluster_name),
                 ],
                 SecretFormat::TlsPkcs12,
@@ -1434,9 +1429,7 @@ async fn build_node_rolegroup_statefulset(
                 ),
                 ..LabelSelector::default()
             },
-            service_name: Some(rolegroup_headless_service_name(
-                &rolegroup_ref.object_name(),
-            )),
+            service_name: Some(rolegroup_ref.rolegroup_headless_service_name()),
             template: pod_template,
             update_strategy: Some(StatefulSetUpdateStrategy {
                 type_: if rolling_update_supported {

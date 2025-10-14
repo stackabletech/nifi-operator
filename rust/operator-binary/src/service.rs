@@ -4,14 +4,11 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     k8s_openapi::api::core::v1::{Service, ServicePort, ServiceSpec},
-    kvp::{Label, ObjectLabels},
+    kvp::{Annotations, Labels, ObjectLabels},
     role_utils::RoleGroupRef,
 };
 
 use crate::crd::{HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, v1alpha1};
-
-const METRICS_SERVICE_SUFFIX: &str = "metrics";
-const HEADLESS_SERVICE_SUFFIX: &str = "headless";
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -23,11 +20,6 @@ pub enum Error {
     #[snafu(display("failed to build Metadata"))]
     MetadataBuild {
         source: stackable_operator::builder::meta::Error,
-    },
-
-    #[snafu(display("failed to build Labels"))]
-    LabelBuild {
-        source: stackable_operator::kvp::LabelError,
     },
 }
 
@@ -42,9 +34,7 @@ pub fn build_rolegroup_headless_service(
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(nifi)
-            .name(rolegroup_headless_service_name(
-                &role_group_ref.object_name(),
-            ))
+            .name(role_group_ref.rolegroup_headless_service_name())
             .ownerreference_from_resource(nifi, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(object_labels)
@@ -69,23 +59,24 @@ pub fn build_rolegroup_metrics_service(
     role_group_ref: &RoleGroupRef<v1alpha1::NifiCluster>,
     object_labels: ObjectLabels<v1alpha1::NifiCluster>,
     selector: BTreeMap<String, String>,
-    ports: Vec<ServicePort>,
+    product_version: &str,
 ) -> Result<Service, Error> {
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(nifi)
-            .name(rolegroup_metrics_service_name(role_group_ref.object_name()))
+            .name(role_group_ref.rolegroup_metrics_service_name())
             .ownerreference_from_resource(nifi, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(object_labels)
             .context(MetadataBuildSnafu)?
-            .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
+            .with_labels(prometheus_labels())
+            .with_annotations(prometheus_annotations(product_version))
             .build(),
         spec: Some(ServiceSpec {
             // Internal communication does not need to be exposed
             type_: Some("ClusterIP".to_string()),
             cluster_ip: Some("None".to_string()),
-            ports: Some(ports),
+            ports: Some(vec![metrics_service_port(product_version)]),
             selector: Some(selector),
             publish_not_ready_addresses: Some(true),
             ..ServiceSpec::default()
@@ -124,13 +115,28 @@ pub fn metrics_service_port(product_version: &str) -> ServicePort {
     }
 }
 
-/// Returns the metrics rolegroup service name `<cluster>-<role>-<rolegroup>-<METRICS_SERVICE_SUFFIX>`.
-pub fn rolegroup_metrics_service_name(role_group_ref_object_name: impl AsRef<str>) -> String {
-    let role_group_ref_object_name = role_group_ref_object_name.as_ref();
-    format!("{role_group_ref_object_name}-{METRICS_SERVICE_SUFFIX}")
+/// Common labels for Prometheus
+fn prometheus_labels() -> Labels {
+    Labels::try_from([("prometheus.io/scrape", "true")]).expect("should be a valid label")
 }
 
-/// Returns the headless rolegroup service name `<cluster>-<role>-<rolegroup>-<HEADLESS_SERVICE_SUFFIX>`.
-pub fn rolegroup_headless_service_name(role_group_ref_object_name: &str) -> String {
-    format!("{role_group_ref_object_name}-{HEADLESS_SERVICE_SUFFIX}")
+/// Common annotations for Prometheus
+///
+/// These annotations can be used in a ServiceMonitor.
+///
+/// see also <https://github.com/prometheus-community/helm-charts/blob/prometheus-27.32.0/charts/prometheus/values.yaml#L983-L1036>
+fn prometheus_annotations(product_version: &str) -> Annotations {
+    let (path, port, scheme) = if product_version.starts_with("1.") {
+        ("/metrics", METRICS_PORT, "http")
+    } else {
+        ("/nifi-api/flow/metrics/prometheus", HTTPS_PORT, "https")
+    };
+
+    Annotations::try_from([
+        ("prometheus.io/path".to_owned(), path.to_owned()),
+        ("prometheus.io/port".to_owned(), port.to_string()),
+        ("prometheus.io/scheme".to_owned(), scheme.to_owned()),
+        ("prometheus.io/scrape".to_owned(), "true".to_owned()),
+    ])
+    .expect("should be valid annotations")
 }
