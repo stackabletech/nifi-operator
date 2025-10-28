@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Bump stackable-operator to `0.100.1` and product-config to `0.8.0` ([#859]).
 - Deprecate support for `1.27.0`, `1.28.1`, and `2.4.0` ([#849]).
 
 ### Fixed
@@ -26,6 +27,7 @@ All notable changes to this project will be documented in this file.
 [#844]: https://github.com/stackabletech/nifi-operator/pull/844
 [#849]: https://github.com/stackabletech/nifi-operator/pull/849
 [#855]: https://github.com/stackabletech/nifi-operator/pull/855
+[#859]: https://github.com/stackabletech/nifi-operator/pull/859
 
 ## [25.7.0] - 2025-07-23
 
