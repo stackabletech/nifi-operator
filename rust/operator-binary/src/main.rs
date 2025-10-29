@@ -65,9 +65,9 @@ async fn main() -> anyhow::Result<()> {
         Command::Crd => NifiCluster::merged_crd(NifiClusterVersion::V1Alpha1)?
             .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?,
         Command::Run(RunArguments {
-            product_config,
-            watch_namespace,
             operator_environment: _,
+            watch_namespace,
+            product_config,
             maintenance,
             common,
         }) => {
