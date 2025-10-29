@@ -9,6 +9,10 @@ All notable changes to this project will be documented in this file.
 - Helm: Allow Pod `priorityClassName` to be configured ([#840]).
 - Add support for `2.6.0` ([#849]).
 - Add `prometheus.io/path|port|scheme` annotations to metrics service ([#855]).
+- Add end-of-support checker ([#860]).
+  - `EOS_CHECK_MODE` (`--eos-check-mode`) to set the EoS check mode. Currently, only "offline" is supported.
+  - `EOS_INTERVAL` (`--eos-interval`) to set the interval in which the operator checks if it is EoS.
+  - `EOS_DISABLED` (`--eos-disabled`) to disable the EoS checker completely.
 
 ### Changed
 
@@ -28,6 +32,7 @@ All notable changes to this project will be documented in this file.
 [#849]: https://github.com/stackabletech/nifi-operator/pull/849
 [#855]: https://github.com/stackabletech/nifi-operator/pull/855
 [#859]: https://github.com/stackabletech/nifi-operator/pull/859
+[#860]: https://github.com/stackabletech/nifi-operator/pull/860
 
 ## [25.7.0] - 2025-07-23
 
