@@ -94,6 +94,11 @@ spec:
     roleGroups:
       default:
         replicas: 1
+    # When NiFi is exposed through a NodePort Service it's SNI check has to be disabled
+    configOverrides:
+      nifi.properties:
+        nifi.web.https.sni.required: "false"
+        nifi.web.https.sni.host.check: "false"
 EOF
 # end::install-nifi[]
 
