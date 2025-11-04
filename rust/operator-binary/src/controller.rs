@@ -24,10 +24,7 @@ use stackable_operator::{
             container::ContainerBuilder,
             resources::ResourceRequirementsBuilder,
             security::PodSecurityContextBuilder,
-            volume::{
-                ListenerOperatorVolumeSourceBuilderError, SecretFormat,
-                SecretOperatorVolumeSourceBuilder, VolumeBuilder,
-            },
+            volume::{SecretFormat, SecretOperatorVolumeSourceBuilder, VolumeBuilder},
         },
     },
     client::Client,
@@ -153,11 +150,6 @@ pub enum Error {
     #[snafu(display("failed to delete orphaned resources"))]
     DeleteOrphanedResources {
         source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to fetch deployed StatefulSets"))]
-    FetchStatefulsets {
-        source: stackable_operator::client::Error,
     },
 
     #[snafu(display("failed to update status"))]
@@ -341,11 +333,6 @@ pub enum Error {
 
     #[snafu(display("Failed to determine the state of the version upgrade procedure"))]
     ClusterVersionUpdateState { source: upgrade::Error },
-
-    #[snafu(display("failed to build listener volume"))]
-    BuildListenerVolume {
-        source: ListenerOperatorVolumeSourceBuilderError,
-    },
 
     #[snafu(display("failed to build OPA TLS certificate volume"))]
     OpaTlsCertSecretClassVolumeBuild {
