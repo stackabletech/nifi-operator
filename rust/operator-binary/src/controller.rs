@@ -24,7 +24,10 @@ use stackable_operator::{
             container::ContainerBuilder,
             resources::ResourceRequirementsBuilder,
             security::PodSecurityContextBuilder,
-            volume::{ListenerOperatorVolumeSourceBuilderError, SecretFormat},
+            volume::{
+                ListenerOperatorVolumeSourceBuilderError, SecretFormat,
+                SecretOperatorVolumeSourceBuilder, VolumeBuilder,
+            },
         },
     },
     client::Client,
@@ -106,7 +109,7 @@ use crate::{
             AUTHORIZERS_XML_FILE_NAME, LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME,
             NifiAuthenticationConfig, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
         },
-        authorization::NifiAuthorizationConfig,
+        authorization::{NifiAuthorizationConfig, OPA_TLS_MOUNT_PATH, OPA_TLS_VOLUME_NAME},
         build_tls_volume, check_or_generate_oidc_admin_password, check_or_generate_sensitive_key,
         tls::{KEYSTORE_NIFI_CONTAINER_MOUNT, KEYSTORE_VOLUME_NAME, TRUSTSTORE_VOLUME_NAME},
     },
@@ -343,6 +346,12 @@ pub enum Error {
     BuildListenerVolume {
         source: ListenerOperatorVolumeSourceBuilderError,
     },
+
+    #[snafu(display("failed to build OPA TLS certificate volume"))]
+    OpaTlsCertSecretClassVolumeBuild {
+        source: stackable_operator::builder::pod::volume::SecretOperatorVolumeSourceBuilderError,
+    },
+
     #[snafu(display("failed to apply group listener"))]
     ApplyGroupListener {
         source: stackable_operator::cluster_resources::Error,
@@ -455,8 +464,16 @@ pub async fn reconcile_nifi(
             .context(SecuritySnafu)?;
     }
 
-    let authorization_config =
-        NifiAuthorizationConfig::from(&nifi.spec.cluster_config.authorization);
+    let authorization_config = NifiAuthorizationConfig::from(
+        &nifi.spec.cluster_config.authorization,
+        client,
+        nifi.metadata
+            .namespace
+            .as_deref()
+            .context(ObjectHasNoNamespaceSnafu)?,
+    )
+    .await
+    .context(InvalidNifiAuthorizationConfigSnafu)?;
 
     let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
         nifi,
@@ -770,6 +787,7 @@ async fn build_node_rolegroup_config_map(
                     .clone(),
                 role,
                 &rolegroup.role_group,
+                Some(authorization_config),
             )
             .context(BootstrapConfigSnafu)?,
         )
@@ -978,6 +996,14 @@ async fn build_node_rolegroup_statefulset(
             .as_slice(),
     );
 
+    // Add OPA certificate to truststore if OPA TLS is enabled
+    if authorization_config.has_opa_tls() {
+        prepare_args.extend(vec![
+            "echo Importing OPA CA certificate to truststore".to_string(),
+            format!("keytool -importcert -file {OPA_TLS_MOUNT_PATH}/ca.crt -keystore {STACKABLE_SERVER_TLS_DIR}/truststore.p12 -storepass {STACKABLE_TLS_STORE_PASSWORD} -alias opa-ca -noprompt"),
+        ]);
+    }
+
     prepare_args.extend(vec![
         "export LISTENER_DEFAULT_ADDRESS=$(cat /stackable/listener/default-address/address)"
             .to_string(),
@@ -1051,15 +1077,22 @@ async fn build_node_rolegroup_statefulset(
         .add_volume_mount(TRUSTSTORE_VOLUME_NAME, STACKABLE_SERVER_TLS_DIR)
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)
-        .context(AddVolumeMountSnafu)?
-        .resources(
-            ResourceRequirementsBuilder::new()
-                .with_cpu_request("500m")
-                .with_cpu_limit("2000m")
-                .with_memory_request("4096Mi")
-                .with_memory_limit("4096Mi")
-                .build(),
-        );
+        .context(AddVolumeMountSnafu)?;
+
+    if authorization_config.has_opa_tls() {
+        container_prepare
+            .add_volume_mount(OPA_TLS_VOLUME_NAME, OPA_TLS_MOUNT_PATH)
+            .context(AddVolumeMountSnafu)?;
+    }
+
+    container_prepare.resources(
+        ResourceRequirementsBuilder::new()
+            .with_cpu_request("500m")
+            .with_cpu_limit("2000m")
+            .with_memory_request("4096Mi")
+            .with_memory_limit("4096Mi")
+            .build(),
+    );
 
     let nifi_container_name = Container::Nifi.to_string();
     let mut container_nifi_builder =
@@ -1083,6 +1116,13 @@ async fn build_node_rolegroup_statefulset(
     create_vector_shutdown_file_command =
         create_vector_shutdown_file_command(STACKABLE_LOG_DIR),
     }];
+
+    if authorization_config.has_opa_tls() {
+        container_nifi_builder
+            .add_volume_mount(OPA_TLS_VOLUME_NAME, OPA_TLS_MOUNT_PATH)
+            .context(AddVolumeMountSnafu)?;
+    }
+
     let container_nifi = container_nifi_builder
         .image_from_product_image(resolved_product_image)
         .command(vec![
@@ -1366,7 +1406,22 @@ async fn build_node_rolegroup_statefulset(
         )
         .context(AddVolumeSnafu)?
         .add_empty_dir_volume(TRUSTSTORE_VOLUME_NAME, None)
-        .context(AddVolumeSnafu)?
+        .context(AddVolumeSnafu)?;
+
+    if let NifiAuthorizationConfig::Opa { secret_class: Some(secret_class), .. } = authorization_config
+    {
+        pod_builder
+            .add_volume(VolumeBuilder::new(OPA_TLS_VOLUME_NAME)
+            .ephemeral(
+                SecretOperatorVolumeSourceBuilder::new(secret_class)
+                    .build()
+                    .context(OpaTlsCertSecretClassVolumeBuildSnafu)?,
+            )
+            .build())
+            .context(AddVolumeSnafu)?;
+    }
+
+    pod_builder
         .add_volume(Volume {
             name: "sensitiveproperty".to_string(),
             secret: Some(SecretVolumeSource {

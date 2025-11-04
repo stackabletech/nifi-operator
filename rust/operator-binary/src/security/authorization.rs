@@ -1,12 +1,16 @@
 use indoc::{formatdoc, indoc};
-use snafu::{OptionExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
+    client::Client,
     crd::authentication::ldap,
-    k8s_openapi::api::core::v1::{ConfigMapKeySelector, EnvVar, EnvVarSource},
+    k8s_openapi::api::core::v1::{ConfigMap, ConfigMapKeySelector, EnvVar, EnvVarSource},
 };
 
 use super::authentication::NifiAuthenticationConfig;
 use crate::crd::NifiAuthorization;
+
+pub const OPA_TLS_VOLUME_NAME: &str = "opa-tls";
+pub const OPA_TLS_MOUNT_PATH: &str = "/stackable/opa_tls";
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -14,6 +18,13 @@ pub enum Error {
         "The LDAP AuthenticationClass is missing the bind credentials. Currently the NiFi operator only supports connecting to LDAP servers using bind credentials"
     ))]
     LdapAuthenticationClassMissingBindCredentials {},
+
+    #[snafu(display("Failed to fetch OPA ConfigMap {configmap_name}"))]
+    FetchOpaConfigMap {
+        source: stackable_operator::client::Error,
+        configmap_name: String,
+        namespace: String,
+    },
 }
 
 pub enum NifiAuthorizationConfig {
@@ -21,23 +32,46 @@ pub enum NifiAuthorizationConfig {
         configmap_name: String,
         cache_entry_time_to_live_secs: u64,
         cache_max_entries: u32,
+        secret_class: Option<String>,
     },
     Default,
 }
 
 impl NifiAuthorizationConfig {
-    pub fn from(nifi_authorization: &Option<NifiAuthorization>) -> Self {
-        match nifi_authorization {
+    pub async fn from(
+        nifi_authorization: &Option<NifiAuthorization>,
+        client: &Client,
+        namespace: &str,
+    ) -> Result<Self, Error> {
+        let config = match nifi_authorization {
             Some(authorization_config) => match authorization_config.opa.clone() {
-                Some(opa_config) => NifiAuthorizationConfig::Opa {
-                    configmap_name: opa_config.opa.config_map_name,
-                    cache_entry_time_to_live_secs: opa_config.cache.entry_time_to_live.as_secs(),
-                    cache_max_entries: opa_config.cache.max_entries,
-                },
+                Some(opa_config) => {
+                    let configmap_name = opa_config.opa.config_map_name.clone();
+
+                    // Resolve the secret class from the ConfigMap
+                    let secret_class = client
+                        .get::<ConfigMap>(&configmap_name, namespace)
+                        .await
+                        .with_context(|_| FetchOpaConfigMapSnafu {
+                            configmap_name: configmap_name.clone(),
+                            namespace: namespace.to_string(),
+                        })?
+                        .data
+                        .and_then(|mut data| data.remove("OPA_SECRET_CLASS"));
+
+                    NifiAuthorizationConfig::Opa {
+                        configmap_name,
+                        cache_entry_time_to_live_secs: opa_config.cache.entry_time_to_live.as_secs(),
+                        cache_max_entries: opa_config.cache.max_entries,
+                        secret_class,
+                    }
+                }
                 None => NifiAuthorizationConfig::Default,
             },
             None => NifiAuthorizationConfig::Default,
-        }
+        };
+
+        Ok(config)
     }
 
     pub fn get_authorizers_config(
@@ -151,5 +185,9 @@ impl NifiAuthorizationConfig {
             }
             NifiAuthorizationConfig::Default => vec![],
         }
+    }
+
+    pub fn has_opa_tls(&self) -> bool {
+        matches!(self, NifiAuthorizationConfig::Opa { secret_class: Some(_), .. })
     }
 }

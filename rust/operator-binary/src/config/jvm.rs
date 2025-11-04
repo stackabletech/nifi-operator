@@ -7,6 +7,10 @@ use stackable_operator::{
 use crate::{
     config::{JVM_SECURITY_PROPERTIES_FILE, NIFI_CONFIG_DIRECTORY},
     crd::{NifiConfig, NifiConfigFragment, NifiNodeRoleConfig},
+    security::{
+        authentication::{STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD},
+        authorization::NifiAuthorizationConfig,
+    },
 };
 
 // Part of memory resources allocated for Java heap
@@ -31,6 +35,7 @@ pub fn build_merged_jvm_config(
     merged_config: &NifiConfig,
     role: &Role<NifiConfigFragment, NifiNodeRoleConfig, JavaCommonConfig>,
     role_group: &str,
+    authorization_config: Option<&NifiAuthorizationConfig>,
 ) -> Result<JvmArgumentOverrides, Error> {
     let heap_size = MemoryQuantity::try_from(
         merged_config
@@ -47,7 +52,7 @@ pub fn build_merged_jvm_config(
         .format_for_java()
         .context(InvalidMemoryConfigSnafu)?;
 
-    let jvm_args = vec![
+    let mut jvm_args = vec![
         // Heap settings
         format!("-Xmx{java_heap}"),
         format!("-Xms{java_heap}"),
@@ -78,6 +83,23 @@ pub fn build_merged_jvm_config(
             "-Djava.security.properties={NIFI_CONFIG_DIRECTORY}/{JVM_SECURITY_PROPERTIES_FILE}"
         ),
     ];
+
+    // Add JVM truststore properties when OPA TLS is enabled
+    // This ensures that the OPA authorizer can verify the OPA server's TLS certificate
+    //
+    // Note: JVM system properties are currently the correct way to configure TLS for the OPA
+    // plugin. The NiFi OPA authorizer uses the Styra OPA Java SDK, which internally creates a
+    // standard Java HttpClient without exposed SSL configuration options, but the HttpClient
+    // respects these JVM-wide SSL system properties. So there is no plugin-level configuration
+    // available for truststore settings. This was last checked for version 1.7.0 of the Styra
+    // OPA Java SDK.
+    if let Some(authz_config) = authorization_config {
+        if authz_config.has_opa_tls() {
+            jvm_args.push(format!("-Djavax.net.ssl.trustStore={STACKABLE_SERVER_TLS_DIR}/truststore.p12"));
+            jvm_args.push(format!("-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"));
+            jvm_args.push("-Djavax.net.ssl.trustStoreType=pkcs12".to_owned());
+        }
+    }
 
     let operator_generated = JvmArgumentOverrides::new_with_only_additions(jvm_args);
     role.get_merged_jvm_argument_overrides(role_group, &operator_generated)

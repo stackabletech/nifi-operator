@@ -115,6 +115,7 @@ pub fn build_bootstrap_conf(
     overrides: BTreeMap<String, String>,
     role: &Role<NifiConfigFragment, NifiNodeRoleConfig, JavaCommonConfig>,
     role_group: &str,
+    authorization_config: Option<&crate::security::authorization::NifiAuthorizationConfig>,
 ) -> Result<String, Error> {
     let mut bootstrap = BTreeMap::new();
     // Java command to use when running NiFi
@@ -129,7 +130,7 @@ pub fn build_bootstrap_conf(
     bootstrap.extend(graceful_shutdown_config_properties(merged_config));
 
     let merged_jvm_config =
-        build_merged_jvm_config(merged_config, role, role_group).context(InvalidJVMConfigSnafu)?;
+        build_merged_jvm_config(merged_config, role, role_group, authorization_config).context(InvalidJVMConfigSnafu)?;
 
     for (index, argument) in merged_jvm_config
         .effective_jvm_config_after_merging()
@@ -917,6 +918,6 @@ mod tests {
         let role = nifi.spec.nodes.as_ref().unwrap();
         let merged_config = nifi.merged_config(&nifi_role, "default").unwrap();
 
-        build_bootstrap_conf(&merged_config, BTreeMap::new(), role, "default").unwrap()
+        build_bootstrap_conf(&merged_config, BTreeMap::new(), role, "default", None).unwrap()
     }
 }
