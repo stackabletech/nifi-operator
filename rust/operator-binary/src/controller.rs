@@ -1064,22 +1064,21 @@ async fn build_node_rolegroup_statefulset(
         .add_volume_mount(TRUSTSTORE_VOLUME_NAME, STACKABLE_SERVER_TLS_DIR)
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)
-        .context(AddVolumeMountSnafu)?;
+        .context(AddVolumeMountSnafu)?
+        .resources(
+            ResourceRequirementsBuilder::new()
+                .with_cpu_request("500m")
+                .with_cpu_limit("2000m")
+                .with_memory_request("4096Mi")
+                .with_memory_limit("4096Mi")
+                .build(),
+        );
 
     if authorization_config.has_opa_tls() {
         container_prepare
             .add_volume_mount(OPA_TLS_VOLUME_NAME, OPA_TLS_MOUNT_PATH)
             .context(AddVolumeMountSnafu)?;
     }
-
-    container_prepare.resources(
-        ResourceRequirementsBuilder::new()
-            .with_cpu_request("500m")
-            .with_cpu_limit("2000m")
-            .with_memory_request("4096Mi")
-            .with_memory_limit("4096Mi")
-            .build(),
-    );
 
     let nifi_container_name = Container::Nifi.to_string();
     let mut container_nifi_builder =
