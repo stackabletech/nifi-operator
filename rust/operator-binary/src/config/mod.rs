@@ -130,7 +130,8 @@ pub fn build_bootstrap_conf(
     bootstrap.extend(graceful_shutdown_config_properties(merged_config));
 
     let merged_jvm_config =
-        build_merged_jvm_config(merged_config, role, role_group, authorization_config).context(InvalidJVMConfigSnafu)?;
+        build_merged_jvm_config(merged_config, role, role_group, authorization_config)
+            .context(InvalidJVMConfigSnafu)?;
 
     for (index, argument) in merged_jvm_config
         .effective_jvm_config_after_merging()

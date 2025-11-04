@@ -95,8 +95,12 @@ pub fn build_merged_jvm_config(
     // OPA Java SDK.
     if let Some(authz_config) = authorization_config {
         if authz_config.has_opa_tls() {
-            jvm_args.push(format!("-Djavax.net.ssl.trustStore={STACKABLE_SERVER_TLS_DIR}/truststore.p12"));
-            jvm_args.push(format!("-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"));
+            jvm_args.push(format!(
+                "-Djavax.net.ssl.trustStore={STACKABLE_SERVER_TLS_DIR}/truststore.p12"
+            ));
+            jvm_args.push(format!(
+                "-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"
+            ));
             jvm_args.push("-Djavax.net.ssl.trustStoreType=pkcs12".to_owned());
         }
     }

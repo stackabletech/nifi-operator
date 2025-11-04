@@ -61,7 +61,10 @@ impl NifiAuthorizationConfig {
 
                     NifiAuthorizationConfig::Opa {
                         configmap_name,
-                        cache_entry_time_to_live_secs: opa_config.cache.entry_time_to_live.as_secs(),
+                        cache_entry_time_to_live_secs: opa_config
+                            .cache
+                            .entry_time_to_live
+                            .as_secs(),
                         cache_max_entries: opa_config.cache.max_entries,
                         secret_class,
                     }
@@ -188,6 +191,12 @@ impl NifiAuthorizationConfig {
     }
 
     pub fn has_opa_tls(&self) -> bool {
-        matches!(self, NifiAuthorizationConfig::Opa { secret_class: Some(_), .. })
+        matches!(
+            self,
+            NifiAuthorizationConfig::Opa {
+                secret_class: Some(_),
+                ..
+            }
+        )
     }
 }

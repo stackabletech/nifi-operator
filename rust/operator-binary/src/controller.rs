@@ -1408,16 +1408,21 @@ async fn build_node_rolegroup_statefulset(
         .add_empty_dir_volume(TRUSTSTORE_VOLUME_NAME, None)
         .context(AddVolumeSnafu)?;
 
-    if let NifiAuthorizationConfig::Opa { secret_class: Some(secret_class), .. } = authorization_config
+    if let NifiAuthorizationConfig::Opa {
+        secret_class: Some(secret_class),
+        ..
+    } = authorization_config
     {
         pod_builder
-            .add_volume(VolumeBuilder::new(OPA_TLS_VOLUME_NAME)
-            .ephemeral(
-                SecretOperatorVolumeSourceBuilder::new(secret_class)
-                    .build()
-                    .context(OpaTlsCertSecretClassVolumeBuildSnafu)?,
+            .add_volume(
+                VolumeBuilder::new(OPA_TLS_VOLUME_NAME)
+                    .ephemeral(
+                        SecretOperatorVolumeSourceBuilder::new(secret_class)
+                            .build()
+                            .context(OpaTlsCertSecretClassVolumeBuildSnafu)?,
+                    )
+                    .build(),
             )
-            .build())
             .context(AddVolumeSnafu)?;
     }
 
