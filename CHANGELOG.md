@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
   - `EOS_CHECK_MODE` (`--eos-check-mode`) to set the EoS check mode. Currently, only "offline" is supported.
   - `EOS_INTERVAL` (`--eos-interval`) to set the interval in which the operator checks if it is EoS.
   - `EOS_DISABLED` (`--eos-disabled`) to disable the EoS checker completely.
+- Add support for OPA with TLS enabled ([#863]).
 
 ### Changed
 
@@ -33,6 +34,7 @@ All notable changes to this project will be documented in this file.
 [#855]: https://github.com/stackabletech/nifi-operator/pull/855
 [#859]: https://github.com/stackabletech/nifi-operator/pull/859
 [#860]: https://github.com/stackabletech/nifi-operator/pull/860
+[#863]: https://github.com/stackabletech/nifi-operator/pull/863
 
 ## [25.7.0] - 2025-07-23
 
