@@ -8005,7 +8005,7 @@ rec {
       };
       "stackable-nifi-operator" = rec {
         crateName = "stackable-nifi-operator";
-        version = "0.0.0-dev";
+        version = "25.11.0-rc1";
         edition = "2021";
         crateBin = [
           {
