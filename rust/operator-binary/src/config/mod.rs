@@ -485,6 +485,14 @@ pub fn build_nifi_properties(
         "".to_string(),
     );
     properties.insert(
+        "nifi.web.https.network.interface.eth0".to_string(),
+        "eth0".to_string(),
+    );
+    properties.insert(
+        "nifi.web.https.network.interface.lo0".to_string(),
+        "lo0".to_string(),
+    );
+    properties.insert(
         "nifi.web.jetty.working.directory".to_string(),
         "./work/jetty".to_string(),
     );
