@@ -46,7 +46,6 @@ The output should show all pods ready:
 ----
 NAME                                 READY   AGE
 simple-nifi-node-default             2/2     5m
-simple-zk-server-default             3/3     7m
 ----
 
 Congratulations! You successfully created your first NiFi cluster!
