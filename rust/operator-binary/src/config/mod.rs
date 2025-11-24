@@ -484,6 +484,20 @@ pub fn build_nifi_properties(
         "nifi.web.https.network.interface.default".to_string(),
         "".to_string(),
     );
+    // Specifically listen on eth0 and lo interfaces.
+    // Listening on lo allows k8s port-forward to work.
+    // Once we listen on lo, we need to explicitly listen on eth0 so the server can be exposed (including health probes).
+    // NOTE: We assume "eth0" is always the external interface in containers launched in Kubernetes.
+    // It is possible that some container runtime will name it differently, but we haven't yet observed that.
+    properties.insert(
+        "nifi.web.https.network.interface.eth0".to_string(),
+        "eth0".to_string(),
+    );
+    properties.insert(
+        "nifi.web.https.network.interface.lo".to_string(),
+        "lo".to_string(),
+    );
+    //#############################################
     properties.insert(
         "nifi.web.jetty.working.directory".to_string(),
         "./work/jetty".to_string(),

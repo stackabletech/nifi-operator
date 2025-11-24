@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Also listen on the loopback interface so that k8s port-forwards work ([#870]).
+
+[#870]: https://github.com/stackabletech/nifi-operator/pull/870
+
 ## [25.11.0] - 2025-11-07
 
 ## [25.11.0-rc1] - 2025-11-06
