@@ -205,8 +205,7 @@ spec:
         nifi.security.user.oidc.client.secret: "${env:OIDC_CLIENT_SECRET}"
         nifi.security.user.oidc.additional.scopes: "profile"
         nifi.security.user.oidc.claim.identifying.user: "upn"
-      # bootstrap.conf:
-      #  java.arg.debug: -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8000
+        nifi.process.group.root.placeholder: "root"
     podOverrides:
       spec:
         initContainers:
