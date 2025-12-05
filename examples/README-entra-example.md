@@ -3,6 +3,9 @@
 ## Overview
 
 This note provides some explanatory information when running the EntraID example.
+This example demonstrates how to provide a static set of RBAC permissions for users that are fetched from an EntraID backend.
+The user- and group-identifiers are those used by EntraID, but other UUIDs - such as for the policy identifiers - are automatically generated when required by Nifi or are honoured if UUIDs (which are unique, after all) are provided.
+It is often helpful if the initial (or "root") process group is readable by the initial admin, and the Nifi code has been patched to make this possible.
 
 ## Cluster
 
