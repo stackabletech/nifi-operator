@@ -175,7 +175,7 @@ metadata:
 spec:
   image:
     custom: null
-    productVersion: 2.4.0
+    productVersion: 2.6.0
     pullPolicy: IfNotPresent
   clusterConfig:
     zookeeperConfigMapName: null
