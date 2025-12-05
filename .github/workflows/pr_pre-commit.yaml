@@ -8,16 +8,17 @@ on:
 env:
   CARGO_TERM_COLOR: always
   NIX_PKG_MANAGER_VERSION: "2.30.0"
-  RUST_TOOLCHAIN_VERSION: "nightly-2025-05-26"
-  HADOLINT_VERSION: "v2.12.0"
-  PYTHON_VERSION: "3.13"
+  RUST_TOOLCHAIN_VERSION: "nightly-2025-10-23"
+  HADOLINT_VERSION: "v2.14.0"
+  PYTHON_VERSION: "3.14"
+  JINJA2_CLI_VERSION: "0.8.2"
 
 jobs:
   pre-commit:
     runs-on: ubuntu-latest
     steps:
       - name: Install host dependencies
-        uses: awalsh128/cache-apt-pkgs-action@2c09a5e66da6c8016428a2172bd76e5e4f14bb17 # v1.5.3
+        uses: awalsh128/cache-apt-pkgs-action@acb598e5ddbc6f68a970c5da0688d2f3a9f04d05 # v1.6.0
         with:
           packages: protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config apt-transport-https
           version: ubuntu-latest
@@ -26,10 +27,11 @@ jobs:
           persist-credentials: false
           submodules: recursive
           fetch-depth: 0
-      - uses: stackabletech/actions/run-pre-commit@bdac99602eb834b85fdddf207d68e51d0e8b9380 # v0.9.3
+      - uses: stackabletech/actions/run-pre-commit@29bea1b451c0c2e994bd495969286f95bf49ed6a # v0.11.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           rust: ${{ env.RUST_TOOLCHAIN_VERSION }}
           hadolint: ${{ env.HADOLINT_VERSION }}
           nix: ${{ env.NIX_PKG_MANAGER_VERSION }}
           nix-github-token: ${{ secrets.GITHUB_TOKEN }}
+          jinja2-cli: ${{ env.JINJA2_CLI_VERSION }}

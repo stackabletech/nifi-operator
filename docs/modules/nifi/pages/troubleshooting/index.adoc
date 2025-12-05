@@ -22,9 +22,16 @@ spec:
 
 == `HTTP ERROR 400 Invalid SNI`
 
-You are very likely accessing a NiFi >= 2.0 stacklet using HTTPS to secure its WebUI and an Ingress in front of it.
-The URL requested by the ingress-controller (such as nginx) needs to be the FQDN of the nifi service, not only the service name.
-You can instruct nginx ingress to use the FQDN by setting the following annotation:
+This error occurs when accessing NiFi 2.0 or later, which enforces https://en.wikipedia.org/wiki/Server_Name_Indication[SNI (Server Name Indication){external-link-icon}^] validation for HTTPS connections.
+The hostname in the request must match one of the hostnames in NiFi's TLS certificate.
+
+NOTE: For complete technical background, see the https://issues.apache.org/jira/browse/NIFI-14858[upstream issue NIFI-14858{external-link-icon}^].
+
+=== When using Ingress
+
+If you're accessing NiFi through a Load Balancer or Reverse Proxy, it must forward requests using the FQDN of the NiFi service, not just the service name.
+
+For nginx ingress, configure the `upstream-vhost` annotation to use the service FQDN:
 
 [source,yaml]
 ----
@@ -53,7 +60,36 @@ spec:
 # ...
 ----
 
-For details please read on https://medium.com/@chnzhoujun/how-to-resolve-sni-issue-when-upgrading-to-nifi-2-0-907e07d465c5[this article].
+For additional details, see https://medium.com/@chnzhoujun/how-to-resolve-sni-issue-when-upgrading-to-nifi-2-0-907e07d465c5[this article{external-link-icon}^].
+
+=== When using Load Balancers or other proxies
+
+When Load Balancers, API Gateways, or other proxy services sit in front of NiFi, they might forward requests with hostnames that don't match NiFi's TLS certificates.
+This commonly occurs because:
+
+* The proxy uses a different hostname than what's in NiFi's certificate
+* NiFi is unaware of the external hostnames used to reach the proxy
+* Certificate management in Kubernetes makes it complex to include all possible hostnames
+
+==== Workaround: Disable SNI validation
+
+Since this scenario is common and difficult to resolve through certificate management, you can disable SNI validation in NiFi:
+
+[source,yaml]
+----
+nodes:
+  configOverrides:
+    nifi.properties:
+      nifi.web.https.sni.required: "false"
+      nifi.web.https.sni.host.check: "false"
+----
+
+These properties control NiFi's SNI validation behavior:
+
+* `nifi.web.https.sni.required`: When `true`, NiFi requires that HTTPS requests include the SNI extension (containing the `server_name`). Setting to `false` allows connections without SNI. Be aware: SNI is _not_ used for IP based connections, so if this is set to `true` any connections using IPs only will not work.
+* `nifi.web.https.sni.host.check`: When `true`, NiFi validates that the value of the `Host` header is a valid Subject in the Certificate. Setting to `false` disables this hostname matching check.
+
+WARNING: Disabling SNI validation reduces security by allowing connections with mismatched hostnames. Only use this workaround when proper certificate configuration is not feasible.
 
 == `authorization_request_not_found` when using multiple NiFi nodes
 

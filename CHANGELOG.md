@@ -4,11 +4,47 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Also listen on the loopback interface so that k8s port-forwards work ([#870]).
+
+[#870]: https://github.com/stackabletech/nifi-operator/pull/870
+
+## [25.11.0] - 2025-11-07
+
+## [25.11.0-rc1] - 2025-11-06
+
 ### Added
 
 - Helm: Allow Pod `priorityClassName` to be configured ([#840]).
+- Add support for `2.6.0` ([#849]).
+- Add `prometheus.io/path|port|scheme` annotations to metrics service ([#855]).
+- Add end-of-support checker ([#860]).
+  - `EOS_CHECK_MODE` (`--eos-check-mode`) to set the EoS check mode. Currently, only "offline" is supported.
+  - `EOS_INTERVAL` (`--eos-interval`) to set the interval in which the operator checks if it is EoS.
+  - `EOS_DISABLED` (`--eos-disabled`) to disable the EoS checker completely.
+- Add support for OPA with TLS enabled ([#863]).
+
+### Changed
+
+- Bump stackable-operator to `0.100.1` and product-config to `0.8.0` ([#859]).
+- Deprecate support for `1.27.0`, `1.28.1`, and `2.4.0` ([#849]).
+
+### Fixed
+
+- Previously we had a bug that could lead to missing certificates ([#844]).
+
+  This could be the case when you specified multiple CAs in your SecretClass.
+  We now correctly handle multiple certificates in this cases.
+  See [this GitHub issue](https://github.com/stackabletech/issues/issues/764) for details
 
 [#840]: https://github.com/stackabletech/nifi-operator/pull/840
+[#844]: https://github.com/stackabletech/nifi-operator/pull/844
+[#849]: https://github.com/stackabletech/nifi-operator/pull/849
+[#855]: https://github.com/stackabletech/nifi-operator/pull/855
+[#859]: https://github.com/stackabletech/nifi-operator/pull/859
+[#860]: https://github.com/stackabletech/nifi-operator/pull/860
+[#863]: https://github.com/stackabletech/nifi-operator/pull/863
 
 ## [25.7.0] - 2025-07-23
 
