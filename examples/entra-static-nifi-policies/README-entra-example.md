@@ -4,8 +4,8 @@
 
 This note provides some explanatory information when running the EntraID example.
 This example demonstrates how to provide a static set of RBAC permissions for users that are fetched from an EntraID backend.
-The user- and group-identifiers are those used by EntraID, but other UUIDs - such as for the policy identifiers - are automatically generated when required by Nifi or are honoured if UUIDs (which are unique, after all) are provided.
-It is often helpful if the initial (or "root") process group is readable by the initial admin, and the Nifi code has been patched to make this possible.
+The user- and group-identifiers are those used by EntraID, but other UUIDs - such as for the policy identifiers - are automatically generated when required by Apache NiFi or are honoured if UUIDs (which are unique, after all) are provided.
+It is often helpful if the initial (or "root") process group is readable by the initial admin, and the NiFi code has been patched to make this possible.
 
 ## Cluster
 
@@ -48,7 +48,7 @@ stringData:
   discovery.url: https://login.microsoftonline.com/<DIRECTORY-ID>/v2.0/.well-known/openid-configuration
 ```
 
-Apply the Nifi cluster resource:
+Apply the NiFi cluster resource:
 
 ```text
 kubectl apply -f examples/entra_nifi.yaml -n nifi
@@ -73,10 +73,10 @@ The web endpoint for app running against Entra needs to be updated with this end
 
 ![EntraID Web URI](entra-redirect-uri.png)
 
-Paste this endpoint into the browser and you will be directed to the Azure portal login portal (to enter the credentials for the user designated as the intiial admin) and then redirected back to the Nifi UI.
+Paste this endpoint into the browser and you will be directed to the Azure portal login portal (to enter the credentials for the user designated as the intiial admin) and then redirected back to the NiFi UI.
 The UI opens up on a writable canvas, in this case with the UUID `ea060c65-019a-1000-766b-0854b414d37e`:
 
-![Nifi canvas](canvas.png)
+![NiFi canvas](canvas.png)
 
 The initial admin has immediate access as the static `authorizations.xml` file provided via the ConfigMap defined this:
 
