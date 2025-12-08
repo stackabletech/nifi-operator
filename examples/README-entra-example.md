@@ -43,6 +43,8 @@ stringData:
   client.secret: <CLIENT-SECRET>
   filter.prefix: <FILTER-PREFIX> # e.g. Nifi-Entra
   initial.admin: <INIT-ADMIN> # an existing EntraID user
+  initial.admin.uuid: <ADMIN-UUID> # the Entra Admin user UUID
+  initial.group.uuid: <GROUP-UUID> # the initial group UUID
   discovery.url: https://login.microsoftonline.com/<DIRECTORY-ID>/v2.0/.well-known/openid-configuration
 ```
 
@@ -80,7 +82,7 @@ The initial admin has immediate access as the static `authorizations.xml` file p
 
 ```xml
 <policy identifier="c8d5a9ba-0199-1000-0000-00003d66cc46" resource="/data/process-groups/root" action="W">
-    <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+    <user identifier="${env:INITIAL_ADMIN_UUID}"/>
 </policy>
 ```
 
@@ -88,7 +90,7 @@ and the `root` part of this has been updated with the actual root process group:
 
 ```xml
 <policy identifier="c8d5a9ba-0199-1000-0000-00003d66cc46" resource="/data/process-groups/ea060c65-019a-1000-766b-0854b414d37e" action="W">
-    <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+    <user identifier="${env:INITIAL_ADMIN_UUID}"/>
 </policy>
 ```
 

@@ -65,70 +65,67 @@ data:
     <authorizations>
         <policies>
             <policy identifier="f99bccd1-a30e-3e4a-98a2-dbc708edc67f" resource="/flow" action="R">
-                <group identifier="2d95d093-0e24-482c-ad4c-03e71adadcf4"/>
-                <group identifier="e76abc3f-ff10-4cf4-87a8-b3b6c7d0a369"/>
-                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+                <group identifier="${env:INITIAL_GROUP_UUID}"/>
+                <user identifier="${env:INITIAL_ADMIN_UUID}"/>
             </policy>
             <policy identifier="b8775bd4-704a-34c6-987b-84f2daf7a515" resource="/restricted-components" action="W">
-                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+                <user identifier="${env:INITIAL_ADMIN_UUID}"/>
             </policy>
             <policy identifier="627410be-1717-35b4-a06f-e9362b89e0b7" resource="/tenants" action="R">
-                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+                <user identifier="${env:INITIAL_ADMIN_UUID}"/>
             </policy>
             <policy identifier="15e4e0bd-cb28-34fd-8587-f8d15162cba5" resource="/tenants" action="W">
-                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+                <user identifier="${env:INITIAL_ADMIN_UUID}"/>
             </policy>
             <policy identifier="ff96062a-fa99-36dc-9942-0f6442ae7212" resource="/policies" action="R">
-                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+                <user identifier="${env:INITIAL_ADMIN_UUID}"/>
             </policy>
             <policy identifier="ad99ea98-3af6-3561-ae27-5bf09e1d969d" resource="/policies" action="W">
-                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+                <user identifier="${env:INITIAL_ADMIN_UUID}"/>
             </policy>
             <policy identifier="2e1015cb-0fed-3005-8e0d-722311f21a03" resource="/controller" action="R">
-                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+                <user identifier="${env:INITIAL_ADMIN_UUID}"/>
                 <user identifier="node-cert-user"/>
             </policy>
             <policy identifier="c6322e6c-4cc1-3bcc-91b3-2ed2111674cf" resource="/controller" action="W">
-                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+                <user identifier="${env:INITIAL_ADMIN_UUID}"/>
                 <user identifier="node-cert-user"/>
             </policy>
             <policy identifier="287edf48-da72-359b-8f61-da5d4c45a270" resource="/proxy" action="W">
-                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+                <user identifier="${env:INITIAL_ADMIN_UUID}"/>
                 <user identifier="node-cert-user"/>
             </policy>
             <policy identifier="becc4bd3-0199-1000-ffff-ffff9382e62a" resource="/system" action="R">
-                <group identifier="2d95d093-0e24-482c-ad4c-03e71adadcf4"/>
-                <user identifier="fc078c81-260b-444a-90c0-cf55b6177530"/>
-                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+                <user identifier="${env:INITIAL_ADMIN_UUID}"/>
             </policy>
                 <policy identifier="c884e8e3-0199-1000-ffff-ffffa5b09c80" resource="/provenance" action="R">
-                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+                <user identifier="${env:INITIAL_ADMIN_UUID}"/>
             </policy>
             <policy identifier="c8856472-0199-1000-0000-00000b8c3534" resource="/site-to-site" action="R">
-                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+                <user identifier="${env:INITIAL_ADMIN_UUID}"/>
             </policy>
             <policy identifier="c885cf73-0199-1000-0000-00004b25a0fa" resource="/counters" action="R">
-                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+                <user identifier="${env:INITIAL_ADMIN_UUID}"/>
             </policy>
             <policy identifier="c885eb8c-0199-1000-ffff-ffffbf9dbc2f" resource="/counters" action="W">
-                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+                <user identifier="${env:INITIAL_ADMIN_UUID}"/>
             </policy>
 
             <policy identifier="c8bd153a-0199-1000-0000-00005ed8e3a5" resource="/process-groups/root" action="W">
-                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+                <user identifier="${env:INITIAL_ADMIN_UUID}"/>
             </policy>
             <policy identifier="c8be51e3-0199-1000-0000-000004776c26" resource="/process-groups/root" action="R">
-                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+                <user identifier="${env:INITIAL_ADMIN_UUID}"/>
             </policy>
             <policy identifier="c8c842b2-0199-1000-0000-0000353663f9" resource="/data/process-groups/root" action="R">
                 <user identifier="node-cert-user"/>
-                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+                <user identifier="${env:INITIAL_ADMIN_UUID}"/>
             </policy>
             <policy identifier="c8d27c6e-0199-1000-0000-00003862b506" resource="/operation/process-groups/root" action="W">
-                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+                <user identifier="${env:INITIAL_ADMIN_UUID}"/>
             </policy>
             <policy identifier="c8d5a9ba-0199-1000-0000-00003d66cc46" resource="/data/process-groups/root" action="W">
-                <user identifier="6996a00e-bf7f-4ae2-8dc1-b668161e8ae0"/>
+                <user identifier="${env:INITIAL_ADMIN_UUID}"/>
             </policy>
 
         </policies>
@@ -165,6 +162,8 @@ stringData:
 #   client.secret:
 #   filter.prefix:
 #   initial.admin:
+#   initial.admin.uuid:
+#   initial.group.uuid:
 #   discovery.url:
 
 ---
@@ -174,7 +173,6 @@ metadata:
   name: test-nifi
 spec:
   image:
-    custom: null
     productVersion: 2.6.0
     pullPolicy: IfNotPresent
   clusterConfig:
@@ -206,6 +204,7 @@ spec:
         nifi.security.user.oidc.additional.scopes: "profile"
         nifi.security.user.oidc.claim.identifying.user: "upn"
         nifi.process.group.root.placeholder: "root"
+        nifi.cluster.flow.election.max.wait.time: "10 secs"
     podOverrides:
       spec:
         initContainers:
@@ -227,7 +226,7 @@ spec:
                     name: oidc-secret
                     key: discovery.url
           - name: prep-custom-authorizers
-            image: oci.stackable.tech/sdp/nifi:2.4.0-stackable0.0.0-dev
+            image: oci.stackable.tech/sdp/nifi:2.6.0-stackable0.0.0-dev
             env:
               - name: OIDC_AUTHORITY_ENDPOINT
                 valueFrom:
@@ -259,6 +258,16 @@ spec:
                   secretKeyRef:
                     name: oidc-secret
                     key: initial.admin
+              - name: INITIAL_ADMIN_UUID
+                valueFrom:
+                  secretKeyRef:
+                    name: oidc-secret
+                    key: initial.admin.uuid
+              - name: INITIAL_GROUP_UUID
+                valueFrom:
+                  secretKeyRef:
+                    name: oidc-secret
+                    key: initial.group.uuid
               - name: OIDC_DISCOVERY_URL
                 valueFrom:
                   secretKeyRef:
@@ -268,10 +277,11 @@ spec:
               - |
                   echo Copying custom files...
                   cp /tmp/custom-authorizer/authorizers.xml /stackable/nifi/custom-authorizer/
-                  echo Templating custom authorizer file...
-                  config-utils template /stackable/nifi/custom-authorizer/authorizers.xml
                   cp /tmp/custom-authorizer/authorizations.xml /stackable/nifi/custom-authorizer/
                   cp /tmp/custom-authorizer/users.xml /stackable/nifi/custom-authorizer/
+                  echo Template files...
+                  config-utils template /stackable/nifi/custom-authorizer/authorizers.xml
+                  config-utils template /stackable/nifi/custom-authorizer/authorizations.xml
             command:
               - /bin/bash
               - -c
