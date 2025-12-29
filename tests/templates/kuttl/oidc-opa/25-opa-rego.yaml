@@ -6,8 +6,8 @@ metadata:
   labels:
     opa.stackable.tech/bundle: "true"
 data:
-  nifi.rego: |
-    package nifi
+  my_nifi_package.rego: |
+    package my_nifi_package
 
     nifi_node_proxy := "CN=generated certificate for pod"
     nifi_reporting_task_user := "admin"
