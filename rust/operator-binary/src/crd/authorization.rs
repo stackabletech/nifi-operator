@@ -12,6 +12,7 @@ pub enum NifiAuthorization {
         opa: NifiOpaConfig,
     },
     SingleUser {},
+    #[serde(rename_all = "camelCase")]
     Standard {
         access_policy_provider: NifiAccessPolicyProvider,
     },
@@ -35,5 +36,6 @@ pub struct NifiOpaConfig {
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum NifiAccessPolicyProvider {
-    FileBased { initia_admin_user: String },
+    #[serde(rename_all = "camelCase")]
+    FileBased { initial_admin_user: String },
 }

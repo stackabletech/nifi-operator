@@ -123,6 +123,22 @@ spec:
                         singleUser:
                           type: object
                         standard:
+                          properties:
+                            accessPolicyProvider:
+                              oneOf:
+                                - required:
+                                    - fileBased
+                              properties:
+                                fileBased:
+                                  properties:
+                                    initialAdminUser:
+                                      type: string
+                                  required:
+                                    - initialAdminUser
+                                  type: object
+                              type: object
+                          required:
+                            - accessPolicyProvider
                           type: object
                       type: object
                     createReportingTaskJob:
