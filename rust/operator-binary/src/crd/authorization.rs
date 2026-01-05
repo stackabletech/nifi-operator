@@ -12,7 +12,9 @@ pub enum NifiAuthorization {
         opa: NifiOpaConfig,
     },
     SingleUser {},
-    Standard {},
+    Standard {
+        access_policy_provider: NifiAccessPolicyProvider,
+    },
 }
 
 impl Default for NifiAuthorization {
@@ -28,4 +30,10 @@ pub struct NifiOpaConfig {
     pub opa: OpaConfig,
     #[serde(default)]
     pub cache: UserInformationCache,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NifiAccessPolicyProvider {
+    FileBased { initia_admin_user: String },
 }

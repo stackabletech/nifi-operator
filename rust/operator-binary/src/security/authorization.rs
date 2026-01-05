@@ -32,17 +32,18 @@ pub enum Error {
     },
 }
 
-pub enum NifiAuthorizationConfig {
+pub enum ResolvedNifiAuthorizationConfig {
     Opa {
         config: OpaConfig,
         cache_entry_time_to_live_secs: u64,
         cache_max_entries: u32,
         secret_class: Option<String>,
     },
-    Default,
+    SingleUser,
+    Standard {},
 }
 
-impl NifiAuthorizationConfig {
+impl ResolvedNifiAuthorizationConfig {
     pub async fn from(
         nifi_authorization: &NifiAuthorization,
         client: &Client,
@@ -63,15 +64,15 @@ impl NifiAuthorizationConfig {
                     .data
                     .and_then(|mut data| data.remove("OPA_SECRET_CLASS"));
 
-                NifiAuthorizationConfig::Opa {
+                ResolvedNifiAuthorizationConfig::Opa {
                     config: opa.to_owned(),
                     cache_entry_time_to_live_secs: cache.entry_time_to_live.as_secs(),
                     cache_max_entries: cache.max_entries,
                     secret_class,
                 }
             }
-            NifiAuthorization::SingleUser {} => NifiAuthorizationConfig::Default,
-            NifiAuthorization::Standard {} => NifiAuthorizationConfig::Default,
+            NifiAuthorization::SingleUser {} => ResolvedNifiAuthorizationConfig::SingleUser,
+            NifiAuthorization::Standard { .. } => ResolvedNifiAuthorizationConfig::Standard {},
         };
 
         Ok(authz)
@@ -89,7 +90,7 @@ impl NifiAuthorizationConfig {
         .to_string();
 
         match self {
-            NifiAuthorizationConfig::Opa {
+            ResolvedNifiAuthorizationConfig::Opa {
                 cache_entry_time_to_live_secs,
                 cache_max_entries,
                 config: OpaConfig { package, .. },
@@ -108,7 +109,7 @@ impl NifiAuthorizationConfig {
                     </authorizer>
                 "#});
             }
-            NifiAuthorizationConfig::Default => match authentication_config {
+            ResolvedNifiAuthorizationConfig::SingleUser => match authentication_config {
                 NifiAuthenticationConfig::SingleUser { .. }
                 | NifiAuthenticationConfig::Oidc { .. } => {
                     authorizers_xml.push_str(indoc! {r#"
@@ -122,6 +123,7 @@ impl NifiAuthorizationConfig {
                     authorizers_xml.push_str(&self.get_default_ldap_authorizer(provider)?);
                 }
             },
+            ResolvedNifiAuthorizationConfig::Standard {} => todo!(),
         }
 
         authorizers_xml.push_str(indoc! {r#"
@@ -176,7 +178,7 @@ impl NifiAuthorizationConfig {
 
     pub fn get_env_vars(&self) -> Vec<EnvVar> {
         match self {
-            NifiAuthorizationConfig::Opa {
+            ResolvedNifiAuthorizationConfig::Opa {
                 config: OpaConfig {
                     config_map_name, ..
                 },
@@ -195,14 +197,15 @@ impl NifiAuthorizationConfig {
                     ..Default::default()
                 }]
             }
-            NifiAuthorizationConfig::Default => vec![],
+            ResolvedNifiAuthorizationConfig::SingleUser => vec![],
+            ResolvedNifiAuthorizationConfig::Standard { .. } => todo!(),
         }
     }
 
     pub fn has_opa_tls(&self) -> bool {
         matches!(
             self,
-            NifiAuthorizationConfig::Opa {
+            ResolvedNifiAuthorizationConfig::Opa {
                 secret_class: Some(_),
                 ..
             }

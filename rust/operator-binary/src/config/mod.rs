@@ -115,7 +115,7 @@ pub fn build_bootstrap_conf(
     overrides: BTreeMap<String, String>,
     role: &Role<NifiConfigFragment, NifiNodeRoleConfig, JavaCommonConfig>,
     role_group: &str,
-    authorization_config: Option<&crate::security::authorization::NifiAuthorizationConfig>,
+    authorization_config: Option<&crate::security::authorization::ResolvedNifiAuthorizationConfig>,
 ) -> Result<String, Error> {
     let mut bootstrap = BTreeMap::new();
     // Java command to use when running NiFi

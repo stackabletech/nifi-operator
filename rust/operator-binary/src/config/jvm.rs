@@ -9,7 +9,7 @@ use crate::{
     crd::{NifiConfig, NifiConfigFragment, NifiNodeRoleConfig},
     security::{
         authentication::{STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD},
-        authorization::NifiAuthorizationConfig,
+        authorization::ResolvedNifiAuthorizationConfig,
     },
 };
 
@@ -35,7 +35,7 @@ pub fn build_merged_jvm_config(
     merged_config: &NifiConfig,
     role: &Role<NifiConfigFragment, NifiNodeRoleConfig, JavaCommonConfig>,
     role_group: &str,
-    authorization_config: Option<&NifiAuthorizationConfig>,
+    authorization_config: Option<&ResolvedNifiAuthorizationConfig>,
 ) -> Result<JvmArgumentOverrides, Error> {
     let heap_size = MemoryQuantity::try_from(
         merged_config

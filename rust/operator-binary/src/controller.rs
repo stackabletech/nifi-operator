@@ -106,7 +106,7 @@ use crate::{
             AUTHORIZERS_XML_FILE_NAME, LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME,
             NifiAuthenticationConfig, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
         },
-        authorization::{NifiAuthorizationConfig, OPA_TLS_MOUNT_PATH, OPA_TLS_VOLUME_NAME},
+        authorization::{OPA_TLS_MOUNT_PATH, OPA_TLS_VOLUME_NAME, ResolvedNifiAuthorizationConfig},
         build_tls_volume, check_or_generate_oidc_admin_password, check_or_generate_sensitive_key,
         tls::{KEYSTORE_NIFI_CONTAINER_MOUNT, KEYSTORE_VOLUME_NAME, TRUSTSTORE_VOLUME_NAME},
     },
@@ -451,7 +451,7 @@ pub async fn reconcile_nifi(
             .context(SecuritySnafu)?;
     }
 
-    let authorization_config = NifiAuthorizationConfig::from(
+    let authorization_config = ResolvedNifiAuthorizationConfig::from(
         &nifi.spec.cluster_config.authorization,
         client,
         nifi.metadata
@@ -716,7 +716,7 @@ async fn build_node_rolegroup_config_map(
     nifi: &v1alpha1::NifiCluster,
     resolved_product_image: &ResolvedProductImage,
     authentication_config: &NifiAuthenticationConfig,
-    authorization_config: &NifiAuthorizationConfig,
+    authorization_config: &ResolvedNifiAuthorizationConfig,
     role: &Role<NifiConfigFragment, NifiNodeRoleConfig, JavaCommonConfig>,
     rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
@@ -845,7 +845,7 @@ async fn build_node_rolegroup_statefulset(
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &NifiConfig,
     authentication_config: &NifiAuthenticationConfig,
-    authorization_config: &NifiAuthorizationConfig,
+    authorization_config: &ResolvedNifiAuthorizationConfig,
     rolling_update_supported: bool,
     replicas: Option<i32>,
     service_account_name: &str,
@@ -1394,7 +1394,7 @@ async fn build_node_rolegroup_statefulset(
         .add_empty_dir_volume(TRUSTSTORE_VOLUME_NAME, None)
         .context(AddVolumeSnafu)?;
 
-    if let NifiAuthorizationConfig::Opa {
+    if let ResolvedNifiAuthorizationConfig::Opa {
         secret_class: Some(secret_class),
         ..
     } = authorization_config

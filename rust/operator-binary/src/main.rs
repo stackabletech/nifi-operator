@@ -218,6 +218,6 @@ fn references_authorization_config_map(
             opa: NifiOpaConfig { opa, .. },
         } => opa.config_map_name == config_map.name_any(),
         crd::authorization::NifiAuthorization::SingleUser {} => false,
-        crd::authorization::NifiAuthorization::Standard {} => false,
+        crd::authorization::NifiAuthorization::Standard { .. } => false,
     }
 }
