@@ -452,7 +452,7 @@ pub async fn reconcile_nifi(
     }
 
     let authorization_config = NifiAuthorizationConfig::from(
-        nifi.spec.cluster_config.authorization.as_ref(),
+        &nifi.spec.cluster_config.authorization,
         client,
         nifi.metadata
             .namespace
@@ -716,7 +716,7 @@ async fn build_node_rolegroup_config_map(
     nifi: &v1alpha1::NifiCluster,
     resolved_product_image: &ResolvedProductImage,
     authentication_config: &NifiAuthenticationConfig,
-    authorization_config: &NifiAuthorizationConfig<'_>,
+    authorization_config: &NifiAuthorizationConfig,
     role: &Role<NifiConfigFragment, NifiNodeRoleConfig, JavaCommonConfig>,
     rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
@@ -845,7 +845,7 @@ async fn build_node_rolegroup_statefulset(
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &NifiConfig,
     authentication_config: &NifiAuthenticationConfig,
-    authorization_config: &NifiAuthorizationConfig<'_>,
+    authorization_config: &NifiAuthorizationConfig,
     rolling_update_supported: bool,
     replicas: Option<i32>,
     service_account_name: &str,

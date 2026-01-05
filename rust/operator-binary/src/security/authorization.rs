@@ -9,7 +9,10 @@ use stackable_operator::{
 };
 
 use super::authentication::NifiAuthenticationConfig;
-use crate::crd::{NifiAuthorization, v1alpha1};
+use crate::crd::{
+    authorization::{NifiAuthorization, NifiOpaConfig},
+    v1alpha1,
+};
 
 pub const OPA_TLS_VOLUME_NAME: &str = "opa-tls";
 pub const OPA_TLS_MOUNT_PATH: &str = "/stackable/opa_tls";
@@ -29,9 +32,9 @@ pub enum Error {
     },
 }
 
-pub enum NifiAuthorizationConfig<'a> {
+pub enum NifiAuthorizationConfig {
     Opa {
-        config: &'a OpaConfig,
+        config: OpaConfig,
         cache_entry_time_to_live_secs: u64,
         cache_max_entries: u32,
         secret_class: Option<String>,
@@ -39,36 +42,39 @@ pub enum NifiAuthorizationConfig<'a> {
     Default,
 }
 
-impl<'a> NifiAuthorizationConfig<'a> {
+impl NifiAuthorizationConfig {
     pub async fn from(
-        nifi_authorization: Option<&'a NifiAuthorization>,
+        nifi_authorization: &NifiAuthorization,
         client: &Client,
         namespace: &str,
     ) -> Result<Self, Error> {
-        let Some(NifiAuthorization {
-            opa: Some(opa_config),
-        }) = nifi_authorization
-        else {
-            return Ok(NifiAuthorizationConfig::Default);
+        let authz = match nifi_authorization {
+            NifiAuthorization::Opa {
+                opa: NifiOpaConfig { opa, cache },
+            } => {
+                // Resolve the secret class from the ConfigMap
+                let secret_class = client
+                    .get::<ConfigMap>(&opa.config_map_name, namespace)
+                    .await
+                    .with_context(|_| FetchOpaConfigMapSnafu {
+                        configmap_name: &opa.config_map_name,
+                        namespace,
+                    })?
+                    .data
+                    .and_then(|mut data| data.remove("OPA_SECRET_CLASS"));
+
+                NifiAuthorizationConfig::Opa {
+                    config: opa.to_owned(),
+                    cache_entry_time_to_live_secs: cache.entry_time_to_live.as_secs(),
+                    cache_max_entries: cache.max_entries,
+                    secret_class,
+                }
+            }
+            NifiAuthorization::SingleUser {} => NifiAuthorizationConfig::Default,
+            NifiAuthorization::Standard {} => NifiAuthorizationConfig::Default,
         };
 
-        // Resolve the secret class from the ConfigMap
-        let secret_class = client
-            .get::<ConfigMap>(&opa_config.opa.config_map_name, namespace)
-            .await
-            .with_context(|_| FetchOpaConfigMapSnafu {
-                configmap_name: &opa_config.opa.config_map_name,
-                namespace,
-            })?
-            .data
-            .and_then(|mut data| data.remove("OPA_SECRET_CLASS"));
-
-        Ok(NifiAuthorizationConfig::Opa {
-            config: &opa_config.opa,
-            cache_entry_time_to_live_secs: opa_config.cache.entry_time_to_live.as_secs(),
-            cache_max_entries: opa_config.cache.max_entries,
-            secret_class,
-        })
+        Ok(authz)
     }
 
     pub fn get_authorizers_config(

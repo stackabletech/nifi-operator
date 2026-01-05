@@ -69,10 +69,18 @@ spec:
                         type: object
                       type: array
                     authorization:
+                      default:
+                        singleUser: {}
                       description: |-
                         Authorization options.
                         Learn more in the [NiFi authorization usage guide](https://docs.stackable.tech/home/nightly/nifi/usage-guide/security#authorization).
-                      nullable: true
+                      oneOf:
+                        - required:
+                            - opa
+                        - required:
+                            - singleUser
+                        - required:
+                            - standard
                       properties:
                         opa:
                           description: |-
@@ -80,7 +88,6 @@ spec:
                             and the name of the Rego package containing your authorization rules.
                             Consult the [OPA authorization documentation](https://docs.stackable.tech/home/nightly/concepts/opa)
                             to learn how to deploy Rego authorization rules with OPA.
-                          nullable: true
                           properties:
                             cache:
                               default:
@@ -112,6 +119,10 @@ spec:
                               type: string
                           required:
                             - configMapName
+                          type: object
+                        singleUser:
+                          type: object
+                        standard:
                           type: object
                       type: object
                     createReportingTaskJob:
