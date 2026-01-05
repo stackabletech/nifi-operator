@@ -7,8 +7,10 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Also listen on the loopback interface so that k8s port-forwards work ([#870]).
+- The operator now utilizes the `.spec.clusterConfig.authorization.opa.package` property instead of hard-coding the package name to `nifi`  ([#881]).
 
 [#870]: https://github.com/stackabletech/nifi-operator/pull/870
+[#881]: https://github.com/stackabletech/nifi-operator/pull/881
 
 ## [25.11.0] - 2025-11-07
 

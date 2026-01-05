@@ -2,12 +2,14 @@ use indoc::{formatdoc, indoc};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     client::Client,
+    commons::opa::OpaConfig,
     crd::authentication::ldap,
     k8s_openapi::api::core::v1::{ConfigMap, ConfigMapKeySelector, EnvVar, EnvVarSource},
+    kube::ResourceExt,
 };
 
 use super::authentication::NifiAuthenticationConfig;
-use crate::crd::NifiAuthorization;
+use crate::crd::{NifiAuthorization, v1alpha1};
 
 pub const OPA_TLS_VOLUME_NAME: &str = "opa-tls";
 pub const OPA_TLS_MOUNT_PATH: &str = "/stackable/opa_tls";
@@ -27,9 +29,9 @@ pub enum Error {
     },
 }
 
-pub enum NifiAuthorizationConfig {
+pub enum NifiAuthorizationConfig<'a> {
     Opa {
-        configmap_name: String,
+        config: &'a OpaConfig,
         cache_entry_time_to_live_secs: u64,
         cache_max_entries: u32,
         secret_class: Option<String>,
@@ -37,48 +39,41 @@ pub enum NifiAuthorizationConfig {
     Default,
 }
 
-impl NifiAuthorizationConfig {
+impl<'a> NifiAuthorizationConfig<'a> {
     pub async fn from(
-        nifi_authorization: &Option<NifiAuthorization>,
+        nifi_authorization: Option<&'a NifiAuthorization>,
         client: &Client,
         namespace: &str,
     ) -> Result<Self, Error> {
-        let config = match nifi_authorization {
-            Some(authorization_config) => match authorization_config.opa.clone() {
-                Some(opa_config) => {
-                    let configmap_name = opa_config.opa.config_map_name.clone();
-
-                    // Resolve the secret class from the ConfigMap
-                    let secret_class = client
-                        .get::<ConfigMap>(&configmap_name, namespace)
-                        .await
-                        .with_context(|_| FetchOpaConfigMapSnafu {
-                            configmap_name: configmap_name.clone(),
-                            namespace: namespace.to_string(),
-                        })?
-                        .data
-                        .and_then(|mut data| data.remove("OPA_SECRET_CLASS"));
-
-                    NifiAuthorizationConfig::Opa {
-                        configmap_name,
-                        cache_entry_time_to_live_secs: opa_config
-                            .cache
-                            .entry_time_to_live
-                            .as_secs(),
-                        cache_max_entries: opa_config.cache.max_entries,
-                        secret_class,
-                    }
-                }
-                None => NifiAuthorizationConfig::Default,
-            },
-            None => NifiAuthorizationConfig::Default,
+        let Some(NifiAuthorization {
+            opa: Some(opa_config),
+        }) = nifi_authorization
+        else {
+            return Ok(NifiAuthorizationConfig::Default);
         };
 
-        Ok(config)
+        // Resolve the secret class from the ConfigMap
+        let secret_class = client
+            .get::<ConfigMap>(&opa_config.opa.config_map_name, namespace)
+            .await
+            .with_context(|_| FetchOpaConfigMapSnafu {
+                configmap_name: &opa_config.opa.config_map_name,
+                namespace,
+            })?
+            .data
+            .and_then(|mut data| data.remove("OPA_SECRET_CLASS"));
+
+        Ok(NifiAuthorizationConfig::Opa {
+            config: &opa_config.opa,
+            cache_entry_time_to_live_secs: opa_config.cache.entry_time_to_live.as_secs(),
+            cache_max_entries: opa_config.cache.max_entries,
+            secret_class,
+        })
     }
 
     pub fn get_authorizers_config(
         &self,
+        nifi_cluster: &v1alpha1::NifiCluster,
         authentication_config: &NifiAuthenticationConfig,
     ) -> Result<String, Error> {
         let mut authorizers_xml = indoc! {r#"
@@ -91,8 +86,11 @@ impl NifiAuthorizationConfig {
             NifiAuthorizationConfig::Opa {
                 cache_entry_time_to_live_secs,
                 cache_max_entries,
+                config: OpaConfig { package, .. },
                 ..
             } => {
+                // According to [`OpaConfig::document_url`] we default the stacklet name
+                let package = package.clone().unwrap_or_else(|| nifi_cluster.name_any());
                 authorizers_xml.push_str(&formatdoc! {r#"
                     <authorizer>
                         <identifier>authorizer</identifier>
@@ -100,7 +98,7 @@ impl NifiAuthorizationConfig {
                         <property name="CACHE_TIME_SECS">{cache_entry_time_to_live_secs}</property>
                         <property name="CACHE_MAX_ENTRY_COUNT">{cache_max_entries}</property>
                         <property name="OPA_URI">${{env:OPA_BASE_URL}}</property>
-                        <property name="OPA_RULE_HEAD">nifi/allow</property>
+                        <property name="OPA_RULE_HEAD">{package}/allow</property>
                     </authorizer>
                 "#});
             }
@@ -172,13 +170,18 @@ impl NifiAuthorizationConfig {
 
     pub fn get_env_vars(&self) -> Vec<EnvVar> {
         match self {
-            NifiAuthorizationConfig::Opa { configmap_name, .. } => {
+            NifiAuthorizationConfig::Opa {
+                config: OpaConfig {
+                    config_map_name, ..
+                },
+                ..
+            } => {
                 vec![EnvVar {
                     name: "OPA_BASE_URL".to_owned(),
                     value_from: Some(EnvVarSource {
                         config_map_key_ref: Some(ConfigMapKeySelector {
                             key: "OPA".to_owned(),
-                            name: configmap_name.to_owned(),
+                            name: config_map_name.to_owned(),
                             ..Default::default()
                         }),
                         ..Default::default()
