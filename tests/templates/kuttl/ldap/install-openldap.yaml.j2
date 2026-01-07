@@ -69,11 +69,19 @@ spec:
               port: 1389
       volumes:
         - name: tls
-          csi:
-            driver: secrets.stackable.tech
-            volumeAttributes:
-              secrets.stackable.tech/class: openldap-tls
-              secrets.stackable.tech/scope: pod
+          ephemeral:
+            volumeClaimTemplate:
+              metadata:
+                annotations:
+                  secrets.stackable.tech/class: openldap-tls
+                  secrets.stackable.tech/scope: pod
+              spec:
+                storageClassName: secrets.stackable.tech
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: "1"
 ---
 apiVersion: v1
 kind: Service
