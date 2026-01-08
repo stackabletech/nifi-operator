@@ -150,22 +150,13 @@ impl ResolvedNifiAuthorizationConfig {
                 ..
             } => {
                 let file_based_mount_path = Self::filebased_mount_path();
-                let initial_admin_identity =
-                    if let NifiAuthenticationConfig::Ldap { provider } = authentication_config {
-                        let (username_file, _) = provider
-                            .bind_credentials_mount_paths()
-                            .context(LdapAuthenticationClassMissingBindCredentialsSnafu)?;
-                        format!("${{file:UTF-8:{username_file}}}")
-                    } else {
-                        initial_admin_user.to_owned()
-                    };
 
                 authorizers_xml.push_str(&formatdoc! {r#"
                     <userGroupProvider>
                         <identifier>file-user-group-provider</identifier>
                         <class>org.apache.nifi.authorization.FileUserGroupProvider</class>
                         <property name="Users File">{file_based_mount_path}/users.xml</property>
-                        <property name="Initial User Identity admin">{initial_admin_identity}</property>
+                        <property name="Initial User Identity admin">{initial_admin_user}</property>
 
                         <!-- As the secret-operator provides the NiFi nodes with cert with a common name of "generated certificate for pod" we have to put that here -->
                         <property name="Initial User Identity other-nifis">CN=generated certificate for pod</property>
@@ -176,7 +167,7 @@ impl ResolvedNifiAuthorizationConfig {
                         <class>org.apache.nifi.authorization.FileAccessPolicyProvider</class>
                         <property name="User Group Provider">file-user-group-provider</property>
                         <property name="Authorizations File">{file_based_mount_path}/authorizations.xml</property>
-                        <property name="Initial Admin Identity">{initial_admin_identity}</property>
+                        <property name="Initial Admin Identity">{initial_admin_user}</property>
 
                         <!-- As the secret-operator provides the NiFi nodes with cert with a common name of "generated certificate for pod" we have to put that here -->
                         <property name="Node Identity other-nifis">CN=generated certificate for pod</property>
