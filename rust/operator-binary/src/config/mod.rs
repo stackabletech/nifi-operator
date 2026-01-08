@@ -37,6 +37,7 @@ pub mod jvm;
 
 pub const NIFI_CONFIG_DIRECTORY: &str = "/stackable/nifi/conf";
 pub const NIFI_PYTHON_WORKING_DIRECTORY: &str = "/nifi-python-working-directory";
+pub const NIFI_PVC_STORAGE_DIRECTORY: &str = "/stackable/data";
 
 pub const NIFI_BOOTSTRAP_CONF: &str = "bootstrap.conf";
 pub const NIFI_PROPERTIES: &str = "nifi.properties";
@@ -69,7 +70,7 @@ impl NifiRepository {
     }
 
     pub fn mount_path(&self) -> String {
-        format!("/stackable/data/{}", self)
+        format!("{NIFI_PVC_STORAGE_DIRECTORY}/{}", self)
     }
 }
 

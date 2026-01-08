@@ -20,11 +20,8 @@ use stackable_operator::{
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{
-            PodBuilder,
-            container::ContainerBuilder,
-            resources::ResourceRequirementsBuilder,
-            security::PodSecurityContextBuilder,
-            volume::{SecretFormat, SecretOperatorVolumeSourceBuilder, VolumeBuilder},
+            PodBuilder, container::ContainerBuilder, resources::ResourceRequirementsBuilder,
+            security::PodSecurityContextBuilder, volume::SecretFormat,
         },
     },
     client::Client,
@@ -40,8 +37,8 @@ use stackable_operator::{
             apps::v1::{StatefulSet, StatefulSetSpec, StatefulSetUpdateStrategy},
             core::v1::{
                 ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource, EmptyDirVolumeSource,
-                EnvVar, EnvVarSource, ObjectFieldSelector, Probe, SecretVolumeSource,
-                TCPSocketAction, Volume,
+                EnvVar, EnvVarSource, ObjectFieldSelector, PersistentVolumeClaim, Probe,
+                SecretVolumeSource, TCPSocketAction, Volume,
             },
         },
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
@@ -106,7 +103,7 @@ use crate::{
             AUTHORIZERS_XML_FILE_NAME, LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME,
             NifiAuthenticationConfig, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
         },
-        authorization::{OPA_TLS_MOUNT_PATH, OPA_TLS_VOLUME_NAME, ResolvedNifiAuthorizationConfig},
+        authorization::{self, OPA_TLS_MOUNT_PATH, ResolvedNifiAuthorizationConfig},
         build_tls_volume, check_or_generate_oidc_admin_password, check_or_generate_sensitive_key,
         tls::{KEYSTORE_NIFI_CONTAINER_MOUNT, KEYSTORE_VOLUME_NAME, TRUSTSTORE_VOLUME_NAME},
     },
@@ -334,11 +331,6 @@ pub enum Error {
     #[snafu(display("Failed to determine the state of the version upgrade procedure"))]
     ClusterVersionUpdateState { source: upgrade::Error },
 
-    #[snafu(display("failed to build OPA TLS certificate volume"))]
-    OpaTlsCertSecretClassVolumeBuild {
-        source: stackable_operator::builder::pod::volume::SecretOperatorVolumeSourceBuilderError,
-    },
-
     #[snafu(display("failed to apply group listener"))]
     ApplyGroupListener {
         source: stackable_operator::cluster_resources::Error,
@@ -349,6 +341,9 @@ pub enum Error {
 
     #[snafu(display("failed to configure service"))]
     ServiceConfiguration { source: crate::service::Error },
+
+    #[snafu(display("failed to build authorization configuration"))]
+    AuthorizationConfiguration { source: authorization::Error },
 
     #[snafu(display("failed to resolve product image"))]
     ResolveProductImage {
@@ -1065,6 +1060,8 @@ async fn build_node_rolegroup_statefulset(
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)
         .context(AddVolumeMountSnafu)?
+        .add_volume_mounts(authorization_config.get_volume_mounts())
+        .context(AddVolumeMountSnafu)?
         .resources(
             ResourceRequirementsBuilder::new()
                 .with_cpu_request("500m")
@@ -1073,12 +1070,6 @@ async fn build_node_rolegroup_statefulset(
                 .with_memory_limit("4096Mi")
                 .build(),
         );
-
-    if authorization_config.has_opa_tls() {
-        container_prepare
-            .add_volume_mount(OPA_TLS_VOLUME_NAME, OPA_TLS_MOUNT_PATH)
-            .context(AddVolumeMountSnafu)?;
-    }
 
     let nifi_container_name = Container::Nifi.to_string();
     let mut container_nifi_builder =
@@ -1102,12 +1093,6 @@ async fn build_node_rolegroup_statefulset(
     create_vector_shutdown_file_command =
         create_vector_shutdown_file_command(STACKABLE_LOG_DIR),
     }];
-
-    if authorization_config.has_opa_tls() {
-        container_nifi_builder
-            .add_volume_mount(OPA_TLS_VOLUME_NAME, OPA_TLS_MOUNT_PATH)
-            .context(AddVolumeMountSnafu)?;
-    }
 
     let container_nifi = container_nifi_builder
         .image_from_product_image(resolved_product_image)
@@ -1157,6 +1142,8 @@ async fn build_node_rolegroup_statefulset(
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)
         .context(AddVolumeMountSnafu)?
+        .add_volume_mounts(authorization_config.get_volume_mounts())
+        .context(AddVolumeMountSnafu)?
         .add_container_port(HTTPS_PORT_NAME, HTTPS_PORT.into())
         .add_container_port(PROTOCOL_PORT_NAME, PROTOCOL_PORT.into())
         .add_container_port(BALANCE_PORT_NAME, BALANCE_PORT.into())
@@ -1194,25 +1181,6 @@ async fn build_node_rolegroup_statefulset(
         &rolegroup_ref.role,
         &rolegroup_ref.role_group,
     );
-
-    // Used for PVC templates that cannot be modified once they are deployed
-    let unversioned_recommended_labels = Labels::recommended(build_recommended_labels(
-        nifi,
-        // A version value is required, and we do want to use the "recommended" format for the other desired labels
-        "none",
-        &rolegroup_ref.role,
-        &rolegroup_ref.role_group,
-    ))
-    .context(LabelBuildSnafu)?;
-
-    // listener endpoints will use persistent volumes
-    // so that load balancers can hard-code the target addresses and
-    // that it is possible to connect to a consistent address
-    let listener_pvc = build_group_listener_pvc(
-        &group_listener_name(nifi, &rolegroup_ref.role),
-        &unversioned_recommended_labels,
-    )
-    .context(ListenerConfigurationSnafu)?;
 
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
 
@@ -1392,25 +1360,13 @@ async fn build_node_rolegroup_statefulset(
         )
         .context(AddVolumeSnafu)?
         .add_empty_dir_volume(TRUSTSTORE_VOLUME_NAME, None)
+        .context(AddVolumeSnafu)?
+        .add_volumes(
+            authorization_config
+                .get_volumes()
+                .context(AuthorizationConfigurationSnafu)?,
+        )
         .context(AddVolumeSnafu)?;
-
-    if let ResolvedNifiAuthorizationConfig::Opa {
-        secret_class: Some(secret_class),
-        ..
-    } = authorization_config
-    {
-        pod_builder
-            .add_volume(
-                VolumeBuilder::new(OPA_TLS_VOLUME_NAME)
-                    .ephemeral(
-                        SecretOperatorVolumeSourceBuilder::new(secret_class)
-                            .build()
-                            .context(OpaTlsCertSecretClassVolumeBuildSnafu)?,
-                    )
-                    .build(),
-            )
-            .context(AddVolumeSnafu)?;
-    }
 
     pod_builder
         .add_volume(Volume {
@@ -1485,33 +1441,70 @@ async fn build_node_rolegroup_statefulset(
                 },
                 ..StatefulSetUpdateStrategy::default()
             }),
-            volume_claim_templates: Some(vec![
-                merged_config.resources.storage.content_repo.build_pvc(
-                    &NifiRepository::Content.repository(),
-                    Some(vec!["ReadWriteOnce"]),
-                ),
-                merged_config.resources.storage.database_repo.build_pvc(
-                    &NifiRepository::Database.repository(),
-                    Some(vec!["ReadWriteOnce"]),
-                ),
-                merged_config.resources.storage.flowfile_repo.build_pvc(
-                    &NifiRepository::Flowfile.repository(),
-                    Some(vec!["ReadWriteOnce"]),
-                ),
-                merged_config.resources.storage.provenance_repo.build_pvc(
-                    &NifiRepository::Provenance.repository(),
-                    Some(vec!["ReadWriteOnce"]),
-                ),
-                merged_config.resources.storage.state_repo.build_pvc(
-                    &NifiRepository::State.repository(),
-                    Some(vec!["ReadWriteOnce"]),
-                ),
-                listener_pvc,
-            ]),
+            volume_claim_templates: Some(get_volume_claim_templates(
+                nifi,
+                rolegroup_ref,
+                merged_config,
+                authorization_config,
+            )?),
             ..StatefulSetSpec::default()
         }),
         status: None,
     })
+}
+
+fn get_volume_claim_templates(
+    nifi: &v1alpha1::NifiCluster,
+    rolegroup_ref: &RoleGroupRef<v1alpha1::NifiCluster>,
+    merged_config: &NifiConfig,
+    authorization_config: &ResolvedNifiAuthorizationConfig,
+) -> Result<Vec<PersistentVolumeClaim>> {
+    let mut pvcs = vec![
+        merged_config.resources.storage.content_repo.build_pvc(
+            &NifiRepository::Content.repository(),
+            Some(vec!["ReadWriteOnce"]),
+        ),
+        merged_config.resources.storage.database_repo.build_pvc(
+            &NifiRepository::Database.repository(),
+            Some(vec!["ReadWriteOnce"]),
+        ),
+        merged_config.resources.storage.flowfile_repo.build_pvc(
+            &NifiRepository::Flowfile.repository(),
+            Some(vec!["ReadWriteOnce"]),
+        ),
+        merged_config.resources.storage.provenance_repo.build_pvc(
+            &NifiRepository::Provenance.repository(),
+            Some(vec!["ReadWriteOnce"]),
+        ),
+        merged_config.resources.storage.state_repo.build_pvc(
+            &NifiRepository::State.repository(),
+            Some(vec!["ReadWriteOnce"]),
+        ),
+    ];
+
+    // Used for PVC templates that cannot be modified once they are deployed
+    let unversioned_recommended_labels = Labels::recommended(build_recommended_labels(
+        nifi,
+        // A version value is required, and we do want to use the "recommended" format for the other desired labels
+        "none",
+        &rolegroup_ref.role,
+        &rolegroup_ref.role_group,
+    ))
+    .context(LabelBuildSnafu)?;
+    // listener endpoints will use persistent volumes
+    // so that load balancers can hard-code the target addresses and
+    // that it is possible to connect to a consistent address
+    pvcs.push(
+        build_group_listener_pvc(
+            &group_listener_name(nifi, &rolegroup_ref.role),
+            &unversioned_recommended_labels,
+        )
+        .context(ListenerConfigurationSnafu)?,
+    );
+
+    pvcs.extend(authorization_config.get_pvcs());
+
+    Ok(pvcs)
 }
 
 async fn get_proxy_hosts(
