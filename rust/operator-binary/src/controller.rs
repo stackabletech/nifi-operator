@@ -726,7 +726,7 @@ async fn build_node_rolegroup_config_map(
         .context(InvalidNifiAuthenticationConfigSnafu)?;
 
     let authorizers_xml = authorization_config
-        .get_authorizers_config(nifi, authentication_config)
+        .get_authorizers_config(nifi)
         .context(InvalidNifiAuthorizationConfigSnafu)?;
 
     let jvm_sec_props: BTreeMap<String, Option<String>> = rolegroup_config

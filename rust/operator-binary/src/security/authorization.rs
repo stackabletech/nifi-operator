@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use indoc::{formatdoc, indoc};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::pod::volume::{SecretOperatorVolumeSourceBuilder, VolumeBuilder},
     client::Client,
@@ -16,7 +16,6 @@ use stackable_operator::{
     kube::{ResourceExt, api::ObjectMeta},
 };
 
-use super::authentication::NifiAuthenticationConfig;
 use crate::{
     config::NIFI_PVC_STORAGE_DIRECTORY,
     crd::{
@@ -105,7 +104,6 @@ impl ResolvedNifiAuthorizationConfig {
     pub fn get_authorizers_config(
         &self,
         nifi_cluster: &v1alpha1::NifiCluster,
-        authentication_config: &NifiAuthenticationConfig,
     ) -> Result<String, Error> {
         let mut authorizers_xml = indoc! {r#"
             <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -133,21 +131,16 @@ impl ResolvedNifiAuthorizationConfig {
                     </authorizer>
                 "#});
             }
-            ResolvedNifiAuthorizationConfig::SingleUser => match authentication_config {
-                NifiAuthenticationConfig::SingleUser { .. }
-                | NifiAuthenticationConfig::Oidc { .. } => {
-                    authorizers_xml.push_str(indoc! {r#"
-                        <authorizer>
-                            <identifier>authorizer</identifier>
-                            <class>org.apache.nifi.authorization.single.user.SingleUserAuthorizer</class>
-                        </authorizer>
-                    "#});
-                }
-                _ => {}
-            },
+            ResolvedNifiAuthorizationConfig::SingleUser => {
+                authorizers_xml.push_str(indoc! {r#"
+                    <authorizer>
+                        <identifier>authorizer</identifier>
+                        <class>org.apache.nifi.authorization.single.user.SingleUserAuthorizer</class>
+                    </authorizer>
+                "#});
+            }
             ResolvedNifiAuthorizationConfig::Standard {
                 access_policy_provider: NifiAccessPolicyProvider::FileBased { initial_admin_user },
-                ..
             } => {
                 let file_based_mount_path = Self::filebased_mount_path();
 
@@ -211,7 +204,6 @@ impl ResolvedNifiAuthorizationConfig {
                 }]
             }
             ResolvedNifiAuthorizationConfig::SingleUser => vec![],
-            // TODO: set initial admin user env var
             ResolvedNifiAuthorizationConfig::Standard { .. } => vec![],
         }
     }
@@ -299,7 +291,6 @@ impl ResolvedNifiAuthorizationConfig {
         pvcs
     }
 
-    // TODO: optionally delete
     pub fn has_opa_tls(&self) -> bool {
         matches!(
             self,
