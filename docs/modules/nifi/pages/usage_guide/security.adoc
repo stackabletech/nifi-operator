@@ -15,7 +15,7 @@
 NiFi sets up TLS encryption for the http endpoints that serve the UI.
 By default, this interface is secured using certificates generated to work with the default SecretClass `tls`.
 
-Nifi can be configured to use a different SecretClass as shown below:
+NiFi can be configured to use a different SecretClass as shown below:
 
 [source, yaml]
 ----
@@ -39,7 +39,7 @@ All authentication related parameters are configured under `spec.clusterConfig.a
 === Single user
 
 The `Single user` allows the creation of one admin user for NiFi.
-This is a rudimentary authentication method to quickly test and log in to the canvas.
+This is a rudimentary authentication method to quickly test and log into the canvas.
 However, due to it being a single user with all rights, this is not recommended in production.
 
 [source, yaml]
@@ -171,27 +171,47 @@ stringData:
 [#authorization]
 == Authorization
 
-The Stackable Operator for Apache NiFi supports {nifi-docs-authorization}[multiple authorization methods], the available authorization methods depend on the chosen authentication method. Using Open Policy Agent for authorization is independent of the authentication method.
+The Stackable Operator for Apache NiFi supports {nifi-docs-authorization}[multiple authorization methods].
 
 [#authorization-single-user]
 === Single user
 
 With this authorization method, a single user has administrator capabilities.
 
-[#authorization-ldap]
-=== LDAP
+[source,yaml]
+----
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: test-nifi
+spec:
+  clusterConfig:
+    authorization:
+      singleUser: {}
+----
 
-The operator uses the {nifi-docs-fileusergroupprovider}[`FileUserGroupProvider`] and {nifi-docs-fileaccesspolicyprovider}[FileAccessPolicyProvider] to bind the LDAP user to the NiFi administrator group.
-This user is then able to create and modify groups and policies in the web interface.
-These changes local to the Pod running NiFi and are *not* persistent.
+[#authorization-standard]
+=== Standard
 
-[#authorization-oidc]
-=== OIDC
+This refers to NiFis `StandardManagedAuthorizer`, using the `UserGroupProvider` and `AccessPolicyProvider` for authorization.
+The Stackable operator for Apache NiFi only supports the file-based `FileUserGroupProvider` and `FileAccessPolicyProvider` implementations.
 
-With this authorization method, all authenticated users have administrator capabilities.
+[source,yaml]
+----
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: test-nifi
+spec:
+  clusterConfig:
+    authorization:
+      standard:
+        accessPolicyProvider:
+          fileBased:
+            initialAdminUser: "cn=admin,ou=users,dc=example,dc=org"
+----
 
-An admin user with an auto-generated password is created that can access the NiFi API.
-The password for this user is stored in a Kubernetes Secret called `<nifi-name>-oidc-admin-password`.
+This configuration provides an additional PVC to NiFi pods in order to read and persist the `users.xml` and `authorizations.xml`.
 
 [#authorization-opa]
 === Open Policy Agent (OPA)

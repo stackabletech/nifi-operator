@@ -38,6 +38,11 @@ spec:
 {% else  %}
       - authenticationClass: ldap-with-tls
 {% endif %}
+    authorization:
+      standard:
+        accessPolicyProvider:
+          fileBased:
+            initialAdminUser: "cn=integrationtest,ou=my users,dc=example,dc=org"
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}

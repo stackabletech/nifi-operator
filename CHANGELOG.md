@@ -4,13 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- BREAKING: Reworked authorization config to closer match the Apache NiFi internal autorizer interfaces ([#884]).
+
 ### Fixed
 
 - Also listen on the loopback interface so that k8s port-forwards work ([#870]).
-- The operator now utilizes the `.spec.clusterConfig.authorization.opa.package` property instead of hard-coding the package name to `nifi`  ([#881]).
+- The operator now utilizes the `.spec.clusterConfig.authorization.opa.package` property instead of hard-coding the package name to `nifi` ([#881]).
+- An `initialAdminUser` can now be provided for file-based authorization (e.g. LDAP) ([#884]).
 
 [#870]: https://github.com/stackabletech/nifi-operator/pull/870
 [#881]: https://github.com/stackabletech/nifi-operator/pull/881
+[#884]: https://github.com/stackabletech/nifi-operator/pull/884
 
 ## [25.11.0] - 2025-11-07
 
