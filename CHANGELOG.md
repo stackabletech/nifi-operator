@@ -12,8 +12,10 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Also listen on the loopback interface so that k8s port-forwards work ([#870]).
+- The operator now utilizes the `.spec.clusterConfig.authorization.opa.package` property instead of hard-coding the package name to `nifi`  ([#881]).
 
 [#870]: https://github.com/stackabletech/nifi-operator/pull/870
+[#881]: https://github.com/stackabletech/nifi-operator/pull/881
 [#885]: https://github.com/stackabletech/nifi-operator/pull/885
 
 ## [25.11.0] - 2025-11-07
@@ -35,6 +37,7 @@ All notable changes to this project will be documented in this file.
 
 - Bump stackable-operator to `0.100.1` and product-config to `0.8.0` ([#859]).
 - Deprecate support for `1.27.0`, `1.28.1`, and `2.4.0` ([#849]).
+- Bump testing-tools to `0.3.0-stackable0.0.0-dev` ([#882]).
 
 ### Fixed
 
@@ -51,6 +54,7 @@ All notable changes to this project will be documented in this file.
 [#859]: https://github.com/stackabletech/nifi-operator/pull/859
 [#860]: https://github.com/stackabletech/nifi-operator/pull/860
 [#863]: https://github.com/stackabletech/nifi-operator/pull/863
+[#882]: https://github.com/stackabletech/nifi-operator/pull/882
 
 ## [25.7.0] - 2025-07-23
 

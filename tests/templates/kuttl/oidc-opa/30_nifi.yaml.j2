@@ -27,7 +27,7 @@ spec:
     authorization:
       opa:
         configMapName: opa
-        package: nifi
+        package: my_nifi_package
         cache:
           entryTimeToLive: 5s
           maxEntries: 10
@@ -52,7 +52,7 @@ spec:
       spec:
         initContainers:
         - name: copy-nifi-flow
-          image: oci.stackable.tech/sdp/testing-tools:0.2.0-stackable0.0.0-dev
+          image: oci.stackable.tech/sdp/testing-tools/nifi:0.3.0-stackable0.0.0-dev
           command:
           - /bin/bash
           - -c
