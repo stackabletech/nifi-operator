@@ -29,7 +29,7 @@ pub async fn add_pdbs(
     nifi: &v1alpha1::NifiCluster,
     role: &NifiRole,
     client: &Client,
-    cluster_resources: &mut ClusterResources,
+    cluster_resources: &mut ClusterResources<'_>,
 ) -> Result<(), Error> {
     if !pdb.enabled {
         return Ok(());
