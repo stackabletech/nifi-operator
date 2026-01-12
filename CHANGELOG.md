@@ -7,14 +7,14 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Support objectOverrides using `.spec.objectOverrides`.
-  See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#XXX]).
+  See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#885]).
 
 ### Fixed
 
 - Also listen on the loopback interface so that k8s port-forwards work ([#870]).
 
 [#870]: https://github.com/stackabletech/nifi-operator/pull/870
-[#XXX]: https://github.com/stackabletech/nifi-operator/pull/XXX
+[#885]: https://github.com/stackabletech/nifi-operator/pull/885
 
 ## [25.11.0] - 2025-11-07
 
