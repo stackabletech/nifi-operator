@@ -142,7 +142,7 @@ impl ResolvedNifiAuthorizationConfig {
             ResolvedNifiAuthorizationConfig::Standard {
                 access_policy_provider: NifiAccessPolicyProvider::FileBased { initial_admin_user },
             } => {
-                let file_based_mount_path = Self::filebased_mount_path();
+                let file_based_mount_path = Self::file_based_mount_path();
 
                 authorizers_xml.push_str(&formatdoc! {r#"
                     <userGroupProvider>
@@ -230,7 +230,7 @@ impl ResolvedNifiAuthorizationConfig {
                 ) {
                     volume_mounts.push(VolumeMount {
                         name: FILE_BASED_MOUNT_NAME.into(),
-                        mount_path: Self::filebased_mount_path(),
+                        mount_path: Self::file_based_mount_path(),
                         ..VolumeMount::default()
                     })
                 }
@@ -301,7 +301,7 @@ impl ResolvedNifiAuthorizationConfig {
         )
     }
 
-    fn filebased_mount_path() -> String {
+    fn file_based_mount_path() -> String {
         format!("{NIFI_PVC_STORAGE_DIRECTORY}/{FILE_BASED_MOUNT_DIRECTORY}")
     }
 }

@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- BREAKING: Reworked authorization config to closer match the Apache NiFi internal autorizer interfaces ([#884]).
+- BREAKING: Reworked authorization config to closer match the Apache NiFi internal authorizer interfaces ([#884]).
 
 ### Fixed
 
