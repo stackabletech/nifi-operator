@@ -32,11 +32,6 @@ const FILE_BASED_MOUNT_DIRECTORY: &str = "filebased";
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display(
-        "The LDAP AuthenticationClass is missing the bind credentials. Currently the NiFi operator only supports connecting to LDAP servers using bind credentials"
-    ))]
-    LdapAuthenticationClassMissingBindCredentials {},
-
     #[snafu(display("Failed to fetch OPA ConfigMap {configmap_name}"))]
     FetchOpaConfigMap {
         source: stackable_operator::client::Error,
