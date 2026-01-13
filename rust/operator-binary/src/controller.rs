@@ -425,6 +425,7 @@ pub async fn reconcile_nifi(
         NIFI_CONTROLLER_NAME,
         &nifi.object_ref(&()),
         ClusterResourceApplyStrategy::from(&nifi.spec.cluster_operation),
+        &nifi.spec.object_overrides,
     )
     .context(CreateClusterResourcesSnafu)?;
 

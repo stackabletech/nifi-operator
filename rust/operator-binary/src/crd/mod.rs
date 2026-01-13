@@ -26,6 +26,7 @@ use stackable_operator::{
         merge::Merge,
     },
     crd::{authentication::core as auth_core, git_sync},
+    deep_merger::ObjectOverrides,
     k8s_openapi::{
         api::core::v1::{PodTemplateSpec, Volume},
         apimachinery::pkg::api::resource::Quantity,
@@ -107,6 +108,10 @@ pub mod versioned {
         // no doc - docs in ClusterOperation struct.
         #[serde(default)]
         pub cluster_operation: ClusterOperation,
+
+        // no doc - docs in ObjectOverrides struct.
+        #[serde(default)]
+        pub object_overrides: ObjectOverrides,
     }
 
     #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
