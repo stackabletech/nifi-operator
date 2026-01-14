@@ -531,7 +531,7 @@ pub struct NifiStorageConfig {
     #[fragment_attrs(serde(default))]
     pub state_repo: PvcConfig,
 
-    /// Used as persistance for file-based authorization.
+    /// Used as persistence for file-based authorization.
     /// Default size: 16MB
     #[fragment_attrs(serde(default))]
     pub file_based_repo: PvcConfig,
