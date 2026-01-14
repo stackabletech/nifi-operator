@@ -211,7 +211,24 @@ spec:
             initialAdminUser: "cn=admin,ou=users,dc=example,dc=org"
 ----
 
-This configuration provides an additional PVC to NiFi pods in order to read and persist the `users.xml` and `authorizations.xml`.
+This configuration provides an additional PVC to NiFi pods in order to read and persist the `users.xml` and `authorizations.xml` files.
+The default size is 16Mi and can be increased via the storage configuration on role or rolegroup level:
+
+[source,yaml]
+----
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: test-nifi
+spec:
+  clusterConfig: { .. }
+  nodes: 
+    config:
+      resources:
+        storage:
+          filebasedRepo:
+            capacity: 256Mi
+----
 
 [#authorization-opa]
 === Open Policy Agent (OPA)
