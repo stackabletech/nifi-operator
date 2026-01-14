@@ -11,7 +11,7 @@ use stackable_operator::{
 };
 
 use crate::{
-    config::NIFI_PVC_STORAGE_DIRECTORY,
+    config::{NIFI_PVC_STORAGE_DIRECTORY, NifiRepository},
     crd::{
         authorization::{NifiAccessPolicyProvider, NifiAuthorization, NifiOpaConfig},
         v1alpha1,
@@ -21,7 +21,6 @@ use crate::{
 const OPA_TLS_VOLUME_NAME: &str = "opa-tls";
 pub const OPA_TLS_MOUNT_PATH: &str = "/stackable/opa_tls";
 
-const FILE_BASED_MOUNT_NAME: &str = "filebased";
 const FILE_BASED_MOUNT_DIRECTORY: &str = "filebased";
 
 #[derive(Snafu, Debug)]
@@ -218,7 +217,7 @@ impl ResolvedNifiAuthorizationConfig {
                     }
                 ) {
                     volume_mounts.push(VolumeMount {
-                        name: FILE_BASED_MOUNT_NAME.into(),
+                        name: NifiRepository::Filebased.repository(),
                         mount_path: Self::file_based_mount_path(),
                         ..VolumeMount::default()
                     })

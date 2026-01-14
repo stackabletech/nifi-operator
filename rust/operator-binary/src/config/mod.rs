@@ -52,6 +52,8 @@ const STORAGE_CONTENT_ARCHIVE_UTILIZATION_FACTOR: f32 = 0.5;
 
 #[derive(Debug, Display, EnumIter)]
 pub enum NifiRepository {
+    #[strum(serialize = "filebased")]
+    Filebased,
     #[strum(serialize = "flowfile")]
     Flowfile,
     #[strum(serialize = "database")]

@@ -1511,7 +1511,7 @@ fn get_volume_claim_templates(
     } = authorization_config
     {
         pvcs.push(merged_config.resources.storage.file_based_repo.build_pvc(
-            &NifiRepository::State.repository(),
+            &NifiRepository::Filebased.repository(),
             Some(vec!["ReadWriteOnce"]),
         ))
     }
