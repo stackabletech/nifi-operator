@@ -222,7 +222,7 @@ metadata:
   name: test-nifi
 spec:
   clusterConfig: { .. }
-  nodes: 
+  nodes:
     config:
       resources:
         storage:
