@@ -442,7 +442,7 @@ impl NifiConfig {
                         storage_class: None,
                         selectors: None,
                     },
-                    file_based_repo: PvcConfigFragment {
+                    filebased_repo: PvcConfigFragment {
                         capacity: Some(Quantity("16Mi".to_string())),
                         storage_class: None,
                         selectors: None,
@@ -531,10 +531,10 @@ pub struct NifiStorageConfig {
     #[fragment_attrs(serde(default))]
     pub state_repo: PvcConfig,
 
-    /// Used as persistence for file-based authorization.
+    /// Used as persistence for file-based authorization. This contains the users.xml and authorizations.xml files.
     /// Default size: 16MB
     #[fragment_attrs(serde(default))]
-    pub file_based_repo: PvcConfig,
+    pub filebased_repo: PvcConfig,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]

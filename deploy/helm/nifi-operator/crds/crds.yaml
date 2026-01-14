@@ -602,7 +602,7 @@ spec:
                                 capacity: null
                               databaseRepo:
                                 capacity: null
-                              fileBasedRepo:
+                              filebasedRepo:
                                 capacity: null
                               flowfileRepo:
                                 capacity: null
@@ -747,11 +747,11 @@ spec:
                                       nullable: true
                                       type: string
                                   type: object
-                                fileBasedRepo:
+                                filebasedRepo:
                                   default:
                                     capacity: null
                                   description: |-
-                                    Used as persistance for file-based authorization.
+                                    Used as persistence for file-based authorization. This contains the users.xml and authorizations.xml files.
                                     Default size: 16MB
                                   properties:
                                     capacity:
@@ -1202,7 +1202,7 @@ spec:
                                       capacity: null
                                     databaseRepo:
                                       capacity: null
-                                    fileBasedRepo:
+                                    filebasedRepo:
                                       capacity: null
                                     flowfileRepo:
                                       capacity: null
@@ -1347,11 +1347,11 @@ spec:
                                             nullable: true
                                             type: string
                                         type: object
-                                      fileBasedRepo:
+                                      filebasedRepo:
                                         default:
                                           capacity: null
                                         description: |-
-                                          Used as persistance for file-based authorization.
+                                          Used as persistence for file-based authorization. This contains the users.xml and authorizations.xml files.
                                           Default size: 16MB
                                         properties:
                                           capacity:
