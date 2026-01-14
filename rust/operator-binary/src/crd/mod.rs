@@ -442,6 +442,11 @@ impl NifiConfig {
                         storage_class: None,
                         selectors: None,
                     },
+                    file_based_repo: PvcConfigFragment {
+                        capacity: Some(Quantity("16Mi".to_string())),
+                        storage_class: None,
+                        selectors: None,
+                    },
                 },
             },
             affinity: get_affinity(cluster_name, role),
@@ -525,6 +530,11 @@ pub struct NifiStorageConfig {
     /// Default size: 1GB
     #[fragment_attrs(serde(default))]
     pub state_repo: PvcConfig,
+
+    /// Used as persistance for file-based authorization.
+    /// Default size: 16MB
+    #[fragment_attrs(serde(default))]
+    pub file_based_repo: PvcConfig,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]

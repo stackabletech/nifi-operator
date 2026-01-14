@@ -1,19 +1,13 @@
-use std::collections::BTreeMap;
-
 use indoc::{formatdoc, indoc};
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::pod::volume::{SecretOperatorVolumeSourceBuilder, VolumeBuilder},
     client::Client,
     commons::opa::OpaConfig,
-    k8s_openapi::{
-        api::core::v1::{
-            ConfigMap, ConfigMapKeySelector, EnvVar, EnvVarSource, PersistentVolumeClaim,
-            PersistentVolumeClaimSpec, Volume, VolumeMount, VolumeResourceRequirements,
-        },
-        apimachinery::pkg::api::resource::Quantity,
+    k8s_openapi::api::core::v1::{
+        ConfigMap, ConfigMapKeySelector, EnvVar, EnvVarSource, Volume, VolumeMount,
     },
-    kube::{ResourceExt, api::ObjectMeta},
+    kube::ResourceExt,
 };
 
 use crate::{
@@ -256,34 +250,6 @@ impl ResolvedNifiAuthorizationConfig {
         };
 
         Ok(volumes)
-    }
-
-    pub fn get_pvcs(&self) -> Vec<PersistentVolumeClaim> {
-        let mut pvcs = vec![];
-
-        if let ResolvedNifiAuthorizationConfig::Standard { .. } = self {
-            pvcs.push(PersistentVolumeClaim {
-                metadata: ObjectMeta {
-                    name: Some(FILE_BASED_MOUNT_NAME.to_owned()),
-                    ..ObjectMeta::default()
-                },
-                spec: Some(PersistentVolumeClaimSpec {
-                    access_modes: Some(vec!["ReadWriteOnce".to_owned()]),
-                    resources: Some(VolumeResourceRequirements {
-                        requests: Some({
-                            let mut map = BTreeMap::new();
-                            map.insert("storage".to_string(), Quantity("16Mi".to_owned()));
-                            map
-                        }),
-                        ..Default::default()
-                    }),
-                    ..PersistentVolumeClaimSpec::default()
-                }),
-                ..PersistentVolumeClaim::default()
-            })
-        };
-
-        pvcs
     }
 
     pub fn has_opa_tls(&self) -> bool {

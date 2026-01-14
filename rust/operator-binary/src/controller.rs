@@ -85,7 +85,8 @@ use crate::{
         APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, Container, HTTPS_PORT, HTTPS_PORT_NAME,
         METRICS_PORT, METRICS_PORT_NAME, NifiConfig, NifiConfigFragment, NifiNodeRoleConfig,
         NifiRole, NifiStatus, PROTOCOL_PORT, PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR,
-        STACKABLE_LOG_DIR, authentication::AuthenticationClassResolved, v1alpha1,
+        STACKABLE_LOG_DIR, authentication::AuthenticationClassResolved,
+        authorization::NifiAccessPolicyProvider, v1alpha1,
     },
     listener::{
         LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_group_listener, build_group_listener_pvc,
@@ -1492,6 +1493,7 @@ fn get_volume_claim_templates(
         &rolegroup_ref.role_group,
     ))
     .context(LabelBuildSnafu)?;
+
     // listener endpoints will use persistent volumes
     // so that load balancers can hard-code the target addresses and
     // that it is possible to connect to a consistent address
@@ -1503,7 +1505,16 @@ fn get_volume_claim_templates(
         .context(ListenerConfigurationSnafu)?,
     );
 
-    pvcs.extend(authorization_config.get_pvcs());
+    // Add file-based PVC if required
+    if let ResolvedNifiAuthorizationConfig::Standard {
+        access_policy_provider: NifiAccessPolicyProvider::FileBased { .. },
+    } = authorization_config
+    {
+        pvcs.push(merged_config.resources.storage.file_based_repo.build_pvc(
+            &NifiRepository::State.repository(),
+            Some(vec!["ReadWriteOnce"]),
+        ))
+    }
 
     Ok(pvcs)
 }
