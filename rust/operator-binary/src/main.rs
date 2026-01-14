@@ -32,7 +32,7 @@ use stackable_operator::{
 
 use crate::{
     controller::NIFI_FULL_CONTROLLER_NAME,
-    crd::{NifiCluster, NifiClusterVersion, v1alpha1},
+    crd::{NifiCluster, NifiClusterVersion, authorization::NifiOpaConfig, v1alpha1},
 };
 
 mod config;
@@ -213,11 +213,11 @@ fn references_authorization_config_map(
     nifi: &v1alpha1::NifiCluster,
     config_map: &DeserializeGuard<ConfigMap>,
 ) -> bool {
-    nifi.spec
-        .cluster_config
-        .authorization
-        .as_ref()
-        .and_then(|authz| authz.opa.as_ref())
-        .map(|opa_config| opa_config.opa.config_map_name == config_map.name_any())
-        .unwrap_or(false)
+    match &nifi.spec.cluster_config.authorization {
+        crd::authorization::NifiAuthorization::Opa {
+            opa: NifiOpaConfig { opa, .. },
+        } => opa.config_map_name == config_map.name_any(),
+        crd::authorization::NifiAuthorization::SingleUser {} => false,
+        crd::authorization::NifiAuthorization::Standard { .. } => false,
+    }
 }

@@ -1,20 +1,20 @@
 pub mod affinity;
 pub mod authentication;
+pub mod authorization;
 pub mod sensitive_properties;
 pub mod tls;
 
 use std::collections::BTreeMap;
 
 use affinity::get_affinity;
+use authorization::NifiAuthorization;
 use sensitive_properties::NifiSensitivePropertiesConfig;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
-        cache::UserInformationCache,
         cluster_operation::ClusterOperation,
-        opa::OpaConfig,
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
@@ -124,8 +124,8 @@ pub mod versioned {
 
         /// Authorization options.
         /// Learn more in the [NiFi authorization usage guide](DOCS_BASE_URL_PLACEHOLDER/nifi/usage-guide/security#authorization).
-        #[serde(skip_serializing_if = "Option::is_none")]
-        pub authorization: Option<NifiAuthorization>,
+        #[serde(default)]
+        pub authorization: NifiAuthorization,
 
         /// Configuration of allowed proxies e.g. load balancers or Kubernetes Ingress. Using a proxy that is not allowed by NiFi results
         /// in a failed host header check.
@@ -248,22 +248,6 @@ impl v1alpha1::NifiCluster {
         tracing::debug!("Merged config: {:?}", conf_rolegroup);
         fragment::validate(conf_rolegroup).context(FragmentValidationFailureSnafu)
     }
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NifiAuthorization {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub opa: Option<NifiOpaConfig>,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NifiOpaConfig {
-    #[serde(flatten)]
-    pub opa: OpaConfig,
-    #[serde(default)]
-    pub cache: UserInformationCache,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -458,6 +442,11 @@ impl NifiConfig {
                         storage_class: None,
                         selectors: None,
                     },
+                    filebased_repo: PvcConfigFragment {
+                        capacity: Some(Quantity("16Mi".to_string())),
+                        storage_class: None,
+                        selectors: None,
+                    },
                 },
             },
             affinity: get_affinity(cluster_name, role),
@@ -541,6 +530,11 @@ pub struct NifiStorageConfig {
     /// Default size: 1GB
     #[fragment_attrs(serde(default))]
     pub state_repo: PvcConfig,
+
+    /// Used as persistence for file-based authorization. This contains the users.xml and authorizations.xml files.
+    /// Default size: 16MB
+    #[fragment_attrs(serde(default))]
+    pub filebased_repo: PvcConfig,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]

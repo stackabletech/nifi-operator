@@ -1,80 +1,97 @@
 use indoc::{formatdoc, indoc};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
+    builder::pod::volume::{SecretOperatorVolumeSourceBuilder, VolumeBuilder},
     client::Client,
     commons::opa::OpaConfig,
-    crd::authentication::ldap,
-    k8s_openapi::api::core::v1::{ConfigMap, ConfigMapKeySelector, EnvVar, EnvVarSource},
+    k8s_openapi::api::core::v1::{
+        ConfigMap, ConfigMapKeySelector, EnvVar, EnvVarSource, Volume, VolumeMount,
+    },
     kube::ResourceExt,
 };
 
-use super::authentication::NifiAuthenticationConfig;
-use crate::crd::{NifiAuthorization, v1alpha1};
+use crate::{
+    config::{NIFI_PVC_STORAGE_DIRECTORY, NifiRepository},
+    crd::{
+        authorization::{NifiAccessPolicyProvider, NifiAuthorization, NifiOpaConfig},
+        v1alpha1,
+    },
+};
 
-pub const OPA_TLS_VOLUME_NAME: &str = "opa-tls";
+const OPA_TLS_VOLUME_NAME: &str = "opa-tls";
 pub const OPA_TLS_MOUNT_PATH: &str = "/stackable/opa_tls";
+
+const FILE_BASED_MOUNT_DIRECTORY: &str = "filebased";
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display(
-        "The LDAP AuthenticationClass is missing the bind credentials. Currently the NiFi operator only supports connecting to LDAP servers using bind credentials"
-    ))]
-    LdapAuthenticationClassMissingBindCredentials {},
-
     #[snafu(display("Failed to fetch OPA ConfigMap {configmap_name}"))]
     FetchOpaConfigMap {
         source: stackable_operator::client::Error,
         configmap_name: String,
         namespace: String,
     },
+    #[snafu(display("failed to build OPA TLS certificate volume"))]
+    OpaTlsCertSecretClassVolumeBuild {
+        source: stackable_operator::builder::pod::volume::SecretOperatorVolumeSourceBuilderError,
+    },
 }
 
-pub enum NifiAuthorizationConfig<'a> {
+pub enum ResolvedNifiAuthorizationConfig {
     Opa {
-        config: &'a OpaConfig,
+        config: OpaConfig,
         cache_entry_time_to_live_secs: u64,
         cache_max_entries: u32,
         secret_class: Option<String>,
     },
-    Default,
+    SingleUser,
+    Standard {
+        access_policy_provider: NifiAccessPolicyProvider,
+    },
 }
 
-impl<'a> NifiAuthorizationConfig<'a> {
+impl ResolvedNifiAuthorizationConfig {
     pub async fn from(
-        nifi_authorization: Option<&'a NifiAuthorization>,
+        nifi_authorization: &NifiAuthorization,
         client: &Client,
         namespace: &str,
     ) -> Result<Self, Error> {
-        let Some(NifiAuthorization {
-            opa: Some(opa_config),
-        }) = nifi_authorization
-        else {
-            return Ok(NifiAuthorizationConfig::Default);
+        let authz = match nifi_authorization {
+            NifiAuthorization::Opa {
+                opa: NifiOpaConfig { opa, cache },
+            } => {
+                // Resolve the secret class from the ConfigMap
+                let secret_class = client
+                    .get::<ConfigMap>(&opa.config_map_name, namespace)
+                    .await
+                    .with_context(|_| FetchOpaConfigMapSnafu {
+                        configmap_name: &opa.config_map_name,
+                        namespace,
+                    })?
+                    .data
+                    .and_then(|mut data| data.remove("OPA_SECRET_CLASS"));
+
+                ResolvedNifiAuthorizationConfig::Opa {
+                    config: opa.to_owned(),
+                    cache_entry_time_to_live_secs: cache.entry_time_to_live.as_secs(),
+                    cache_max_entries: cache.max_entries,
+                    secret_class,
+                }
+            }
+            NifiAuthorization::SingleUser {} => ResolvedNifiAuthorizationConfig::SingleUser,
+            NifiAuthorization::Standard {
+                access_policy_provider,
+            } => ResolvedNifiAuthorizationConfig::Standard {
+                access_policy_provider: access_policy_provider.to_owned(),
+            },
         };
 
-        // Resolve the secret class from the ConfigMap
-        let secret_class = client
-            .get::<ConfigMap>(&opa_config.opa.config_map_name, namespace)
-            .await
-            .with_context(|_| FetchOpaConfigMapSnafu {
-                configmap_name: &opa_config.opa.config_map_name,
-                namespace,
-            })?
-            .data
-            .and_then(|mut data| data.remove("OPA_SECRET_CLASS"));
-
-        Ok(NifiAuthorizationConfig::Opa {
-            config: &opa_config.opa,
-            cache_entry_time_to_live_secs: opa_config.cache.entry_time_to_live.as_secs(),
-            cache_max_entries: opa_config.cache.max_entries,
-            secret_class,
-        })
+        Ok(authz)
     }
 
     pub fn get_authorizers_config(
         &self,
         nifi_cluster: &v1alpha1::NifiCluster,
-        authentication_config: &NifiAuthenticationConfig,
     ) -> Result<String, Error> {
         let mut authorizers_xml = indoc! {r#"
             <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -83,7 +100,7 @@ impl<'a> NifiAuthorizationConfig<'a> {
         .to_string();
 
         match self {
-            NifiAuthorizationConfig::Opa {
+            ResolvedNifiAuthorizationConfig::Opa {
                 cache_entry_time_to_live_secs,
                 cache_max_entries,
                 config: OpaConfig { package, .. },
@@ -102,75 +119,60 @@ impl<'a> NifiAuthorizationConfig<'a> {
                     </authorizer>
                 "#});
             }
-            NifiAuthorizationConfig::Default => match authentication_config {
-                NifiAuthenticationConfig::SingleUser { .. }
-                | NifiAuthenticationConfig::Oidc { .. } => {
-                    authorizers_xml.push_str(indoc! {r#"
-                            <authorizer>
-                                <identifier>authorizer</identifier>
-                                <class>org.apache.nifi.authorization.single.user.SingleUserAuthorizer</class>
-                            </authorizer>
-                        "#});
-                }
-                NifiAuthenticationConfig::Ldap { provider } => {
-                    authorizers_xml.push_str(&self.get_default_ldap_authorizer(provider)?);
-                }
-            },
+            ResolvedNifiAuthorizationConfig::SingleUser => {
+                authorizers_xml.push_str(indoc! {r#"
+                    <authorizer>
+                        <identifier>authorizer</identifier>
+                        <class>org.apache.nifi.authorization.single.user.SingleUserAuthorizer</class>
+                    </authorizer>
+                "#});
+            }
+            ResolvedNifiAuthorizationConfig::Standard {
+                access_policy_provider: NifiAccessPolicyProvider::FileBased { initial_admin_user },
+            } => {
+                let file_based_mount_path = Self::file_based_mount_path();
+
+                authorizers_xml.push_str(&formatdoc! {r#"
+                    <userGroupProvider>
+                        <identifier>file-user-group-provider</identifier>
+                        <class>org.apache.nifi.authorization.FileUserGroupProvider</class>
+                        <property name="Users File">{file_based_mount_path}/users.xml</property>
+                        <property name="Initial User Identity admin">{initial_admin_user}</property>
+
+                        <!-- As the secret-operator provides the NiFi nodes with cert with a common name of "generated certificate for pod" we have to put that here -->
+                        <property name="Initial User Identity other-nifis">CN=generated certificate for pod</property>
+                    </userGroupProvider>
+
+                    <accessPolicyProvider>
+                        <identifier>file-access-policy-provider</identifier>
+                        <class>org.apache.nifi.authorization.FileAccessPolicyProvider</class>
+                        <property name="User Group Provider">file-user-group-provider</property>
+                        <property name="Authorizations File">{file_based_mount_path}/authorizations.xml</property>
+                        <property name="Initial Admin Identity">{initial_admin_user}</property>
+
+                        <!-- As the secret-operator provides the NiFi nodes with cert with a common name of "generated certificate for pod" we have to put that here -->
+                        <property name="Node Identity other-nifis">CN=generated certificate for pod</property>
+                    </accessPolicyProvider>
+
+                    <authorizer>
+                        <identifier>authorizer</identifier>
+                        <class>org.apache.nifi.authorization.StandardManagedAuthorizer</class>
+                        <property name="Access Policy Provider">file-access-policy-provider</property>
+                    </authorizer>
+                "#});
+            }
         }
 
         authorizers_xml.push_str(indoc! {r#"
             </authorizers>
         "#});
+
         Ok(authorizers_xml)
-    }
-
-    fn get_default_ldap_authorizer(
-        &self,
-        ldap: &ldap::v1alpha1::AuthenticationProvider,
-    ) -> Result<String, Error> {
-        let (username_file, _) = ldap
-            .bind_credentials_mount_paths()
-            .context(LdapAuthenticationClassMissingBindCredentialsSnafu)?;
-
-        Ok(formatdoc! {r#"
-            <userGroupProvider>
-                <identifier>file-user-group-provider</identifier>
-                <class>org.apache.nifi.authorization.FileUserGroupProvider</class>
-                <property name="Users File">./conf/users.xml</property>
-
-                <!-- As we currently don't have authorization (including admin user) configurable we simply paste in the ldap bind user in here -->
-                <!-- In the future the whole authorization may be reworked to OPA -->
-                <property name="Initial User Identity admin">${{file:UTF-8:{username_file}}}</property>
-
-                <!-- As the secret-operator provides the NiFi nodes with cert with a common name of "generated certificate for pod" we have to put that here -->
-                <property name="Initial User Identity other-nifis">CN=generated certificate for pod</property>
-            </userGroupProvider>
-
-            <accessPolicyProvider>
-                <identifier>file-access-policy-provider</identifier>
-                <class>org.apache.nifi.authorization.FileAccessPolicyProvider</class>
-                <property name="User Group Provider">file-user-group-provider</property>
-                <property name="Authorizations File">./conf/authorizations.xml</property>
-
-                <!-- As we currently don't have authorization (including admin user) configurable we simply paste in the ldap bind user in here -->
-                <!-- In the future the whole authorization may be reworked to OPA -->
-                <property name="Initial Admin Identity">${{file:UTF-8:{username_file}}}</property>
-
-                <!-- As the secret-operator provides the NiFi nodes with cert with a common name of "generated certificate for pod" we have to put that here -->
-                <property name="Node Identity other-nifis">CN=generated certificate for pod</property>
-            </accessPolicyProvider>
-
-            <authorizer>
-                <identifier>authorizer</identifier>
-                <class>org.apache.nifi.authorization.StandardManagedAuthorizer</class>
-                <property name="Access Policy Provider">file-access-policy-provider</property>
-            </authorizer>
-        "#})
     }
 
     pub fn get_env_vars(&self) -> Vec<EnvVar> {
         match self {
-            NifiAuthorizationConfig::Opa {
+            ResolvedNifiAuthorizationConfig::Opa {
                 config: OpaConfig {
                     config_map_name, ..
                 },
@@ -189,17 +191,77 @@ impl<'a> NifiAuthorizationConfig<'a> {
                     ..Default::default()
                 }]
             }
-            NifiAuthorizationConfig::Default => vec![],
+            ResolvedNifiAuthorizationConfig::SingleUser => vec![],
+            ResolvedNifiAuthorizationConfig::Standard { .. } => vec![],
         }
+    }
+
+    pub fn get_volume_mounts(&self) -> Vec<VolumeMount> {
+        let mut volume_mounts = vec![];
+        match self {
+            ResolvedNifiAuthorizationConfig::Opa {
+                secret_class: Some(_),
+                ..
+            } => volume_mounts.push(VolumeMount {
+                name: OPA_TLS_VOLUME_NAME.into(),
+                mount_path: OPA_TLS_MOUNT_PATH.into(),
+                ..VolumeMount::default()
+            }),
+            ResolvedNifiAuthorizationConfig::Standard {
+                access_policy_provider,
+            } => {
+                if matches!(
+                    access_policy_provider,
+                    NifiAccessPolicyProvider::FileBased {
+                        initial_admin_user: _
+                    }
+                ) {
+                    volume_mounts.push(VolumeMount {
+                        name: NifiRepository::Filebased.repository(),
+                        mount_path: Self::file_based_mount_path(),
+                        ..VolumeMount::default()
+                    })
+                }
+            }
+            _ => {}
+        }
+
+        volume_mounts
+    }
+
+    pub fn get_volumes(&self) -> Result<Vec<Volume>, Error> {
+        let mut volumes = vec![];
+
+        if let ResolvedNifiAuthorizationConfig::Opa {
+            secret_class: Some(secret_class),
+            ..
+        } = self
+        {
+            volumes.push(
+                VolumeBuilder::new(OPA_TLS_VOLUME_NAME)
+                    .ephemeral(
+                        SecretOperatorVolumeSourceBuilder::new(secret_class)
+                            .build()
+                            .context(OpaTlsCertSecretClassVolumeBuildSnafu)?,
+                    )
+                    .build(),
+            )
+        };
+
+        Ok(volumes)
     }
 
     pub fn has_opa_tls(&self) -> bool {
         matches!(
             self,
-            NifiAuthorizationConfig::Opa {
+            ResolvedNifiAuthorizationConfig::Opa {
                 secret_class: Some(_),
                 ..
             }
         )
+    }
+
+    fn file_based_mount_path() -> String {
+        format!("{NIFI_PVC_STORAGE_DIRECTORY}/{FILE_BASED_MOUNT_DIRECTORY}")
     }
 }
