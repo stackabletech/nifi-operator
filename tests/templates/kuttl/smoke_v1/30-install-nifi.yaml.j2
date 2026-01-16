@@ -1,4 +1,39 @@
 ---
+apiVersion: authentication.stackable.tech/v1alpha1
+kind: AuthenticationClass
+metadata:
+  name: nifi-users
+spec:
+  provider:
+    static:
+      userCredentialsSecret:
+        name: nifi-users
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nifi-users
+stringData:
+  admin: >
+    passwordWithSpecialCharacter\@<&>"'
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nifi-sensitive-property-key
+stringData:
+  nifiSensitivePropsKey: mYsUp3rS3cr3tk3y
+---
+apiVersion: zookeeper.stackable.tech/v1alpha1
+kind: ZookeeperZnode
+metadata:
+  name: nifi-znode
+spec:
+  clusterRef:
+    name: zookeeper
+---
+# We need to create the NifiCluster last, so that the ConfigMaps/Secrets it mounts are already
+# existing to prevent unnecessary Pod restarts.
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
 metadata:
@@ -49,36 +84,3 @@ spec:
           "nifi.properties":
             "nifi.diagnostics.on.shutdown.enabled": "false"
             "nifi.diagnostics.on.shutdown.max.filecount": "20"
----
-apiVersion: authentication.stackable.tech/v1alpha1
-kind: AuthenticationClass
-metadata:
-  name: nifi-users
-spec:
-  provider:
-    static:
-      userCredentialsSecret:
-        name: nifi-users
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: nifi-users
-stringData:
-  admin: >
-    passwordWithSpecialCharacter\@<&>"'
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: nifi-sensitive-property-key
-stringData:
-  nifiSensitivePropsKey: mYsUp3rS3cr3tk3y
----
-apiVersion: zookeeper.stackable.tech/v1alpha1
-kind: ZookeeperZnode
-metadata:
-  name: nifi-znode
-spec:
-  clusterRef:
-    name: zookeeper
