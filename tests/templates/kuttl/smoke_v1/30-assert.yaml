@@ -7,8 +7,6 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: nifi-node-default
-  # generation: 1 # Im not sure why we end up with generation 2 instead of 1...
-  # But at least we don't have any unnecessary Pod restart :)
   labels:
     restarter.stackable.tech/enabled: "true"
 spec:
