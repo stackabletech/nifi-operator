@@ -52,7 +52,7 @@ dimensions:
       - 3.4.2
   - name: hive-l
     values:
-      - 4.0.1
+      - 4.2.0
   - name: trino-l
     values:
       - "477"
