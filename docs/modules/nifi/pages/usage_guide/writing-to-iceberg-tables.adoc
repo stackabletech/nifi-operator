@@ -6,9 +6,23 @@
 Iceberg brings the reliability and simplicity of SQL tables to big data, while making it possible for engines like Spark, Trino, Flink, Presto, Hive and Impala to safely work with the same tables, at the same time.
 
 NiFi supports a `PutIceberg` processor to add rows to an existing Iceberg table https://issues.apache.org/jira/browse/NIFI-10442[starting from version 1.19.0].
-As of NiFi version `2.4.0` only `PutIceberg` is supported, you need to create and compact your tables with other tools such as Trino or Spark (both included in the Stackable Data Platform).
+As of NiFi version `2.7.2` only `PutIceberg` is supported, you need to create and compact your tables with other tools such as Trino or Spark (both included in the Stackable Data Platform).
 
-== NiFi 2
+== NiFi 2.7 and above
+
+In NiFi `2.7.0` Iceberg support was https://issues.apache.org/jira/browse/NIFI-15062[re-added] after the removal in 2.0.0.
+
+The 2.7 version has the following changes over the 2.0/2.6 version, you need to adopt your setup accordingly:
+
+* HDFS and Kerberos support was dropped
+* Hive metastore support was dropped
+* Iceberg REST catalog support was added
+* It now uses the Iceberg S3 IO instead of the Hadoop S3 client libraries
+* It uses much less dependencies and therefore CVEs
+
+There have been efforts from Stackable to re-add at least Hive metastore support, but that turned out to be complicated.
+
+== NiFi 2.0 - 2.6
 
 In NiFi `2.0.0` Iceberg support https://issues.apache.org/jira/browse/NIFI-13938[has been removed] from upstream NiFi.
 

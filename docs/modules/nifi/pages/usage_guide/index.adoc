@@ -17,12 +17,11 @@ metadata:
   name: simple-nifi
 spec:
   image:
-    productVersion: 1.27.0
+    productVersion: 2.7.2
   clusterConfig:
-    zookeeperConfigMapName: simple-nifi-znode  # <1>
-    authentication:  # <2>
+    authentication:  # <1>
       - authenticationClass: simple-nifi-admin-user
-    extraVolumes:  # <3>
+    extraVolumes:  # <2>
       - name: nifi-client-certs
         secret:
           secretName: nifi-client-certs
@@ -35,18 +34,17 @@ spec:
   roleGroups:
     default:
       config:
-        resources:  # <4>
+        resources:  # <3>
           cpu:
             min: "500m"
             max: "4"
           memory:
-            limit: '2Gi'
+            limit: 2Gi
         replicas: 3
 ----
 
-<1> The xref:usage_guide/clustering.adoc#backend-zookeeper[ZooKeeper instance] to use.
-<2> How users should xref:usage_guide/security.adoc[authenticate] themselves.
-<3> xref:usage_guide/extra-volumes.adoc[Extra volumes] with files that can be referenced in custom workflows.
-<4> xref:usage_guide/resource-configuration.adoc[CPU and memory configuration] can be set per role group.
+<1> How users should xref:usage_guide/security.adoc[authenticate] themselves.
+<2> xref:usage_guide/extra-volumes.adoc[Extra volumes] with files that can be referenced in custom workflows.
+<3> xref:usage_guide/resource-configuration.adoc[CPU and memory configuration] can be set per role group.
 
 Not shown are the common settings for xref:usage_guide/operations/cluster-operations.adoc[starting and stopping the cluster] and xref:usage_guide/operations/pod-placement.adoc[distributing Pods]. Additionally, you can set any NiFi setting using xref:usage_guide/overrides.adoc[overrides]. You can also configure xref:usage_guide/log-aggregation.adoc[log aggregation].
