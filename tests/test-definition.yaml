@@ -14,21 +14,27 @@ dimensions:
       - 1.27.0
   - name: nifi_new
     values:
-      - 2.6.0 # oci.stackable.tech/sandbox/nifi:2.6.0-stackable0.0.0-dev
+      - 2.6.0
   - name: nifi-latest
     values:
-      - 2.6.0 # oci.stackable.tech/sandbox/nifi:2.6.0-stackable0.0.0-dev
-  - name: nifi-iceberg
+      - 2.6.0
+  - name: nifi-iceberg-hive
     # Not all NiFi versions support Iceberg with the same functionality!
     # E.g. our own implementation started with NiFi 2.2.0
     values:
-      - 2.6.0 # oci.stackable.tech/sandbox/nifi:2.6.0-stackable0.0.0-dev
-    # TODO: Can be removed once NiFi 1.x.x is removed - only for seperate smoke tests
+      - 2.4.0
+      - 2.6.0
+  - name: nifi-iceberg-rest
+    values:
+      # - 2.7.2
+      # - 2.7.2,oci.stackable.tech/sandbox/sbernauer/nifi:2.7.2-no-hive-stackable0.0.0-dev-amd64
+      - 2.7.2,oci.stackable.tech/sandbox/sbernauer/nifi:2.7.2-no-hive-with-endpoint-stackable0.0.0-dev-amd64
+    # TODO: Can be removed once NiFi 1.x.x is removed - only for separate smoke tests
   - name: nifi-v1
     values:
       - 1.27.0
       - 1.28.1
-    # TODO: Can be removed once NiFi 1.x.x is removed - only for seperate smoke tests
+    # TODO: Can be removed once NiFi 1.x.x is removed - only for separate smoke tests
   - name: nifi-v2
     values:
       - 2.4.0
@@ -137,9 +143,9 @@ tests:
       - oidc-use-tls
       - opa-l
       - openshift
-  - name: iceberg
+  - name: iceberg-hive
     dimensions:
-      - nifi-iceberg
+      - nifi-iceberg-hive
       - opa-l
       - zookeeper-latest
       - hdfs-l
@@ -148,6 +154,12 @@ tests:
       - krb5
       - iceberg-use-kerberos
       - kerberos-realm
+      - openshift
+  - name: iceberg-rest
+    dimensions:
+      - nifi-iceberg-rest
+      - hive-l
+      - trino-l
       - openshift
   - name: custom-components-git-sync
     dimensions:

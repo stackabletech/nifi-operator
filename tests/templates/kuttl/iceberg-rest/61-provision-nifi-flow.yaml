@@ -1,0 +1,114 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: provision-nifi-flow
+spec:
+  template:
+    spec:
+      containers:
+        - name: provision-nifi-flow
+          image: oci.stackable.tech/sdp/testing-tools/nifi:0.3.0-stackable0.0.0-dev
+          command:
+            - bash
+            - -euo
+            - pipefail
+            - -c
+            - python -u /tmp/script/script.py
+          volumeMounts:
+            - name: script
+              mountPath: /tmp/script
+            - name: nifi-flow
+              mountPath: /tmp/nifi-flow
+            - name: nifi-users
+              mountPath: /nifi-users
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+      volumes:
+        - name: script
+          configMap:
+            name: provision-nifi-flow-script
+        - name: nifi-flow
+          configMap:
+            name: nifi-flow
+        - name: nifi-users
+          secret:
+            secretName: nifi-users
+      restartPolicy: OnFailure
+---
+# Taken from https://github.com/stackabletech/demos/blob/1744be00054eec2827b2d9ef0a90645843cb0075/demos/nifi-kafka-druid-earthquake-data/create-nifi-ingestion-job.yaml#L52
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: provision-nifi-flow-script
+data:
+  script.py: |
+    from nipyapi.canvas import get_root_pg_id, schedule_process_group, list_all_controllers, schedule_controller
+    from nipyapi.security import service_login
+    import nipyapi
+    import os
+    import requests
+    import urllib3
+
+    # As of 2022-08-29 we cant use "https://nifi:8443" here because <h2>The request contained an invalid host header [<code>nifi:8443</code>] in the request [<code>/nifi-api</code>]. Check for request manipulation or third-party intercept.</h2>
+    ENDPOINT = f"https://nifi-node-default-0.nifi-node-default-headless.{os.environ['NAMESPACE']}.svc.cluster.local:8443" # For local testing / developing replace it, afterwards change back to f"https://nifi-node-default-0.nifi-node-default-headless.{os.environ['NAMESPACE']}.svc.cluster.local:8443"
+    USERNAME = "admin"
+    PASSWORD = open("/nifi-users/admin").read()
+
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    nipyapi.config.nifi_config.host = f"{ENDPOINT}/nifi-api"
+    nipyapi.config.nifi_config.verify_ssl = False
+
+    print(f"Logging in as {USERNAME}")
+    service_login(username=USERNAME, password=PASSWORD)
+    print("Logged in")
+
+    filename = "/tmp/nifi-flow/nifi-flow.json"
+
+    pg_id = get_root_pg_id()
+    print(f"Got root process group id: {pg_id}")
+
+    if not nipyapi.config.nifi_config.api_client:
+        nipyapi.config.nifi_config.api_client = ApiClient()
+
+    header_params = {}
+    header_params['Accept'] = nipyapi.config.nifi_config.api_client.select_header_accept(['application/json'])
+    header_params['Content-Type'] = nipyapi.config.nifi_config.api_client.select_header_content_type(['multipart/form-data'])
+
+    print("Uploading process group")
+    nipyapi.config.nifi_config.api_client.call_api('/process-groups/{pg_id}/process-groups/upload', 'POST',
+        path_params={'pg_id': pg_id},
+        header_params=header_params,
+        _return_http_data_only=True,
+        post_params=[
+            ('id', pg_id),
+            ('groupName', 'Iceberg Test'),
+            ('positionX', 100),
+            ('positionY', 10),
+            ('clientId', nipyapi.nifi.FlowApi().generate_client_id()),
+        ],
+        files={
+            'file': filename
+        },
+        auth_settings=['tokenAuth'])
+    print("Process group uploaded")
+
+    # As they are started in the wrong order :D we need to retry
+    max_retries = 5
+    for _ in range(max_retries):
+        controllers = list_all_controllers(pg_id)
+        print(f"Found {len(controllers)} controllers")
+        for controller in controllers:
+            if controller.component.state != "ENABLED":
+                try:
+                    print(f"Scheduling controller {controller.component.name}")
+                    schedule_controller(controller, scheduled=True)
+                    print(f"Scheduled controller: {controller.component.name}")
+                except Exception as e:
+                    print(f"Failed to schedule controller {controller.component.name}: {e}")
+
+    schedule_process_group(pg_id, scheduled=True)
