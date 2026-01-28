@@ -50,3 +50,7 @@ spec:
     iceberg.catalog.type: rest
     # We are using the headless service, as the hive-metastore service is missing port 9001
     iceberg.rest-catalog.uri: http://hive-metastore-default-headless:9001/iceberg
+    iceberg.rest-catalog.security: OAUTH2
+    iceberg.rest-catalog.oauth2.server-uri: https://keycloak.$NAMESPACE.svc.cluster.local:8443/realms/test/protocol/openid-connect/token
+    # TODO Mount as env var from Secret trino-client-credentials
+    iceberg.rest-catalog.oauth2.credential: trino:trino-secret

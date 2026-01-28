@@ -603,13 +603,14 @@
                 "properties": {
                     "Access Delegation Strategy": "disabled",
                     "File IO Provider": "9f657262-7b83-3a51-9b99-0f37dcd21430",
-                    "Authentication Strategy": "BEARER",
+                    "Authentication Strategy": "OAUTH2",
                     "Access Token Scopes": "catalog",
-                    "Bearer Token": "<this value doesn't matter, as we have no authentication configured at the REST catalog>",
                     "Catalog URI": "http://hive-metastore-default-headless:9001/iceberg",
-                    "Authorization Server URI": null,
+                    "Authorization Server URI": "https://keycloak.${NAMESPACE}.svc.cluster.local:8443/realms/test/protocol/openid-connect/token",
                     "Warehouse Location": "s3a://demo/lakehouse",
-                    "Authorization Grant Type": "CLIENT_CREDENTIALS"
+                    "Authorization Grant Type": "CLIENT_CREDENTIALS",
+                    "Client ID": "nifi",
+                    "Client Secret": "nifi-secret"
                 },
                 "propertyDescriptors": {
                     "Access Delegation Strategy": {

@@ -28,8 +28,13 @@ spec:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
     configOverrides:
       hive-site.xml:
+        # See https://hive.apache.org/docs/latest/admin/oauth2/keycloak/
+        # for Hive metastore and Keycloak setup.
         metastore.catalog.servlet.port: "9001"
-        metastore.catalog.servlet.auth: none # TODO: Add some form of authentication
+        metastore.catalog.servlet.auth: oauth2
+        metastore.catalog.servlet.auth.oauth2.issuer: https://keycloak.$NAMESPACE.svc.cluster.local:8443/realms/test
+        metastore.catalog.servlet.auth.oauth2.audience: hive-metastore
+
         hive.metastore.warehouse.dir: s3a://demo/lakehouse
         hive.metastore.warehouse.external.dir: s3a://demo/lakehouse
     roleGroups:
