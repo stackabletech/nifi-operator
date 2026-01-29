@@ -2,12 +2,12 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: check-lakehouse-tables
+  name: check-iceberg-tables
 spec:
   template:
     spec:
       containers:
-        - name: check-lakehouse-tables
+        - name: check-iceberg-tables
           image: "oci.stackable.tech/sdp/trino-cli:{{ test_scenario['values']['trino-l'] }}-stackable0.0.0-dev"
           command:
             - bash
@@ -15,7 +15,7 @@ spec:
             - pipefail
             - -c
             - |
-              for SCHEMA in lakehouse.test; do
+              for SCHEMA in iceberg.s3 iceberg.hdfs; do
                 COUNT=$(cat << EOF | ./trino-cli --server https://trino-coordinator:8443 --insecure --user admin
                 SELECT COUNT(*) FROM $SCHEMA.greetings WHERE hello = 'world from NiFi :)';
               EOF
