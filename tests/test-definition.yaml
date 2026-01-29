@@ -4,7 +4,7 @@ dimensions:
     values:
       - 1.28.1
       - 2.6.0
-      - 2.7.2
+      - 2.7.2,oci.stackable.tech/sandbox/sbernauer/nifi:2.7.2-no-hive-with-endpoint-stackable0.0.0-dev-amd64
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
       # - 2.6.0,oci.stackable.tech/sandbox/nifi:2.6.0-stackable0.0.0-dev
@@ -16,7 +16,7 @@ dimensions:
       - 2.7.2
   - name: nifi-latest
     values:
-      - 2.7.2
+      - 2.7.2,oci.stackable.tech/sandbox/sbernauer/nifi:2.7.2-no-hive-with-endpoint-stackable0.0.0-dev-amd64
   - name: nifi-iceberg-hive
     # Not all NiFi versions support Iceberg with the same functionality!
     # E.g. our own implementation started with NiFi 2.2.0
@@ -35,7 +35,7 @@ dimensions:
   - name: nifi-v2
     values:
       - 2.6.0
-      - 2.7.2
+      - 2.7.2,oci.stackable.tech/sandbox/sbernauer/nifi:2.7.2-no-hive-with-endpoint-stackable0.0.0-dev-amd64
     # Use Kubernetes manager if set to false
   - name: use-zookeeper-manager
     values:

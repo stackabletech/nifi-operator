@@ -12,7 +12,7 @@ data:
     nifi_node_proxy := "CN=generated certificate for pod"
     nifi_reporting_task_user := "admin"
 
-    # Setting "resourceNotFound" to true results in the parent resource beingevaluated for authorization,
+    # Setting "resourceNotFound" to true results in the parent resource being evaluated for authorization,
     # e.g. the parent of a processor is the processor-group.
     # If a resource is matched by a rego rule that is not the default the parent resource will be ignored.
     default allow := {
@@ -54,7 +54,7 @@ data:
       group in ["nifi-process-group-b"]
     }
 
-    # Allow read-only access to group "nifi-user" to proccess group C
+    # Allow read-only access to group "nifi-user" to process group C
     allow := {
       "allowed": true
     } if {
