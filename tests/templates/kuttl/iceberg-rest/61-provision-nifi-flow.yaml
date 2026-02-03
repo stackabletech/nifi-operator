@@ -53,7 +53,6 @@ data:
     import requests
     import urllib3
 
-    # As of 2022-08-29 we cant use "https://nifi:8443" here because <h2>The request contained an invalid host header [<code>nifi:8443</code>] in the request [<code>/nifi-api</code>]. Check for request manipulation or third-party intercept.</h2>
     ENDPOINT = f"https://nifi-node-default-0.nifi-node-default-headless.{os.environ['NAMESPACE']}.svc.cluster.local:8443"
     USERNAME = "admin"
     PASSWORD = open("/nifi-users/admin").read()
