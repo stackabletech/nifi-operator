@@ -1,25 +1,3 @@
-# Deploy a NiFi cluster, a user secret and a ZooKeeper cluster and a respective
-# ZNode `simple-nifi-znode` which will be referenced
----
-apiVersion: zookeeper.stackable.tech/v1alpha1
-kind: ZookeeperCluster
-metadata:
-  name: simple-zk
-spec:
-  image:
-    productVersion: 3.9.4
-  servers:
-    roleGroups:
-      default:
-        replicas: 1
----
-apiVersion: zookeeper.stackable.tech/v1alpha1
-kind: ZookeeperZnode
-metadata:
-  name: simple-nifi-znode
-spec:
-  clusterRef:
-    name: simple-zk
 ---
 apiVersion: authentication.stackable.tech/v1alpha1
 kind: AuthenticationClass
@@ -47,14 +25,13 @@ metadata:
   name: simple-nifi
 spec:
   image:
-    productVersion: 2.6.0
+    productVersion: 2.7.2
   clusterConfig:
     authentication:
       - authenticationClass: simple-nifi-admin-user
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
       autoGenerate: true
-    zookeeperConfigMapName: simple-nifi-znode
   nodes:
     roleConfig:
       listenerClass: external-unstable
