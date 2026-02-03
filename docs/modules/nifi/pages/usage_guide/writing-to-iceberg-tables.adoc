@@ -20,7 +20,7 @@ The `2.7.x` version has the following changes over the `2.0.x` and `2.6.x` versi
 * It now uses the Iceberg S3 IO instead of the Hadoop S3 client libraries
 * It uses much less dependencies and therefore reduces the amount of CVEs
 
-There have been efforts from Stackable to re-add at least Hive metastore support, but that turned out to be complicated.
+There have been efforts from Stackable to re-add at least Hive metastore support, but we ran into NiFi classpath loader issues, which we haven't been able to solve so far.
 
 == NiFi 2.0 - 2.6
 
