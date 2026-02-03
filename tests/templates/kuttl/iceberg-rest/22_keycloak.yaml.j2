@@ -28,20 +28,6 @@ roleRef:
   name: keycloak
   apiGroup: rbac.authorization.k8s.io
 ---
-
-apiVersion: secrets.stackable.tech/v1alpha1
-kind: SecretClass
-metadata:
-  name: keycloak-tls-$NAMESPACE
-spec:
-  backend:
-    autoTls:
-      ca:
-        autoGenerate: true
-        secret:
-          name: keycloak-tls-ca-$NAMESPACE
-          namespace: $NAMESPACE
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -65,10 +51,8 @@ spec:
           args:
             - start-dev
             - --import-realm
-{% if test_scenario['values']['oidc-use-tls'] == 'true' %}
             - --https-certificate-file=/tls/tls.crt
             - --https-certificate-key-file=/tls/tls.key
-{% endif %}
           env:
             - name: KEYCLOAK_ADMIN
               value: admin
@@ -76,7 +60,6 @@ spec:
               value: admin
             - name: JAVA_OPTS_KC_HEAP
               value: -Xmx500M
-{% if test_scenario['values']['oidc-use-tls'] == 'true' %}
           ports:
             - name: https
               containerPort: 8443
@@ -85,16 +68,6 @@ spec:
               scheme: HTTPS
               path: /realms/master
               port: https
-{% else %}
-          ports:
-            - name: http
-              containerPort: 8080
-          readinessProbe:
-            httpGet:
-              scheme: HTTP
-              path: /realms/master
-              port: http
-{% endif %}
           resources:
             limits:
               cpu: 1
@@ -117,7 +90,7 @@ spec:
             volumeClaimTemplate:
               metadata:
                 annotations:
-                  secrets.stackable.tech/class: keycloak-tls-$NAMESPACE
+                  secrets.stackable.tech/class: tls
                   secrets.stackable.tech/scope: service=keycloak
               spec:
                 storageClassName: secrets.stackable.tech
@@ -138,14 +111,8 @@ metadata:
     app: keycloak
 spec:
   ports:
-{% if test_scenario['values']['oidc-use-tls'] == 'true' %}
     - name: https
       port: 8443
       targetPort: 8443
-{% else %}
-    - name: http
-      port: 8080
-      targetPort: 8080
-{% endif %}
   selector:
     app: keycloak

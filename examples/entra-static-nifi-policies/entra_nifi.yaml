@@ -173,10 +173,9 @@ metadata:
   name: test-nifi
 spec:
   image:
-    productVersion: 2.6.0
+    productVersion: 2.7.2
     pullPolicy: IfNotPresent
   clusterConfig:
-    zookeeperConfigMapName: null
     authentication:
       - authenticationClass: simple-nifi-users
     hostHeaderCheck:
@@ -226,7 +225,7 @@ spec:
                     name: oidc-secret
                     key: discovery.url
           - name: prep-custom-authorizers
-            image: oci.stackable.tech/sdp/nifi:2.6.0-stackable0.0.0-dev
+            image: oci.stackable.tech/sdp/nifi:2.7.2-stackable0.0.0-dev
             env:
               - name: OIDC_AUTHORITY_ENDPOINT
                 valueFrom:

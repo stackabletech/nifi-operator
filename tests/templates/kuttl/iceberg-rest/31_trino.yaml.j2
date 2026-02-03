@@ -1,0 +1,56 @@
+---
+apiVersion: trino.stackable.tech/v1alpha1
+kind: TrinoCluster
+metadata:
+  name: trino
+spec:
+  image:
+{% if test_scenario['values']['trino-l'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['trino-l'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['trino-l'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['trino-l'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
+  clusterConfig:
+    catalogLabelSelector:
+      matchLabels:
+        trino: trino
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+    vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
+  coordinators:
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    roleGroups:
+      default:
+        replicas: 1
+  workers:
+    config:
+      gracefulShutdownTimeout: 120s # Let the test run faster, but allow for slow queries
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    roleGroups:
+      default:
+        replicas: 1
+---
+apiVersion: trino.stackable.tech/v1alpha1
+kind: TrinoCatalog
+metadata:
+  name: lakehouse
+  labels:
+    trino: trino
+spec:
+  connector:
+    iceberg:
+      s3:
+        reference: minio
+  configOverrides:
+    iceberg.catalog.type: rest
+    # We are using the headless service, as the hive-metastore service is missing port 9001
+    iceberg.rest-catalog.uri: http://hive-metastore-default-headless:9001/iceberg
+    iceberg.rest-catalog.security: OAUTH2
+    iceberg.rest-catalog.oauth2.server-uri: https://keycloak.$NAMESPACE.svc.cluster.local:8443/realms/test/protocol/openid-connect/token
+    # TODO Mount as env var from Secret trino-client-credentials
+    iceberg.rest-catalog.oauth2.credential: trino:trino-secret

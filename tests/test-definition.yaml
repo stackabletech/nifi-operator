@@ -2,37 +2,38 @@
 dimensions:
   - name: nifi
     values:
-      - 1.27.0
       - 1.28.1
-      - 2.4.0
       - 2.6.0
+      - 2.7.2
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
       # - 2.6.0,oci.stackable.tech/sandbox/nifi:2.6.0-stackable0.0.0-dev
   - name: nifi_old
     values:
-      - 1.27.0
+      - 1.28.1
   - name: nifi_new
     values:
-      - 2.6.0 # oci.stackable.tech/sandbox/nifi:2.6.0-stackable0.0.0-dev
+      - 2.7.2
   - name: nifi-latest
     values:
-      - 2.6.0 # oci.stackable.tech/sandbox/nifi:2.6.0-stackable0.0.0-dev
-  - name: nifi-iceberg
+      - 2.7.2
+  - name: nifi-iceberg-hive
     # Not all NiFi versions support Iceberg with the same functionality!
     # E.g. our own implementation started with NiFi 2.2.0
     values:
-      - 2.6.0 # oci.stackable.tech/sandbox/nifi:2.6.0-stackable0.0.0-dev
-    # TODO: Can be removed once NiFi 1.x.x is removed - only for seperate smoke tests
+      - 2.6.0
+  - name: nifi-iceberg-rest
+    values:
+      - 2.7.2
+    # TODO: Can be removed once NiFi 1.x.x is removed - only for separate smoke tests
   - name: nifi-v1
     values:
-      - 1.27.0
       - 1.28.1
-    # TODO: Can be removed once NiFi 1.x.x is removed - only for seperate smoke tests
+    # TODO: Can be removed once NiFi 1.x.x is removed - only for separate smoke tests
   - name: nifi-v2
     values:
-      - 2.4.0
       - 2.6.0
+      - 2.7.2
     # Use Kubernetes manager if set to false
   - name: use-zookeeper-manager
     values:
@@ -94,14 +95,14 @@ tests:
       - nifi
       - zookeeper-latest
       - openshift
-  # TODO: Can be removed once NiFi 1.x.x is removed - only for seperate smoke tests
+  # TODO: Can be removed once NiFi 1.x.x is removed - only for separate smoke tests
   - name: smoke_v1
     dimensions:
       - nifi-v1
       - zookeeper
       - listener-class
       - openshift
-  # TODO: Can be renamed to smoke once NiFi 1.x.x is removed - only for seperate smoke tests
+  # TODO: Can be renamed to smoke once NiFi 1.x.x is removed - only for separate smoke tests
   - name: smoke_v2
     dimensions:
       - nifi-v2
@@ -128,7 +129,6 @@ tests:
   - name: cluster_operation
     dimensions:
       - nifi-latest
-      - zookeeper-latest
       - openshift
   - name: oidc-opa
     dimensions:
@@ -137,9 +137,9 @@ tests:
       - oidc-use-tls
       - opa-l
       - openshift
-  - name: iceberg
+  - name: iceberg-hive
     dimensions:
-      - nifi-iceberg
+      - nifi-iceberg-hive
       - opa-l
       - zookeeper-latest
       - hdfs-l
@@ -148,6 +148,12 @@ tests:
       - krb5
       - iceberg-use-kerberos
       - kerberos-realm
+      - openshift
+  - name: iceberg-rest
+    dimensions:
+      - nifi-iceberg-rest
+      - hive-l
+      - trino-l
       - openshift
   - name: custom-components-git-sync
     dimensions:

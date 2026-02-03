@@ -2,9 +2,8 @@
 // This is a separate file, since it is used by both the direct NiFi-Operator documentation, and the overarching
 // Stackable Platform documentation.
 
-* 2.6.0 (LTS, Please note that you need to upgrade to at least 1.27.x before upgrading to 2.x.x!)
-* 2.4.0 (Deprecated, Please note that you need to upgrade to at least 1.27.x before upgrading to 2.x.x!)
+* 2.7.2
+* 2.6.0 (LTS)
 * 1.28.1 (Deprecated)
-* 1.27.0 (Deprecated)
 
 For details on how to upgrade your NiFi version, refer to xref:nifi:usage_guide/updating.adoc[].

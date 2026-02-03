@@ -1,0 +1,726 @@
+{
+    "flowContents": {
+        "identifier": "2e5eba24-12b8-376f-831e-92b58b146e97",
+        "instanceIdentifier": "ff8d3e24-019b-1000-67a0-8eee9b405b68",
+        "name": "NiFi Flow",
+        "comments": "",
+        "position": {
+            "x": 0.0,
+            "y": 0.0
+        },
+        "processGroups": [],
+        "remoteProcessGroups": [],
+        "processors": [
+            {
+                "identifier": "b1668992-d593-3bbe-b1ae-6987c9e4dc41",
+                "instanceIdentifier": "ff97785d-019b-1000-ffff-ffffdde19d67",
+                "name": "GenerateFlowFile",
+                "comments": "",
+                "position": {
+                    "x": -120.0,
+                    "y": -336.0
+                },
+                "type": "org.apache.nifi.processors.standard.GenerateFlowFile",
+                "bundle": {
+                    "group": "org.apache.nifi",
+                    "artifact": "nifi-standard-nar",
+                    "version": "2.7.2-stackable0.0.0-dev"
+                },
+                "properties": {
+                    "File Size": "0B",
+                    "Batch Size": "1",
+                    "Unique FlowFiles": "false",
+                    "Mime Type": null,
+                    "Custom Text": "{\"hello\": \"world from NiFi :)\"}",
+                    "Character Set": "UTF-8",
+                    "Data Format": "Text"
+                },
+                "propertyDescriptors": {
+                    "File Size": {
+                        "name": "File Size",
+                        "displayName": "File Size",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Batch Size": {
+                        "name": "Batch Size",
+                        "displayName": "Batch Size",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Unique FlowFiles": {
+                        "name": "Unique FlowFiles",
+                        "displayName": "Unique FlowFiles",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Mime Type": {
+                        "name": "Mime Type",
+                        "displayName": "Mime Type",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Custom Text": {
+                        "name": "Custom Text",
+                        "displayName": "Custom Text",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Character Set": {
+                        "name": "Character Set",
+                        "displayName": "Character Set",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Data Format": {
+                        "name": "Data Format",
+                        "displayName": "Data Format",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    }
+                },
+                "style": {},
+                "schedulingPeriod": "1 min",
+                "schedulingStrategy": "TIMER_DRIVEN",
+                "executionNode": "ALL",
+                "penaltyDuration": "30 sec",
+                "yieldDuration": "1 sec",
+                "bulletinLevel": "WARN",
+                "runDurationMillis": 0,
+                "concurrentlySchedulableTaskCount": 1,
+                "autoTerminatedRelationships": [],
+                "scheduledState": "ENABLED",
+                "retryCount": 10,
+                "retriedRelationships": [],
+                "backoffMechanism": "PENALIZE_FLOWFILE",
+                "maxBackoffPeriod": "10 mins",
+                "componentType": "PROCESSOR",
+                "groupIdentifier": "2e5eba24-12b8-376f-831e-92b58b146e97"
+            },
+            {
+                "identifier": "ee4389f6-388b-39f9-aba4-f1d85bdf7c29",
+                "instanceIdentifier": "ff94896d-019b-1000-0000-00007a222339",
+                "name": "PutIcebergRecord",
+                "comments": "",
+                "position": {
+                    "x": -128.0,
+                    "y": -80.0
+                },
+                "type": "org.apache.nifi.processors.iceberg.PutIcebergRecord",
+                "bundle": {
+                    "group": "org.apache.nifi",
+                    "artifact": "nifi-iceberg-processors-nar",
+                    "version": "2.7.2-stackable0.0.0-dev"
+                },
+                "properties": {
+                    "Table Name": "greetings",
+                    "Iceberg Catalog": "059cb4fe-6c2f-3d9b-9b8e-e30d9d3ffb4f",
+                    "Record Reader": "27175bc0-818e-3e08-a5db-b961636e2d54",
+                    "Iceberg Writer": "50489d60-6dea-3d4a-91c5-c754a2f021be",
+                    "Namespace": "test"
+                },
+                "propertyDescriptors": {
+                    "Table Name": {
+                        "name": "Table Name",
+                        "displayName": "Table Name",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Iceberg Catalog": {
+                        "name": "Iceberg Catalog",
+                        "displayName": "Iceberg Catalog",
+                        "identifiesControllerService": true,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Record Reader": {
+                        "name": "Record Reader",
+                        "displayName": "Record Reader",
+                        "identifiesControllerService": true,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Iceberg Writer": {
+                        "name": "Iceberg Writer",
+                        "displayName": "Iceberg Writer",
+                        "identifiesControllerService": true,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Namespace": {
+                        "name": "Namespace",
+                        "displayName": "Namespace",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    }
+                },
+                "style": {},
+                "schedulingPeriod": "0 sec",
+                "schedulingStrategy": "TIMER_DRIVEN",
+                "executionNode": "ALL",
+                "penaltyDuration": "30 sec",
+                "yieldDuration": "1 sec",
+                "bulletinLevel": "WARN",
+                "runDurationMillis": 0,
+                "concurrentlySchedulableTaskCount": 1,
+                "autoTerminatedRelationships": [],
+                "scheduledState": "ENABLED",
+                "retryCount": 10,
+                "retriedRelationships": [],
+                "backoffMechanism": "PENALIZE_FLOWFILE",
+                "maxBackoffPeriod": "10 mins",
+                "componentType": "PROCESSOR",
+                "groupIdentifier": "2e5eba24-12b8-376f-831e-92b58b146e97"
+            }
+        ],
+        "inputPorts": [],
+        "outputPorts": [],
+        "connections": [
+            {
+                "identifier": "6a382847-605e-38d1-8362-b54d6ba62ffe",
+                "instanceIdentifier": "ff983997-019b-1000-ffff-ffffb43d9d5e",
+                "name": "",
+                "source": {
+                    "id": "ee4389f6-388b-39f9-aba4-f1d85bdf7c29",
+                    "type": "PROCESSOR",
+                    "groupId": "2e5eba24-12b8-376f-831e-92b58b146e97",
+                    "name": "PutIcebergRecord",
+                    "comments": "",
+                    "instanceIdentifier": "ff94896d-019b-1000-0000-00007a222339"
+                },
+                "destination": {
+                    "id": "27e89d06-61dc-3a79-97e9-fdea255d724d",
+                    "type": "FUNNEL",
+                    "groupId": "2e5eba24-12b8-376f-831e-92b58b146e97",
+                    "name": "Funnel",
+                    "comments": "",
+                    "instanceIdentifier": "ff982cf2-019b-1000-ffff-ffffa45d6088"
+                },
+                "labelIndex": 0,
+                "zIndex": 3,
+                "selectedRelationships": [
+                    "failure"
+                ],
+                "backPressureObjectThreshold": 10000,
+                "backPressureDataSizeThreshold": "1 GB",
+                "flowFileExpiration": "0 sec",
+                "prioritizers": [],
+                "bends": [],
+                "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+                "partitioningAttribute": "",
+                "loadBalanceCompression": "DO_NOT_COMPRESS",
+                "componentType": "CONNECTION",
+                "groupIdentifier": "2e5eba24-12b8-376f-831e-92b58b146e97"
+            },
+            {
+                "identifier": "9ebbb5ad-0c41-3ab2-b443-313c58895b2b",
+                "instanceIdentifier": "ff97882f-019b-1000-0000-000037cea26c",
+                "name": "",
+                "source": {
+                    "id": "b1668992-d593-3bbe-b1ae-6987c9e4dc41",
+                    "type": "PROCESSOR",
+                    "groupId": "2e5eba24-12b8-376f-831e-92b58b146e97",
+                    "name": "GenerateFlowFile",
+                    "comments": "",
+                    "instanceIdentifier": "ff97785d-019b-1000-ffff-ffffdde19d67"
+                },
+                "destination": {
+                    "id": "ee4389f6-388b-39f9-aba4-f1d85bdf7c29",
+                    "type": "PROCESSOR",
+                    "groupId": "2e5eba24-12b8-376f-831e-92b58b146e97",
+                    "name": "PutIcebergRecord",
+                    "comments": "",
+                    "instanceIdentifier": "ff94896d-019b-1000-0000-00007a222339"
+                },
+                "labelIndex": 0,
+                "zIndex": 1,
+                "selectedRelationships": [
+                    "success"
+                ],
+                "backPressureObjectThreshold": 10000,
+                "backPressureDataSizeThreshold": "1 GB",
+                "flowFileExpiration": "0 sec",
+                "prioritizers": [],
+                "bends": [],
+                "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+                "partitioningAttribute": "",
+                "loadBalanceCompression": "DO_NOT_COMPRESS",
+                "componentType": "CONNECTION",
+                "groupIdentifier": "2e5eba24-12b8-376f-831e-92b58b146e97"
+            },
+            {
+                "identifier": "86ca407c-f0de-31bf-8b9b-bedbcc4cc34a",
+                "instanceIdentifier": "ff9815d0-019b-1000-0000-00007f41d818",
+                "name": "",
+                "source": {
+                    "id": "ee4389f6-388b-39f9-aba4-f1d85bdf7c29",
+                    "type": "PROCESSOR",
+                    "groupId": "2e5eba24-12b8-376f-831e-92b58b146e97",
+                    "name": "PutIcebergRecord",
+                    "comments": "",
+                    "instanceIdentifier": "ff94896d-019b-1000-0000-00007a222339"
+                },
+                "destination": {
+                    "id": "9f73c89f-a352-358c-8b7e-ed33379accb5",
+                    "type": "FUNNEL",
+                    "groupId": "2e5eba24-12b8-376f-831e-92b58b146e97",
+                    "name": "Funnel",
+                    "comments": "",
+                    "instanceIdentifier": "ff98099b-019b-1000-0000-000039048911"
+                },
+                "labelIndex": 0,
+                "zIndex": 2,
+                "selectedRelationships": [
+                    "success"
+                ],
+                "backPressureObjectThreshold": 10000,
+                "backPressureDataSizeThreshold": "1 GB",
+                "flowFileExpiration": "0 sec",
+                "prioritizers": [],
+                "bends": [],
+                "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+                "partitioningAttribute": "",
+                "loadBalanceCompression": "DO_NOT_COMPRESS",
+                "componentType": "CONNECTION",
+                "groupIdentifier": "2e5eba24-12b8-376f-831e-92b58b146e97"
+            }
+        ],
+        "labels": [],
+        "funnels": [
+            {
+                "identifier": "9f73c89f-a352-358c-8b7e-ed33379accb5",
+                "instanceIdentifier": "ff98099b-019b-1000-0000-000039048911",
+                "position": {
+                    "x": -215.0,
+                    "y": 269.5
+                },
+                "componentType": "FUNNEL",
+                "groupIdentifier": "2e5eba24-12b8-376f-831e-92b58b146e97"
+            },
+            {
+                "identifier": "27e89d06-61dc-3a79-97e9-fdea255d724d",
+                "instanceIdentifier": "ff982cf2-019b-1000-ffff-ffffa45d6088",
+                "position": {
+                    "x": 179.0,
+                    "y": 307.5
+                },
+                "componentType": "FUNNEL",
+                "groupIdentifier": "2e5eba24-12b8-376f-831e-92b58b146e97"
+            }
+        ],
+        "controllerServices": [
+            {
+                "identifier": "9f657262-7b83-3a51-9b99-0f37dcd21430",
+                "instanceIdentifier": "ff94fb03-019b-1000-0000-00000a4be464",
+                "name": "S3IcebergFileIOProvider",
+                "comments": "",
+                "type": "org.apache.nifi.services.iceberg.aws.S3IcebergFileIOProvider",
+                "bundle": {
+                    "group": "org.apache.nifi",
+                    "artifact": "nifi-iceberg-aws-nar",
+                    "version": "2.7.2-stackable0.0.0-dev"
+                },
+                "properties": {
+                    "Authentication Strategy": "BASIC_CREDENTIALS",
+                    "Access Key ID": "admin",
+                    "Secret Access Key": "adminadmin",
+                    "Endpoint URL": "https://minio.${NAMESPACE}.svc.cluster.local:9000",
+                    "Path Style Access": "true",
+                    "Client Region": "us-east1"
+                },
+                "propertyDescriptors": {
+                    "Authentication Strategy": {
+                        "name": "Authentication Strategy",
+                        "displayName": "Authentication Strategy",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Session Token": {
+                        "name": "Session Token",
+                        "displayName": "Session Token",
+                        "identifiesControllerService": false,
+                        "sensitive": true,
+                        "dynamic": false
+                    },
+                    "Endpoint": {
+                        "name": "Endpoint",
+                        "displayName": "Endpoint",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Path style access": {
+                        "name": "Path style access",
+                        "displayName": "Path style access",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Access Key ID": {
+                        "name": "Access Key ID",
+                        "displayName": "Access Key ID",
+                        "identifiesControllerService": false,
+                        "sensitive": true,
+                        "dynamic": false
+                    },
+                    "Client Region": {
+                        "name": "Client Region",
+                        "displayName": "Client Region",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Secret Access Key": {
+                        "name": "Secret Access Key",
+                        "displayName": "Secret Access Key",
+                        "identifiesControllerService": false,
+                        "sensitive": true,
+                        "dynamic": false
+                    }
+                },
+                "controllerServiceApis": [
+                    {
+                        "type": "org.apache.nifi.services.iceberg.IcebergFileIOProvider",
+                        "bundle": {
+                            "group": "org.apache.nifi",
+                            "artifact": "nifi-iceberg-service-api-nar",
+                            "version": "2.7.2-stackable0.0.0-dev"
+                        }
+                    }
+                ],
+                "scheduledState": "DISABLED",
+                "bulletinLevel": "WARN",
+                "componentType": "CONTROLLER_SERVICE",
+                "groupIdentifier": "2e5eba24-12b8-376f-831e-92b58b146e97"
+            },
+            {
+                "identifier": "27175bc0-818e-3e08-a5db-b961636e2d54",
+                "instanceIdentifier": "ff94bc63-019b-1000-ffff-ffffe8b8471f",
+                "name": "JsonTreeReader",
+                "comments": "",
+                "type": "org.apache.nifi.json.JsonTreeReader",
+                "bundle": {
+                    "group": "org.apache.nifi",
+                    "artifact": "nifi-record-serialization-services-nar",
+                    "version": "2.7.2-stackable0.0.0-dev"
+                },
+                "properties": {
+                    "Schema Branch": null,
+                    "Schema Reference Reader": null,
+                    "Schema Text": "${avro.schema}",
+                    "Starting Field Name": null,
+                    "Max String Length": "20 MB",
+                    "Schema Inference Cache": null,
+                    "Starting Field Strategy": "ROOT_NODE",
+                    "Schema Registry": null,
+                    "Schema Access Strategy": "infer-schema",
+                    "Schema Name": "${schema.name}",
+                    "Timestamp Format": null,
+                    "Date Format": null,
+                    "Schema Application Strategy": "SELECTED_PART",
+                    "Schema Version": null,
+                    "Time Format": null,
+                    "Allow Comments": "false"
+                },
+                "propertyDescriptors": {
+                    "Schema Branch": {
+                        "name": "Schema Branch",
+                        "displayName": "Schema Branch",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Schema Reference Reader": {
+                        "name": "Schema Reference Reader",
+                        "displayName": "Schema Reference Reader",
+                        "identifiesControllerService": true,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Schema Text": {
+                        "name": "Schema Text",
+                        "displayName": "Schema Text",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Starting Field Name": {
+                        "name": "Starting Field Name",
+                        "displayName": "Starting Field Name",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Max String Length": {
+                        "name": "Max String Length",
+                        "displayName": "Max String Length",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Schema Inference Cache": {
+                        "name": "Schema Inference Cache",
+                        "displayName": "Schema Inference Cache",
+                        "identifiesControllerService": true,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Starting Field Strategy": {
+                        "name": "Starting Field Strategy",
+                        "displayName": "Starting Field Strategy",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Schema Registry": {
+                        "name": "Schema Registry",
+                        "displayName": "Schema Registry",
+                        "identifiesControllerService": true,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Schema Access Strategy": {
+                        "name": "Schema Access Strategy",
+                        "displayName": "Schema Access Strategy",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Schema Name": {
+                        "name": "Schema Name",
+                        "displayName": "Schema Name",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Timestamp Format": {
+                        "name": "Timestamp Format",
+                        "displayName": "Timestamp Format",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Date Format": {
+                        "name": "Date Format",
+                        "displayName": "Date Format",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Schema Application Strategy": {
+                        "name": "Schema Application Strategy",
+                        "displayName": "Schema Application Strategy",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Schema Version": {
+                        "name": "Schema Version",
+                        "displayName": "Schema Version",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Time Format": {
+                        "name": "Time Format",
+                        "displayName": "Time Format",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Allow Comments": {
+                        "name": "Allow Comments",
+                        "displayName": "Allow Comments",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    }
+                },
+                "controllerServiceApis": [
+                    {
+                        "type": "org.apache.nifi.serialization.RecordReaderFactory",
+                        "bundle": {
+                            "group": "org.apache.nifi",
+                            "artifact": "nifi-standard-services-api-nar",
+                            "version": "2.7.2-stackable0.0.0-dev"
+                        }
+                    }
+                ],
+                "scheduledState": "DISABLED",
+                "bulletinLevel": "WARN",
+                "componentType": "CONTROLLER_SERVICE",
+                "groupIdentifier": "2e5eba24-12b8-376f-831e-92b58b146e97"
+            },
+            {
+                "identifier": "50489d60-6dea-3d4a-91c5-c754a2f021be",
+                "instanceIdentifier": "ff94aa25-019b-1000-ffff-ffffcdb3cb75",
+                "name": "ParquetIcebergWriter",
+                "comments": "",
+                "type": "org.apache.nifi.services.iceberg.parquet.ParquetIcebergWriter",
+                "bundle": {
+                    "group": "org.apache.nifi",
+                    "artifact": "nifi-iceberg-parquet-writer-nar",
+                    "version": "2.7.2-stackable0.0.0-dev"
+                },
+                "properties": {},
+                "propertyDescriptors": {},
+                "controllerServiceApis": [
+                    {
+                        "type": "org.apache.nifi.services.iceberg.IcebergWriter",
+                        "bundle": {
+                            "group": "org.apache.nifi",
+                            "artifact": "nifi-iceberg-service-api-nar",
+                            "version": "2.7.2-stackable0.0.0-dev"
+                        }
+                    }
+                ],
+                "scheduledState": "DISABLED",
+                "bulletinLevel": "WARN",
+                "componentType": "CONTROLLER_SERVICE",
+                "groupIdentifier": "2e5eba24-12b8-376f-831e-92b58b146e97"
+            },
+            {
+                "identifier": "059cb4fe-6c2f-3d9b-9b8e-e30d9d3ffb4f",
+                "instanceIdentifier": "ff94a010-019b-1000-ffff-ffffd6746d87",
+                "name": "RESTIcebergCatalog",
+                "comments": "",
+                "type": "org.apache.nifi.services.iceberg.catalog.RESTIcebergCatalog",
+                "bundle": {
+                    "group": "org.apache.nifi",
+                    "artifact": "nifi-iceberg-rest-catalog-nar",
+                    "version": "2.7.2-stackable0.0.0-dev"
+                },
+                "properties": {
+                    "Access Delegation Strategy": "disabled",
+                    "File IO Provider": "9f657262-7b83-3a51-9b99-0f37dcd21430",
+                    "Authentication Strategy": "OAUTH2",
+                    "Access Token Scopes": "catalog",
+                    "Catalog URI": "http://hive-metastore-default-headless:9001/iceberg",
+                    "Authorization Server URI": "https://keycloak.${NAMESPACE}.svc.cluster.local:8443/realms/test/protocol/openid-connect/token",
+                    "Warehouse Location": "s3a://demo/lakehouse",
+                    "Authorization Grant Type": "CLIENT_CREDENTIALS",
+                    "Client ID": "nifi",
+                    "Client Secret": "nifi-secret"
+                },
+                "propertyDescriptors": {
+                    "Access Delegation Strategy": {
+                        "name": "Access Delegation Strategy",
+                        "displayName": "Access Delegation Strategy",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "File IO Provider": {
+                        "name": "File IO Provider",
+                        "displayName": "File IO Provider",
+                        "identifiesControllerService": true,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Authentication Strategy": {
+                        "name": "Authentication Strategy",
+                        "displayName": "Authentication Strategy",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Client ID": {
+                        "name": "Client ID",
+                        "displayName": "Client ID",
+                        "identifiesControllerService": false,
+                        "sensitive": true,
+                        "dynamic": false
+                    },
+                    "Access Token Scopes": {
+                        "name": "Access Token Scopes",
+                        "displayName": "Access Token Scopes",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Bearer Token": {
+                        "name": "Bearer Token",
+                        "displayName": "Bearer Token",
+                        "identifiesControllerService": false,
+                        "sensitive": true,
+                        "dynamic": false
+                    },
+                    "Catalog URI": {
+                        "name": "Catalog URI",
+                        "displayName": "Catalog URI",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Authorization Server URI": {
+                        "name": "Authorization Server URI",
+                        "displayName": "Authorization Server URI",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Warehouse Location": {
+                        "name": "Warehouse Location",
+                        "displayName": "Warehouse Location",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Client Secret": {
+                        "name": "Client Secret",
+                        "displayName": "Client Secret",
+                        "identifiesControllerService": false,
+                        "sensitive": true,
+                        "dynamic": false
+                    },
+                    "Authorization Grant Type": {
+                        "name": "Authorization Grant Type",
+                        "displayName": "Authorization Grant Type",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    }
+                },
+                "controllerServiceApis": [
+                    {
+                        "type": "org.apache.nifi.services.iceberg.IcebergCatalog",
+                        "bundle": {
+                            "group": "org.apache.nifi",
+                            "artifact": "nifi-iceberg-service-api-nar",
+                            "version": "2.7.2-stackable0.0.0-dev"
+                        }
+                    }
+                ],
+                "scheduledState": "DISABLED",
+                "bulletinLevel": "WARN",
+                "componentType": "CONTROLLER_SERVICE",
+                "groupIdentifier": "2e5eba24-12b8-376f-831e-92b58b146e97"
+            }
+        ],
+        "defaultFlowFileExpiration": "0 sec",
+        "defaultBackPressureObjectThreshold": 10000,
+        "defaultBackPressureDataSizeThreshold": "1 GB",
+        "scheduledState": "ENABLED",
+        "executionEngine": "INHERITED",
+        "maxConcurrentTasks": 1,
+        "statelessFlowTimeout": "1 min",
+        "flowFileConcurrency": "UNBOUNDED",
+        "flowFileOutboundPolicy": "STREAM_WHEN_AVAILABLE",
+        "componentType": "PROCESS_GROUP"
+    },
+    "externalControllerServices": {},
+    "parameterContexts": {},
+    "flowEncodingVersion": "1.0",
+    "parameterProviders": {},
+    "latest": false
+}

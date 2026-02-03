@@ -9,6 +9,11 @@ All notable changes to this project will be documented in this file.
 - Support objectOverrides using `.spec.objectOverrides`.
   See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#885]).
 - Enable the [restart-controller](https://docs.stackable.tech/home/nightly/commons-operator/restarter/), so that the Pods are automatically restarted on config changes ([#888]).
+- Added support for `2.7.2` ([#893]).
+
+### Removed
+
+- Removed support for `1.27.0` and `2.4.0` ([#893]).
 
 ### Changed
 
@@ -25,6 +30,7 @@ All notable changes to this project will be documented in this file.
 [#884]: https://github.com/stackabletech/nifi-operator/pull/884
 [#885]: https://github.com/stackabletech/nifi-operator/pull/885
 [#888]: https://github.com/stackabletech/nifi-operator/pull/888
+[#893]: https://github.com/stackabletech/nifi-operator/pull/893
 
 ## [25.11.0] - 2025-11-07
 
