@@ -40,10 +40,6 @@ spec:
     roleGroups:
       default:
         replicas: 1
-# curl http://localhost:9001/iceberg/v1/config
-# curl -X POST http://localhost:9001/iceberg/v1/namespaces/default/tables -H "Content-Type: application/json" -d '{"name": "test", "location":"s3a://trino/default/test", "schema": {"type": "struct", "fields": [{"id": 1, "name": "id", "type": "long", "required": true}]}, "write-disposition": "create"}'
-# curl -X DELETE http://localhost:9001/iceberg/v1/namespaces/default/tables/test -H "Content-Type: application/json"
-# curl http://localhost:9001/iceberg/v1/namespaces/default/tables/test
 ---
 apiVersion: v1
 kind: Secret
