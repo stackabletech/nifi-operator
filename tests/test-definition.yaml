@@ -129,7 +129,6 @@ tests:
   - name: cluster_operation
     dimensions:
       - nifi-latest
-      - zookeeper-latest
       - openshift
   - name: oidc-opa
     dimensions:

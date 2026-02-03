@@ -1,5 +1,5 @@
 = Usage guide
-:description: Guide to configuring the Stackable Operator for Apache NiFi with YAML manifests, covering ZooKeeper, authentication, extra volumes, and resource settings.
+:description: Guide to configuring the Stackable Operator for Apache NiFi with YAML manifests, covering authentication, extra volumes, and resource settings.
 
 This section helps you to use various aspects of the Stackable operator for Apache NiFi.
 For a general introduction into the operator follow the xref:getting_started/index.adoc[] guide.

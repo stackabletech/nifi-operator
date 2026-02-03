@@ -50,7 +50,6 @@ mod tests {
             sensitiveProperties:
               keySecret: simple-nifi-sensitive-property-key
               autoGenerate: true
-            zookeeperConfigMapName: simple-nifi-znode
           nodes:
             roleGroups:
               default:
