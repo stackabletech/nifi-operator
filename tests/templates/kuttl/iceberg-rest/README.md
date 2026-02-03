@@ -15,11 +15,11 @@ index eb64241..6ead26e 100644
                  },
                  "properties": {
                      "Authentication Strategy": "BASIC_CREDENTIALS",
--                    "Endpoint Override URL": "https://minio.kuttl-test-dear-bug.svc.cluster.local:9000",
+-                    "Endpoint URL": "https://minio.kuttl-test-dear-bug.svc.cluster.local:9000",
 +                    "Access Key ID": "admin",
 +                    "Secret Access Key": "adminadmin",
-+                    "Endpoint Override URL": "https://minio.${NAMESPACE}.svc.cluster.local:9000",
-                     "Use Path Style Access": "true",
++                    "Endpoint URL": "https://minio.${NAMESPACE}.svc.cluster.local:9000",
+                     "Path Style Access": "true",
                      "Client Region": "us-east1"
                  },
 ```
