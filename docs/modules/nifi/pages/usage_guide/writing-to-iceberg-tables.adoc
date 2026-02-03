@@ -10,15 +10,15 @@ As of NiFi version `2.7.2` only `PutIceberg` is supported, you need to create an
 
 == NiFi 2.7 and above
 
-In NiFi `2.7.0` Iceberg support was https://issues.apache.org/jira/browse/NIFI-15062[re-added] after the removal in 2.0.0.
+In NiFi `2.7.0` Iceberg support was https://issues.apache.org/jira/browse/NIFI-15062[re-added] after the removal in `2.0.0`.
 
-The 2.7 version has the following changes over the 2.0/2.6 version, you need to adopt your setup accordingly:
+The `2.7.x` version has the following changes over the `2.0.x` and `2.6.x` version, you need to adopt your setup accordingly:
 
 * HDFS and Kerberos support was dropped
 * Hive metastore support was dropped
 * Iceberg REST catalog support was added
 * It now uses the Iceberg S3 IO instead of the Hadoop S3 client libraries
-* It uses much less dependencies and therefore CVEs
+* It uses much less dependencies and therefore reduces the amount of CVEs
 
 There have been efforts from Stackable to re-add at least Hive metastore support, but that turned out to be complicated.
 
