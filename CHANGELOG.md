@@ -11,12 +11,9 @@ All notable changes to this project will be documented in this file.
 - Enable the [restart-controller](https://docs.stackable.tech/home/nightly/commons-operator/restarter/), so that the Pods are automatically restarted on config changes ([#888]).
 - Added support for `2.7.2` ([#893]).
 
-### Removed
-
-- Removed support for `1.27.0` and `2.4.0` ([#893]).
-
 ### Changed
 
+- Gracefully shutdown all concurrent tasks by forwarding the SIGTERM signal ([#894]).
 - BREAKING: Reworked authorization config to closer match the Apache NiFi internal authorizer interfaces ([#884]).
 
 ### Fixed
@@ -25,12 +22,17 @@ All notable changes to this project will be documented in this file.
 - The operator now utilizes the `.spec.clusterConfig.authorization.opa.package` property instead of hard-coding the package name to `nifi` ([#881]).
 - An `initialAdminUser` can now be provided for file-based authorization (e.g. LDAP) ([#884]).
 
+### Removed
+
+- Removed support for `1.27.0` and `2.4.0` ([#893]).
+
 [#870]: https://github.com/stackabletech/nifi-operator/pull/870
 [#881]: https://github.com/stackabletech/nifi-operator/pull/881
 [#884]: https://github.com/stackabletech/nifi-operator/pull/884
 [#885]: https://github.com/stackabletech/nifi-operator/pull/885
 [#888]: https://github.com/stackabletech/nifi-operator/pull/888
 [#893]: https://github.com/stackabletech/nifi-operator/pull/893
+[#894]: https://github.com/stackabletech/nifi-operator/pull/894
 
 ## [25.11.0] - 2025-11-07
 
