@@ -184,14 +184,7 @@ spec:
                               Since git-sync v4.x.x this field is mapped to the flag `--ref`.
                             type: string
                           credentialsSecret:
-                            description: |-
-                              The name of the Secret used to access the repository if it is not public.
-
-                              The referenced Secret must include two fields: `user` and `password`.
-                              The `password` field can either be an actual password (not recommended) or a GitHub token,
-                              as described in the git-sync [documentation].
-
-                              [documentation]: https://github.com/kubernetes/git-sync/tree/v4.2.4?tab=readme-ov-file#manual
+                            description: An optional secret used for git access.
                             nullable: true
                             type: string
                           depth:
@@ -221,7 +214,7 @@ spec:
                               [example]: https://docs.stackable.tech/home/nightly/airflow/usage-guide/mounting-dags#_example
                             type: object
                           repo:
-                            description: 'The git repository URL that will be cloned, for example: `https://github.com/stackabletech/airflow-operator`.'
+                            description: 'The git repository URL that will be cloned, for example: `https://github.com/stackabletech/airflow-operator` or `ssh://git@github.com:stackable-airflow/dags.git`.'
                             format: uri
                             type: string
                           wait:
@@ -996,7 +989,7 @@ spec:
                       default: {}
                       description: |-
                         In the `podOverrides` property you can define a
-                        [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core)
+                        [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.34/#podtemplatespec-v1-core)
                         to override any property that can be set on a Kubernetes Pod.
                         Read the
                         [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides)
@@ -1596,7 +1589,7 @@ spec:
                             default: {}
                             description: |-
                               In the `podOverrides` property you can define a
-                              [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core)
+                              [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.34/#podtemplatespec-v1-core)
                               to override any property that can be set on a Kubernetes Pod.
                               Read the
                               [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides)
