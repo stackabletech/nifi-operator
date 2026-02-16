@@ -3,9 +3,10 @@
 #![allow(clippy::result_large_err)]
 use std::sync::Arc;
 
+use anyhow::anyhow;
 use clap::Parser;
 use crd::v1alpha1::NifiClusteringBackend;
-use futures::{FutureExt, StreamExt};
+use futures::{FutureExt, StreamExt, TryFutureExt};
 use stackable_operator::{
     YamlSchema,
     cli::{Command, RunArguments},
@@ -34,6 +35,7 @@ use stackable_operator::{
 use crate::{
     controller::NIFI_FULL_CONTROLLER_NAME,
     crd::{NifiCluster, NifiClusterVersion, authorization::NifiOpaConfig, v1alpha1},
+    webhooks::conversion::create_webhook_server,
 };
 
 mod config;
@@ -45,12 +47,14 @@ mod product_logging;
 mod reporting_task;
 mod security;
 mod service;
+mod webhooks;
 
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
 
 const OPERATOR_NAME: &str = "nifi.stackable.tech";
+const FIELD_MANAGER: &str = "nifi-operator";
 
 #[derive(Parser)]
 #[clap(about, author)]
@@ -66,7 +70,7 @@ async fn main() -> anyhow::Result<()> {
         Command::Crd => NifiCluster::merged_crd(NifiClusterVersion::V1Alpha1)?
             .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?,
         Command::Run(RunArguments {
-            operator_environment: _,
+            operator_environment,
             watch_namespace,
             product_config,
             maintenance,
@@ -98,16 +102,27 @@ async fn main() -> anyhow::Result<()> {
                     .run(sigterm_watcher.handle())
                     .map(anyhow::Ok);
 
-            let product_config = product_config.load(&[
-                "deploy/config-spec/properties.yaml",
-                "/etc/stackable/nifi-operator/config-spec/properties.yaml",
-            ])?;
-
             let client = stackable_operator::client::initialize_operator(
                 Some(OPERATOR_NAME.to_string()),
                 &common.cluster_info,
             )
             .await?;
+
+            let webhook_server = create_webhook_server(
+                &operator_environment,
+                maintenance.disable_crd_maintenance,
+                client.as_kube_client(),
+            )
+            .await?;
+
+            let webhook_server = webhook_server
+                .run(sigterm_watcher.handle())
+                .map_err(|err| anyhow!(err).context("failed to run webhook server"));
+
+            let product_config = product_config.load(&[
+                "deploy/config-spec/properties.yaml",
+                "/etc/stackable/nifi-operator/config-spec/properties.yaml",
+            ])?;
 
             let event_recorder = Arc::new(Recorder::new(
                 client.as_kube_client(),
@@ -188,7 +203,7 @@ async fn main() -> anyhow::Result<()> {
                 )
                 .map(anyhow::Ok);
 
-            futures::try_join!(nifi_controller, eos_checker)?;
+            futures::try_join!(nifi_controller, eos_checker, webhook_server)?;
         }
     }
 
