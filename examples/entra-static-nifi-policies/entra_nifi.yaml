@@ -173,7 +173,8 @@ metadata:
   name: test-nifi
 spec:
   image:
-    productVersion: 2.7.2
+    # N.B. AzureGraphUserGroupProvider has been removed in 2.7.2: see https://github.com/apache/nifi/pull/10335
+    productVersion: 2.6.0
     pullPolicy: IfNotPresent
   clusterConfig:
     authentication:
