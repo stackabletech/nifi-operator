@@ -153,7 +153,7 @@ pub mod versioned {
         /// Learn more in the documentation for
         /// [Loading custom components](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/custom-components.html#git_sync).
         #[serde(default)]
-        pub custom_components_git_sync: Vec<git_sync::v1alpha1::GitSync>,
+        pub custom_components_git_sync: Vec<git_sync::v1alpha2::GitSync>,
 
         /// Extra volumes similar to `.spec.volumes` on a Pod to mount into every container, this can be useful to for
         /// example make client certificates, keytabs or similar things available to processors. These volumes will be
@@ -184,6 +184,9 @@ pub mod versioned {
             /// NiFi 1.x requires ZooKeeper.
             zookeeper_config_map_name: String,
         },
+        // Workaround for https://github.com/kube-rs/kube/issues/1941
+        // TODO revert this before merging!
+        #[schemars(schema_with = "empty_schema")]
         Kubernetes {},
     }
 }
@@ -558,4 +561,10 @@ impl Default for NifiNodeRoleConfig {
 
 fn node_default_listener_class() -> String {
     "cluster-internal".to_string()
+}
+
+// Workaround for https://github.com/kube-rs/kube/issues/1941
+// TODO revert this before merging!
+fn empty_schema(_: &mut schemars::generate::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({})
 }
