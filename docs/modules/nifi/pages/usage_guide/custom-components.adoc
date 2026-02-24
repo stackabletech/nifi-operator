@@ -58,14 +58,15 @@ spec:
       wait: 10s  # <6>
       credentialsSecret: git-credentials  # <7>
       gitSyncConf:  # <8>
-      --git-config: http.sslCAInfo:/tmp/ca-cert/ca.crt
-    - repo: https://example.com/git/other-nifi-components  # <9>
+      --git-config: pull.rebase=true  # <9>
+      caCertSecretName: git-ca-cert  # <10>
+    - repo: https://example.com/git/other-nifi-components  # <11>
   nodes:
     config:
       logging:
         enableVectorAgent: true
         containers:
-          git-sync:  # <10>
+          git-sync:  # <12>
             console:
               level: INFO
             file:
@@ -94,8 +95,11 @@ data:
     The `password` field can either be an actual password (not recommended) or a GitHub token, as described in the {git-sync-docs}[git-sync documentation].
 <8> A map of optional configuration settings that are listed in the {git-sync-docs}[git-sync documentation]. +
     These settings are not verified.
-<9> Multiple repositories can be defined. Only the `repo` field is mandatory.
-<10> Logging can be configured as described in xref:concepts:logging.adoc[].
+<9> Valid `git-config` settings can be passed here N.B. a warning will be triggered if both `http.sslCAInfo` is defined here and the field `caCertSecretName` is specified (as it maps onto the same config setting).
+<10> An optional secret used for holding CA certificates that will be used to verify the git server's TLS certificate by passing it to the git config option `http.sslCAInfo` passed with the gitsync command.
+    The secret must have a key named `ca.crt` whose value is the PEM-encoded certificate bundle.
+<11> Multiple repositories can be defined. Only the `repo` field is mandatory.
+<12> Logging can be configured as described in xref:concepts:logging.adoc[].
      As git-sync is a command-line tool, just its output is logged and no fine-grained log configuration is possible.
      All git-sync containers are configured via the one `git-sync` field.
 
