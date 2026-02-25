@@ -30,7 +30,7 @@ spec:
                 anyOf:
                 - required:
                   - zookeeperConfigMapName
-                - type: object
+                - {}
                 description: |-
                   Settings that affect all roles and role groups.
                   The settings in the `clusterConfig` are cluster wide settings that do not need to be configurable at role or role group level.
@@ -523,7 +523,7 @@ spec:
                                         type: string
                                     type: object
                                   custom:
-                                    description: Custom log configuration provided in a ConfigMap
+                                    description: Log configuration provided in a ConfigMap
                                     properties:
                                       configMap:
                                         description: ConfigMap containing the log configuration files
@@ -603,7 +603,7 @@ spec:
                                         type: string
                                     type: object
                                   custom:
-                                    description: Custom log configuration provided in a ConfigMap
+                                    description: Log configuration provided in a ConfigMap
                                     properties:
                                       configMap:
                                         description: ConfigMap containing the log configuration files
@@ -683,7 +683,7 @@ spec:
                                         type: string
                                     type: object
                                   custom:
-                                    description: Custom log configuration provided in a ConfigMap
+                                    description: Log configuration provided in a ConfigMap
                                     properties:
                                       configMap:
                                         description: ConfigMap containing the log configuration files
@@ -763,7 +763,7 @@ spec:
                                         type: string
                                     type: object
                                   custom:
-                                    description: Custom log configuration provided in a ConfigMap
+                                    description: Log configuration provided in a ConfigMap
                                     properties:
                                       configMap:
                                         description: ConfigMap containing the log configuration files
@@ -1368,7 +1368,7 @@ spec:
                                               type: string
                                           type: object
                                         custom:
-                                          description: Custom log configuration provided in a ConfigMap
+                                          description: Log configuration provided in a ConfigMap
                                           properties:
                                             configMap:
                                               description: ConfigMap containing the log configuration files
@@ -1448,7 +1448,7 @@ spec:
                                               type: string
                                           type: object
                                         custom:
-                                          description: Custom log configuration provided in a ConfigMap
+                                          description: Log configuration provided in a ConfigMap
                                           properties:
                                             configMap:
                                               description: ConfigMap containing the log configuration files
@@ -1528,7 +1528,7 @@ spec:
                                               type: string
                                           type: object
                                         custom:
-                                          description: Custom log configuration provided in a ConfigMap
+                                          description: Log configuration provided in a ConfigMap
                                           properties:
                                             configMap:
                                               description: ConfigMap containing the log configuration files
@@ -1608,7 +1608,7 @@ spec:
                                               type: string
                                           type: object
                                         custom:
-                                          description: Custom log configuration provided in a ConfigMap
+                                          description: Log configuration provided in a ConfigMap
                                           properties:
                                             configMap:
                                               description: ConfigMap containing the log configuration files
