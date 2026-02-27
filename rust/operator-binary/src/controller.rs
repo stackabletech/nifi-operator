@@ -230,7 +230,7 @@ pub enum Error {
     FailedToResolveConfig { source: crate::crd::Error },
 
     #[snafu(display("invalid git-sync specification"))]
-    InvalidGitSyncSpec { source: git_sync::v1alpha1::Error },
+    InvalidGitSyncSpec { source: git_sync::v1alpha2::Error },
 
     #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
     VectorAggregatorConfigMapMissing,
@@ -493,7 +493,7 @@ pub async fn reconcile_nifi(
                 .merged_config(&NifiRole::Node, rolegroup_name)
                 .context(FailedToResolveConfigSnafu)?;
 
-            let git_sync_resources = git_sync::v1alpha1::GitSyncResources::new(
+            let git_sync_resources = git_sync::v1alpha2::GitSyncResources::new(
                 &nifi.spec.cluster_config.custom_components_git_sync,
                 &resolved_product_image,
                 &env_vars_from_rolegroup_config(rolegroup_config),
@@ -724,7 +724,7 @@ async fn build_node_rolegroup_config_map(
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &NifiConfig,
     proxy_hosts: &str,
-    git_sync_resources: &git_sync::v1alpha1::GitSyncResources,
+    git_sync_resources: &git_sync::v1alpha2::GitSyncResources,
 ) -> Result<ConfigMap> {
     tracing::debug!("building rolegroup configmaps");
 
@@ -851,7 +851,7 @@ async fn build_node_rolegroup_statefulset(
     rolling_update_supported: bool,
     replicas: Option<i32>,
     service_account_name: &str,
-    git_sync_resources: &git_sync::v1alpha1::GitSyncResources,
+    git_sync_resources: &git_sync::v1alpha2::GitSyncResources,
 ) -> Result<StatefulSet> {
     tracing::debug!("Building statefulset");
     let role_group = role.role_groups.get(&rolegroup_ref.role_group);
@@ -1237,6 +1237,9 @@ async fn build_node_rolegroup_statefulset(
     }
     pod_builder
         .add_volumes(git_sync_resources.git_content_volumes.to_owned())
+        .context(AddVolumeSnafu)?;
+    pod_builder
+        .add_volumes(git_sync_resources.git_ca_cert_volumes.to_owned())
         .context(AddVolumeSnafu)?;
 
     if let Some(ContainerLogConfig {

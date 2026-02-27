@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
   See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#885]).
 - Enable the [restart-controller](https://docs.stackable.tech/home/nightly/commons-operator/restarter/), so that the Pods are automatically restarted on config changes ([#888]).
 - Added support for `2.7.2` ([#893]).
+- Support for passing CAs to GitSync ([#903]).
 
 ### Changed
 
@@ -35,6 +36,7 @@ All notable changes to this project will be documented in this file.
 [#893]: https://github.com/stackabletech/nifi-operator/pull/893
 [#894]: https://github.com/stackabletech/nifi-operator/pull/894
 [#898]: https://github.com/stackabletech/nifi-operator/pull/898
+[#903]: https://github.com/stackabletech/nifi-operator/pull/903
 
 ## [25.11.0] - 2025-11-07
 

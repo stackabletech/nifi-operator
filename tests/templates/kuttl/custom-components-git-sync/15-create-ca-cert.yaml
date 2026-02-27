@@ -1,0 +1,60 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: |
+      kubectl apply -n "$NAMESPACE" -f - <<EOF
+      ---
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: create-ca-cert
+      spec:
+        template:
+          spec:
+            containers:
+              - name: create-ca-cert
+                image: oci.stackable.tech/sdp/testing-tools:0.3.0-stackable0.0.0-dev
+                env:
+                  - name: NAMESPACE
+                    value: $NAMESPACE
+                command:
+                  - bash
+                args:
+                  - -c
+                  - |
+                    set -euo pipefail
+
+                    # Create the correct cert
+                    openssl req -x509 -newkey rsa:4096 \
+                      -nodes -keyout ca.key -out ca.crt -subj "/CN=test-git-ca"
+
+                    openssl req -newkey rsa:4096 -nodes -keyout \
+                      server.key -out server.csr -subj "/CN=git-proxy"
+
+                    openssl x509 -req -in server.csr -CA ca.crt \
+                      -CAkey ca.key -set_serial 1 -out server.crt \
+                      -extfile <(printf "subjectAltName=DNS:git-proxy,DNS:git-proxy.$NAMESPACE.svc.cluster.local")
+
+                    openssl x509 -in server.crt -noout -ext subjectAltName
+
+                    kubectl create secret tls git-proxy-tls \
+                      --cert=server.crt --key=server.key
+                    kubectl create secret generic git-ca-cert \
+                      --from-file=ca.crt=ca.crt
+
+                    # Create an incorrect cert which should cause the gitsync container to exit
+                    openssl req -x509 -newkey rsa:4096 \
+                      -nodes -keyout ca-wrong.key -out ca-wrong.crt \
+                      -subj "/CN=wrong-git-ca"
+
+                    kubectl create secret generic git-wrong-ca-cert \
+                      --from-file=ca.crt=ca-wrong.crt
+            securityContext:
+              runAsUser: 1000
+              runAsGroup: 1000
+              fsGroup: 1000
+            restartPolicy: Never
+            terminationGracePeriodSeconds: 0
+            serviceAccount: integration-tests-sa
+      EOF
