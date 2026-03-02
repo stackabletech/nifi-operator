@@ -48,30 +48,40 @@ pub struct NifiSensitivePropertiesConfig {
     pub algorithm: Option<NifiSensitiveKeyAlgorithm>,
 }
 
-#[derive(strum::Display, Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[derive(
+    strum::Display, Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize,
+)]
 #[serde(rename_all = "camelCase")]
 pub enum NifiSensitiveKeyAlgorithm {
     // supported in v2
     #[strum(serialize = "NIFI_PBKDF2_AES_GCM_256")]
     NifiPbkdf2AesGcm256,
+
     // supported in v2
+    #[default]
     #[strum(serialize = "NIFI_ARGON2_AES_GCM_256")]
     NifiArgon2AesGcm256,
+
     // Deprecated in v1 -> can be removed when 1.x.x is no longer supported
     #[strum(serialize = "NIFI_BCRYPT_AES_GCM_128")]
     NifiBcryptAesGcm128,
+
     // Deprecated in v1 -> can be removed when 1.x.x is no longer supported
     #[strum(serialize = "NIFI_BCRYPT_AES_GCM_256")]
     NifiBcryptAesGcm256,
+
     // Deprecated in v1 -> can be removed when 1.x.x is no longer supported
     #[strum(serialize = "NIFI_PBKDF2_AES_GCM_128")]
     NifiPbkdf2AesGcm128,
+
     // Deprecated in v1 -> can be removed when 1.x.x is no longer supported
     #[strum(serialize = "NIFI_ARGON2_AES_GCM_128")]
     NifiArgon2AesGcm128,
+
     // Deprecated in v1 -> can be removed when 1.x.x is no longer supported
     #[strum(serialize = "NIFI_SCRYPT_AES_GCM_128")]
     NifiScryptAesGcm128,
+
     // Deprecated in v1 -> can be removed when 1.x.x is no longer supported
     #[strum(serialize = "NIFI_SCRYPT_AES_GCM_256")]
     NifiScryptAesGcm256,
@@ -103,11 +113,5 @@ impl NifiSensitiveKeyAlgorithm {
         }
 
         Ok(())
-    }
-}
-
-impl Default for NifiSensitiveKeyAlgorithm {
-    fn default() -> Self {
-        Self::NifiArgon2AesGcm256
     }
 }

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use rand::{Rng, distr::Alphanumeric};
+use rand::{RngExt, distr::Alphanumeric};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder, client::Client, k8s_openapi::api::core::v1::Secret,
