@@ -43,13 +43,7 @@ commands:
                     kubectl create secret generic git-ca-cert \
                       --from-file=ca.crt=ca.crt
 
-                    # Create an incorrect cert which should cause the gitsync container to exit
-                    openssl req -x509 -newkey rsa:4096 \
-                      -nodes -keyout ca-wrong.key -out ca-wrong.crt \
-                      -subj "/CN=wrong-git-ca"
-
-                    kubectl create secret generic git-wrong-ca-cert \
-                      --from-file=ca.crt=ca-wrong.crt
+                    kubectl label secret git-ca-cert secrets.stackable.tech/class=git-ca-cert
             securityContext:
               runAsUser: 1000
               runAsGroup: 1000

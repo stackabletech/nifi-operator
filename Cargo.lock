@@ -1511,7 +1511,7 @@ dependencies = [
 [[package]]
 name = "k8s-version"
 version = "0.1.3"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fgitsync-ca-support#8892204f9988527bb598df7a36703e4da2ff3066"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fgitsync-ca-support#b390044d178f2d774c173cc5509b55111608e9c5"
 dependencies = [
  "darling",
  "regex",
@@ -2848,7 +2848,7 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 [[package]]
 name = "stackable-certs"
 version = "0.4.0"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fgitsync-ca-support#8892204f9988527bb598df7a36703e4da2ff3066"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fgitsync-ca-support#b390044d178f2d774c173cc5509b55111608e9c5"
 dependencies = [
  "const-oid",
  "ecdsa",
@@ -2898,8 +2898,8 @@ dependencies = [
 
 [[package]]
 name = "stackable-operator"
-version = "0.106.1"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fgitsync-ca-support#8892204f9988527bb598df7a36703e4da2ff3066"
+version = "0.106.2"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fgitsync-ca-support#b390044d178f2d774c173cc5509b55111608e9c5"
 dependencies = [
  "clap",
  "const_format",
@@ -2938,7 +2938,7 @@ dependencies = [
 [[package]]
 name = "stackable-operator-derive"
 version = "0.3.1"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fgitsync-ca-support#8892204f9988527bb598df7a36703e4da2ff3066"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fgitsync-ca-support#b390044d178f2d774c173cc5509b55111608e9c5"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -2949,7 +2949,7 @@ dependencies = [
 [[package]]
 name = "stackable-shared"
 version = "0.1.0"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fgitsync-ca-support#8892204f9988527bb598df7a36703e4da2ff3066"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fgitsync-ca-support#b390044d178f2d774c173cc5509b55111608e9c5"
 dependencies = [
  "jiff",
  "k8s-openapi",
@@ -2966,7 +2966,7 @@ dependencies = [
 [[package]]
 name = "stackable-telemetry"
 version = "0.6.1"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fgitsync-ca-support#8892204f9988527bb598df7a36703e4da2ff3066"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fgitsync-ca-support#b390044d178f2d774c173cc5509b55111608e9c5"
 dependencies = [
  "axum",
  "clap",
@@ -2990,7 +2990,7 @@ dependencies = [
 [[package]]
 name = "stackable-versioned"
 version = "0.8.3"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fgitsync-ca-support#8892204f9988527bb598df7a36703e4da2ff3066"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fgitsync-ca-support#b390044d178f2d774c173cc5509b55111608e9c5"
 dependencies = [
  "schemars",
  "serde",
@@ -3003,7 +3003,7 @@ dependencies = [
 [[package]]
 name = "stackable-versioned-macros"
 version = "0.8.3"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fgitsync-ca-support#8892204f9988527bb598df7a36703e4da2ff3066"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fgitsync-ca-support#b390044d178f2d774c173cc5509b55111608e9c5"
 dependencies = [
  "convert_case",
  "convert_case_extras",
@@ -3021,7 +3021,7 @@ dependencies = [
 [[package]]
 name = "stackable-webhook"
 version = "0.9.0"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fgitsync-ca-support#8892204f9988527bb598df7a36703e4da2ff3066"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fgitsync-ca-support#b390044d178f2d774c173cc5509b55111608e9c5"
 dependencies = [
  "arc-swap",
  "async-trait",
@@ -3057,18 +3057,18 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "strum"
-version = "0.27.2"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af23d6f6c1a224baef9d3f61e287d2761385a5b88fdab4eb4c6f11aeb54c4bcf"
+checksum = "9628de9b8791db39ceda2b119bbe13134770b56c138ec1d3af810d045c04f9bd"
 dependencies = [
  "strum_macros",
 ]
 
 [[package]]
 name = "strum_macros"
-version = "0.27.2"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7695ce3845ea4b33927c055a39dc438a45b059f7c1b3d91d38d10355fb8cbca7"
+checksum = "ab85eea0270ee17587ed4156089e10b9e6880ee688791d45a905f5b1ca36f664"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -4093,8 +4093,3 @@ name = "zmij"
 version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"
-
-[[patch.unused]]
-name = "kube"
-version = "2.0.1"
-source = "git+https://github.com/stackabletech/kube-rs?branch=2.0.1-fix-schema-hoisting#26543e85dc7daaf82d8f7dbd902b26775798879e"

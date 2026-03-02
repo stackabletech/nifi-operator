@@ -11,6 +11,8 @@ rules:
       - secrets
     verbs:
       - create
+      - get
+      - patch
 {% if test_scenario['values']['openshift'] == "true" %}
   - apiGroups: ["security.openshift.io"]
     resources: ["securitycontextconstraints"]
