@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Bump stackable-operator to 0.106.2 and strum to 0.28 ([#906]).
 - Gracefully shutdown all concurrent tasks by forwarding the SIGTERM signal ([#894]).
 - BREAKING: Reworked authorization config to closer match the Apache NiFi internal authorizer interfaces ([#884]).
 
@@ -37,6 +38,7 @@ All notable changes to this project will be documented in this file.
 [#894]: https://github.com/stackabletech/nifi-operator/pull/894
 [#898]: https://github.com/stackabletech/nifi-operator/pull/898
 [#903]: https://github.com/stackabletech/nifi-operator/pull/903
+[#906]: https://github.com/stackabletech/nifi-operator/pull/906
 
 ## [25.11.0] - 2025-11-07
 
