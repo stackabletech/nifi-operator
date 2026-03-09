@@ -1,0 +1,79 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: git-proxy-config
+data:
+  nginx.conf: |
+    events {}
+    http {
+      server {
+        listen 443 ssl;
+        server_name _;
+
+        ssl_certificate /etc/nginx/tls/tls.crt;
+        ssl_certificate_key /etc/nginx/tls/tls.key;
+
+        client_max_body_size 0;
+        proxy_buffering off;
+        proxy_request_buffering off;
+
+        location / {
+          proxy_pass https://github.com;
+          proxy_set_header Host github.com;
+          proxy_ssl_server_name on;
+          proxy_ssl_name github.com;
+          proxy_ssl_verify on;
+          proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+          proxy_ssl_verify_depth 5;
+          proxy_http_version 1.1;
+          proxy_set_header Connection "";
+          proxy_pass_request_headers on;
+        }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: git-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: git-proxy
+  template:
+    metadata:
+      labels:
+        app: git-proxy
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:alpine
+          ports:
+            - containerPort: 443
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+            - name: tls
+              mountPath: /etc/nginx/tls
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: git-proxy-config
+        - name: tls
+          secret:
+            secretName: git-proxy-tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: git-proxy
+spec:
+  selector:
+    app: git-proxy
+  ports:
+    - port: 443
+      targetPort: 443

@@ -158,7 +158,7 @@ pub fn build_nifi_properties(
     auth_config: &NifiAuthenticationConfig,
     overrides: BTreeMap<String, String>,
     product_version: &str,
-    git_sync_resources: &git_sync::v1alpha1::GitSyncResources,
+    git_sync_resources: &git_sync::v1alpha2::GitSyncResources,
 ) -> Result<String, Error> {
     // TODO: Remove once we dropped support for all NiFi 1.x versions
     let is_nifi_1 = product_version.starts_with("1.");
