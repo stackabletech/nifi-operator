@@ -1,0 +1,262 @@
+= Auto-scaling
+:description: Configure horizontal auto-scaling for Apache NiFi clusters using a StackableScaler and a Kubernetes HorizontalPodAutoscaler.
+
+The Stackable Operator for Apache NiFi supports horizontal auto-scaling of NiFi node groups.
+Rather than setting a fixed replica count in the `NifiCluster` resource, you can delegate replica management to a Kubernetes https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/[HorizontalPodAutoscaler] (HPA) that adjusts the node count based on metrics such as CPU utilization.
+
+Auto-scaling is built on two resources that work together:
+
+* A *StackableScaler* -- a Stackable custom resource that acts as the scaling target for the HPA and coordinates the scaling lifecycle with the operator.
+* A *HorizontalPodAutoscaler* -- the standard Kubernetes resource that monitors metrics and writes the desired replica count to the StackableScaler.
+
+== How it works
+
+When auto-scaling is enabled for a role group, the following interaction takes place:
+
+. The HPA monitors metrics (CPU, memory, or custom metrics) for the NiFi pods.
+. When the HPA decides to scale, it writes a new `spec.replicas` value to the StackableScaler via its `/scale` subresource.
+. The NiFi operator detects the change and drives a multi-stage state machine:
++
+[source,text]
+----
+Idle -> PreScaling -> Scaling -> PostScaling -> Idle
+----
++
+* *PreScaling* -- for scale-down only: the operator contacts the NiFi REST API to gracefully decommission nodes (see <<scale-down-behavior>>).
+* *Scaling* -- the operator updates the StatefulSet replica count and waits for all pods to become ready.
+* *PostScaling* -- reserved for future use (currently a no-op for NiFi).
+. The operator updates the StackableScaler status and the `NifiCluster` status conditions throughout the process.
+
+The operator ensures that the HPA cannot change `spec.replicas` while a scaling operation is in progress.
+An admission webhook rejects such changes, causing the HPA to record `AbleToScale: False` and back off until the current operation completes.
+
+== Configuration
+
+Auto-scaling requires three things:
+
+. Setting `replicas: 0` on the role group to signal externally-managed replicas.
+. Creating a `StackableScaler` that references the cluster, role, and role group.
+. Creating a `HorizontalPodAutoscaler` that targets the `StackableScaler`.
+
+=== Step 1: Set replicas to 0
+
+In the `NifiCluster` resource, set `replicas: 0` on the role group that should be auto-scaled.
+This is the convention that tells the operator to read the replica count from a StackableScaler instead of the NifiCluster spec.
+
+[source,yaml]
+----
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: my-nifi
+spec:
+  image:
+    productVersion: 2.7.2
+  clusterConfig:
+    authentication:
+      - authenticationClass: nifi-admin-user
+    sensitiveProperties:
+      keySecret: nifi-sensitive-property-key
+      autoGenerate: true
+  nodes:
+    roleGroups:
+      default:
+        replicas: 0  # <1>
+----
+<1> Setting `replicas: 0` activates externally-managed scaling for this role group.
+
+=== Step 2: Create a StackableScaler
+
+The `StackableScaler` resource connects the HPA to the operator.
+It must be in the same namespace as the `NifiCluster` and reference the correct cluster, role, and role group.
+
+[source,yaml]
+----
+apiVersion: autoscaling.stackable.tech/v1alpha1
+kind: StackableScaler
+metadata:
+  name: my-nifi-nodes-default  # <1>
+spec:
+  replicas: 3  # <2>
+  clusterRef:
+    kind: NifiCluster
+    name: my-nifi
+  role: nodes
+  roleGroup: default
+----
+<1> Choose any name; a convention is `<cluster>-<role>-<rolegroup>`.
+<2> The initial replica count. The HPA will overwrite this value as it scales.
+
+=== Step 3: Create a HorizontalPodAutoscaler
+
+The HPA targets the `StackableScaler` using the `autoscaling.stackable.tech/v1alpha1` API.
+
+[source,yaml]
+----
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: my-nifi-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: autoscaling.stackable.tech/v1alpha1
+    kind: StackableScaler
+    name: my-nifi-nodes-default
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+----
+
+The HPA reads the current replica count from `status.replicas` on the StackableScaler and writes the desired count to `spec.replicas`.
+Any standard HPA metric type (Resource, Pods, Object, External) can be used.
+
+== Checking scaling status
+
+=== StackableScaler status
+
+The primary place to check the status of a scaling operation is the StackableScaler resource:
+
+[source,bash]
+----
+kubectl get stackablescaler my-nifi-nodes-default -o yaml
+----
+
+The `.status.currentState` field shows the current stage of the scaling state machine:
+
+[cols="1,3"]
+|===
+| Stage | Description
+
+| `idle`
+| No scaling operation in progress.
+
+| `preScaling`
+| Running pre-scaling hooks (node decommissioning for scale-down).
+
+| `scaling`
+| The StatefulSet replica count has been updated; waiting for all pods to become ready.
+
+| `postScaling`
+| Running post-scaling hooks (currently a no-op for NiFi).
+
+| `failed`
+| A scaling hook returned an error. The scaler stays in this state until <<recovery-from-failure,manually reset>>.
+|===
+
+Additional status fields:
+
+* `status.replicas` -- the current replica count as seen by the HPA.
+* `status.desiredReplicas` -- the target replica count during an in-progress scaling operation.
+* `status.previousReplicas` -- the replica count before the current operation started.
+
+=== NifiCluster conditions
+
+The NiFi operator propagates scaling status into the `NifiCluster` resource's `status.conditions`.
+When scaling is in progress, a `Progressing` condition is set.
+When a scaling operation fails, a `Failed` condition includes the error message.
+
+[source,bash]
+----
+kubectl get nificluster my-nifi -o jsonpath='{.status.conditions}' | jq .
+----
+
+=== HPA status
+
+The HPA's own status shows whether it can reach the scaling target and what it is currently computing:
+
+[source,bash]
+----
+kubectl describe hpa my-nifi-hpa
+----
+
+If the admission webhook is rejecting HPA writes during an active scaling operation, the HPA events show `AbleToScale: False`.
+This is expected behavior -- the HPA will retry once the current operation completes.
+
+[#scale-down-behavior]
+== Scale-down behavior
+
+Scale-up is straightforward: the operator increases the StatefulSet replica count and NiFi nodes join the cluster automatically.
+
+Scale-down requires careful orchestration to avoid data loss.
+During the *PreScaling* stage, the NiFi operator contacts the NiFi REST API to gracefully decommission the highest-ordinal nodes before the StatefulSet is shrunk.
+
+The decommission sequence depends on the NiFi version:
+
+=== NiFi 2.x (recommended)
+
+[source,text]
+----
+CONNECTED -> DISCONNECTING -> DISCONNECTED -> OFFLOADING -> OFFLOADED -> DELETE
+----
+
+. The node is *disconnected* from the cluster, stopping new work from being assigned.
+. The node's FlowFile content is *offloaded* (migrated) to remaining cluster nodes.
+. The node is *deleted* from NiFi's cluster registry.
+
+=== NiFi 1.x
+
+[source,text]
+----
+CONNECTED -> OFFLOADING -> OFFLOADED -> DISCONNECTING -> DISCONNECTED -> DELETE
+----
+
+NiFi 1.x requires offloading before disconnecting (the reverse of 2.x).
+
+In both cases, the operator polls the NiFi REST API and only advances once all target nodes have reached the expected status in each phase.
+The StatefulSet replica count is not reduced until all target nodes have been fully removed from the NiFi cluster.
+
+=== Authentication requirements
+
+Auto-scaling with graceful decommissioning requires *SingleUser* authentication.
+The operator reads the admin credentials from the Kubernetes Secret to authenticate against the NiFi REST API during scale-down.
+
+LDAP and OIDC authentication are not currently supported for auto-scaled role groups.
+Attempting to configure a StackableScaler for a role group using LDAP or OIDC authentication will result in a reconciliation error.
+
+[#recovery-from-failure]
+== Recovery from failure
+
+If a scaling hook fails (for example, the NiFi REST API is unreachable during decommissioning), the StackableScaler enters the `failed` state.
+In this state:
+
+* The state machine stops -- no automatic retries.
+* The HPA cannot write new replica counts (the admission webhook rejects changes).
+* The `failed` status includes the error reason and which stage failed.
+
+To inspect the failure:
+
+[source,bash]
+----
+kubectl get stackablescaler my-nifi-nodes-default -o jsonpath='{.status.currentState}' | jq .
+----
+
+Once you have resolved the underlying issue, reset the scaler by applying the retry annotation:
+
+[source,bash]
+----
+kubectl annotate stackablescaler my-nifi-nodes-default \
+  autoscaling.stackable.tech/retry=true
+----
+
+The operator will:
+
+. Strip the annotation.
+. Reset the stage to `idle`.
+. Requeue the resource so the next reconcile starts a fresh scaling attempt.
+
+CAUTION: Before retrying, ensure the underlying issue is resolved.
+For example, if NiFi nodes are in an inconsistent state after a partial decommission, you may need to manually reconnect them using the NiFi UI or REST API before resetting the scaler.
+
+== Limitations
+
+* Only *one role group* (`nodes`) exists for NiFi, so each NiFi cluster can have at most one StackableScaler.
+* Only *SingleUser* authentication is supported for auto-scaled role groups.
+* The admission webhook that guards `spec.replicas` during scaling has `failurePolicy: Fail`.
+  If the commons-operator is unavailable (during rolling updates or crashes), the HPA cannot adjust replicas until the webhook becomes available again.
+* NiFi 1.x version upgrades use a full-stop-then-restart strategy. Auto-scaling is paused during version upgrades.

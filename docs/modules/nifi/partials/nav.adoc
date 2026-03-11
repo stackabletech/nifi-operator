@@ -21,6 +21,7 @@
 *** xref:nifi:usage_guide/operations/cluster-operations.adoc[]
 *** xref:nifi:usage_guide/operations/pod-placement.adoc[]
 *** xref:nifi:usage_guide/operations/pod-disruptions.adoc[]
+*** xref:nifi:usage_guide/operations/autoscaling.adoc[]
 *** xref:nifi:usage_guide/operations/graceful-shutdown.adoc[]
 * xref:nifi:troubleshooting/index.adoc[]
 * xref:nifi:reference/index.adoc[]
