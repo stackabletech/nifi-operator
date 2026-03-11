@@ -2,7 +2,9 @@
 :description: Configure horizontal auto-scaling for Apache NiFi clusters using a StackableScaler and a Kubernetes HorizontalPodAutoscaler.
 
 The Stackable Operator for Apache NiFi supports horizontal auto-scaling of NiFi node groups.
-Rather than setting a fixed replica count in the `NifiCluster` resource, you can delegate replica management to a Kubernetes https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/[HorizontalPodAutoscaler] (HPA) that adjusts the node count based on metrics such as CPU utilization.
+Rather than setting a fixed replica count in the `NifiCluster` resource, you can delegate replica management to a Kubernetes https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/[HorizontalPodAutoscaler] (HPA) or something like https://keda.sh/[KEDA] that adjusts the node count based on metrics such as CPU utilization.
+Anything that can target a `scale` subresource for scaling operations should work just fine.
+For the rest of this article we will focus on the HPA as the default Kubernetes scaling mechanism though.
 
 Auto-scaling is built on two resources that work together:
 
@@ -76,8 +78,10 @@ apiVersion: autoscaling.stackable.tech/v1alpha1
 kind: StackableScaler
 metadata:
   name: my-nifi-nodes-default  # <1>
+  labels:
+    stackable.tech/cluster-kind: NifiCluster  # <2>
 spec:
-  replicas: 3  # <2>
+  replicas: 3  # <3>
   clusterRef:
     kind: NifiCluster
     name: my-nifi
@@ -85,7 +89,19 @@ spec:
   roleGroup: default
 ----
 <1> Choose any name; a convention is `<cluster>-<role>-<rolegroup>`.
-<2> The initial replica count. The HPA will overwrite this value as it scales.
+<2> The `stackable.tech/cluster-kind` label. See <<cluster-kind-label>> below.
+<3> The initial replica count. The HPA will overwrite this value as it scales.
+
+[#cluster-kind-label]
+==== The `stackable.tech/cluster-kind` label
+
+Every `StackableScaler` must carry the label `stackable.tech/cluster-kind` with a value matching the `spec.clusterRef.kind` field (e.g. `NifiCluster`).
+This label enables the operator to efficiently discover all StackableScalers for a given cluster type using label selectors rather than listing every scaler in the namespace.
+
+A *mutating admission webhook* in the Stackable commons-operator automatically injects this label on every `CREATE` and `UPDATE` of a StackableScaler, so you do not strictly need to set it yourself.
+However, including it explicitly in your manifests is harmless and has the advantage that the label is visible in version control and in `kubectl get` output even if the webhook has not yet processed the resource (for example, when reviewing manifests before applying them).
+
+NOTE: If the `spec.clusterRef.kind` value is not a valid Kubernetes label value, the admission webhook will reject the StackableScaler.
 
 === Step 3: Create a HorizontalPodAutoscaler
 
