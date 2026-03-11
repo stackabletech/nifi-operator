@@ -19,6 +19,7 @@ fnv.workspace = true
 futures.workspace = true
 indoc.workspace = true
 pin-project.workspace = true
+reqwest.workspace = true
 rand.workspace = true
 semver.workspace = true
 serde.workspace = true

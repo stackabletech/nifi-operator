@@ -31,7 +31,11 @@ use stackable_operator::{
         rbac::build_rbac_resources,
     },
     constants::RESTART_CONTROLLER_ENABLED_LABEL,
-    crd::{authentication::oidc::v1alpha1::AuthenticationProvider, git_sync},
+    crd::{
+        authentication::oidc::v1alpha1::AuthenticationProvider,
+        git_sync,
+        scaler::{ScalingCondition, StackableScaler, reconcile_scaler, resolve_replicas},
+    },
     k8s_openapi::{
         DeepMerge,
         api::{
@@ -49,7 +53,7 @@ use stackable_operator::{
         core::{DeserializeGuard, error_boundary},
         runtime::controller::Action,
     },
-    kvp::{Labels, ObjectLabels},
+    kvp::{LabelSelectorExt, Labels, ObjectLabels},
     logging::controller::ReconcilerError,
     memory::{BinaryMultiple, MemoryQuantity},
     product_config_utils::env_vars_from_rolegroup_config,
@@ -74,6 +78,8 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
 
+use stackable_operator::crd::scaler::ReconcilerError as ScalerReconcilerError;
+
 use crate::{
     OPERATOR_NAME,
     config::{
@@ -96,6 +102,7 @@ use crate::{
     operations::{
         graceful_shutdown::add_graceful_shutdown_config,
         pdb::add_pdbs,
+        scaling::NifiScalingHooks,
         upgrade::{self, ClusterVersionUpdateState},
     },
     product_logging::extend_role_group_config_map,
@@ -351,6 +358,49 @@ pub enum Error {
     ResolveProductImage {
         source: product_image_selection::Error,
     },
+
+    /// Failed to list [`StackableScaler`] resources for a role group.
+    ///
+    /// This typically indicates a Kubernetes API connectivity issue or an RBAC
+    /// permission problem for the `list` verb on `stackablescalers`.
+    #[snafu(display("failed to list StackableScalers for rolegroup {rolegroup}"))]
+    ListScalers {
+        #[snafu(source(from(stackable_operator::client::Error, Box::new)))]
+        source: Box<stackable_operator::client::Error>,
+        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
+    },
+
+    /// The [`StackableScaler`] reconciliation (state machine + hooks) returned an error.
+    ///
+    /// The scaler may have transitioned to `Failed` state; check the scaler's status
+    /// for details.
+    #[snafu(display("StackableScaler reconciliation failed for rolegroup {rolegroup}"))]
+    ScalerReconcile {
+        source: ScalerReconcilerError,
+        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
+    },
+
+    /// Failed to convert the role group's label selector into a query string
+    /// for the [`StackableScaler`] status `.selector` field.
+    #[snafu(display("failed to build label selector string for rolegroup {rolegroup}"))]
+    BuildSelectorString {
+        source: stackable_operator::kvp::SelectorError,
+        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
+    },
+
+    /// A [`StackableScaler`] is configured for a role group whose authentication method
+    /// does not support scaling hooks.
+    ///
+    /// Scaling hooks require SingleUser authentication to call the NiFi REST API for
+    /// node offload and disconnect. Other authentication methods are not yet supported.
+    #[snafu(display(
+        "StackableScaler for rolegroup {rolegroup} requires SingleUser authentication, \
+         but cluster uses {auth_method}"
+    ))]
+    UnsupportedScalerAuthentication {
+        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
+        auth_method: String,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -480,11 +530,12 @@ pub async fn reconcile_nifi(
         .context(ApplyRoleBindingSnafu)?;
 
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
+    let mut scaler_action: Option<Action> = None;
 
     let nifi_role = NifiRole::Node;
     for (rolegroup_name, rolegroup_config) in nifi_node_config.iter() {
         let rg_span = tracing::info_span!("rolegroup_span", rolegroup = rolegroup_name.as_str());
-        async {
+        let rg_action: Option<Action> = async {
             let rolegroup = nifi.node_rolegroup_ref(rolegroup_name);
 
             tracing::debug!("Processing rolegroup {}", rolegroup);
@@ -546,12 +597,53 @@ pub async fn reconcile_nifi(
             .await?;
 
             let role_group = role.role_groups.get(&rolegroup.role_group);
-            let replicas =
-                if cluster_version_update_state == ClusterVersionUpdateState::UpdateRequested {
-                    Some(0)
-                } else {
-                    role_group.and_then(|rg| rg.replicas).map(i32::from)
+
+            // Look up the StackableScaler for this role group if replicas == 0
+            // (the convention that signals "externally managed replicas").
+            let rg_replicas = role_group.and_then(|rg| rg.replicas);
+            let scaler: Option<StackableScaler> = if rg_replicas == Some(0) {
+                let namespace = nifi
+                    .metadata
+                    .namespace
+                    .as_deref()
+                    .context(ObjectHasNoNamespaceSnafu)?;
+                let selector = {
+                    use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
+                    LabelSelector {
+                        match_expressions: None,
+                        match_labels: Some(
+                            Labels::role_group_selector(
+                                nifi,
+                                APP_NAME,
+                                &rolegroup.role,
+                                &rolegroup.role_group,
+                            )
+                            .context(LabelBuildSnafu)?
+                            .into(),
+                        ),
+                    }
                 };
+                client
+                    .list_with_label_selector::<StackableScaler>(namespace, &selector)
+                    .await
+                    .context(ListScalersSnafu {
+                        rolegroup: rolegroup.clone(),
+                    })?
+                    .into_iter()
+                    .find(|s| {
+                        s.spec.cluster_ref.name == nifi.name_any()
+                            && s.spec.role == rolegroup.role
+                            && s.spec.role_group == rolegroup.role_group
+                    })
+            } else {
+                None
+            };
+
+            let replicas = if cluster_version_update_state == ClusterVersionUpdateState::UpdateRequested {
+                Some(0)
+            } else {
+                resolve_replicas(rg_replicas.map(i32::from), scaler.as_ref())
+            };
 
             let rg_statefulset = build_node_rolegroup_statefulset(
                 nifi,
@@ -603,19 +695,136 @@ pub async fn reconcile_nifi(
             // Note: The StatefulSet needs to be applied after all ConfigMaps and Secrets it mounts
             // to prevent unnecessary Pod restarts.
             // See https://github.com/stackabletech/commons-operator/issues/111 for details.
-            ss_cond_builder.add(
-                cluster_resources
-                    .add(client, rg_statefulset)
-                    .await
-                    .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
-                        rolegroup: rolegroup.clone(),
-                    })?,
-            );
+            let applied_sts = cluster_resources
+                .add(client, rg_statefulset)
+                .await
+                .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
+                    rolegroup: rolegroup.clone(),
+                })?;
 
-            Ok(())
+            // Run the scaler state machine if a scaler is present for this role group.
+            // This is done after applying the StatefulSet so we can read its current status.
+            let scaler_requeue = if let Some(ref s) = scaler {
+                let namespace = nifi
+                    .metadata
+                    .namespace
+                    .as_deref()
+                    .context(ObjectHasNoNamespaceSnafu)?;
+                let selector_string = {
+                    use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
+                    LabelSelector {
+                        match_expressions: None,
+                        match_labels: Some(
+                            Labels::role_group_selector(
+                                nifi,
+                                APP_NAME,
+                                &rolegroup.role,
+                                &rolegroup.role_group,
+                            )
+                            .context(LabelBuildSnafu)?
+                            .into(),
+                        ),
+                    }
+                    .to_query_string()
+                    .context(BuildSelectorStringSnafu {
+                        rolegroup: rolegroup.clone(),
+                    })?
+                };
+
+                let sts_ready = applied_sts
+                    .status
+                    .as_ref()
+                    .and_then(|st| st.ready_replicas)
+                    .unwrap_or(0);
+                let sts_desired = applied_sts.spec.as_ref().and_then(|sp| sp.replicas).unwrap_or(0);
+                // Allow sts_desired == 0 only when the scaler explicitly targets 0 replicas.
+                // Otherwise guard against a freshly created STS with 0 pods being mistaken for stable.
+                let scaler_target = s
+                    .status
+                    .as_ref()
+                    .and_then(|st| st.desired_replicas);
+                let statefulset_stable =
+                    sts_ready == sts_desired && (sts_desired > 0 || scaler_target == Some(0));
+
+                let credentials_secret_name = match &authentication_config {
+                    NifiAuthenticationConfig::SingleUser { provider } => {
+                        provider.user_credentials_secret.name.clone()
+                    }
+                    NifiAuthenticationConfig::Ldap { .. } => {
+                        return UnsupportedScalerAuthenticationSnafu {
+                            rolegroup: rolegroup.clone(),
+                            auth_method: "LDAP",
+                        }
+                        .fail();
+                    }
+                    NifiAuthenticationConfig::Oidc { .. } => {
+                        return UnsupportedScalerAuthenticationSnafu {
+                            rolegroup: rolegroup.clone(),
+                            auth_method: "OIDC",
+                        }
+                        .fail();
+                    }
+                };
+
+                let scaling_result = reconcile_scaler(
+                    s,
+                    &NifiScalingHooks {
+                        namespace: namespace.to_owned(),
+                        credentials_secret_name,
+                        statefulset_name: rolegroup.object_name(),
+                        headless_service_name: rolegroup
+                            .rolegroup_headless_service_name(),
+                        cluster_domain: client
+                            .kubernetes_cluster_info
+                            .cluster_domain
+                            .to_string(),
+                        product_version: resolved_product_image
+                            .product_version
+                            .to_string(),
+                    },
+                    client,
+                    statefulset_stable,
+                    &selector_string,
+                )
+                .await
+                .context(ScalerReconcileSnafu {
+                    rolegroup: rolegroup.clone(),
+                })?;
+
+                match &scaling_result.scaling_condition {
+                    ScalingCondition::Failed { reason, .. } => {
+                        tracing::warn!(
+                            rolegroup = %rolegroup,
+                            reason = %reason,
+                            "StackableScaler entered Failed state"
+                        );
+                    }
+                    ScalingCondition::Progressing { stage } => {
+                        tracing::info!(
+                            rolegroup = %rolegroup,
+                            stage = %stage,
+                            "StackableScaler scaling in progress"
+                        );
+                    }
+                    ScalingCondition::Healthy => {}
+                }
+
+                Some(scaling_result.action)
+            } else {
+                None
+            };
+
+            ss_cond_builder.add(applied_sts);
+
+            Ok(scaler_requeue)
         }
         .instrument(rg_span)
-        .await?
+        .await?;
+        if let Some(action) = rg_action {
+            if scaler_action.is_none() {
+                scaler_action = Some(action);
+            }
+        }
     }
 
     let role_config = nifi.role_config(&nifi_role);
@@ -709,7 +918,7 @@ pub async fn reconcile_nifi(
         .await
         .context(StatusUpdateSnafu)?;
 
-    Ok(Action::await_change())
+    Ok(scaler_action.unwrap_or_else(Action::await_change))
 }
 
 /// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the administrator
@@ -892,7 +1101,13 @@ async fn build_node_rolegroup_statefulset(
 
     env_vars.push(EnvVar {
         name: "STACKLET_NAME".to_string(),
-        value: Some(nifi.name_unchecked().to_string()),
+        value: Some(
+            nifi.metadata
+                .name
+                .as_deref()
+                .context(ObjectHasNoNameSnafu)?
+                .to_string(),
+        ),
         ..Default::default()
     });
 

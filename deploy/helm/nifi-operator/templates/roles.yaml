@@ -130,6 +130,22 @@ rules:
     verbs:
       - patch
   - apiGroups:
+      - autoscaling.stackable.tech
+    resources:
+      - stackablescalers
+    verbs:
+      - get
+      - list
+      - watch
+      - patch
+  - apiGroups:
+      - autoscaling.stackable.tech
+    resources:
+      - stackablescalers/status
+    verbs:
+      - get
+      - patch
+  - apiGroups:
       - authentication.stackable.tech
     resources:
       - authenticationclasses

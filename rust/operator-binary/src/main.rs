@@ -7,6 +7,7 @@ use anyhow::anyhow;
 use clap::Parser;
 use crd::v1alpha1::NifiClusteringBackend;
 use futures::{FutureExt, StreamExt, TryFutureExt};
+use stackable_operator::crd::scaler::StackableScaler;
 use stackable_operator::{
     YamlSchema,
     cli::{Command, RunArguments},
@@ -139,6 +140,7 @@ async fn main() -> anyhow::Result<()> {
 
             let authentication_class_store = nifi_controller.store();
             let config_map_store = nifi_controller.store();
+            let scaler_store = nifi_controller.store();
 
             let nifi_controller = nifi_controller
                 .owns(
@@ -172,6 +174,23 @@ async fn main() -> anyhow::Result<()> {
                             .state()
                             .into_iter()
                             .filter(move |nifi| references_config_map(nifi, &config_map))
+                            .map(|nifi| ObjectRef::from_obj(&*nifi))
+                    },
+                )
+                .watches(
+                    watch_namespace.get_api::<StackableScaler>(&client),
+                    // Server-side label filter — set by the commons-operator mutating webhook.
+                    // Ensures each operator only receives StackableScalers for its own cluster type.
+                    watcher::Config::default().labels("stackable.tech/cluster-kind=NifiCluster"),
+                    move |scaler| {
+                        scaler_store
+                            .state()
+                            .into_iter()
+                            .filter(move |nifi| {
+                                let Ok(nifi) = &nifi.0 else { return false };
+                                scaler.spec.cluster_ref.name == nifi.name_any()
+                                    && scaler.metadata.namespace == nifi.metadata.namespace
+                            })
                             .map(|nifi| ObjectRef::from_obj(&*nifi))
                     },
                 )
