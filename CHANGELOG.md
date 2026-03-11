@@ -23,6 +23,7 @@ All notable changes to this project will be documented in this file.
 - Also listen on the loopback interface so that k8s port-forwards work ([#870]).
 - The operator now utilizes the `.spec.clusterConfig.authorization.opa.package` property instead of hard-coding the package name to `nifi` ([#881]).
 - An `initialAdminUser` can now be provided for file-based authorization (e.g. LDAP) ([#884]).
+- Fix "404 page not found" error for the initial object list ([#909]).
 
 ### Removed
 
