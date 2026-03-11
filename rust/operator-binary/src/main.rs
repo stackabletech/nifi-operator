@@ -17,7 +17,7 @@ use stackable_operator::{
         core::v1::{ConfigMap, Service},
     },
     kube::{
-        ResourceExt,
+        CustomResourceExt as _, ResourceExt,
         core::DeserializeGuard,
         runtime::{
             Controller,
@@ -29,7 +29,7 @@ use stackable_operator::{
     logging::controller::report_controller_reconciled,
     shared::yaml::SerializeOptions,
     telemetry::Tracing,
-    utils::signal::SignalWatcher,
+    utils::signal::{self, SignalWatcher},
 };
 
 use crate::{
@@ -203,7 +203,12 @@ async fn main() -> anyhow::Result<()> {
                 )
                 .map(anyhow::Ok);
 
-            futures::try_join!(nifi_controller, eos_checker, webhook_server)?;
+            let delayed_nifi_controller = async {
+                signal::crd_established(&client, v1alpha1::NifiCluster::crd_name(), None).await?;
+                nifi_controller.await
+            };
+
+            futures::try_join!(delayed_nifi_controller, eos_checker, webhook_server)?;
         }
     }
 
