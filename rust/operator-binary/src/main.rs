@@ -7,7 +7,7 @@ use anyhow::anyhow;
 use clap::Parser;
 use crd::v1alpha1::NifiClusteringBackend;
 use futures::{FutureExt, StreamExt, TryFutureExt};
-use stackable_operator::crd::scaler::StackableScaler;
+use stackable_operator::crd::scaler::v1alpha1::StackableScaler;
 use stackable_operator::{
     YamlSchema,
     cli::{Command, RunArguments},

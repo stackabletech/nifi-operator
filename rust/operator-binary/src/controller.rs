@@ -34,7 +34,7 @@ use stackable_operator::{
     crd::{
         authentication::oidc::v1alpha1::AuthenticationProvider,
         git_sync,
-        scaler::{ScalingCondition, StackableScaler, reconcile_scaler, resolve_replicas},
+        scaler::{ScalingCondition, reconcile_scaler, resolve_replicas, v1alpha1::StackableScaler},
     },
     k8s_openapi::{
         DeepMerge,
