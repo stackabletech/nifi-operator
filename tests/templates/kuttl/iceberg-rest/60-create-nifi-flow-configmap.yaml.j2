@@ -1,0 +1,5 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: cat 60_nifi-flow.json | envsubst '$NAMESPACE' | kubectl -n $NAMESPACE  create configmap nifi-flow --from-file=nifi-flow.json=/dev/stdin

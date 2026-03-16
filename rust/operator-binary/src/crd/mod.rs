@@ -275,21 +275,6 @@ pub fn default_allow_all() -> bool {
     true
 }
 
-#[derive(strum::Display, Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub enum StoreType {
-    #[strum(serialize = "JKS")]
-    Jks,
-    #[strum(serialize = "PKCS12")]
-    Pkcs12,
-}
-
-impl Default for StoreType {
-    fn default() -> Self {
-        Self::Jks
-    }
-}
-
 /// This section creates a `create-reporting-task` Kubernetes Job, which enables the export of
 /// Prometheus metrics within NiFi.
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]

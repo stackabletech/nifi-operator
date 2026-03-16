@@ -1,0 +1,116 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-post-job
+  labels:
+    app: minio-post-job
+    chart: minio-5.4.0
+    release: minio
+    heritage: Helm
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+spec:
+  template:
+    metadata:
+      labels:
+        app: minio-job
+        release: minio
+        stackable.tech/vendor: Stackable
+    spec:
+      restartPolicy: OnFailure
+      volumes:
+        - name: etc-path
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        - name: minio-configuration
+          projected:
+            sources:
+              - configMap:
+                  name: minio
+              - secret:
+                  name: minio
+        - ephemeral:
+            volumeClaimTemplate:
+              metadata:
+                annotations:
+                  secrets.stackable.tech/class: tls
+                  secrets.stackable.tech/scope: service=minio
+              spec:
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: 1
+                storageClassName: secrets.stackable.tech
+          name: tls
+        - emptyDir:
+            medium: Memory
+            sizeLimit: 5Mi
+          name: certs
+      serviceAccountName: minio-sa
+      containers:
+        - name: minio-make-bucket
+          image: "quay.io/minio/mc:RELEASE.2024-11-21T17-21-54Z"
+          imagePullPolicy: IfNotPresent
+          command:
+            - "/bin/sh"
+            - "-ce"
+            - |
+              # Copy the CA cert from the "tls" SecretClass
+              # mkdir -p /etc/minio/mc/certs/CAs
+              cp -v /etc/minio/mc/original_certs/ca.crt /etc/minio/mc/certs/CAs/public.crt
+
+              . /config/initialize
+          env:
+            - name: MINIO_ENDPOINT
+              value: minio
+            - name: MINIO_PORT
+              value: "9000"
+          volumeMounts:
+            - name: etc-path
+              mountPath: /etc/minio/mc
+            - name: tmp
+              mountPath: /tmp
+            - name: minio-configuration
+              mountPath: /config
+            - name: tls
+              mountPath: /etc/minio/mc/original_certs
+            - name: certs
+              mountPath: /etc/minio/mc/certs/CAs
+          resources:
+            requests:
+              memory: 128Mi
+        - name: minio-make-user
+          image: "quay.io/minio/mc:RELEASE.2024-11-21T17-21-54Z"
+          imagePullPolicy: IfNotPresent
+          command:
+            - "/bin/sh"
+            - "-ce"
+            - |
+              # Copy the CA cert from the "tls" SecretClass
+              # mkdir -p /etc/minio/mc/certs/CAs
+              cp -v /etc/minio/mc/original_certs/ca.crt /etc/minio/mc/certs/CAs/public.crt
+
+              . /config/add-user
+          env:
+            - name: MINIO_ENDPOINT
+              value: minio
+            - name: MINIO_PORT
+              value: "9000"
+          volumeMounts:
+            - name: etc-path
+              mountPath: /etc/minio/mc
+            - name: tmp
+              mountPath: /tmp
+            - name: minio-configuration
+              mountPath: /config
+            - name: tls
+              mountPath: /etc/minio/mc/original_certs
+            - name: certs
+              mountPath: /etc/minio/mc/certs/CAs
+          resources:
+            requests:
+              memory: 128Mi

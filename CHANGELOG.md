@@ -4,14 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [26.3.0] - 2026-03-16
+
+## [26.3.0-rc1] - 2026-03-16
+
 ### Added
 
+- Add conversion webhook ([#898]).
 - Support objectOverrides using `.spec.objectOverrides`.
   See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#885]).
 - Enable the [restart-controller](https://docs.stackable.tech/home/nightly/commons-operator/restarter/), so that the Pods are automatically restarted on config changes ([#888]).
+- Added support for `2.7.2` ([#893]).
 
 ### Changed
 
+- Bump stackable-operator to 0.108.0 and strum to 0.28 ([#906], [#909]).
+- Gracefully shutdown all concurrent tasks by forwarding the SIGTERM signal ([#894]).
 - BREAKING: Reworked authorization config to closer match the Apache NiFi internal authorizer interfaces ([#884]).
 
 ### Fixed
@@ -19,12 +27,22 @@ All notable changes to this project will be documented in this file.
 - Also listen on the loopback interface so that k8s port-forwards work ([#870]).
 - The operator now utilizes the `.spec.clusterConfig.authorization.opa.package` property instead of hard-coding the package name to `nifi` ([#881]).
 - An `initialAdminUser` can now be provided for file-based authorization (e.g. LDAP) ([#884]).
+- Fix "404 page not found" error for the initial object list ([#909]).
+
+### Removed
+
+- Removed support for `1.27.0` and `2.4.0` ([#893]).
 
 [#870]: https://github.com/stackabletech/nifi-operator/pull/870
 [#881]: https://github.com/stackabletech/nifi-operator/pull/881
 [#884]: https://github.com/stackabletech/nifi-operator/pull/884
 [#885]: https://github.com/stackabletech/nifi-operator/pull/885
 [#888]: https://github.com/stackabletech/nifi-operator/pull/888
+[#893]: https://github.com/stackabletech/nifi-operator/pull/893
+[#894]: https://github.com/stackabletech/nifi-operator/pull/894
+[#898]: https://github.com/stackabletech/nifi-operator/pull/898
+[#906]: https://github.com/stackabletech/nifi-operator/pull/906
+[#909]: https://github.com/stackabletech/nifi-operator/pull/909
 
 ## [25.11.0] - 2025-11-07
 

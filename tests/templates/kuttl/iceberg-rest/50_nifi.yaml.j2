@@ -1,0 +1,65 @@
+---
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: nifi
+spec:
+  image:
+{% if test_scenario['values']['nifi-iceberg-rest'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['nifi-iceberg-rest'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['nifi-iceberg-rest'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['nifi-iceberg-rest'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
+  clusterConfig:
+    authentication:
+      - authenticationClass: nifi-users
+    sensitiveProperties:
+      keySecret: nifi-sensitive-property-key
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+    vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
+  nodes:
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    roleConfig:
+      listenerClass: external-unstable
+    configOverrides:
+      nifi.properties:
+        # Quicker startup, and we only have a single node
+        nifi.cluster.flow.election.max.wait.time: 5 secs
+    jvmArgumentOverrides:
+      add:
+        # Needed for NiFi to trust the minio cert
+        - -Djavax.net.ssl.trustStore=/stackable/keystore/truststore.p12
+        - -Djavax.net.ssl.trustStorePassword=secret
+        - -Djavax.net.ssl.trustStoreType=PKCS12
+    roleGroups:
+      default:
+        replicas: 1
+---
+apiVersion: authentication.stackable.tech/v1alpha1
+kind: AuthenticationClass
+metadata:
+  name: nifi-users
+spec:
+  provider:
+    static:
+      userCredentialsSecret:
+        name: nifi-users
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nifi-users
+stringData:
+  admin: adminadmin
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nifi-sensitive-property-key
+stringData:
+  nifiSensitivePropsKey: mYsUp3rS3cr3tk3y

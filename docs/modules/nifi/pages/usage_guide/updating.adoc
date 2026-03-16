@@ -2,7 +2,7 @@
 :description: Easily update or downgrade Apache NiFi on Kubernetes by changing the CRD version.
 
 Updating (or downgrading for that matter) the deployed version of NiFi is as simple as changing the version stated in the CRD.
-Continuing the example above, to change the deployed version from `1.27.0` to `2.0.0` you'd simply deploy the following CRD.
+Continuing the example above, the deployed version will be updated by deploying the following custom resource.
 
 [source,yaml]
 ----
@@ -12,7 +12,7 @@ metadata:
   name: simple-nifi
 spec:
   image:
-    productVersion: 2.0.0 # <1>
+    productVersion: 2.7.2 # <1>
 ----
 
 <1> Change the NiFi version here
@@ -24,7 +24,7 @@ NiFi clusters cannot be upgraded or downgraded in a rolling fashion due to a lim
 When upgrading between NiFi 1 versions or from NiFi 1 to NiFi 2, any change to the NiFi version in the CRD triggers a full cluster restart with brief downtime.
 However, the Stackable image version can be updated in a rolling manner, provided the NiFi version remains unchanged.
 
-For upgrades between NiFi 2 versions, e.g. from `2.0.0` to `2.4.0`, rolling upgrades are supported.
+Since NiFi version 2, rolling upgrades are supported.
 ====
 
 == NiFi 2.0.0
