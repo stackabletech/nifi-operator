@@ -2961,7 +2961,7 @@ dependencies = [
 
 [[package]]
 name = "stackable-nifi-operator"
-version = "26.3.0-rc1"
+version = "26.3.0"
 dependencies = [
  "anyhow",
  "built",
