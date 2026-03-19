@@ -134,10 +134,13 @@ rules:
     resources:
       - stackablescalers
     verbs:
+      - create
+      - delete
       - get
       - list
-      - watch
       - patch
+      - update
+      - watch
   - apiGroups:
       - autoscaling.stackable.tech
     resources:
@@ -145,6 +148,18 @@ rules:
     verbs:
       - get
       - patch
+  - apiGroups:
+      - autoscaling
+    resources:
+      - horizontalpodautoscalers
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
   - apiGroups:
       - authentication.stackable.tech
     resources:

@@ -37,7 +37,7 @@ use stackable_operator::{
         scaler::{
             BuildScalerError, InitializeStatusError, ReplicasConfig, ScalingCondition,
             build_hpa_from_user_spec, build_scaler, initialize_scaler_status, reconcile_scaler,
-            scale_target_ref,
+            scale_target_ref, v1alpha1::StackableScaler,
         },
     },
     k8s_openapi::{
@@ -383,6 +383,34 @@ pub enum Error {
         rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
     },
 
+    /// Failed to build a `HorizontalPodAutoscaler` for a role group.
+    #[snafu(display("failed to build HorizontalPodAutoscaler for rolegroup {rolegroup}"))]
+    BuildHpa {
+        source: BuildScalerError,
+        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
+    },
+
+    /// Failed to read an existing [`StackableScaler`] for a role group.
+    #[snafu(display("failed to read existing StackableScaler for rolegroup {rolegroup}"))]
+    GetExistingScaler {
+        source: stackable_operator::client::Error,
+        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
+    },
+
+    /// Failed to apply a [`StackableScaler`] for a role group.
+    #[snafu(display("failed to apply StackableScaler for rolegroup {rolegroup}"))]
+    ApplyScaler {
+        source: stackable_operator::cluster_resources::Error,
+        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
+    },
+
+    /// Failed to apply a `HorizontalPodAutoscaler` for a role group.
+    #[snafu(display("failed to apply HorizontalPodAutoscaler for rolegroup {rolegroup}"))]
+    ApplyHpa {
+        source: stackable_operator::cluster_resources::Error,
+        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
+    },
+
     /// The [`StackableScaler`] reconciliation (state machine + hooks) returned an error.
     ///
     /// The scaler may have transitioned to `Failed` state; check the scaler's status
@@ -613,6 +641,13 @@ pub async fn reconcile_nifi(
             let replicas_config = role_group
                 .and_then(|rg| rg.replicas.clone())
                 .unwrap_or_default();
+
+            tracing::debug!(
+                rolegroup = %rolegroup,
+                replicas_config = ?replicas_config,
+                "Processing role group scaling configuration"
+            );
+
             let namespace = nifi
                 .metadata
                 .namespace
@@ -642,7 +677,34 @@ pub async fn reconcile_nifi(
             };
 
             // Build an owner reference pointing to the NifiCluster.
-            let owner_ref = nifi.controller_owner_ref(&()).unwrap();
+            let owner_ref = nifi
+                .controller_owner_ref(&())
+                .context(ObjectHasNoNamespaceSnafu)?;
+
+            // For scaler-managed variants (HPA, ExternallyScaled), read the existing
+            // StackableScaler's spec.replicas so we don't overwrite an externally-set value.
+            // On first creation (no existing scaler), default to 1.
+            let existing_scaler_replicas = if matches!(
+                replicas_config,
+                ReplicasConfig::Hpa(_) | ReplicasConfig::ExternallyScaled
+            ) {
+                let scaler_name = format!(
+                    "{}-{}-{}-scaler",
+                    nifi.name_any(),
+                    rolegroup.role,
+                    rolegroup.role_group,
+                );
+                client
+                    .get_opt::<StackableScaler>(&scaler_name, namespace)
+                    .await
+                    .context(GetExistingScalerSnafu {
+                        rolegroup: rolegroup.clone(),
+                    })?
+                    .map(|s| s.spec.replicas)
+                    .unwrap_or(1)
+            } else {
+                1
+            };
 
             // Determine effective replicas and manage scaler/HPA based on ReplicasConfig variant.
             let (replicas, scaler_to_reconcile) = match &replicas_config {
@@ -663,9 +725,10 @@ pub async fn reconcile_nifi(
                         namespace,
                         &rolegroup.role,
                         &rolegroup.role_group,
-                        1, // initial replicas, overwritten by status init
+                        existing_scaler_replicas,
                         &owner_ref,
                         OPERATOR_NAME,
+                        NIFI_CONTROLLER_NAME,
                     )
                     .context(BuildScalerSnafu {
                         rolegroup: rolegroup.clone(),
@@ -674,7 +737,7 @@ pub async fn reconcile_nifi(
                     let applied_scaler = cluster_resources
                         .add(client, scaler)
                         .await
-                        .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
+                        .with_context(|_| ApplyScalerSnafu {
                             rolegroup: rolegroup.clone(),
                         })?;
 
@@ -700,7 +763,7 @@ pub async fn reconcile_nifi(
                         "v1alpha1",
                     );
                     let hpa = build_hpa_from_user_spec(
-                        &hpa_config.spec,
+                        hpa_config.as_ref(),
                         &target_ref,
                         &nifi.name_any(),
                         APP_NAME,
@@ -709,14 +772,15 @@ pub async fn reconcile_nifi(
                         &rolegroup.role_group,
                         &owner_ref,
                         OPERATOR_NAME,
+                        NIFI_CONTROLLER_NAME,
                     )
-                    .context(BuildScalerSnafu {
+                    .context(BuildHpaSnafu {
                         rolegroup: rolegroup.clone(),
                     })?;
                     cluster_resources
                         .add(client, hpa)
                         .await
-                        .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
+                        .with_context(|_| ApplyHpaSnafu {
                             rolegroup: rolegroup.clone(),
                         })?;
 
@@ -741,9 +805,10 @@ pub async fn reconcile_nifi(
                         namespace,
                         &rolegroup.role,
                         &rolegroup.role_group,
-                        1,
+                        existing_scaler_replicas,
                         &owner_ref,
                         OPERATOR_NAME,
+                        NIFI_CONTROLLER_NAME,
                     )
                     .context(BuildScalerSnafu {
                         rolegroup: rolegroup.clone(),
@@ -752,7 +817,7 @@ pub async fn reconcile_nifi(
                     let applied_scaler = cluster_resources
                         .add(client, scaler)
                         .await
-                        .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
+                        .with_context(|_| ApplyScalerSnafu {
                             rolegroup: rolegroup.clone(),
                         })?;
 
@@ -825,6 +890,9 @@ pub async fn reconcile_nifi(
                     rolegroup: rolegroup.clone(),
                 })?;
 
+            // Note: The StatefulSet needs to be applied after all ConfigMaps and Secrets it mounts
+            // to prevent unnecessary Pod restarts.
+            // See https://github.com/stackabletech/commons-operator/issues/111 for details.
             let applied_sts = cluster_resources
                 .add(client, rg_statefulset)
                 .await

@@ -168,9 +168,10 @@ pub fn build_reporting_task_fqdn_service_name(
     ))
 }
 
-/// Return the name of the first pod belonging to the first role group that contains more than 0 replicas.
-/// If no replicas are set in any rolegroup (e.g. HPA, see <https://docs.stackable.tech/home/stable/concepts/operations/#_performance>)
-/// return the first rolegroup just in case.
+/// Return the name of the first pod belonging to the first role group that has an
+/// explicit [`ReplicasConfig`] set.
+///
+/// If no role group has replicas configured, falls back to the first role group.
 /// This is required to only select a single node in the Reporting Task Service.
 fn get_reporting_task_service_selector_pod(nifi: &v1alpha1::NifiCluster) -> Result<String> {
     let cluster_name = nifi.name_any();
