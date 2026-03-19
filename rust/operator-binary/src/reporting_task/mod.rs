@@ -191,11 +191,12 @@ fn get_reporting_task_service_selector_pod(nifi: &v1alpha1::NifiCluster) -> Resu
             selector_role_group = Some(role_group_name);
         }
 
-        if let Some(replicas) = role_group.replicas {
-            if replicas > 0 {
-                selector_role_group = Some(role_group_name);
-                break;
-            }
+        if role_group.replicas.is_some() {
+            // Any explicit ReplicasConfig implies running pods (Fixed(0) is
+            // rejected by validation, and all other variants manage replicas
+            // dynamically).
+            selector_role_group = Some(role_group_name);
+            break;
         }
     }
 

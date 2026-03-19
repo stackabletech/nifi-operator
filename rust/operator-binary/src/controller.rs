@@ -34,7 +34,11 @@ use stackable_operator::{
     crd::{
         authentication::oidc::v1alpha1::AuthenticationProvider,
         git_sync,
-        scaler::{ScalingCondition, reconcile_scaler, resolve_replicas, v1alpha1::StackableScaler},
+        scaler::{
+            BuildScalerError, InitializeStatusError, ReplicasConfig, ScalingCondition,
+            build_hpa_from_user_spec, build_scaler, initialize_scaler_status, reconcile_scaler,
+            scale_target_ref,
+        },
     },
     k8s_openapi::{
         DeepMerge,
@@ -359,14 +363,23 @@ pub enum Error {
         source: product_image_selection::Error,
     },
 
-    /// Failed to list [`StackableScaler`] resources for a role group.
-    ///
-    /// This typically indicates a Kubernetes API connectivity issue or an RBAC
-    /// permission problem for the `list` verb on `stackablescalers`.
-    #[snafu(display("failed to list StackableScalers for rolegroup {rolegroup}"))]
-    ListScalers {
-        #[snafu(source(from(stackable_operator::client::Error, Box::new)))]
-        source: Box<stackable_operator::client::Error>,
+    /// Failed to build a [`StackableScaler`] object for a role group.
+    #[snafu(display("failed to build StackableScaler for rolegroup {rolegroup}"))]
+    BuildScaler {
+        source: BuildScalerError,
+        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
+    },
+
+    /// Failed to initialize [`StackableScaler`] status for a freshly created scaler.
+    #[snafu(display("failed to initialize StackableScaler status for rolegroup {rolegroup}"))]
+    InitializeScalerStatus {
+        source: InitializeStatusError,
+        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
+    },
+
+    /// The [`ReplicasConfig::Auto`] variant is not yet supported.
+    #[snafu(display("Auto scaling is not yet implemented for rolegroup {rolegroup}"))]
+    AutoScalingNotYetImplemented {
         rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
     },
 
@@ -597,52 +610,172 @@ pub async fn reconcile_nifi(
             .await?;
 
             let role_group = role.role_groups.get(&rolegroup.role_group);
+            let replicas_config = role_group
+                .and_then(|rg| rg.replicas.clone())
+                .unwrap_or_default();
+            let namespace = nifi
+                .metadata
+                .namespace
+                .as_deref()
+                .context(ObjectHasNoNamespaceSnafu)?;
 
-            // Look up the StackableScaler for this role group if replicas == 0
-            // (the convention that signals "externally managed replicas").
-            let rg_replicas = role_group.and_then(|rg| rg.replicas);
-            let scaler: Option<StackableScaler> = if rg_replicas == Some(0) {
-                let namespace = nifi
-                    .metadata
-                    .namespace
-                    .as_deref()
-                    .context(ObjectHasNoNamespaceSnafu)?;
-                let selector = {
-                    use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
-                    LabelSelector {
-                        match_expressions: None,
-                        match_labels: Some(
-                            Labels::role_group_selector(
-                                nifi,
-                                APP_NAME,
-                                &rolegroup.role,
-                                &rolegroup.role_group,
-                            )
-                            .context(LabelBuildSnafu)?
-                            .into(),
-                        ),
-                    }
-                };
-                client
-                    .list_with_label_selector::<StackableScaler>(namespace, &selector)
-                    .await
-                    .context(ListScalersSnafu {
-                        rolegroup: rolegroup.clone(),
-                    })?
-                    .into_iter()
-                    .find(|s| {
-                        s.spec.cluster_ref.name == nifi.name_any()
-                            && s.spec.role == rolegroup.role
-                            && s.spec.role_group == rolegroup.role_group
-                    })
-            } else {
-                None
+            // Build the label selector for the scaler and HPA.
+            let selector_string = {
+                use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
+                LabelSelector {
+                    match_expressions: None,
+                    match_labels: Some(
+                        Labels::role_group_selector(
+                            nifi,
+                            APP_NAME,
+                            &rolegroup.role,
+                            &rolegroup.role_group,
+                        )
+                        .context(LabelBuildSnafu)?
+                        .into(),
+                    ),
+                }
+                .to_query_string()
+                .context(BuildSelectorStringSnafu {
+                    rolegroup: rolegroup.clone(),
+                })?
             };
 
-            let replicas = if cluster_version_update_state == ClusterVersionUpdateState::UpdateRequested {
-                Some(0)
-            } else {
-                resolve_replicas(rg_replicas.map(i32::from), scaler.as_ref())
+            // Build an owner reference pointing to the NifiCluster.
+            let owner_ref = nifi.controller_owner_ref(&()).unwrap();
+
+            // Determine effective replicas and manage scaler/HPA based on ReplicasConfig variant.
+            let (replicas, scaler_to_reconcile) = match &replicas_config {
+                ReplicasConfig::Fixed(n) => {
+                    // Static replica count — no scaler, no HPA.
+                    let replicas = if cluster_version_update_state == ClusterVersionUpdateState::UpdateRequested {
+                        Some(0)
+                    } else {
+                        Some(i32::from(*n))
+                    };
+                    (replicas, None)
+                }
+                ReplicasConfig::Hpa(hpa_config) => {
+                    // User-provided HPA spec — create scaler and HPA.
+                    let scaler = build_scaler(
+                        &nifi.name_any(),
+                        APP_NAME,
+                        namespace,
+                        &rolegroup.role,
+                        &rolegroup.role_group,
+                        1, // initial replicas, overwritten by status init
+                        &owner_ref,
+                        OPERATOR_NAME,
+                    )
+                    .context(BuildScalerSnafu {
+                        rolegroup: rolegroup.clone(),
+                    })?;
+
+                    let applied_scaler = cluster_resources
+                        .add(client, scaler)
+                        .await
+                        .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
+                            rolegroup: rolegroup.clone(),
+                        })?;
+
+                    // Initialize status on freshly created scalers to prevent scale-to-zero.
+                    if applied_scaler.status.is_none() {
+                        initialize_scaler_status(
+                            client,
+                            &applied_scaler,
+                            1,
+                            &selector_string,
+                        )
+                        .await
+                        .context(InitializeScalerStatusSnafu {
+                            rolegroup: rolegroup.clone(),
+                        })?;
+                    }
+
+                    // Build and apply the HPA.
+                    let scaler_name = applied_scaler.metadata.name.clone().unwrap_or_default();
+                    let target_ref = scale_target_ref(
+                        &scaler_name,
+                        "autoscaling.stackable.tech",
+                        "v1alpha1",
+                    );
+                    let hpa = build_hpa_from_user_spec(
+                        &hpa_config.spec,
+                        &target_ref,
+                        &nifi.name_any(),
+                        APP_NAME,
+                        namespace,
+                        &rolegroup.role,
+                        &rolegroup.role_group,
+                        &owner_ref,
+                        OPERATOR_NAME,
+                    )
+                    .context(BuildScalerSnafu {
+                        rolegroup: rolegroup.clone(),
+                    })?;
+                    cluster_resources
+                        .add(client, hpa)
+                        .await
+                        .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
+                            rolegroup: rolegroup.clone(),
+                        })?;
+
+                    let replicas = if cluster_version_update_state == ClusterVersionUpdateState::UpdateRequested {
+                        Some(0)
+                    } else {
+                        applied_scaler.status.as_ref().map(|st| st.replicas)
+                    };
+                    (replicas, Some(applied_scaler))
+                }
+                ReplicasConfig::Auto(_) => {
+                    return AutoScalingNotYetImplementedSnafu {
+                        rolegroup: rolegroup.clone(),
+                    }
+                    .fail();
+                }
+                ReplicasConfig::ExternallyScaled => {
+                    // External scaler (KEDA, etc.) — create scaler but no HPA.
+                    let scaler = build_scaler(
+                        &nifi.name_any(),
+                        APP_NAME,
+                        namespace,
+                        &rolegroup.role,
+                        &rolegroup.role_group,
+                        1,
+                        &owner_ref,
+                        OPERATOR_NAME,
+                    )
+                    .context(BuildScalerSnafu {
+                        rolegroup: rolegroup.clone(),
+                    })?;
+
+                    let applied_scaler = cluster_resources
+                        .add(client, scaler)
+                        .await
+                        .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
+                            rolegroup: rolegroup.clone(),
+                        })?;
+
+                    if applied_scaler.status.is_none() {
+                        initialize_scaler_status(
+                            client,
+                            &applied_scaler,
+                            1,
+                            &selector_string,
+                        )
+                        .await
+                        .context(InitializeScalerStatusSnafu {
+                            rolegroup: rolegroup.clone(),
+                        })?;
+                    }
+
+                    let replicas = if cluster_version_update_state == ClusterVersionUpdateState::UpdateRequested {
+                        Some(0)
+                    } else {
+                        applied_scaler.status.as_ref().map(|st| st.replicas)
+                    };
+                    (replicas, Some(applied_scaler))
+                }
             };
 
             let rg_statefulset = build_node_rolegroup_statefulset(
@@ -692,9 +825,6 @@ pub async fn reconcile_nifi(
                     rolegroup: rolegroup.clone(),
                 })?;
 
-            // Note: The StatefulSet needs to be applied after all ConfigMaps and Secrets it mounts
-            // to prevent unnecessary Pod restarts.
-            // See https://github.com/stackabletech/commons-operator/issues/111 for details.
             let applied_sts = cluster_resources
                 .add(client, rg_statefulset)
                 .await
@@ -702,43 +832,14 @@ pub async fn reconcile_nifi(
                     rolegroup: rolegroup.clone(),
                 })?;
 
-            // Run the scaler state machine if a scaler is present for this role group.
-            // This is done after applying the StatefulSet so we can read its current status.
-            let scaler_requeue = if let Some(ref s) = scaler {
-                let namespace = nifi
-                    .metadata
-                    .namespace
-                    .as_deref()
-                    .context(ObjectHasNoNamespaceSnafu)?;
-                let selector_string = {
-                    use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
-                    LabelSelector {
-                        match_expressions: None,
-                        match_labels: Some(
-                            Labels::role_group_selector(
-                                nifi,
-                                APP_NAME,
-                                &rolegroup.role,
-                                &rolegroup.role_group,
-                            )
-                            .context(LabelBuildSnafu)?
-                            .into(),
-                        ),
-                    }
-                    .to_query_string()
-                    .context(BuildSelectorStringSnafu {
-                        rolegroup: rolegroup.clone(),
-                    })?
-                };
-
+            // Run the scaler state machine if a scaler exists for this role group.
+            let scaler_requeue = if let Some(ref s) = scaler_to_reconcile {
                 let sts_ready = applied_sts
                     .status
                     .as_ref()
                     .and_then(|st| st.ready_replicas)
                     .unwrap_or(0);
                 let sts_desired = applied_sts.spec.as_ref().and_then(|sp| sp.replicas).unwrap_or(0);
-                // Allow sts_desired == 0 only when the scaler explicitly targets 0 replicas.
-                // Otherwise guard against a freshly created STS with 0 pods being mistaken for stable.
                 let scaler_target = s
                     .status
                     .as_ref()
@@ -785,6 +886,7 @@ pub async fn reconcile_nifi(
                     client,
                     statefulset_stable,
                     &selector_string,
+                    &rolegroup.role_group,
                 )
                 .await
                 .context(ScalerReconcileSnafu {
