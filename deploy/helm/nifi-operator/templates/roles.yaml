@@ -5,13 +5,6 @@ metadata:
   labels:
   {{- include "operator.labels" . | nindent 4 }}
 rules:
-  - apiGroups:
-      - ""
-    resources:
-      - nodes
-    verbs:
-      - list
-      - watch
   # For automatic cluster domain detection
   - apiGroups:
       - ""
@@ -19,14 +12,29 @@ rules:
       - nodes/proxy
     verbs:
       - get
+  # Manage core workload resources created per NifiCluster.
+  # All resources are applied via Server-Side Apply (create + patch), fetched when
+  # reconciliation is paused (get), and tracked for orphan cleanup (list + delete).
+  # configmaps: rolegroup configuration; watched by the controller via .owns()/.watches()
+  # services: rolegroup headless/metrics services and optional reporting-task service;
+  #   watched by the controller via .owns()
   - apiGroups:
       - ""
     resources:
-      - pods
       - configmaps
       - services
-      - endpoints
-      - secrets
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - watch
+  # serviceaccounts: one ServiceAccount per NifiCluster (built by build_rbac_resources);
+  #   applied via SSA + orphan cleanup; not watched by the controller
+  - apiGroups:
+      - ""
+    resources:
       - serviceaccounts
     verbs:
       - create
@@ -34,8 +42,18 @@ rules:
       - get
       - list
       - patch
-      - update
-      - watch
+  # secrets: sensitive-properties key and (when OIDC) admin-password secret;
+  #   looked up with get_opt and created with client.create() — not tracked by
+  #   cluster_resources, so no list/delete needed
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+      - create
+  # rolebindings: one RoleBinding per NifiCluster (built by build_rbac_resources);
+  #   applied via SSA + orphan cleanup; not watched by the controller
   - apiGroups:
       - rbac.authorization.k8s.io
     resources:
@@ -46,20 +64,21 @@ rules:
       - get
       - list
       - patch
-      - update
-      - watch
+  # statefulsets: one StatefulSet per role group; applied via SSA + orphan cleanup;
+  #   watched by the controller via .owns()
   - apiGroups:
       - apps
     resources:
       - statefulsets
     verbs:
-      - get
       - create
       - delete
+      - get
       - list
       - patch
-      - update
       - watch
+  # jobs: optional reporting-task Job created when spec.clusterConfig.createReportingTaskJob
+  #   is enabled (NiFi 1.x only); applied via SSA + orphan cleanup; not watched by the controller
   - apiGroups:
       - batch
     resources:
@@ -70,8 +89,8 @@ rules:
       - get
       - list
       - patch
-      - update
-      - watch
+  # poddisruptionbudgets: one PDB per NifiCluster role (when pdb.enabled);
+  #   applied via SSA + orphan cleanup; not watched by the controller
   - apiGroups:
       - policy
     resources:
@@ -82,8 +101,6 @@ rules:
       - get
       - list
       - patch
-      - update
-      - watch
   - apiGroups:
       - apiextensions.k8s.io
     resources:
@@ -99,6 +116,7 @@ rules:
       - list
       - watch
       {{- end }}
+  # For reporting controller reconciliation results as Kubernetes Events
   - apiGroups:
       - events.k8s.io
     resources:
@@ -106,17 +124,19 @@ rules:
     verbs:
       - create
       - patch
+  # listeners: one Listener per NifiCluster role (via build_group_listener);
+  #   applied via SSA + orphan cleanup; not watched by the controller
   - apiGroups:
       - listeners.stackable.tech
     resources:
       - listeners
     verbs:
-      - get
-      - list
-      - watch
-      - patch
       - create
       - delete
+      - get
+      - list
+      - patch
+  # Primary CRD: list + watch for the controller, get for direct lookups
   - apiGroups:
       - {{ include "operator.name" . }}.stackable.tech
     resources:
@@ -124,14 +144,15 @@ rules:
     verbs:
       - get
       - list
-      - patch
       - watch
+  # Status subresource: patched via client.apply_patch_status() after each reconciliation
   - apiGroups:
       - {{ include "operator.name" . }}.stackable.tech
     resources:
       - {{ include "operator.name" . }}clusters/status
     verbs:
       - patch
+  # AuthenticationClass: read for resolving authentication configuration
   - apiGroups:
       - authentication.stackable.tech
     resources:
@@ -140,6 +161,7 @@ rules:
       - get
       - list
       - watch
+  # Required to bind the product ClusterRole to per-cluster ServiceAccounts
   - apiGroups:
       - rbac.authorization.k8s.io
     resources:
