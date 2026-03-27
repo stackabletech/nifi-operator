@@ -187,6 +187,7 @@ mod tests {
         let oidc = oidc::v1alpha1::ClientAuthenticationOptions {
             client_credentials_secret_ref: "nifi-keycloak-client".to_owned(),
             extra_scopes: vec![],
+            client_authentication_method: Default::default(),
             product_specific_fields: (),
         };
 

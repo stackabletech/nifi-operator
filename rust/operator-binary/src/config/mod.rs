@@ -20,7 +20,7 @@ use strum::{Display, EnumIter};
 
 use crate::{
     crd::{
-        HTTPS_PORT, NifiConfig, NifiConfigFragment, NifiNodeRoleConfig, NifiRole,
+        HTTPS_PORT, NifiConfig, NifiConfigFragment, NifiConfigOverrides, NifiNodeRoleConfig, NifiRole,
         NifiStorageConfig, PROTOCOL_PORT, sensitive_properties,
         v1alpha1::{self, NifiClusteringBackend},
     },
@@ -116,7 +116,7 @@ pub enum Error {
 pub fn build_bootstrap_conf(
     merged_config: &NifiConfig,
     overrides: BTreeMap<String, String>,
-    role: &Role<NifiConfigFragment, NifiNodeRoleConfig, JavaCommonConfig>,
+    role: &Role<NifiConfigFragment, NifiConfigOverrides, NifiNodeRoleConfig, JavaCommonConfig>,
     role_group: &str,
     authorization_config: Option<&crate::security::authorization::ResolvedNifiAuthorizationConfig>,
 ) -> Result<String, Error> {
@@ -756,7 +756,7 @@ pub fn build_state_management_xml(clustering_backend: &NifiClusteringBackend) ->
 pub fn validated_product_config(
     resource: &v1alpha1::NifiCluster,
     version: &str,
-    role: &Role<NifiConfigFragment, NifiNodeRoleConfig, JavaCommonConfig>,
+    role: &Role<NifiConfigFragment, NifiConfigOverrides, NifiNodeRoleConfig, JavaCommonConfig>,
     product_config: &ProductConfigManager,
 ) -> Result<ValidatedRoleConfigByPropertyKind, Error> {
     let mut roles = HashMap::new();
