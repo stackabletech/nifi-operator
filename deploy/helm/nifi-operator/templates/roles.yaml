@@ -101,13 +101,12 @@ rules:
       - get
       - list
       - patch
-  # customresourcedefinitions: read to check CRD existence; patched to maintain the conversion webhook certificate
+  # customresourcedefinitions: patched to maintain the conversion webhook certificate
   - apiGroups:
       - apiextensions.k8s.io
     resources:
       - customresourcedefinitions
     verbs:
-      - get
       # Required to maintain the CRD. The operator needs to do this, as it needs to enter e.g. it's
       # generated certificate in the conversion webhook.
       {{- if .Values.maintenance.customResourceDefinitions.maintain }}
