@@ -179,16 +179,6 @@ metadata:
   labels:
   {{- include "operator.labels" . | nindent 4 }}
 rules:
-  - apiGroups:
-      - ""
-    resources:
-      - secrets
-      - serviceaccounts
-      # This is redundant with the rule for specifically about configmaps
-      # (due to clustering), but we read them for other purposes too
-      - configmaps
-    verbs:
-      - get
   # For emitting Kubernetes Events
   - apiGroups:
       - events.k8s.io
