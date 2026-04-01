@@ -13,11 +13,7 @@ rules:
     verbs:
       - get
   # Manage core workload resources created per NifiCluster.
-  # All resources are applied via Server-Side Apply (create + patch), fetched when
-  # reconciliation is paused (get), and tracked for orphan cleanup (list + delete).
-  # configmaps: rolegroup configuration; watched by the controller via .owns()/.watches()
-  # services: rolegroup headless/metrics services and optional reporting-task service;
-  #   watched by the controller via .owns()
+  # Applied via SSA and tracked for orphan cleanup.
   - apiGroups:
       - ""
     resources:
@@ -30,8 +26,8 @@ rules:
       - list
       - patch
       - watch
-  # serviceaccounts: one ServiceAccount per NifiCluster (built by build_rbac_resources);
-  #   applied via SSA + orphan cleanup; not watched by the controller
+  # ServiceAccount created per NifiCluster for workload pod identity.
+  # Applied via SSA and tracked for orphan cleanup.
   - apiGroups:
       - ""
     resources:
@@ -42,9 +38,7 @@ rules:
       - get
       - list
       - patch
-  # secrets: sensitive-properties key and (when OIDC) admin-password secret;
-  #   looked up with get_opt and created with client.create() — not tracked by
-  #   cluster_resources, so no list/delete needed
+  # Sensitive properties key and (when OIDC) admin password secret.
   - apiGroups:
       - ""
     resources:
@@ -52,8 +46,8 @@ rules:
     verbs:
       - get
       - create
-  # rolebindings: one RoleBinding per NifiCluster (built by build_rbac_resources);
-  #   applied via SSA + orphan cleanup; not watched by the controller
+  # RoleBinding created per NifiCluster to bind the product ClusterRole to the workload
+  # ServiceAccount. Applied via SSA and tracked for orphan cleanup.
   - apiGroups:
       - rbac.authorization.k8s.io
     resources:
@@ -64,8 +58,8 @@ rules:
       - get
       - list
       - patch
-  # statefulsets: one StatefulSet per role group; applied via SSA + orphan cleanup;
-  #   watched by the controller via .owns()
+  # StatefulSet created per role group. Applied via SSA, tracked for orphan cleanup, and
+  # owned by the controller.
   - apiGroups:
       - apps
     resources:
@@ -77,8 +71,7 @@ rules:
       - list
       - patch
       - watch
-  # jobs: optional reporting-task Job created when spec.clusterConfig.createReportingTaskJob
-  #   is enabled (NiFi 1.x only); applied via SSA + orphan cleanup; not watched by the controller
+  # Optional reporting-task Job (NiFi 1.x only). Applied via SSA and tracked for orphan cleanup.
   - apiGroups:
       - batch
     resources:
@@ -89,8 +82,7 @@ rules:
       - get
       - list
       - patch
-  # poddisruptionbudgets: one PDB per NifiCluster role (when pdb.enabled);
-  #   applied via SSA + orphan cleanup; not watched by the controller
+  # PodDisruptionBudget created per role. Applied via SSA and tracked for orphan cleanup.
   - apiGroups:
       - policy
     resources:
@@ -101,7 +93,8 @@ rules:
       - get
       - list
       - patch
-  # customresourcedefinitions: patched to maintain the conversion webhook certificate
+  # Required for maintaining the CRDs within the operator (including the conversion webhook info).
+  # Also for the startup condition check before the controller can run.
   - apiGroups:
       - apiextensions.k8s.io
     resources:
@@ -116,7 +109,7 @@ rules:
       # Required for startup condition
       - list
       - watch
-  # For reporting controller reconciliation results as Kubernetes Events
+  # Required to report reconciliation results and warnings back to the NifiCluster object.
   - apiGroups:
       - events.k8s.io
     resources:
@@ -124,8 +117,8 @@ rules:
     verbs:
       - create
       - patch
-  # listeners: one Listener per NifiCluster role (via build_group_listener);
-  #   applied via SSA + orphan cleanup; not watched by the controller
+  # Listener created per role group for external access. Applied via SSA and tracked for orphan
+  # cleanup.
   - apiGroups:
       - listeners.stackable.tech
     resources:
@@ -136,7 +129,7 @@ rules:
       - get
       - list
       - patch
-  # Primary CRD: list + watch for the controller, get for direct lookups
+  # Primary CRD: watched by the controller and read during reconciliation.
   - apiGroups:
       - {{ include "operator.name" . }}.stackable.tech
     resources:
@@ -145,14 +138,14 @@ rules:
       - get
       - list
       - watch
-  # Status subresource: patched via client.apply_patch_status() after each reconciliation
+  # Status subresource: updated at the end of every reconciliation.
   - apiGroups:
       - {{ include "operator.name" . }}.stackable.tech
     resources:
       - {{ include "operator.name" . }}clusters/status
     verbs:
       - patch
-  # AuthenticationClass: read for resolving authentication configuration
+  # Read authentication class configuration referenced in the NifiCluster spec.
   - apiGroups:
       - authentication.stackable.tech
     resources:
