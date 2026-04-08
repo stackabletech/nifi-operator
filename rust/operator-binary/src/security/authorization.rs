@@ -3,7 +3,7 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::pod::volume::{SecretOperatorVolumeSourceBuilder, VolumeBuilder},
     client::Client,
-    commons::opa::OpaConfig,
+    commons::{opa::OpaConfig, secret_class::SecretClassVolumeProvisionParts},
     k8s_openapi::api::core::v1::{
         ConfigMap, ConfigMapKeySelector, EnvVar, EnvVarSource, Volume, VolumeMount,
     },
@@ -240,9 +240,12 @@ impl ResolvedNifiAuthorizationConfig {
             volumes.push(
                 VolumeBuilder::new(OPA_TLS_VOLUME_NAME)
                     .ephemeral(
-                        SecretOperatorVolumeSourceBuilder::new(secret_class)
-                            .build()
-                            .context(OpaTlsCertSecretClassVolumeBuildSnafu)?,
+                        SecretOperatorVolumeSourceBuilder::new(
+                            secret_class,
+                            SecretClassVolumeProvisionParts::PublicPrivate,
+                        )
+                        .build()
+                        .context(OpaTlsCertSecretClassVolumeBuildSnafu)?,
                     )
                     .build(),
             )

@@ -188,6 +188,7 @@ mod tests {
             client_credentials_secret_ref: "nifi-keycloak-client".to_owned(),
             extra_scopes: vec![],
             product_specific_fields: (),
+            client_authentication_method: Default::default(),
         };
 
         add_oidc_config_to_properties(&provider, &oidc, &mut properties)
