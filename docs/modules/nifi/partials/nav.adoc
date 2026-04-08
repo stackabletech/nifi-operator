@@ -22,6 +22,7 @@
 *** xref:nifi:usage_guide/operations/pod-placement.adoc[]
 *** xref:nifi:usage_guide/operations/pod-disruptions.adoc[]
 *** xref:nifi:usage_guide/operations/graceful-shutdown.adoc[]
+** xref:nifi:usage_guide/entraid.adoc[]
 * xref:nifi:troubleshooting/index.adoc[]
 * xref:nifi:reference/index.adoc[]
 ** xref:nifi:reference/crds.adoc[]

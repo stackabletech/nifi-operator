@@ -1,5 +1,25 @@
 ---
 apiVersion: trino.stackable.tech/v1alpha1
+kind: TrinoCatalog
+metadata:
+  name: lakehouse
+  labels:
+    trino: trino
+spec:
+  connector:
+    iceberg:
+      s3:
+        reference: minio
+  configOverrides:
+    iceberg.catalog.type: rest
+    # We are using the headless service, as the hive-metastore service is missing port 9001
+    iceberg.rest-catalog.uri: http://hive-metastore-default-headless:9001/iceberg
+    iceberg.rest-catalog.security: OAUTH2
+    iceberg.rest-catalog.oauth2.server-uri: https://keycloak.$NAMESPACE.svc.cluster.local:8443/realms/test/protocol/openid-connect/token
+    # TODO Mount as env var from Secret trino-client-credentials
+    iceberg.rest-catalog.oauth2.credential: trino:trino-secret
+---
+apiVersion: trino.stackable.tech/v1alpha1
 kind: TrinoCluster
 metadata:
   name: trino
@@ -34,23 +54,3 @@ spec:
     roleGroups:
       default:
         replicas: 1
----
-apiVersion: trino.stackable.tech/v1alpha1
-kind: TrinoCatalog
-metadata:
-  name: lakehouse
-  labels:
-    trino: trino
-spec:
-  connector:
-    iceberg:
-      s3:
-        reference: minio
-  configOverrides:
-    iceberg.catalog.type: rest
-    # We are using the headless service, as the hive-metastore service is missing port 9001
-    iceberg.rest-catalog.uri: http://hive-metastore-default-headless:9001/iceberg
-    iceberg.rest-catalog.security: OAUTH2
-    iceberg.rest-catalog.oauth2.server-uri: https://keycloak.$NAMESPACE.svc.cluster.local:8443/realms/test/protocol/openid-connect/token
-    # TODO Mount as env var from Secret trino-client-credentials
-    iceberg.rest-catalog.oauth2.credential: trino:trino-secret

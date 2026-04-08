@@ -1,3 +1,4 @@
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -5,13 +6,6 @@ metadata:
   labels:
   {{- include "operator.labels" . | nindent 4 }}
 rules:
-  - apiGroups:
-      - ""
-    resources:
-      - nodes
-    verbs:
-      - list
-      - watch
   # For automatic cluster domain detection
   - apiGroups:
       - ""
@@ -19,14 +13,25 @@ rules:
       - nodes/proxy
     verbs:
       - get
+  # Manage core workload resources created per NifiCluster.
+  # Applied via SSA and tracked for orphan cleanup.
   - apiGroups:
       - ""
     resources:
-      - pods
       - configmaps
       - services
-      - endpoints
-      - secrets
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - watch
+  # ServiceAccount created per NifiCluster for workload pod identity.
+  # Applied via SSA and tracked for orphan cleanup.
+  - apiGroups:
+      - ""
+    resources:
       - serviceaccounts
     verbs:
       - create
@@ -34,8 +39,16 @@ rules:
       - get
       - list
       - patch
-      - update
-      - watch
+  # Sensitive properties key and (when OIDC) admin password secret.
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+      - create
+  # RoleBinding created per NifiCluster to bind the product ClusterRole to the workload
+  # ServiceAccount. Applied via SSA and tracked for orphan cleanup.
   - apiGroups:
       - rbac.authorization.k8s.io
     resources:
@@ -46,20 +59,29 @@ rules:
       - get
       - list
       - patch
-      - update
-      - watch
+  # Required to bind the product ClusterRole to per-cluster ServiceAccounts
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - clusterroles
+    verbs:
+      - bind
+    resourceNames:
+      - {{ include "operator.name" . }}-clusterrole
+  # StatefulSet created per role group. Applied via SSA, tracked for orphan cleanup, and
+  # owned by the controller.
   - apiGroups:
       - apps
     resources:
       - statefulsets
     verbs:
-      - get
       - create
       - delete
+      - get
       - list
       - patch
-      - update
       - watch
+  # Optional reporting-task Job (NiFi 1.x only). Applied via SSA and tracked for orphan cleanup.
   - apiGroups:
       - batch
     resources:
@@ -70,8 +92,7 @@ rules:
       - get
       - list
       - patch
-      - update
-      - watch
+  # PodDisruptionBudget created per role. Applied via SSA and tracked for orphan cleanup.
   - apiGroups:
       - policy
     resources:
@@ -82,20 +103,23 @@ rules:
       - get
       - list
       - patch
-      - update
-      - watch
+  # Required for maintaining the CRDs within the operator (including the conversion webhook info).
+  # Also for the startup condition check before the controller can run.
   - apiGroups:
       - apiextensions.k8s.io
     resources:
       - customresourcedefinitions
     verbs:
-      - get
       # Required to maintain the CRD. The operator needs to do this, as it needs to enter e.g. it's
       # generated certificate in the conversion webhook.
       {{- if .Values.maintenance.customResourceDefinitions.maintain }}
       - create
       - patch
       {{- end }}
+      # Required for startup condition
+      - list
+      - watch
+  # Required to report reconciliation results and warnings back to the NifiCluster object.
   - apiGroups:
       - events.k8s.io
     resources:
@@ -103,17 +127,19 @@ rules:
     verbs:
       - create
       - patch
+  # Listener created per role group for external access. Applied via SSA and tracked for orphan
+  # cleanup.
   - apiGroups:
       - listeners.stackable.tech
     resources:
       - listeners
     verbs:
-      - get
-      - list
-      - watch
-      - patch
       - create
       - delete
+      - get
+      - list
+      - patch
+  # Primary CRD: watched by the controller and read during reconciliation.
   - apiGroups:
       - {{ include "operator.name" . }}.stackable.tech
     resources:
@@ -121,14 +147,15 @@ rules:
     verbs:
       - get
       - list
-      - patch
       - watch
+  # Status subresource: updated at the end of every reconciliation.
   - apiGroups:
       - {{ include "operator.name" . }}.stackable.tech
     resources:
       - {{ include "operator.name" . }}clusters/status
     verbs:
       - patch
+  # Read authentication class configuration referenced in the NifiCluster spec.
   - apiGroups:
       - authentication.stackable.tech
     resources:
@@ -137,70 +164,3 @@ rules:
       - get
       - list
       - watch
-  - apiGroups:
-      - rbac.authorization.k8s.io
-    resources:
-      - clusterroles
-    verbs:
-      - bind
-    resourceNames:
-      - {{ include "operator.name" . }}-clusterrole
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: {{ include "operator.name" . }}-clusterrole
-  labels:
-  {{- include "operator.labels" . | nindent 4 }}
-rules:
-  - apiGroups:
-      - ""
-    resources:
-      - secrets
-      - serviceaccounts
-      # This is redundant with the rule for specifically about configmaps
-      # (due to clustering), but we read them for other purposes too
-      - configmaps
-    verbs:
-      - get
-  - apiGroups:
-      - events.k8s.io
-    resources:
-      - events
-    verbs:
-      - create
-      - patch
-  # Required for Kubernetes-managed clustering, see https://nifi.apache.org/nifi-docs/administration-guide.html#kubernetes-clustering
-  - apiGroups:
-      - coordination.k8s.io
-    resources:
-      - leases
-    verbs:
-      - create
-      - get
-      - update
-      # undocumented but required
-      - patch
-  # Required for Kubernetes cluster state provider, see https://nifi.apache.org/nifi-docs/administration-guide.html#kubernetes-configmap-cluster-state-provider
-  - apiGroups:
-      - ""
-    resources:
-      - configmaps
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-{{ if .Capabilities.APIVersions.Has "security.openshift.io/v1" }}
-  - apiGroups:
-      - security.openshift.io
-    resources:
-      - securitycontextconstraints
-    resourceNames:
-      - nonroot-v2
-    verbs:
-      - use
-{{ end }}
