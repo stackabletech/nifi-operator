@@ -184,9 +184,6 @@ pub mod versioned {
             /// NiFi 1.x requires ZooKeeper.
             zookeeper_config_map_name: String,
         },
-        // Workaround for https://github.com/kube-rs/kube/issues/1941
-        // TODO revert this before merging!
-        #[schemars(schema_with = "empty_schema")]
         Kubernetes {},
     }
 }
@@ -546,10 +543,4 @@ impl Default for NifiNodeRoleConfig {
 
 fn node_default_listener_class() -> String {
     "cluster-internal".to_string()
-}
-
-// Workaround for https://github.com/kube-rs/kube/issues/1941
-// TODO revert this before merging!
-fn empty_schema(_: &mut schemars::generate::SchemaGenerator) -> schemars::Schema {
-    schemars::json_schema!({})
 }
