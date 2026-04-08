@@ -8,7 +8,7 @@ data:
     events {}
     http {
       server {
-        listen 443 ssl;
+        listen 8443 ssl;
         server_name _;
 
         ssl_certificate /etc/nginx/tls/tls.crt;
@@ -49,9 +49,9 @@ spec:
     spec:
       containers:
         - name: nginx
-          image: nginx:alpine
+          image: nginxinc/nginx-unprivileged:alpine
           ports:
-            - containerPort: 443
+            - containerPort: 8443
           volumeMounts:
             - name: config
               mountPath: /etc/nginx/nginx.conf
@@ -59,6 +59,10 @@ spec:
             - name: tls
               mountPath: /etc/nginx/tls
               readOnly: true
+            - name: cache
+              mountPath: /var/cache/nginx
+            - name: run
+              mountPath: /var/run
       volumes:
         - name: config
           configMap:
@@ -66,6 +70,10 @@ spec:
         - name: tls
           secret:
             secretName: git-proxy-tls
+        - name: cache
+          emptyDir: {}
+        - name: run
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -76,4 +84,4 @@ spec:
     app: git-proxy
   ports:
     - port: 443
-      targetPort: 443
+      targetPort: 8443
