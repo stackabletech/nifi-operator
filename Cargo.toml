@@ -34,10 +34,6 @@ tracing = "0.1"
 url = { version = "2.5.7" }
 xml-rs = "1.0"
 
-[patch."https://github.com/stackabletech/operator-rs.git"]
-# TODO revert this before merging!
+# [patch."https://github.com/stackabletech/operator-rs.git"]
 # stackable-operator = { git = "https://github.com/stackabletech//operator-rs.git", branch = "main" }
 # stackable-operator = { path = "../operator-rs/crates/stackable-operator" }
-
-[patch.crates-io]
-# kube = { git = "https://github.com/stackabletech/kube-rs", branch = "2.0.1-fix-schema-hoisting" }
