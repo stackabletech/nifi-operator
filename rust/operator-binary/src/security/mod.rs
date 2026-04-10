@@ -35,11 +35,12 @@ pub async fn check_or_generate_sensitive_key(
         .context(SensitiveKeySnafu)
 }
 
-pub async fn check_or_generate_oidc_admin_password(
+pub async fn build_oidc_admin_password_secret(
     client: &Client,
     nifi: &v1alpha1::NifiCluster,
-) -> Result<bool> {
-    oidc::check_or_generate_oidc_admin_password(client, nifi)
+    labels: stackable_operator::kvp::ObjectLabels<'_, v1alpha1::NifiCluster>,
+) -> Result<stackable_operator::k8s_openapi::api::core::v1::Secret> {
+    oidc::build_oidc_admin_password_secret(client, nifi, labels)
         .await
         .context(OidcAdminPasswordSnafu)
 }

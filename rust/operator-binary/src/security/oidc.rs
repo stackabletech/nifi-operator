@@ -9,6 +9,7 @@ use stackable_operator::{
     crd::authentication::oidc,
     k8s_openapi::api::core::v1::Secret,
     kube::{ResourceExt, runtime::reflector::ObjectRef},
+    kvp::ObjectLabels,
 };
 
 use crate::{crd::v1alpha1, security::authentication::STACKABLE_ADMIN_USERNAME};
@@ -37,64 +38,70 @@ pub enum Error {
 
     #[snafu(display("Nifi doesn't support skipping the OIDC TLS verification"))]
     SkippingTlsVerificationNotSupported {},
+
+    #[snafu(display("failed to build OIDC admin password secret metadata"))]
+    BuildOidcAdminPasswordSecretMetadata {
+        source: stackable_operator::builder::meta::Error,
+    },
 }
 
-/// Generate a secret containing the password for the admin user that can access the API.
+/// Build a Secret containing the OIDC admin password.
 ///
-/// This admin user is the same as for SingleUser authentication.
-pub(crate) async fn check_or_generate_oidc_admin_password(
+/// If the secret already exists, the existing password is preserved.
+/// Otherwise a new random password is generated.
+pub(crate) async fn build_oidc_admin_password_secret(
     client: &Client,
     nifi: &v1alpha1::NifiCluster,
-) -> Result<bool, Error> {
+    labels: ObjectLabels<'_, v1alpha1::NifiCluster>,
+) -> Result<Secret, Error> {
     let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
     tracing::debug!("Checking for OIDC admin password configuration");
-    match client
+
+    let password = match client
         .get_opt::<Secret>(&build_oidc_admin_password_secret_name(nifi), namespace)
         .await
         .context(OidcAdminPasswordSecretSnafu)?
     {
         Some(secret) => {
-            let admin_password_present = secret
+            let existing_password = secret
                 .data
-                .iter()
-                .flat_map(|data| data.keys())
-                .any(|key| key == STACKABLE_ADMIN_USERNAME);
+                .as_ref()
+                .and_then(|data| data.get(STACKABLE_ADMIN_USERNAME))
+                .map(|bytes| String::from_utf8_lossy(&bytes.0).into_owned());
 
-            if admin_password_present {
-                Ok(false)
-            } else {
-                MissingAdminPasswordKeySnafu {
+            match existing_password {
+                Some(password) => password,
+                None => MissingAdminPasswordKeySnafu {
                     secret: ObjectRef::from_obj(&secret),
                 }
-                .fail()?
+                .fail()?,
             }
         }
         None => {
-            tracing::info!("No existing oidc admin password secret found, generating new one");
-            let password: String = rand::rng()
+            tracing::info!("No existing OIDC admin password secret found, generating new one");
+            rand::rng()
                 .sample_iter(&Alphanumeric)
                 .take(15)
                 .map(char::from)
-                .collect();
-
-            let mut secret_data = BTreeMap::new();
-            secret_data.insert("admin".to_string(), password);
-
-            let new_secret = Secret {
-                metadata: ObjectMetaBuilder::new()
-                    .namespace(namespace)
-                    .name(build_oidc_admin_password_secret_name(nifi))
-                    .build(),
-                string_data: Some(secret_data),
-                ..Secret::default()
-            };
-            client
-                .create(&new_secret)
-                .await
-                .context(OidcAdminPasswordSecretSnafu)?;
-            Ok(true)
+                .collect()
         }
-    }
+    };
+
+    Ok(Secret {
+        metadata: ObjectMetaBuilder::new()
+            .name_and_namespace(nifi)
+            .name(build_oidc_admin_password_secret_name(nifi))
+            .ownerreference_from_resource(nifi, None, Some(true))
+            .context(BuildOidcAdminPasswordSecretMetadataSnafu)?
+            .with_recommended_labels(labels)
+            .context(BuildOidcAdminPasswordSecretMetadataSnafu)?
+            .build(),
+        string_data: Some(BTreeMap::from([(
+            STACKABLE_ADMIN_USERNAME.to_string(),
+            password,
+        )])),
+        ..Secret::default()
+    })
 }
 
 pub fn build_oidc_admin_password_secret_name(nifi: &v1alpha1::NifiCluster) -> String {
