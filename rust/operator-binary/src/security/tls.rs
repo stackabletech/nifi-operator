@@ -1,6 +1,7 @@
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::pod::volume::{SecretFormat, SecretOperatorVolumeSourceBuilder, VolumeBuilder},
+    commons::secret_class::SecretClassVolumeProvisionParts,
     k8s_openapi::api::core::v1::Volume,
     shared::time::Duration,
 };
@@ -29,8 +30,12 @@ pub(crate) fn build_tls_volume(
     requested_secret_lifetime: &Duration,
     listener_scope: Option<&str>,
 ) -> Result<Volume> {
-    let mut secret_volume_source_builder =
-        SecretOperatorVolumeSourceBuilder::new(nifi.server_tls_secret_class());
+    // NiFi serves its own TLS endpoints, so the Pod needs both the public
+    // certificate and the private key.
+    let mut secret_volume_source_builder = SecretOperatorVolumeSourceBuilder::new(
+        nifi.server_tls_secret_class(),
+        SecretClassVolumeProvisionParts::PublicPrivate,
+    );
 
     if secret_format == SecretFormat::TlsPkcs12 {
         secret_volume_source_builder.with_tls_pkcs12_password(STACKABLE_TLS_STORE_PASSWORD);
