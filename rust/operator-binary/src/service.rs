@@ -37,7 +37,7 @@ pub fn build_rolegroup_headless_service(
             .name(role_group_ref.rolegroup_headless_service_name())
             .ownerreference_from_resource(nifi, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(object_labels)
+            .with_recommended_labels(&object_labels)
             .context(MetadataBuildSnafu)?
             .build(),
         spec: Some(ServiceSpec {
@@ -67,7 +67,7 @@ pub fn build_rolegroup_metrics_service(
             .name(role_group_ref.rolegroup_metrics_service_name())
             .ownerreference_from_resource(nifi, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(object_labels)
+            .with_recommended_labels(&object_labels)
             .context(MetadataBuildSnafu)?
             .with_labels(prometheus_labels())
             .with_annotations(prometheus_annotations(product_version))

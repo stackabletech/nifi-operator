@@ -4,8 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- BREAKING: `configOverrides` now only accepts `bootstrap.conf`, `nifi.properties` and `security.properties`.
+  Previously, arbitrary keys were silently accepted but ignored ([#NNN]).
+- Bump `stackable-operator` to 0.110.0 and `kube` to 3.1.0 ([#NNN]).
 - Document Helm deployed RBAC permissions and remove unnecessary permissions ([#916]).
 
+[#NNN]: https://github.com/stackabletech/nifi-operator/pull/NNN
 [#916]: https://github.com/stackabletech/nifi-operator/pull/916
 
 ## [26.3.0] - 2026-03-16
