@@ -25,6 +25,7 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
+    config_overrides::{KeyValueConfigOverrides, KeyValueOverridesProvider},
     crd::{authentication::core as auth_core, git_sync},
     deep_merger::ObjectOverrides,
     k8s_openapi::{
@@ -100,7 +101,7 @@ pub mod versioned {
 
         // no doc - docs in Role struct.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub nodes: Option<Role<NifiConfigFragment, NifiNodeRoleConfig, JavaCommonConfig>>,
+        pub nodes: Option<Role<NifiConfigFragment, NifiConfigOverrides, NifiNodeRoleConfig, JavaCommonConfig>>,
 
         // no doc - docs in ProductImage struct.
         pub image: ProductImage,
@@ -520,6 +521,49 @@ pub struct NifiStorageConfig {
     /// Default size: 16MB
     #[fragment_attrs(serde(default))]
     pub filebased_repo: PvcConfig,
+}
+
+/// Typed config overrides for NiFi configuration files.
+///
+/// Each field corresponds to a configuration file that supports key-value overrides.
+/// The field names match the actual file names used by NiFi.
+#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NifiConfigOverrides {
+    /// Overrides for the `bootstrap.conf` file.
+    #[serde(rename = "bootstrap.conf")]
+    pub bootstrap_conf: Option<KeyValueConfigOverrides>,
+
+    /// Overrides for the `nifi.properties` file.
+    #[serde(rename = "nifi.properties")]
+    pub nifi_properties: Option<KeyValueConfigOverrides>,
+
+    /// Overrides for the `security.properties` file.
+    #[serde(rename = "security.properties")]
+    pub security_properties: Option<KeyValueConfigOverrides>,
+}
+
+impl KeyValueOverridesProvider for NifiConfigOverrides {
+    fn get_key_value_overrides(&self, file: &str) -> BTreeMap<String, Option<String>> {
+        match file {
+            "bootstrap.conf" => self
+                .bootstrap_conf
+                .as_ref()
+                .map(|kv| kv.as_overrides())
+                .unwrap_or_default(),
+            "nifi.properties" => self
+                .nifi_properties
+                .as_ref()
+                .map(|kv| kv.as_overrides())
+                .unwrap_or_default(),
+            "security.properties" => self
+                .security_properties
+                .as_ref()
+                .map(|kv| kv.as_overrides())
+                .unwrap_or_default(),
+            _ => BTreeMap::new(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]

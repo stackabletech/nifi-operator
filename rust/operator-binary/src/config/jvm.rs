@@ -6,7 +6,7 @@ use stackable_operator::{
 
 use crate::{
     config::{JVM_SECURITY_PROPERTIES_FILE, NIFI_CONFIG_DIRECTORY},
-    crd::{NifiConfig, NifiConfigFragment, NifiNodeRoleConfig},
+    crd::{NifiConfig, NifiConfigFragment, NifiConfigOverrides, NifiNodeRoleConfig},
     security::{
         authentication::{STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD},
         authorization::ResolvedNifiAuthorizationConfig,
@@ -33,7 +33,7 @@ pub enum Error {
 /// Create the NiFi bootstrap.conf
 pub fn build_merged_jvm_config(
     merged_config: &NifiConfig,
-    role: &Role<NifiConfigFragment, NifiNodeRoleConfig, JavaCommonConfig>,
+    role: &Role<NifiConfigFragment, NifiConfigOverrides, NifiNodeRoleConfig, JavaCommonConfig>,
     role_group: &str,
     authorization_config: Option<&ResolvedNifiAuthorizationConfig>,
 ) -> Result<JvmArgumentOverrides, Error> {
