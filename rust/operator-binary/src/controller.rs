@@ -85,9 +85,9 @@ use crate::{
     crd::{
         APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, Container, HTTPS_PORT, HTTPS_PORT_NAME,
         METRICS_PORT, METRICS_PORT_NAME, NifiConfig, NifiNodeRoleConfig, NifiRole, NifiRoleType,
-        NifiStatus, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
-        STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR, authentication::AuthenticationClassResolved,
-        authorization::NifiAccessPolicyProvider, v1alpha1,
+        NifiStatus, PROTOCOL_PORT, PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
+        authentication::AuthenticationClassResolved, authorization::NifiAccessPolicyProvider,
+        v1alpha1,
     },
     listener::{
         LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_group_listener, build_group_listener_pvc,

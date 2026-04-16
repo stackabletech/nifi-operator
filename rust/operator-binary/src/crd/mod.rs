@@ -65,12 +65,8 @@ pub const MAX_NIFI_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity::from_mebi(10
 
 const DEFAULT_NODE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_minutes_unchecked(5);
 
-pub type NifiRoleType = Role<
-    NifiConfigFragment,
-    v1alpha1::NifiConfigOverrides,
-    NifiNodeRoleConfig,
-    JavaCommonConfig,
->;
+pub type NifiRoleType =
+    Role<NifiConfigFragment, v1alpha1::NifiConfigOverrides, NifiNodeRoleConfig, JavaCommonConfig>;
 
 pub type NifiRoleGroupType =
     RoleGroup<NifiConfigFragment, JavaCommonConfig, v1alpha1::NifiConfigOverrides>;
