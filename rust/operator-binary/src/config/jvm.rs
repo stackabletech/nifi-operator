@@ -1,12 +1,12 @@
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     memory::{BinaryMultiple, MemoryQuantity},
-    role_utils::{self, JavaCommonConfig, JvmArgumentOverrides, Role},
+    role_utils::{self, JvmArgumentOverrides},
 };
 
 use crate::{
     config::{JVM_SECURITY_PROPERTIES_FILE, NIFI_CONFIG_DIRECTORY},
-    crd::{NifiConfig, NifiConfigFragment, NifiNodeRoleConfig},
+    crd::{NifiConfig, NifiRoleType},
     security::{
         authentication::{STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD},
         authorization::ResolvedNifiAuthorizationConfig,
@@ -33,7 +33,7 @@ pub enum Error {
 /// Create the NiFi bootstrap.conf
 pub fn build_merged_jvm_config(
     merged_config: &NifiConfig,
-    role: &Role<NifiConfigFragment, NifiNodeRoleConfig, JavaCommonConfig>,
+    role: &NifiRoleType,
     role_group: &str,
     authorization_config: Option<&ResolvedNifiAuthorizationConfig>,
 ) -> Result<JvmArgumentOverrides, Error> {

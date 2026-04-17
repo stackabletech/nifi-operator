@@ -228,7 +228,7 @@ fn build_reporting_task_service(
             .name(build_reporting_task_service_name(&nifi_cluster_name))
             .ownerreference_from_resource(nifi, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(build_recommended_labels(
+            .with_recommended_labels(&build_recommended_labels(
                 nifi,
                 &resolved_product_image.app_version_label_value,
                 &role_name,
@@ -378,7 +378,7 @@ fn build_reporting_task_job(
             .name(job_name)
             .ownerreference_from_resource(nifi, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(build_recommended_labels(
+            .with_recommended_labels(&build_recommended_labels(
                 nifi,
                 &resolved_product_image.app_version_label_value,
                 "global",

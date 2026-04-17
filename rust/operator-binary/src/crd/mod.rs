@@ -25,6 +25,7 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
+    config_overrides::{KeyValueConfigOverrides, KeyValueOverridesProvider},
     crd::{authentication::core as auth_core, git_sync},
     deep_merger::ObjectOverrides,
     k8s_openapi::{
@@ -44,6 +45,8 @@ use stackable_operator::{
 };
 use tls::NifiTls;
 
+use crate::config::{JVM_SECURITY_PROPERTIES_FILE, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES};
+
 pub const APP_NAME: &str = "nifi";
 
 pub const HTTPS_PORT_NAME: &str = "https";
@@ -61,6 +64,9 @@ pub const STACKABLE_LOG_CONFIG_DIR: &str = "/stackable/log_config";
 pub const MAX_NIFI_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity::from_mebi(10.0);
 
 const DEFAULT_NODE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_minutes_unchecked(5);
+
+pub type NifiRoleType =
+    Role<NifiConfigFragment, v1alpha1::NifiConfigOverrides, NifiNodeRoleConfig, JavaCommonConfig>;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -100,7 +106,7 @@ pub mod versioned {
 
         // no doc - docs in Role struct.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub nodes: Option<Role<NifiConfigFragment, NifiNodeRoleConfig, JavaCommonConfig>>,
+        pub nodes: Option<NifiRoleType>,
 
         // no doc - docs in ProductImage struct.
         pub image: ProductImage,
@@ -185,6 +191,42 @@ pub mod versioned {
             zookeeper_config_map_name: String,
         },
         Kubernetes {},
+    }
+
+    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct NifiConfigOverrides {
+        #[serde(rename = "bootstrap.conf", skip_serializing_if = "Option::is_none")]
+        pub bootstrap_conf: Option<KeyValueConfigOverrides>,
+
+        #[serde(rename = "nifi.properties", skip_serializing_if = "Option::is_none")]
+        pub nifi_properties: Option<KeyValueConfigOverrides>,
+
+        #[serde(
+            rename = "security.properties",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub security_properties: Option<KeyValueConfigOverrides>,
+    }
+}
+
+impl KeyValueOverridesProvider for v1alpha1::NifiConfigOverrides {
+    fn get_key_value_overrides(&self, file: &str) -> BTreeMap<String, Option<String>> {
+        let overrides = match file {
+            NIFI_BOOTSTRAP_CONF => &self.bootstrap_conf,
+            NIFI_PROPERTIES => &self.nifi_properties,
+            JVM_SECURITY_PROPERTIES_FILE => &self.security_properties,
+            _ => return BTreeMap::new(),
+        };
+        overrides
+            .as_ref()
+            .map(|o| {
+                o.overrides
+                    .iter()
+                    .map(|(k, v)| (k.clone(), Some(v.clone())))
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 }
 

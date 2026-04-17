@@ -14,14 +14,13 @@ use stackable_operator::{
         ValidatedRoleConfigByPropertyKind, transform_all_roles_to_config,
         validate_all_roles_and_groups_config,
     },
-    role_utils::{JavaCommonConfig, Role},
 };
 use strum::{Display, EnumIter};
 
 use crate::{
     crd::{
-        HTTPS_PORT, NifiConfig, NifiConfigFragment, NifiNodeRoleConfig, NifiRole,
-        NifiStorageConfig, PROTOCOL_PORT, sensitive_properties,
+        HTTPS_PORT, NifiConfig, NifiRole, NifiRoleType, NifiStorageConfig, PROTOCOL_PORT,
+        sensitive_properties,
         v1alpha1::{self, NifiClusteringBackend},
     },
     operations::graceful_shutdown::graceful_shutdown_config_properties,
@@ -116,7 +115,7 @@ pub enum Error {
 pub fn build_bootstrap_conf(
     merged_config: &NifiConfig,
     overrides: BTreeMap<String, String>,
-    role: &Role<NifiConfigFragment, NifiNodeRoleConfig, JavaCommonConfig>,
+    role: &NifiRoleType,
     role_group: &str,
     authorization_config: Option<&crate::security::authorization::ResolvedNifiAuthorizationConfig>,
 ) -> Result<String, Error> {
@@ -756,7 +755,7 @@ pub fn build_state_management_xml(clustering_backend: &NifiClusteringBackend) ->
 pub fn validated_product_config(
     resource: &v1alpha1::NifiCluster,
     version: &str,
-    role: &Role<NifiConfigFragment, NifiNodeRoleConfig, JavaCommonConfig>,
+    role: &NifiRoleType,
     product_config: &ProductConfigManager,
 ) -> Result<ValidatedRoleConfigByPropertyKind, Error> {
     let mut roles = HashMap::new();
@@ -775,7 +774,7 @@ pub fn validated_product_config(
     );
 
     let role_config =
-        transform_all_roles_to_config(resource, roles).context(ProductConfigTransformSnafu)?;
+        transform_all_roles_to_config(resource, &roles).context(ProductConfigTransformSnafu)?;
 
     validate_all_roles_and_groups_config(version, &role_config, product_config, false, false)
         .context(InvalidProductConfigSnafu)
