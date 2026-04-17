@@ -63,7 +63,7 @@ use stackable_operator::{
             CustomContainerLogConfig,
         },
     },
-    role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroupRef},
+    role_utils::{GenericRoleConfig, RoleGroupRef},
     shared::time::Duration,
     status::condition::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
@@ -84,10 +84,10 @@ use crate::{
     },
     crd::{
         APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, Container, HTTPS_PORT, HTTPS_PORT_NAME,
-        METRICS_PORT, METRICS_PORT_NAME, NifiConfig, NifiConfigFragment, NifiNodeRoleConfig,
-        NifiRole, NifiStatus, PROTOCOL_PORT, PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR,
-        STACKABLE_LOG_DIR, authentication::AuthenticationClassResolved,
-        authorization::NifiAccessPolicyProvider, v1alpha1,
+        METRICS_PORT, METRICS_PORT_NAME, NifiConfig, NifiNodeRoleConfig, NifiRole, NifiRoleType,
+        NifiStatus, PROTOCOL_PORT, PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
+        authentication::AuthenticationClassResolved, authorization::NifiAccessPolicyProvider,
+        v1alpha1,
     },
     listener::{
         LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_group_listener, build_group_listener_pvc,
@@ -719,7 +719,7 @@ async fn build_node_rolegroup_config_map(
     resolved_product_image: &ResolvedProductImage,
     authentication_config: &NifiAuthenticationConfig,
     authorization_config: &ResolvedNifiAuthorizationConfig,
-    role: &Role<NifiConfigFragment, NifiNodeRoleConfig, JavaCommonConfig>,
+    role: &NifiRoleType,
     rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &NifiConfig,
@@ -755,7 +755,7 @@ async fn build_node_rolegroup_config_map(
                 .name(rolegroup.object_name())
                 .ownerreference_from_resource(nifi, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_recommended_labels(build_recommended_labels(
+                .with_recommended_labels(&build_recommended_labels(
                     nifi,
                     &resolved_product_image.app_version_label_value,
                     &rolegroup.role,
@@ -843,7 +843,7 @@ async fn build_node_rolegroup_statefulset(
     resolved_product_image: &ResolvedProductImage,
     cluster_info: &KubernetesClusterInfo,
     rolegroup_ref: &RoleGroupRef<v1alpha1::NifiCluster>,
-    role: &Role<NifiConfigFragment, NifiNodeRoleConfig, JavaCommonConfig>,
+    role: &NifiRoleType,
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &NifiConfig,
     authentication_config: &NifiAuthenticationConfig,
@@ -1303,7 +1303,7 @@ async fn build_node_rolegroup_statefulset(
         .context(AddAuthVolumesSnafu)?;
 
     let metadata = ObjectMetaBuilder::new()
-        .with_recommended_labels(build_recommended_labels(
+        .with_recommended_labels(&build_recommended_labels(
             nifi,
             &resolved_product_image.app_version_label_value,
             &rolegroup_ref.role,
@@ -1422,7 +1422,7 @@ async fn build_node_rolegroup_statefulset(
             .name(rolegroup_ref.object_name())
             .ownerreference_from_resource(nifi, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(recommended_object_labels)
+            .with_recommended_labels(&recommended_object_labels)
             .context(MetadataBuildSnafu)?
             .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
             .build(),
@@ -1494,7 +1494,7 @@ fn get_volume_claim_templates(
     ];
 
     // Used for PVC templates that cannot be modified once they are deployed
-    let unversioned_recommended_labels = Labels::recommended(build_recommended_labels(
+    let unversioned_recommended_labels = Labels::recommended(&build_recommended_labels(
         nifi,
         // A version value is required, and we do want to use the "recommended" format for the other desired labels
         "none",

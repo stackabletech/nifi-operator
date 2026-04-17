@@ -30,6 +30,8 @@ pub(crate) fn build_tls_volume(
     requested_secret_lifetime: &Duration,
     listener_scope: Option<&str>,
 ) -> Result<Volume> {
+    // NiFi serves its own TLS endpoints, so the Pod needs both the public
+    // certificate and the private key.
     let mut secret_volume_source_builder = SecretOperatorVolumeSourceBuilder::new(
         nifi.server_tls_secret_class(),
         SecretClassVolumeProvisionParts::PublicPrivate,
