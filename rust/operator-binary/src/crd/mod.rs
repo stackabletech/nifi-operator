@@ -196,13 +196,16 @@ pub mod versioned {
     #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct NifiConfigOverrides {
-        #[serde(rename = "bootstrap.conf")]
+        #[serde(rename = "bootstrap.conf", skip_serializing_if = "Option::is_none")]
         pub bootstrap_conf: Option<KeyValueConfigOverrides>,
 
-        #[serde(rename = "nifi.properties")]
+        #[serde(rename = "nifi.properties", skip_serializing_if = "Option::is_none")]
         pub nifi_properties: Option<KeyValueConfigOverrides>,
 
-        #[serde(rename = "security.properties")]
+        #[serde(
+            rename = "security.properties",
+            skip_serializing_if = "Option::is_none"
+        )]
         pub security_properties: Option<KeyValueConfigOverrides>,
     }
 }

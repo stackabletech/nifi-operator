@@ -243,6 +243,7 @@ impl ResolvedNifiAuthorizationConfig {
                     .ephemeral(
                         SecretOperatorVolumeSourceBuilder::new(
                             secret_class,
+                            // NiFi needs the public CA certificate to verify the OPA server's cert.
                             SecretClassVolumeProvisionParts::Public,
                         )
                         .build()
