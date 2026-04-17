@@ -5,6 +5,7 @@ dimensions:
       - 1.28.1
       - 2.6.0
       - 2.7.2
+      - 2.9.0
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
       # - 2.6.0,oci.stackable.tech/sandbox/nifi:2.6.0-stackable0.0.0-dev
@@ -13,10 +14,10 @@ dimensions:
       - 1.28.1
   - name: nifi_new
     values:
-      - 2.7.2
+      - 2.9.0
   - name: nifi-latest
     values:
-      - 2.7.2
+      - 2.9.0
   - name: nifi-iceberg-hive
     # Not all NiFi versions support Iceberg with the same functionality!
     # E.g. our own implementation started with NiFi 2.2.0
@@ -25,6 +26,7 @@ dimensions:
   - name: nifi-iceberg-rest
     values:
       - 2.7.2
+      - 2.9.0
     # TODO: Can be removed once NiFi 1.x.x is removed - only for separate smoke tests
   - name: nifi-v1
     values:
@@ -34,6 +36,7 @@ dimensions:
     values:
       - 2.6.0
       - 2.7.2
+      - 2.9.0
     # Use Kubernetes manager if set to false
   - name: use-zookeeper-manager
     values:

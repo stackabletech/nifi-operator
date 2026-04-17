@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Added support for NiFi `2.9.0` ([#922]).
+
 ### Changed
 
 - Document Helm deployed RBAC permissions and remove unnecessary permissions ([#916]).
@@ -13,6 +17,7 @@ All notable changes to this project will be documented in this file.
 
 [#916]: https://github.com/stackabletech/nifi-operator/pull/916
 [#921]: https://github.com/stackabletech/nifi-operator/pull/921
+[#922]: https://github.com/stackabletech/nifi-operator/pull/922
 
 ## [26.3.0] - 2026-03-16
 
