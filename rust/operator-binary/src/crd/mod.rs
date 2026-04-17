@@ -202,7 +202,10 @@ pub mod versioned {
         #[serde(rename = "nifi.properties", skip_serializing_if = "Option::is_none")]
         pub nifi_properties: Option<KeyValueConfigOverrides>,
 
-        #[serde(rename = "security.properties", skip_serializing_if = "Option::is_none")]
+        #[serde(
+            rename = "security.properties",
+            skip_serializing_if = "Option::is_none"
+        )]
         pub security_properties: Option<KeyValueConfigOverrides>,
     }
 }
