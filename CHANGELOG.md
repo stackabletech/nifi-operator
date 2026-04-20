@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Support for passing CAs to GitSync ([#903]).
+- Added support for NiFi `2.9.0` ([#922]).
 
 ### Changed
 
@@ -18,6 +19,7 @@ All notable changes to this project will be documented in this file.
 [#903]: https://github.com/stackabletech/nifi-operator/pull/903
 [#916]: https://github.com/stackabletech/nifi-operator/pull/916
 [#921]: https://github.com/stackabletech/nifi-operator/pull/921
+[#922]: https://github.com/stackabletech/nifi-operator/pull/922
 
 ## [26.3.0] - 2026-03-16
 

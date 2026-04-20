@@ -2,8 +2,9 @@
 // This is a separate file, since it is used by both the direct NiFi-Operator documentation, and the overarching
 // Stackable Platform documentation.
 
+* 2.9.0
 * 2.7.2
-** Please note that this version supports Iceberg, but only with S3 and Iceberg REST catalog (no Hive metastore or HDFS support). Please read on xref:nifi:usage_guide/writing-to-iceberg-tables.adoc[] for details.
+** Please note that NiFi starting with 2.7.2 supports Iceberg, but only with S3 and Iceberg REST catalog (no Hive metastore or HDFS support). Please read on xref:nifi:usage_guide/writing-to-iceberg-tables.adoc[] for details.
 * 2.6.0 (LTS)
 * 1.28.1 (Deprecated)
 

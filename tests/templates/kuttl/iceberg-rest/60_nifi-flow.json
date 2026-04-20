@@ -24,7 +24,7 @@
                 "bundle": {
                     "group": "org.apache.nifi",
                     "artifact": "nifi-standard-nar",
-                    "version": "2.7.2-stackable0.0.0-dev"
+                    "version": "2.9.0-stackable0.0.0-dev"
                 },
                 "properties": {
                     "File Size": "0B",
@@ -117,7 +117,7 @@
                 "bundle": {
                     "group": "org.apache.nifi",
                     "artifact": "nifi-iceberg-processors-nar",
-                    "version": "2.7.2-stackable0.0.0-dev"
+                    "version": "2.9.0-stackable0.0.0-dev"
                 },
                 "properties": {
                     "Table Name": "greetings",
@@ -327,7 +327,7 @@
                 "bundle": {
                     "group": "org.apache.nifi",
                     "artifact": "nifi-iceberg-aws-nar",
-                    "version": "2.7.2-stackable0.0.0-dev"
+                    "version": "2.9.0-stackable0.0.0-dev"
                 },
                 "properties": {
                     "Authentication Strategy": "BASIC_CREDENTIALS",
@@ -394,7 +394,7 @@
                         "bundle": {
                             "group": "org.apache.nifi",
                             "artifact": "nifi-iceberg-service-api-nar",
-                            "version": "2.7.2-stackable0.0.0-dev"
+                            "version": "2.9.0-stackable0.0.0-dev"
                         }
                     }
                 ],
@@ -412,7 +412,7 @@
                 "bundle": {
                     "group": "org.apache.nifi",
                     "artifact": "nifi-record-serialization-services-nar",
-                    "version": "2.7.2-stackable0.0.0-dev"
+                    "version": "2.9.0-stackable0.0.0-dev"
                 },
                 "properties": {
                     "Schema Branch": null,
@@ -552,7 +552,7 @@
                         "bundle": {
                             "group": "org.apache.nifi",
                             "artifact": "nifi-standard-services-api-nar",
-                            "version": "2.7.2-stackable0.0.0-dev"
+                            "version": "2.9.0-stackable0.0.0-dev"
                         }
                     }
                 ],
@@ -570,7 +570,7 @@
                 "bundle": {
                     "group": "org.apache.nifi",
                     "artifact": "nifi-iceberg-parquet-writer-nar",
-                    "version": "2.7.2-stackable0.0.0-dev"
+                    "version": "2.9.0-stackable0.0.0-dev"
                 },
                 "properties": {},
                 "propertyDescriptors": {},
@@ -580,7 +580,7 @@
                         "bundle": {
                             "group": "org.apache.nifi",
                             "artifact": "nifi-iceberg-service-api-nar",
-                            "version": "2.7.2-stackable0.0.0-dev"
+                            "version": "2.9.0-stackable0.0.0-dev"
                         }
                     }
                 ],
@@ -598,7 +598,7 @@
                 "bundle": {
                     "group": "org.apache.nifi",
                     "artifact": "nifi-iceberg-rest-catalog-nar",
-                    "version": "2.7.2-stackable0.0.0-dev"
+                    "version": "2.9.0-stackable0.0.0-dev"
                 },
                 "properties": {
                     "Access Delegation Strategy": "disabled",
@@ -697,7 +697,7 @@
                         "bundle": {
                             "group": "org.apache.nifi",
                             "artifact": "nifi-iceberg-service-api-nar",
-                            "version": "2.7.2-stackable0.0.0-dev"
+                            "version": "2.9.0-stackable0.0.0-dev"
                         }
                     }
                 ],

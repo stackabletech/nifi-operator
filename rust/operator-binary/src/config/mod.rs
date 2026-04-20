@@ -817,7 +817,7 @@ mod tests {
           name: simple-nifi
         spec:
           image:
-            productVersion: 2.7.2
+            productVersion: 2.9.0
           clusterConfig:
             authentication:
               - authenticationClass: nifi-admin-credentials-simple
@@ -865,7 +865,7 @@ mod tests {
           name: simple-nifi
         spec:
           image:
-            productVersion: 2.7.2
+            productVersion: 2.9.0
           clusterConfig:
             authentication:
               - authenticationClass: nifi-admin-credentials-simple

@@ -12,7 +12,7 @@ metadata:
   name: simple-nifi
 spec:
   image:
-    productVersion: 2.7.2 # <1>
+    productVersion: 2.9.0 # <1>
 ----
 
 <1> Change the NiFi version here
