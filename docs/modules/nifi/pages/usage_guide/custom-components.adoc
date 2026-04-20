@@ -58,14 +58,19 @@ spec:
       wait: 10s  # <6>
       credentialsSecret: git-credentials  # <7>
       gitSyncConf:  # <8>
-      --git-config: http.sslCAInfo:/tmp/ca-cert/ca.crt
-    - repo: https://example.com/git/other-nifi-components  # <9>
+      --git-config: pull.rebase=true  # <9>
+      tls:
+        verification:
+          server:
+            caCert:
+              secretClass: git-ca-cert # <10>
+    - repo: https://example.com/git/other-nifi-components  # <11>
   nodes:
     config:
       logging:
         enableVectorAgent: true
         containers:
-          git-sync:  # <10>
+          git-sync:  # <12>
             console:
               level: INFO
             file:
@@ -94,8 +99,14 @@ data:
     The `password` field can either be an actual password (not recommended) or a GitHub token, as described in the {git-sync-docs}[git-sync documentation].
 <8> A map of optional configuration settings that are listed in the {git-sync-docs}[git-sync documentation]. +
     These settings are not verified.
-<9> Multiple repositories can be defined. Only the `repo` field is mandatory.
-<10> Logging can be configured as described in xref:concepts:logging.adoc[].
+<9> Valid `git-config` settings can be passed here N.B. a warning will be triggered if both `http.sslCAInfo` is defined here and the field `caCertSecretName` is specified (as it maps onto the same config setting).
+<10> Optional name of a SecretClass for certificate authorities. These CAs will verify the git server's certificate when running git sync operations.
+    The associated secret must have a key named `ca.crt` whose value is the PEM-encoded certificate bundle.
+    If this field is set to `webPki: {}` or is omitted altogether, then no changes will be made to the gitsync command and it will default to presenting no certificate to the backend.
+    Omitting this field is non-breaking behaviour and as such it does *not* set `http.sslverify` to `false` as disabling security checks should be a last resort and not something activated by default.
+    This can still be achieved by passing `--git-config: http.sslverify=false` explicitly.
+<11> Multiple repositories can be defined. Only the `repo` field is mandatory.
+<12> Logging can be configured as described in xref:concepts:logging.adoc[].
      As git-sync is a command-line tool, just its output is logged and no fine-grained log configuration is possible.
      All git-sync containers are configured via the one `git-sync` field.
 
