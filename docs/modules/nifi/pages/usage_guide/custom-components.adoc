@@ -100,7 +100,7 @@ data:
 <8> A map of optional configuration settings that are listed in the {git-sync-docs}[git-sync documentation]. +
     These settings are not verified.
 <9> Valid `git-config` settings can be passed here N.B. a warning will be triggered if both `http.sslCAInfo` is defined here and the field `caCertSecretName` is specified (as it maps onto the same config setting).
-<10> An optional reference to the SecretClass used for holding CA certificates that will be used to verify the git server's TLS certificate by passing it to the git config option `http.sslCAInfo` passed with the gitsync command.
+<10> Optional name of a SecretClass for certificate authorities. These CAs will verify the git server's certificate when running git sync operations.
     The associated secret must have a key named `ca.crt` whose value is the PEM-encoded certificate bundle.
     If this field is set to `webPki: {}` or is omitted altogether, then no changes will be made to the gitsync command and it will default to presenting no certificate to the backend.
     Omitting this field is non-breaking behaviour and as such it does *not* set `http.sslverify` to `false` as disabling security checks should be a last resort and not something activated by default.
