@@ -159,7 +159,7 @@ pub mod versioned {
         /// Learn more in the documentation for
         /// [Loading custom components](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/custom-components.html#git_sync).
         #[serde(default)]
-        pub custom_components_git_sync: Vec<git_sync::v1alpha1::GitSync>,
+        pub custom_components_git_sync: Vec<git_sync::v1alpha2::GitSync>,
 
         /// Extra volumes similar to `.spec.volumes` on a Pod to mount into every container, this can be useful to for
         /// example make client certificates, keytabs or similar things available to processors. These volumes will be

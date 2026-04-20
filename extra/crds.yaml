@@ -181,10 +181,34 @@ spec:
 
                             Since git-sync v4.x.x this field is mapped to the flag `--ref`.
                           type: string
-                        credentialsSecret:
+                        credentials:
                           description: An optional secret used for git access.
                           nullable: true
-                          type: string
+                          oneOf:
+                          - required:
+                            - basicAuthSecretName
+                          - required:
+                            - sshPrivateKeySecretName
+                          properties:
+                            basicAuthSecretName:
+                              description: |-
+                                The name of the Secret used to access the repository via Basic Authentication if it is not public.
+
+                                The referenced Secret must include two fields: `user` and `password`.
+                                The `password` field can either be an actual password (not recommended) or a GitHub token,
+                                as described in the git-sync [documentation].
+
+                                [documentation]: https://github.com/kubernetes/git-sync/tree/v4.2.4?tab=readme-ov-file#manual
+                              type: string
+                            sshPrivateKeySecretName:
+                              description: |-
+                                The name of the Secret used for SSH access to the repository.
+
+                                The referenced Secret must include two fields: `key` and `knownHosts`.
+
+                                [documentation]: https://github.com/kubernetes/git-sync/tree/v4.2.4?tab=readme-ov-file#manual
+                              type: string
+                          type: object
                         depth:
                           default: 1
                           description: The depth of syncing, i.e. the number of commits to clone; defaults to 1.
