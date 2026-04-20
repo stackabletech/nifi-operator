@@ -71,7 +71,7 @@ spec:
                       singleUser: {}
                     description: |-
                       Authorization options.
-                      Learn more in the [NiFi authorization usage guide](https://docs.stackable.tech/home/nightly/nifi/usage-guide/security#authorization).
+                      Learn more in the [NiFi authorization usage guide](https://docs.stackable.tech/home/nightly/nifi/usage_guide/security#authorization).
                     oneOf:
                     - required:
                       - opa

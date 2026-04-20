@@ -16,6 +16,11 @@ All notable changes to this project will be documented in this file.
   Previously, arbitrary keys were silently accepted but ignored ([#921]).
 - Bump `stackable-operator` to 0.110.1 and `kube` to 3.1.0 ([#921]).
 
+### Fixed
+
+- Fix broken link to the NiFi authorization usage guide in the `spec.clusterConfig.authorization` CRD doc (`usage-guide` -> `usage_guide`) ([#841]).
+
+[#841]: https://github.com/stackabletech/nifi-operator/issues/841
 [#903]: https://github.com/stackabletech/nifi-operator/pull/903
 [#916]: https://github.com/stackabletech/nifi-operator/pull/916
 [#921]: https://github.com/stackabletech/nifi-operator/pull/921

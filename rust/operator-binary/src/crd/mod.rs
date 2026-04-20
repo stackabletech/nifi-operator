@@ -129,7 +129,7 @@ pub mod versioned {
         pub authentication: Vec<auth_core::v1alpha1::ClientAuthenticationDetails>,
 
         /// Authorization options.
-        /// Learn more in the [NiFi authorization usage guide](DOCS_BASE_URL_PLACEHOLDER/nifi/usage-guide/security#authorization).
+        /// Learn more in the [NiFi authorization usage guide](DOCS_BASE_URL_PLACEHOLDER/nifi/usage_guide/security#authorization).
         #[serde(default)]
         pub authorization: NifiAuthorization,
 
