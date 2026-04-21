@@ -18,13 +18,13 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Fix broken link to the NiFi authorization usage guide in the `spec.clusterConfig.authorization` CRD doc (`usage-guide` -> `usage_guide`) ([#841]).
+- Fix broken link to the NiFi authorization usage guide in the `spec.clusterConfig.authorization` CRD doc (`usage-guide` -> `usage_guide`) ([#924]).
 
-[#841]: https://github.com/stackabletech/nifi-operator/issues/841
 [#903]: https://github.com/stackabletech/nifi-operator/pull/903
 [#916]: https://github.com/stackabletech/nifi-operator/pull/916
 [#921]: https://github.com/stackabletech/nifi-operator/pull/921
 [#922]: https://github.com/stackabletech/nifi-operator/pull/922
+[#924]: https://github.com/stackabletech/nifi-operator/pull/924
 
 ## [26.3.0] - 2026-03-16
 
