@@ -132,6 +132,7 @@ impl ResolvedNifiAuthorizationConfig {
             } => {
                 let file_based_mount_path = Self::file_based_mount_path();
 
+                // TODO Calculate the DNs
                 authorizers_xml.push_str(&formatdoc! {r#"
                     <userGroupProvider>
                         <identifier>file-user-group-provider</identifier>

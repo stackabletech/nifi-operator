@@ -9,7 +9,8 @@ data:
   my_nifi_package.rego: |
     package my_nifi_package
 
-    nifi_node_proxy := "CN=generated certificate for pod"
+    # TODO Parse or use a regular expression to validate the DN
+    nifi_node_proxy := "DC=local, DC=cluster, DC=svc, DC=test, DC=test-nifi-node-default-headless, DC=test-nifi-node-default-0, CN=generated certificate for pod"
     nifi_reporting_task_user := "admin"
 
     # Setting "resourceNotFound" to true results in the parent resource being evaluated for authorization,
