@@ -106,7 +106,7 @@ use crate::{
             NifiAuthenticationConfig, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
         },
         authorization::{self, OPA_TLS_MOUNT_PATH, ResolvedNifiAuthorizationConfig},
-        build_tls_volume, check_or_generate_oidc_admin_password, check_or_generate_sensitive_key,
+        build_oidc_admin_password_secret, build_tls_volume, check_or_generate_sensitive_key,
         tls::{KEYSTORE_NIFI_CONTAINER_MOUNT, KEYSTORE_VOLUME_NAME, TRUSTSTORE_VOLUME_NAME},
     },
     service::{build_rolegroup_headless_service, build_rolegroup_metrics_service},
@@ -239,6 +239,11 @@ pub enum Error {
     InvalidLoggingConfig {
         source: crate::product_logging::Error,
         cm_name: String,
+    },
+
+    #[snafu(display("failed to apply OIDC admin password secret"))]
+    ApplyOidcAdminPasswordSecret {
+        source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("failed to patch service account"))]
@@ -443,10 +448,23 @@ pub async fn reconcile_nifi(
     )
     .context(InvalidNifiAuthenticationConfigSnafu)?;
 
-    if let NifiAuthenticationConfig::Oidc { .. } = authentication_config {
-        check_or_generate_oidc_admin_password(client, nifi)
+    if let NifiAuthenticationConfig::Oidc { .. } = &authentication_config {
+        let oidc_admin_password_secret = build_oidc_admin_password_secret(
+            client,
+            nifi,
+            build_recommended_labels(
+                nifi,
+                &resolved_product_image.app_version_label_value,
+                "node",
+                "oidc",
+            ),
+        )
+        .await
+        .context(SecuritySnafu)?;
+        cluster_resources
+            .add(client, oidc_admin_password_secret)
             .await
-            .context(SecuritySnafu)?;
+            .context(ApplyOidcAdminPasswordSecretSnafu)?;
     }
 
     let authorization_config = ResolvedNifiAuthorizationConfig::from(
