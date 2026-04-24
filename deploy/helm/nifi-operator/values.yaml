@@ -1,7 +1,6 @@
 # Default values for nifi-operator.
 ---
 image:
-  repository: oci.stackable.tech/sdp/nifi-operator
   pullPolicy: IfNotPresent
   pullSecrets: []
 
