@@ -586,3 +586,16 @@ impl Default for NifiNodeRoleConfig {
 fn node_default_listener_class() -> String {
     "cluster-internal".to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use stackable_operator::versioned::test_utils::RoundtripTestData;
+
+    use super::v1alpha1;
+
+    impl RoundtripTestData for v1alpha1::NifiClusterSpec {
+        fn roundtrip_test_data() -> Vec<Self> {
+            vec![]
+        }
+    }
+}
