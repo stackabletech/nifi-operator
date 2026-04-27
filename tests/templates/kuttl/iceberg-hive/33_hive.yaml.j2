@@ -13,10 +13,11 @@ spec:
 {% endif %}
     pullPolicy: IfNotPresent
   clusterConfig:
-    database:
-      connString: jdbc:postgresql://postgresql:5432/hive
-      credentialsSecret: postgres-credentials
-      dbType: postgres
+    metadataDatabase:
+      postgresql:
+        host: postgresql
+        database: hive
+        credentialsSecretName: postgres-credentials
     hdfs:
       configMap: hdfs
     s3:
