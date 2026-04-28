@@ -24,6 +24,7 @@ use stackable_operator::{
             security::PodSecurityContextBuilder, volume::SecretFormat,
         },
     },
+    cli::OperatorEnvironmentOptions,
     client::Client,
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{
@@ -115,12 +116,13 @@ use crate::{
 pub const NIFI_CONTROLLER_NAME: &str = "nificluster";
 pub const NIFI_FULL_CONTROLLER_NAME: &str = concatcp!(NIFI_CONTROLLER_NAME, '.', OPERATOR_NAME);
 
-const DOCKER_IMAGE_BASE_NAME: &str = "nifi";
+const CONTAINER_IMAGE_BASE_NAME: &str = "nifi";
 const LOG_VOLUME_NAME: &str = "log";
 
 pub struct Ctx {
     pub client: Client,
     pub product_config: ProductConfigManager,
+    pub operator_environment: OperatorEnvironmentOptions,
 }
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
@@ -377,7 +379,11 @@ pub async fn reconcile_nifi(
     let resolved_product_image = nifi
         .spec
         .image
-        .resolve(DOCKER_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION)
+        .resolve(
+            CONTAINER_IMAGE_BASE_NAME,
+            &ctx.operator_environment.image_repository,
+            crate::built_info::PKG_VERSION,
+        )
         .context(ResolveProductImageSnafu)?;
 
     tracing::info!("Checking for sensitive key configuration");

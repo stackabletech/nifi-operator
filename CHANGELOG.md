@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- BREAKING: Add required CLI argument and env var to set the image repository used to construct final product image names: `IMAGE_REPOSITORY` (`--image-repository`), eg. `oci.example.org/my/namespace` ([#928]).
 - Support for passing CAs to GitSync ([#903]).
 - Added support for NiFi `2.9.0` ([#922]).
 
@@ -25,6 +26,7 @@ All notable changes to this project will be documented in this file.
 [#921]: https://github.com/stackabletech/nifi-operator/pull/921
 [#922]: https://github.com/stackabletech/nifi-operator/pull/922
 [#924]: https://github.com/stackabletech/nifi-operator/pull/924
+[#928]: https://github.com/stackabletech/nifi-operator/pull/928
 
 ## [26.3.0] - 2026-03-16
 

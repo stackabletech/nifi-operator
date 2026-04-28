@@ -181,6 +181,7 @@ async fn main() -> anyhow::Result<()> {
                     controller::error_policy,
                     Arc::new(controller::Ctx {
                         client: client.clone(),
+                        operator_environment,
                         product_config,
                     }),
                 )
