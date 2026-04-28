@@ -595,7 +595,95 @@ mod tests {
 
     impl RoundtripTestData for v1alpha1::NifiClusterSpec {
         fn roundtrip_test_data() -> Vec<Self> {
-            vec![]
+            stackable_operator::utils::yaml_from_str_singleton_map(indoc::indoc! {r#"
+              - image:
+                  productVersion: 1.2.3
+                  pullPolicy: IfNotPresent
+                clusterOperation:
+                  stopped: false
+                  reconciliationPaused: false
+                clusterConfig:
+                  zookeeperConfigMapName: nifi-znode
+                  authentication:
+                    - authenticationClass: nifi-users
+                  hostHeaderCheck:
+                    allowAll: false
+                    additionalAllowedHosts:
+                      - example.com:1234
+                  sensitiveProperties:
+                    keySecret: nifi-sensitive-property-key
+                  customComponentsGitSync:
+                    - repo: ssh://git@github.com/stackable-airflow/dags.git
+                    - repo: https://github.com/stackable-airflow/dags
+                      branch: main
+                      credentials:
+                        basicAuthSecretName: my-basic-auth
+                      wait: 5s
+                      gitSyncConf:
+                        foo: bar
+                      gitFolder: "mount-dags-gitsync/dags_airflow3"
+                      tls:
+                        verification:
+                          server:
+                            caCert:
+                              secretClass: git-ca-cert
+                    - repo: ssh://git@github.com/stackable-airflow/dags.git
+                      # FIXME: The roundtrip looses data when private keys are used.
+                      # See https://github.com/stackabletech/issues/issues/849 for details.
+                      credentials:
+                        sshPrivateKeySecretName: my-private-key
+                  vectorAggregatorConfigMapName: vector-aggregator-discovery
+                nodes:
+                  envOverrides:
+                    COMMON_VAR: role-value
+                    ROLE_VAR: role-value
+                  configOverrides:
+                    nifi.properties:
+                      nifi.diagnostics.on.shutdown.enabled: "true"
+                      nifi.diagnostics.on.shutdown.verbose: "false"
+                  config:
+                    logging:
+                      enableVectorAgent: true
+                    resources:
+                      cpu:
+                        min: 500m
+                        max: "1"
+                      memory:
+                        limit: 2Gi
+                      storage:
+                        flowfileRepo:
+                          capacity: 2Gi
+                        provenanceRepo:
+                          capacity: 2Gi
+                        databaseRepo:
+                          capacity: 2Gi
+                        contentRepo:
+                          capacity: 2Gi
+                        stateRepo:
+                          capacity: 2Gi
+                  roleConfig:
+                    listenerClass: my-listener-class
+                  roleGroups:
+                    default:
+                      replicas: 2
+                      envOverrides:
+                        COMMON_VAR: group-value
+                        GROUP_VAR: group-value
+                      configOverrides:
+                        nifi.properties:
+                          nifi.diagnostics.on.shutdown.enabled: "false"
+                          nifi.diagnostics.on.shutdown.max.filecount: "20"
+                      podOverrides:
+                        spec:
+                          containers:
+                            - name: nifi
+                              resources:
+                                requests:
+                                  cpu: 700m
+                                limits:
+                                  cpu: 1200m
+        "#})
+            .expect("Failed to parse NifiClusterSpec YAML")
         }
     }
 }
