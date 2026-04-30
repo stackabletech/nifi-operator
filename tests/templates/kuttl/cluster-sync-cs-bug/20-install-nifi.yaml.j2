@@ -2,7 +2,7 @@
 apiVersion: authentication.stackable.tech/v1alpha1
 kind: AuthenticationClass
 metadata:
-  name: nifi-users
+  name: nifi-user-credentials
 spec:
   provider:
     static:
@@ -176,7 +176,7 @@ spec:
     pullPolicy: IfNotPresent
   clusterConfig:
     authentication:
-      - authenticationClass: nifi-users
+      - authenticationClass: nifi-user-credentials
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
   nodes:
