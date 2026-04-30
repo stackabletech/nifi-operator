@@ -1,14 +1,12 @@
 use std::collections::BTreeMap;
 
 use rand::{RngExt, distr::Alphanumeric};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::meta::ObjectMetaBuilder,
-    client::Client,
     commons::tls_verification::{CaCert, TlsServerVerification, TlsVerification},
     crd::authentication::oidc,
-    k8s_openapi::api::core::v1::Secret,
-    kube::{ResourceExt, runtime::reflector::ObjectRef},
+    k8s_openapi::{ByteString, api::core::v1::Secret},
+    kube::ResourceExt,
 };
 
 use crate::{crd::v1alpha1, security::authentication::STACKABLE_ADMIN_USERNAME};
@@ -17,19 +15,6 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("the NiFi object defines no namespace"))]
-    ObjectHasNoNamespace,
-
-    #[snafu(display("failed to fetch or create OIDC admin password secret"))]
-    OidcAdminPasswordSecret {
-        source: stackable_operator::client::Error,
-    },
-
-    #[snafu(display(
-        "found existing admin password secret {secret:?}, but the key {STACKABLE_ADMIN_USERNAME} is missing",
-    ))]
-    MissingAdminPasswordKey { secret: ObjectRef<Secret> },
-
     #[snafu(display("invalid well-known OIDC configuration URL"))]
     InvalidWellKnownConfigUrl {
         source: stackable_operator::crd::authentication::oidc::v1alpha1::Error,
@@ -39,65 +24,51 @@ pub enum Error {
     SkippingTlsVerificationNotSupported {},
 }
 
-/// Generate a secret containing the password for the admin user that can access the API.
-///
-/// This admin user is the same as for SingleUser authentication.
-pub(crate) async fn check_or_generate_oidc_admin_password(
-    client: &Client,
-    nifi: &v1alpha1::NifiCluster,
-) -> Result<bool, Error> {
-    let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
-    tracing::debug!("Checking for OIDC admin password configuration");
-    match client
-        .get_opt::<Secret>(&build_oidc_admin_password_secret_name(nifi), namespace)
-        .await
-        .context(OidcAdminPasswordSecretSnafu)?
-    {
+/// Returns a password to be used by the OIDC admin user.
+/// If the Secret containing the password already exists and contains the expected key, the existing password is returned.
+/// Otherwise a new random password is generated.
+pub(crate) fn build_oidc_admin_password_secret(oidc_admin_secret: Option<Secret>) -> String {
+    match oidc_admin_secret {
         Some(secret) => {
-            let admin_password_present = secret
+            let existing_password = secret
                 .data
-                .iter()
-                .flat_map(|data| data.keys())
-                .any(|key| key == STACKABLE_ADMIN_USERNAME);
+                .as_ref()
+                .and_then(|data| data.get(STACKABLE_ADMIN_USERNAME))
+                .map(decode_admin_password);
 
-            if admin_password_present {
-                Ok(false)
-            } else {
-                MissingAdminPasswordKeySnafu {
-                    secret: ObjectRef::from_obj(&secret),
+            match existing_password {
+                Some(password) => password,
+                None => {
+                    tracing::info!(
+                        expected_key = STACKABLE_ADMIN_USERNAME,
+                        "Found existing OIDC admin password secret, but it doesn't contain the expected key, generating new password"
+                    );
+                    encode_admin_password(15)
                 }
-                .fail()?
             }
         }
         None => {
-            tracing::info!("No existing oidc admin password secret found, generating new one");
-            let password: String = rand::rng()
-                .sample_iter(&Alphanumeric)
-                .take(15)
-                .map(char::from)
-                .collect();
-
-            let mut secret_data = BTreeMap::new();
-            secret_data.insert("admin".to_string(), password);
-
-            let new_secret = Secret {
-                metadata: ObjectMetaBuilder::new()
-                    .namespace(namespace)
-                    .name(build_oidc_admin_password_secret_name(nifi))
-                    .build(),
-                string_data: Some(secret_data),
-                ..Secret::default()
-            };
-            client
-                .create(&new_secret)
-                .await
-                .context(OidcAdminPasswordSecretSnafu)?;
-            Ok(true)
+            tracing::info!("No existing OIDC admin password secret found, generating new one");
+            encode_admin_password(15)
         }
     }
 }
 
-pub fn build_oidc_admin_password_secret_name(nifi: &v1alpha1::NifiCluster) -> String {
+// TODO: maybe switch to get_random_base64() (not public atm) from op-rs which is ASCII clean and thus more suitable for passwords:
+// https://github.com/stackabletech/operator-rs/blob/main/crates/stackable-operator/src/commons/random_secret_creation.rs#L127-L127
+fn encode_admin_password(size_bytes: usize) -> String {
+    rand::rng()
+        .sample_iter(&Alphanumeric)
+        .take(size_bytes)
+        .map(char::from)
+        .collect()
+}
+
+fn decode_admin_password(encoded: &ByteString) -> String {
+    String::from_utf8_lossy(&encoded.0).into_owned()
+}
+
+pub(crate) fn build_oidc_admin_password_secret_name(nifi: &v1alpha1::NifiCluster) -> String {
     format!("{}-oidc-admin-password", nifi.name_any())
 }
 
