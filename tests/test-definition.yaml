@@ -135,7 +135,7 @@ tests:
       - openshift
   - name: cluster-sync-cs-bug
     dimensions:
-      - nifi-latest
+      - nifi-v2
       - openshift
   - name: oidc-opa
     dimensions:
