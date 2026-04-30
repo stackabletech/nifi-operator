@@ -1,0 +1,210 @@
+---
+apiVersion: authentication.stackable.tech/v1alpha1
+kind: AuthenticationClass
+metadata:
+  name: nifi-users
+spec:
+  provider:
+    static:
+      userCredentialsSecret:
+        name: nifi-user-credentials
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nifi-user-credentials
+stringData:
+  admin: admin
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nifi-sensitive-property-key
+stringData:
+  nifiSensitivePropsKey: mYsUp3rS3cr3tk3y
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nifi-flow-trigger
+data:
+  flow.json: |
+    {
+      "encodingVersion": {
+        "majorVersion": 2,
+        "minorVersion": 0
+      },
+      "maxTimerDrivenThreadCount": 10,
+      "registries": [],
+      "parameterContexts": [],
+      "parameterProviders": [],
+      "controllerServices": [],
+      "reportingTasks": [],
+      "flowAnalysisRules": [],
+      "rootGroup": {
+        "identifier": "root-group-0000-0000-000000000001",
+        "instanceIdentifier": "root-inst-0000-0000-000000000001",
+        "name": "NiFi Flow",
+        "comments": "",
+        "position": { "x": 0.0, "y": 0.0 },
+        "processGroups": [
+          {
+            "identifier": "child-group-000-0000-000000000001",
+            "instanceIdentifier": "child-inst-0000-0000-000000000001",
+            "name": "ChildGroup",
+            "comments": "",
+            "position": { "x": 400.0, "y": 0.0 },
+            "processGroups": [],
+            "remoteProcessGroups": [],
+            "processors": [],
+            "inputPorts": [],
+            "outputPorts": [],
+            "connections": [],
+            "labels": [],
+            "funnels": [],
+            "controllerServices": [
+              {
+                "identifier": "cs-http-ctx-0000-0000-000000000001",
+                "instanceIdentifier": "cs-http-inst-0000-0000-00000000child",
+                "name": "StandardHttpContextMap",
+                "comments": "",
+                "type": "org.apache.nifi.http.StandardHttpContextMap",
+                "bundle": {
+                  "group": "org.apache.nifi",
+                  "artifact": "nifi-http-context-map-nar",
+                  "version": "{{ test_scenario['values']['nifi-latest'] }}"
+                },
+                "properties": {
+                  "Request Expiration": "2 min",
+                  "Maximum Outstanding Requests": "5000"
+                },
+                "propertyDescriptors": {},
+                "controllerServiceApis": [
+                  {
+                    "type": "org.apache.nifi.http.HttpContextMap",
+                    "bundle": {
+                      "group": "org.apache.nifi",
+                      "artifact": "nifi-standard-services-api-nar",
+                      "version": "{{ test_scenario['values']['nifi-latest'] }}"
+                    }
+                  }
+                ],
+                "scheduledState": "ENABLED",
+                "bulletinLevel": "WARN",
+                "componentType": "CONTROLLER_SERVICE",
+                "groupIdentifier": "child-group-000-0000-000000000001"
+              }
+            ],
+            "defaultFlowFileExpiration": "0 sec",
+            "defaultBackPressureObjectThreshold": 10000,
+            "defaultBackPressureDataSizeThreshold": "1 GB",
+            "scheduledState": "ENABLED",
+            "executionEngine": "INHERITED",
+            "maxConcurrentTasks": 1,
+            "statelessFlowTimeout": "1 min",
+            "flowFileConcurrency": "UNBOUNDED",
+            "flowFileOutboundPolicy": "STREAM_WHEN_AVAILABLE",
+            "componentType": "PROCESS_GROUP"
+          }
+        ],
+        "remoteProcessGroups": [],
+        "processors": [],
+        "inputPorts": [],
+        "outputPorts": [],
+        "connections": [],
+        "labels": [],
+        "funnels": [],
+        "controllerServices": [
+          {
+            "identifier": "cs-http-ctx-0000-0000-000000000001",
+            "instanceIdentifier": "cs-http-inst-0000-0000-000000000root",
+            "name": "StandardHttpContextMap",
+            "comments": "",
+            "type": "org.apache.nifi.http.StandardHttpContextMap",
+            "bundle": {
+              "group": "org.apache.nifi",
+              "artifact": "nifi-http-context-map-nar",
+              "version": "{{ test_scenario['values']['nifi-latest'] }}"
+            },
+            "properties": {
+              "Request Expiration": "1 min",
+              "Maximum Outstanding Requests": "5000"
+            },
+            "propertyDescriptors": {},
+            "controllerServiceApis": [
+              {
+                "type": "org.apache.nifi.http.HttpContextMap",
+                "bundle": {
+                  "group": "org.apache.nifi",
+                  "artifact": "nifi-standard-services-api-nar",
+                  "version": "{{ test_scenario['values']['nifi-latest'] }}"
+                }
+              }
+            ],
+            "scheduledState": "ENABLED",
+            "bulletinLevel": "WARN",
+            "componentType": "CONTROLLER_SERVICE",
+            "groupIdentifier": "root-group-0000-0000-000000000001"
+          }
+        ],
+        "defaultFlowFileExpiration": "0 sec",
+        "defaultBackPressureObjectThreshold": 10000,
+        "defaultBackPressureDataSizeThreshold": "1 GB",
+        "scheduledState": "ENABLED",
+        "executionEngine": "INHERITED",
+        "maxConcurrentTasks": 1,
+        "statelessFlowTimeout": "1 min",
+        "flowFileConcurrency": "UNBOUNDED",
+        "flowFileOutboundPolicy": "STREAM_WHEN_AVAILABLE",
+        "componentType": "PROCESS_GROUP"
+      }
+    }
+---
+apiVersion: nifi.stackable.tech/v1alpha1
+kind: NifiCluster
+metadata:
+  name: nifi
+spec:
+  image:
+{% if test_scenario['values']['nifi-latest'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['nifi-latest'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['nifi-latest'].split(',')[0] }}"
+{% else %}
+    custom: null
+    productVersion: "{{ test_scenario['values']['nifi-latest'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
+  clusterConfig:
+    authentication:
+      - authenticationClass: nifi-users
+    sensitiveProperties:
+      keySecret: nifi-sensitive-property-key
+  nodes:
+    roleConfig:
+      listenerClass: cluster-internal
+    configOverrides:
+      nifi.properties:
+        nifi.web.https.sni.required: "false"
+        nifi.web.https.sni.host.check: "false"
+    podOverrides:
+      spec:
+        initContainers:
+          - name: init-flow
+            image: oci.stackable.tech/sdp/testing-tools/nifi:0.3.0-stackable0.0.0-dev
+            command:
+              - /bin/bash
+              - -c
+            args:
+              - gzip --stdout /stackable/nifi/flow/flow.json > /stackable/data/database/flow.json.gz
+            volumeMounts:
+              - name: nifi-flow
+                mountPath: /stackable/nifi/flow
+              - name: database-repository
+                mountPath: /stackable/data/database
+        volumes:
+          - name: nifi-flow
+            configMap:
+              name: nifi-flow-trigger
+    roleGroups:
+      default:
+        replicas: 2

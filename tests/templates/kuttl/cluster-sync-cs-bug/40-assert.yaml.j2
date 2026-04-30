@@ -1,0 +1,10 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 300
+commands:
+  - script: >-
+      kubectl exec -n $NAMESPACE test-nifi-0 --
+      python /tmp/test_cluster_healthy.py
+      -u admin -p admin
+      -n $NAMESPACE -c 2

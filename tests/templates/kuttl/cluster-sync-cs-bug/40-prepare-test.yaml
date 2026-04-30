@@ -1,0 +1,6 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: kubectl cp -n $NAMESPACE ./test_cluster_healthy.py test-nifi-0:/tmp
+  - script: kubectl cp -n $NAMESPACE ./test_trigger_reconnect.py test-nifi-0:/tmp
