@@ -442,7 +442,7 @@ pub fn build_nifi_properties(
         "2".to_string(),
     );
 
-    // Volatile Provenance Respository Properties
+    // Volatile Provenance Repository Properties
     properties.insert(
         "nifi.provenance.repository.buffer.size".to_string(),
         "100000".to_string(),

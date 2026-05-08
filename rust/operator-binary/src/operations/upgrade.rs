@@ -88,7 +88,7 @@ pub async fn cluster_version_update_state(
                 // we requeue to wait until a full stop has been performed.
                 if target_replicas == 0 && current_replicas > 0 {
                     tracing::info!(
-                        "Cluster is performing a full restart at the moment and still shutting down, remaining replicas: [{}] - requeueing to wait for shutdown to finish",
+                        "Cluster is performing a full restart at the moment and still shutting down, remaining replicas: [{}] - requeuing to wait for shutdown to finish",
                         current_replicas
                     );
                     return Ok(ClusterVersionUpdateState::UpdateInProgress);

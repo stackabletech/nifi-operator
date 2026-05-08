@@ -116,7 +116,7 @@ and `Hadoop Configuration Resources` to `/stackable/userdata/nifi-hive-s3-config
 Afterwards you can create the `PutIceberg` processor and configure the `HiveCatalogService`.
 Also set `Catalog Namespace` to your schema name and the `Table Name`.
 
-For the `File Format` it is recommened to use `PARQUET` or `ORC` rather than `AVRO` for performance reasons, but you can leave it empty or choose your desired format.
+For the `File Format` it is recommended to use `PARQUET` or `ORC` rather than `AVRO` for performance reasons, but you can leave it empty or choose your desired format.
 
 You should end up with the following `PutIceberg` processor:
 

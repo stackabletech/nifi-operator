@@ -536,7 +536,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Support for 1.15.0 ([#125])
-- Sensitive property key is setable via a secret ([#125])
+- Sensitive property key is settable via a secret ([#125])
 
 ### Changed
 
