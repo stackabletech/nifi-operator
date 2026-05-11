@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use indoc::{formatdoc, indoc};
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
@@ -8,11 +10,13 @@ use stackable_operator::{
         ConfigMap, ConfigMapKeySelector, EnvVar, EnvVarSource, Volume, VolumeMount,
     },
     kube::ResourceExt,
+    utils::cluster_info::KubernetesClusterInfo,
 };
 
 use crate::{
     config::{NIFI_PVC_STORAGE_DIRECTORY, NifiRepository},
     crd::{
+        NifiRole,
         authorization::{NifiAccessPolicyProvider, NifiAuthorization, NifiOpaConfig},
         v1alpha1,
     },
@@ -92,6 +96,7 @@ impl ResolvedNifiAuthorizationConfig {
     pub fn get_authorizers_config(
         &self,
         nifi_cluster: &v1alpha1::NifiCluster,
+        cluster_info: &KubernetesClusterInfo,
     ) -> Result<String, Error> {
         let mut authorizers_xml = indoc! {r#"
             <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -132,16 +137,69 @@ impl ResolvedNifiAuthorizationConfig {
             } => {
                 let file_based_mount_path = Self::file_based_mount_path();
 
-                // TODO Calculate the DNs
+                let namespace = nifi_cluster.namespace().expect("");
+
+                let mut dns = vec![];
+
+                for _role_name in [NifiRole::Node.to_string()] {
+                    let role_groups = nifi_cluster
+                        .spec
+                        .nodes
+                        .iter()
+                        .flat_map(|role| &role.role_groups)
+                        .collect::<BTreeMap<_, _>>();
+
+                    for (role_group_name, role_group) in role_groups {
+                        let headless_service_name = nifi_cluster
+                            .node_rolegroup_ref(role_group_name)
+                            .rolegroup_headless_service_name();
+
+                        let stateful_set_name = nifi_cluster.name_any();
+
+                        for replica in 0..role_group.replicas.unwrap_or(1) {
+                            let cn = "cn=generated certificate for pod";
+                            let dc = cluster_info
+                                .cluster_domain
+                                .split('.')
+                                .rev()
+                                .chain([
+                                    "svc",
+                                    &namespace,
+                                    &headless_service_name,
+                                    &format!("{stateful_set_name}-{replica}",),
+                                ])
+                                .map(|component| format!("dc={component}"))
+                                .collect::<Vec<_>>();
+
+                            let mut dn = vec![cn.to_string()];
+                            dn.extend(dc);
+                            let dn = dn.join(",");
+
+                            dns.push(dn);
+                        }
+                    }
+                }
+
+                let user_group_povider_dns = dns.iter().enumerate().map(|(i, dn)| format!("    <property name=\"Initial User Identity other-nifi {i}\">{dn}</property>")).collect::<Vec<_>>().join("\n");
+
+                let access_policy_provider_dns = dns
+                    .iter()
+                    .enumerate()
+                    .map(|(i, dn)| {
+                        format!(
+                            "    <property name=\"Node Identity other-nifi {i}\">{dn}</property>"
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+
                 authorizers_xml.push_str(&formatdoc! {r#"
                     <userGroupProvider>
                         <identifier>file-user-group-provider</identifier>
                         <class>org.apache.nifi.authorization.FileUserGroupProvider</class>
                         <property name="Users File">{file_based_mount_path}/users.xml</property>
                         <property name="Initial User Identity admin">{initial_admin_user}</property>
-
-                        <!-- As the secret-operator provides the NiFi nodes with cert with a common name of "generated certificate for pod" we have to put that here -->
-                        <property name="Initial User Identity other-nifis">CN=generated certificate for pod</property>
+                    {user_group_povider_dns}
                     </userGroupProvider>
 
                     <accessPolicyProvider>
@@ -150,9 +208,7 @@ impl ResolvedNifiAuthorizationConfig {
                         <property name="User Group Provider">file-user-group-provider</property>
                         <property name="Authorizations File">{file_based_mount_path}/authorizations.xml</property>
                         <property name="Initial Admin Identity">{initial_admin_user}</property>
-
-                        <!-- As the secret-operator provides the NiFi nodes with cert with a common name of "generated certificate for pod" we have to put that here -->
-                        <property name="Node Identity other-nifis">CN=generated certificate for pod</property>
+                    {access_policy_provider_dns}
                     </accessPolicyProvider>
 
                     <authorizer>

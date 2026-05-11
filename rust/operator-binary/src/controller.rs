@@ -542,6 +542,7 @@ pub async fn reconcile_nifi(
                 &merged_config,
                 &proxy_hosts,
                 &git_sync_resources,
+                &client.kubernetes_cluster_info,
             )
             .await?;
 
@@ -725,6 +726,7 @@ async fn build_node_rolegroup_config_map(
     merged_config: &NifiConfig,
     proxy_hosts: &str,
     git_sync_resources: &git_sync::v1alpha2::GitSyncResources,
+    cluster_info: &KubernetesClusterInfo,
 ) -> Result<ConfigMap> {
     tracing::debug!("building rolegroup configmaps");
 
@@ -733,7 +735,7 @@ async fn build_node_rolegroup_config_map(
         .context(InvalidNifiAuthenticationConfigSnafu)?;
 
     let authorizers_xml = authorization_config
-        .get_authorizers_config(nifi)
+        .get_authorizers_config(nifi, cluster_info)
         .context(InvalidNifiAuthorizationConfigSnafu)?;
 
     let jvm_sec_props: BTreeMap<String, Option<String>> = rolegroup_config

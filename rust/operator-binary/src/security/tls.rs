@@ -53,6 +53,7 @@ pub(crate) fn build_tls_volume(
                 .with_pod_scope()
                 .with_format(secret_format)
                 .with_auto_tls_cert_lifetime(*requested_secret_lifetime)
+                .with_auto_tls_cert_domain_components_in_subject_dn(true)
                 .build()
                 .context(TlsCertSecretClassVolumeBuildSnafu)?,
         )
