@@ -322,7 +322,7 @@ pub fn default_allow_all() -> bool {
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateReportingTaskJob {
-    /// Wether the Kubernetes Job should be created, defaults to true. It can be helpful to disable
+    /// Whether the Kubernetes Job should be created, defaults to true. It can be helpful to disable
     /// the Job, e.g. when you configOverride an authentication mechanism, which the Job currently
     /// can't use to authenticate against NiFi.
     #[serde(default = "CreateReportingTaskJob::default_enabled")]

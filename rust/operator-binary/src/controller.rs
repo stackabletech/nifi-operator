@@ -964,7 +964,7 @@ async fn build_node_rolegroup_statefulset(
     // uses RC2. Thus, the keytool usage here LGTM (no alias trickery) and has my nod of approval.
     prepare_args.extend(vec![
         // The source directory is a secret-op mount and we do not want to write / add anything in there
-        // Therefore we import all the contents to a truststore in "writeable" empty dirs.
+        // Therefore we import all the contents to a truststore in "writable" empty dirs.
         // Keytool is only barking if a password is not set for the destination truststore (which we set)
         // and do provide an empty password for the source truststore coming from the secret-operator.
         // Using no password will result in a warning.

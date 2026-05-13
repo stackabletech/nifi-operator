@@ -364,7 +364,7 @@ allow := {
 ----
 <1> The default rule should return `"resourceNotFound": true`. If this is not set, NiFi's access policy inheritance will not work. Any values for the `allowed` field in the response will be ignored.
 <2> A rule that grants all users access to the root process group and thus to all components in the NiFi instance.
-<3> A rule that denies access to a specific process group for the user "alice". For this process group the default rego rule will not be applied and NiFi's component inhertiance will not be used. All child components of this process group will also be authorized based on this rule unless a more granular rule overrides it.
+<3> A rule that denies access to a specific process group for the user "alice". For this process group the default rego rule will not be applied and NiFi's component inheritance will not be used. All child components of this process group will also be authorized based on this rule unless a more granular rule overrides it.
 
 [#communication-between-nifi-nodes]
 ==== Communication between NiFi nodes
