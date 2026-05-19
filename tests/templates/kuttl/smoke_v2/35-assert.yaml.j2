@@ -1,0 +1,257 @@
+---
+# Snapshot the full `.data` of the operator-managed `nifi-node-default`
+# ConfigMap. Any code change that alters rendered config values will fail
+# this diff.
+#
+# Runs as its own step (after 30-34) so kuttl does not re-evaluate the heavy
+# heredoc on every 1-second readiness retry of the install step. By this point
+# the cluster is in steady state, so the script runs once.
+#
+# The heredoc is quoted (`<<'YAMLEOF'`) so shell substitution is disabled and
+# template placeholders like `${env:ZOOKEEPER_HOSTS}` and Java-properties
+# escapes survive verbatim. No `sed` substitution is required because NiFi's
+# operator templates the namespace into pod env vars at runtime
+# (`${env:NODE_ADDRESS}`, `${env:LISTENER_DEFAULT_ADDRESS}`,
+# `${env:ZOOKEEPER_HOSTS}`) rather than baking it into the ConfigMap. Both
+# sides are normalized to canonical JSON via `yq -o=json` (keys sorted).
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 60
+commands:
+  - script: |
+      expected=$(cat <<'YAMLEOF' | yq -o=json
+      authorizers.xml: |
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <authorizers>
+        <authorizer>
+            <identifier>authorizer</identifier>
+            <class>org.apache.nifi.authorization.single.user.SingleUserAuthorizer</class>
+        </authorizer>
+        </authorizers>
+      bootstrap.conf: |
+        conf.dir=./conf
+        graceful.shutdown.seconds=300
+        java=java
+        java.arg.1=-Xmx3276m
+        java.arg.10=-Djavax.security.auth.useSubjectCredsOnly=true
+        java.arg.11=-Dzookeeper.admin.enableServer=false
+        java.arg.12=-Djava.security.properties=/stackable/nifi/conf/security.properties
+        java.arg.2=-Xms3276m
+        java.arg.3=-XX:+UseG1GC
+        java.arg.4=-Djava.awt.headless=true
+        java.arg.5=-Dorg.apache.jasper.compiler.disablejsr199=true
+        java.arg.6=-Djava.net.preferIPv4Stack=true
+        java.arg.7=-Dsun.net.http.allowRestrictedHeaders=true
+        java.arg.8=-Djava.protocol.handler.pkgs=sun.net.www.protocol
+        java.arg.9=-Djava.security.egd=file:/dev/urandom
+        lib.dir=./lib
+        preserve.environment=false
+        run.as=
+      logback.xml: |
+        <configuration>
+          <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+              <pattern>%date %level [%thread] %logger{40} %msg%n</pattern>
+            </encoder>
+            <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+              <level>INFO</level>
+            </filter>
+          </appender>
+
+          <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <File>/stackable/log/nifi/nifi.log4j.xml</File>
+            <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+              <layout class="ch.qos.logback.classic.log4j.XMLLayout" />
+            </encoder>
+            <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+              <level>INFO</level>
+            </filter>
+            <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+              <minIndex>1</minIndex>
+              <maxIndex>1</maxIndex>
+              <FileNamePattern>/stackable/log/nifi/nifi.log4j.xml.%i</FileNamePattern>
+            </rollingPolicy>
+            <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+              <MaxFileSize>5MB</MaxFileSize>
+              <!--
+                checkIncrement defines how often file sizes are checked, because
+                checking them is a relatively costly operation.
+                checkIncrement was introduced in the SizeBasedTriggeringPolicy in
+                logback 1.3.6/1.4.6 as an Integer representing milliseconds. In logback
+                1.3.12/1.4.12, it was changed to a Duration, also accepting a unit.
+                Without a given unit, milliseconds are assumed. The logback manual is
+                misleading: In logback 1.5.8, checkIncrement is no longer used for the
+                SizeAndTimeBasedFileNamingAndTriggeringPolicy, but it is still used for
+                the SizeBasedTriggeringPolicy!
+                In prior versions of logback, setting this option has no effect.
+              -->
+              <checkIncrement>5000</checkIncrement>
+            </triggeringPolicy>
+          </appender>
+
+
+          <appender name="PASSTHROUGH" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+              <pattern>%msg%n</pattern>
+            </encoder>
+          </appender>
+
+          <logger name="org.apache.nifi.StdOut" level="INFO" additivity="false">
+            <appender-ref ref="PASSTHROUGH" />
+          </logger>
+
+          <logger name="org.apache.nifi.StdErr" level="INFO" additivity="false">
+            <appender-ref ref="PASSTHROUGH" />
+          </logger>
+
+          <root level="INFO">
+            <appender-ref ref="CONSOLE" />
+            <appender-ref ref="FILE" />
+          </root>
+        </configuration>
+      login-identity-providers.xml: |
+        <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+        <loginIdentityProviders>
+        <provider>
+            <identifier>login-identity-provider</identifier>
+            <class>org.apache.nifi.authentication.single.user.SingleUserLoginIdentityProvider</class>
+            <property name="Username">admin</property>
+            <property name="Password">${env:STACKABLE_ADMIN_PASSWORD}</property>
+        </provider>
+        </loginIdentityProviders>
+      nifi.properties: |
+        nifi.administrative.yield.duration=30 sec
+        nifi.authorizer.configuration.file=/stackable/nifi/conf/authorizers.xml
+        nifi.cluster.flow.election.max.candidates=
+        nifi.cluster.flow.election.max.wait.time=1 mins
+        nifi.cluster.is.node=true
+        nifi.cluster.leader.election.implementation=CuratorLeaderElectionManager
+        nifi.cluster.node.address=${env:NODE_ADDRESS}
+        nifi.cluster.node.protocol.port=9088
+        nifi.cluster.protocol.is.secure=true
+        nifi.components.status.repository.buffer.size=1440
+        nifi.components.status.repository.implementation=org.apache.nifi.controller.status.history.VolatileComponentStatusRepository
+        nifi.components.status.snapshot.frequency=1 min
+        nifi.content.claim.max.appendable.size=1 MB
+        nifi.content.repository.always.sync=false
+        nifi.content.repository.archive.enabled=true
+        nifi.content.repository.archive.max.retention.period=
+        nifi.content.repository.archive.max.usage.percentage=50%
+        nifi.content.repository.directory.default=/stackable/data/content
+        nifi.content.repository.implementation=org.apache.nifi.controller.repository.FileSystemRepository
+        nifi.content.viewer.url=../nifi-content-viewer/
+        nifi.database.directory=/stackable/data/database
+        nifi.diagnostics.on.shutdown.enabled=false
+        nifi.diagnostics.on.shutdown.max.filecount=20
+        nifi.diagnostics.on.shutdown.verbose=false
+        nifi.documentation.working.directory=./work/docs/components
+        nifi.flow.configuration.archive.dir=/stackable/nifi/conf/archive/
+        nifi.flow.configuration.archive.enabled=true
+        nifi.flow.configuration.archive.max.count=
+        nifi.flow.configuration.archive.max.storage=921.6MB
+        nifi.flow.configuration.archive.max.time=
+        nifi.flow.configuration.file=/stackable/data/database/flow.json.gz
+        nifi.flowcontroller.autoResumeState=true
+        nifi.flowcontroller.graceful.shutdown.period=10 sec
+        nifi.flowfile.repository.always.sync=false
+        nifi.flowfile.repository.checkpoint.interval=20 secs
+        nifi.flowfile.repository.directory=/stackable/data/flowfile
+        nifi.flowfile.repository.implementation=org.apache.nifi.controller.repository.WriteAheadFlowFileRepository
+        nifi.flowfile.repository.retain.orphaned.flowfiles=true
+        nifi.flowfile.repository.wal.implementation=org.apache.nifi.wali.SequentialAccessWriteAheadLog
+        nifi.flowservice.writedelay.interval=500 ms
+        nifi.h2.url.append=;LOCK_TIMEOUT=25000;WRITE_DELAY=0;AUTO_SERVER=FALSE
+        nifi.login.identity.provider.configuration.file=/stackable/nifi/conf/login-identity-providers.xml
+        nifi.nar.library.autoload.directory=./extensions
+        nifi.nar.library.directory=./lib
+        nifi.nar.working.directory=./work/nar/
+        nifi.provenance.repository.always.sync=false
+        nifi.provenance.repository.buffer.size=100000
+        nifi.provenance.repository.compress.on.rollover=true
+        nifi.provenance.repository.concurrent.merge.threads=2
+        nifi.provenance.repository.directory.default=/stackable/data/provenance
+        nifi.provenance.repository.implementation=org.apache.nifi.provenance.WriteAheadProvenanceRepository
+        nifi.provenance.repository.index.shard.size=500 MB
+        nifi.provenance.repository.index.threads=2
+        nifi.provenance.repository.indexed.attributes=
+        nifi.provenance.repository.indexed.fields=EventType, FlowFileUUID, Filename, ProcessorID, Relationship
+        nifi.provenance.repository.max.attribute.length=65536
+        nifi.provenance.repository.max.storage.size=1843.2MB
+        nifi.provenance.repository.max.storage.time=
+        nifi.provenance.repository.query.threads=2
+        nifi.provenance.repository.rollover.size=100 MB
+        nifi.provenance.repository.rollover.time=10 mins
+        nifi.python.command=python3
+        nifi.python.extensions.source.directory.default=/stackable/nifi/python/extensions/
+        nifi.python.framework.source.directory=/stackable/nifi/python/framework/
+        nifi.python.working.directory=/nifi-python-working-directory
+        nifi.queue.swap.threshold=20000
+        nifi.security.allow.anonymous.authentication=false
+        nifi.security.keystore=/stackable/server_tls/keystore.p12
+        nifi.security.keystorePasswd=secret
+        nifi.security.keystoreType=PKCS12
+        nifi.security.truststore=/stackable/server_tls/truststore.p12
+        nifi.security.truststorePasswd=secret
+        nifi.security.truststoreType=PKCS12
+        nifi.security.user.authorizer=authorizer
+        nifi.security.user.login.identity.provider=login-identity-provider
+        nifi.sensitive.props.algorithm=NIFI_ARGON2_AES_GCM_256
+        nifi.sensitive.props.key=${file:UTF-8:/stackable/sensitiveproperty/nifiSensitivePropsKey}
+        nifi.sensitive.props.key.protected=
+        nifi.state.management.configuration.file=./conf/state-management.xml
+        nifi.state.management.embedded.zookeeper.start=false
+        nifi.state.management.provider.cluster=zk-provider
+        nifi.state.management.provider.local=local-provider
+        nifi.status.repository.questdb.persist.component.days=3
+        nifi.status.repository.questdb.persist.location=./status_repository
+        nifi.status.repository.questdb.persist.node.days=14
+        nifi.swap.manager.implementation=org.apache.nifi.controller.FileSystemSwapManager
+        nifi.templates.directory=./conf/templates
+        nifi.ui.autorefresh.interval=30 sec
+        nifi.ui.banner.text=
+        nifi.web.https.host=${env:NODE_ADDRESS}
+        nifi.web.https.network.interface.default=
+        nifi.web.https.network.interface.eth0=eth0
+        nifi.web.https.network.interface.lo=lo
+        nifi.web.https.port=8443
+        nifi.web.jetty.threads=200
+        nifi.web.jetty.working.directory=./work/jetty
+        nifi.web.max.header.size=16 KB
+        nifi.web.proxy.context.path=
+        nifi.web.proxy.host=${env:LISTENER_DEFAULT_ADDRESS}:${env:LISTENER_DEFAULT_PORT_HTTPS},example.com:1234
+        nifi.zookeeper.connect.string=${env:ZOOKEEPER_HOSTS}
+        nifi.zookeeper.root.node=${env:ZOOKEEPER_CHROOT}
+      security.properties: |
+        networkaddress.cache.negative.ttl=0
+        networkaddress.cache.ttl=30
+      state-management.xml: |-
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <stateManagement>
+                  <local-provider>
+                    <id>local-provider</id>
+                    <class>org.apache.nifi.controller.state.providers.local.WriteAheadLocalStateProvider</class>
+                    <property name="Directory">/stackable/data/state</property>
+                    <property name="Always Sync">false</property>
+                    <property name="Partitions">16</property>
+                    <property name="Checkpoint Interval">2 mins</property>
+                  </local-provider>
+                  <cluster-provider>
+                      <id>zk-provider</id>
+                      <class>org.apache.nifi.controller.state.providers.zookeeper.ZooKeeperStateProvider</class>
+                      <property name="Connect String">${env:ZOOKEEPER_HOSTS}</property>
+                      <property name="Root Node">${env:ZOOKEEPER_CHROOT}</property>
+                      <property name="Session Timeout">10 seconds</property>
+                      <property name="Access Control">Open</property>
+                    </cluster-provider>
+                </stateManagement>
+      YAMLEOF
+      )
+      actual=$(kubectl -n $NAMESPACE get cm nifi-node-default -o yaml | yq -o=json '.data')
+      if [ "$expected" != "$actual" ]; then
+        echo "ERROR: ConfigMap nifi-node-default data drifted from snapshot."
+        echo "=== expected ==="
+        printf '%s\n' "$expected"
+        echo "=== actual ==="
+        printf '%s\n' "$actual"
+        exit 1
+      fi
