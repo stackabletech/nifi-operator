@@ -1,5 +1,4 @@
 pub mod affinity;
-pub mod authentication;
 pub mod authorization;
 pub mod sensitive_properties;
 pub mod tls;

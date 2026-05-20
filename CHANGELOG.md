@@ -16,6 +16,7 @@ All notable changes to this project will be documented in this file.
 - BREAKING: `configOverrides` now only accepts `bootstrap.conf`, `nifi.properties` and `security.properties`.
   Previously, arbitrary keys were silently accepted but ignored ([#921]).
 - Bump `stackable-operator` to 0.110.1 and `kube` to 3.1.0 ([#921]).
+- Internal operator refactoring: introduce dereference() and validate() steps in the reconciler ([#935]).
 
 ### Fixed
 
@@ -27,6 +28,7 @@ All notable changes to this project will be documented in this file.
 [#922]: https://github.com/stackabletech/nifi-operator/pull/922
 [#924]: https://github.com/stackabletech/nifi-operator/pull/924
 [#928]: https://github.com/stackabletech/nifi-operator/pull/928
+[#935]: https://github.com/stackabletech/nifi-operator/pull/935
 
 ## [26.3.0] - 2026-03-16
 

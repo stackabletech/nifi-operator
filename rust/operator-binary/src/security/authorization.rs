@@ -50,26 +50,56 @@ pub enum ResolvedNifiAuthorizationConfig {
     },
 }
 
-impl ResolvedNifiAuthorizationConfig {
-    pub async fn from(
+/// Kubernetes objects referenced from `nifi.spec.clusterConfig.authorization`, already
+/// fetched. The OPA variant points at a ConfigMap; the other variants need no remote lookup.
+/// Produced by [`DereferencedAuthorization::dereference`] in the dereference step and
+/// consumed by [`ResolvedNifiAuthorizationConfig::validate`] in the validate step.
+pub struct DereferencedAuthorization {
+    /// The fetched OPA ConfigMap. `None` if the spec doesn't select the OPA variant.
+    opa_config_map: Option<ConfigMap>,
+}
+
+impl DereferencedAuthorization {
+    /// Fetch the OPA ConfigMap referenced by the authorization spec, if applicable.
+    pub async fn dereference(
         nifi_authorization: &NifiAuthorization,
         client: &Client,
         namespace: &str,
     ) -> Result<Self, Error> {
-        let authz = match nifi_authorization {
+        let opa_config_map = match nifi_authorization {
             NifiAuthorization::Opa {
-                opa: NifiOpaConfig { opa, cache },
-            } => {
-                // Resolve the secret class from the ConfigMap
-                let secret_class = client
+                opa: NifiOpaConfig { opa, .. },
+            } => Some(
+                client
                     .get::<ConfigMap>(&opa.config_map_name, namespace)
                     .await
                     .with_context(|_| FetchOpaConfigMapSnafu {
-                        configmap_name: &opa.config_map_name,
-                        namespace,
-                    })?
-                    .data
-                    .and_then(|mut data| data.remove("OPA_SECRET_CLASS"));
+                        configmap_name: opa.config_map_name.clone(),
+                        namespace: namespace.to_owned(),
+                    })?,
+            ),
+            NifiAuthorization::SingleUser {} | NifiAuthorization::Standard { .. } => None,
+        };
+
+        Ok(DereferencedAuthorization { opa_config_map })
+    }
+}
+
+impl ResolvedNifiAuthorizationConfig {
+    /// Builds the final authorization config from the spec and the dereferenced data.
+    pub fn validate(
+        nifi_authorization: &NifiAuthorization,
+        dereferenced: &DereferencedAuthorization,
+    ) -> Self {
+        match nifi_authorization {
+            NifiAuthorization::Opa {
+                opa: NifiOpaConfig { opa, cache },
+            } => {
+                let secret_class = dereferenced
+                    .opa_config_map
+                    .as_ref()
+                    .and_then(|cm| cm.data.as_ref())
+                    .and_then(|data| data.get("OPA_SECRET_CLASS").cloned());
 
                 ResolvedNifiAuthorizationConfig::Opa {
                     config: opa.to_owned(),
@@ -84,15 +114,10 @@ impl ResolvedNifiAuthorizationConfig {
             } => ResolvedNifiAuthorizationConfig::Standard {
                 access_policy_provider: access_policy_provider.to_owned(),
             },
-        };
-
-        Ok(authz)
+        }
     }
 
-    pub fn get_authorizers_config(
-        &self,
-        nifi_cluster: &v1alpha1::NifiCluster,
-    ) -> Result<String, Error> {
+    pub fn get_authorizers_config(&self, nifi_cluster: &v1alpha1::NifiCluster) -> String {
         let mut authorizers_xml = indoc! {r#"
             <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
             <authorizers>
@@ -167,7 +192,7 @@ impl ResolvedNifiAuthorizationConfig {
             </authorizers>
         "#});
 
-        Ok(authorizers_xml)
+        authorizers_xml
     }
 
     pub fn get_env_vars(&self) -> Vec<EnvVar> {
