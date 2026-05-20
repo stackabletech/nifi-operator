@@ -125,7 +125,12 @@ commands:
         nifi.cluster.flow.election.max.candidates=
         nifi.cluster.flow.election.max.wait.time=1 mins
         nifi.cluster.is.node=true
+{% if test_scenario['values']['use-zookeeper-manager'] == 'true' %}
         nifi.cluster.leader.election.implementation=CuratorLeaderElectionManager
+{% else %}
+        nifi.cluster.leader.election.implementation=KubernetesLeaderElectionManager
+        nifi.cluster.leader.election.kubernetes.lease.prefix=${env:STACKLET_NAME}
+{% endif %}
         nifi.cluster.node.address=${env:NODE_ADDRESS}
         nifi.cluster.node.protocol.port=9088
         nifi.cluster.protocol.is.secure=true
@@ -200,7 +205,11 @@ commands:
         nifi.sensitive.props.key.protected=
         nifi.state.management.configuration.file=./conf/state-management.xml
         nifi.state.management.embedded.zookeeper.start=false
+{% if test_scenario['values']['use-zookeeper-manager'] == 'true' %}
         nifi.state.management.provider.cluster=zk-provider
+{% else %}
+        nifi.state.management.provider.cluster=kubernetes-provider
+{% endif %}
         nifi.state.management.provider.local=local-provider
         nifi.status.repository.questdb.persist.component.days=3
         nifi.status.repository.questdb.persist.location=./status_repository
@@ -219,8 +228,10 @@ commands:
         nifi.web.max.header.size=16 KB
         nifi.web.proxy.context.path=
         nifi.web.proxy.host=${env:LISTENER_DEFAULT_ADDRESS}:${env:LISTENER_DEFAULT_PORT_HTTPS},example.com:1234
+{% if test_scenario['values']['use-zookeeper-manager'] == 'true' %}
         nifi.zookeeper.connect.string=${env:ZOOKEEPER_HOSTS}
         nifi.zookeeper.root.node=${env:ZOOKEEPER_CHROOT}
+{% endif %}
       security.properties: |
         networkaddress.cache.negative.ttl=0
         networkaddress.cache.ttl=30
@@ -235,6 +246,7 @@ commands:
                     <property name="Partitions">16</property>
                     <property name="Checkpoint Interval">2 mins</property>
                   </local-provider>
+{% if test_scenario['values']['use-zookeeper-manager'] == 'true' %}
                   <cluster-provider>
                       <id>zk-provider</id>
                       <class>org.apache.nifi.controller.state.providers.zookeeper.ZooKeeperStateProvider</class>
@@ -243,6 +255,13 @@ commands:
                       <property name="Session Timeout">10 seconds</property>
                       <property name="Access Control">Open</property>
                     </cluster-provider>
+{% else %}
+                  <cluster-provider>
+                      <id>kubernetes-provider</id>
+                      <class>org.apache.nifi.kubernetes.state.provider.KubernetesConfigMapStateProvider</class>
+                      <property name="ConfigMap Name Prefix">${env:STACKLET_NAME}</property>
+                    </cluster-provider>
+{% endif %}
                 </stateManagement>
       YAMLEOF
       )
