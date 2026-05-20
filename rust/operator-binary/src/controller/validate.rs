@@ -61,10 +61,7 @@ pub struct ValidatedInputs {
     pub authentication_config: NifiAuthenticationConfig,
     pub authorization_config: ResolvedNifiAuthorizationConfig,
     pub validated_role_config: ValidatedRoleConfigByPropertyKind,
-    /// Comma-separated NiFi proxy hosts, or `"*"` if
-    /// `spec.clusterConfig.hostHeaderCheck.allowAll` is set. Computed here so all derived
-    /// inputs live in one place; previously this ran once per rolegroup inside the
-    /// reconcile loop.
+    // Comma-separated NiFi proxy hosts, or `"*"` if `spec.clusterConfig.hostHeaderCheck.allowAll` is set.
     pub proxy_hosts: String,
 }
 
