@@ -21,3 +21,7 @@ nifi 2023-11-08 10:52:15,139 INFO [Thread-0] org.apache.nifi.nar.NarAutoLoader N
 nifi 2023-11-08 10:52:15,139 INFO [Thread-0] o.a.n.f.r.CompositeExternalResourceProviderService External Resource Provider Service is stopped
 nifi 2023-11-08 10:52:15,139 INFO [Thread-0] org.apache.nifi.NiFi Application Server shutdown completed
 ----
+
+NOTE: For high-throughput clusters (large numbers of in-flight FlowFiles or high provenance event rates), 5 minutes may not be enough time for NiFi to flush the FlowFile write-ahead log and finalize the provenance index.
+If `SIGKILL` is consistently reached before NiFi can shut down cleanly, repositories are left in a partially-flushed state, which makes the next startup significantly slower (FlowFile WAL recovery and provenance reindex have more work to do).
+Increase `gracefulShutdownTimeout` if you observe `SIGKILL` being issued, or if subsequent restarts take noticeably longer than expected.
