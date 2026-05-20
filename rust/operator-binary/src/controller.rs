@@ -369,12 +369,13 @@ pub async fn reconcile_nifi(
         .await
         .context(DereferenceSnafu)?;
 
-    // validate (no client required)
+    // validate (no Kubernetes API calls required)
     let validated = validate::validate(
         nifi,
         &dereferenced_objects,
         &ctx.operator_environment,
         &ctx.product_config,
+        &client.kubernetes_cluster_info,
     )
     .context(ValidateClusterSnafu)?;
 
@@ -382,7 +383,7 @@ pub async fn reconcile_nifi(
     let authentication_config = validated.authentication_config;
     let authorization_config = validated.authorization_config;
     let validated_config = validated.validated_role_config;
-    let proxy_hosts = dereferenced_objects.proxy_hosts;
+    let proxy_hosts = validated.proxy_hosts;
 
     tracing::info!("Checking for sensitive key configuration");
     check_or_generate_sensitive_key(client, nifi)
