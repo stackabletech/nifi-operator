@@ -31,7 +31,7 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "The nifi-operator does not support running Nifi without any authentication. Please provide a AuthenticationClass to use."
+        "The nifi-operator does not support running Nifi without any authentication. Please provide an AuthenticationClass to use."
     ))]
     NoAuthenticationNotSupported,
 
