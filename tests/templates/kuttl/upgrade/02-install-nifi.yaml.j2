@@ -51,6 +51,10 @@ spec:
       gracefulShutdownTimeout: 1m
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    configOverrides:
+      "nifi.properties":
+        # Quicker startup, and we only have a single node
+        "nifi.cluster.flow.election.max.wait.time": "10 secs"
     roleGroups:
       default:
         config: {}

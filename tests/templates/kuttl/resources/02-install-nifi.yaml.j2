@@ -68,6 +68,10 @@ spec:
             capacity: 2Gi
           stateRepo:
             capacity: 2Gi
+    configOverrides:
+      "nifi.properties":
+        # Quicker startup, and we only have a single node
+        "nifi.cluster.flow.election.max.wait.time": "10 secs"
     roleGroups:
       resources-from-role:
         replicas: 1
