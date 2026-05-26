@@ -19,7 +19,7 @@ kind: TestAssert
 timeout: 60
 commands:
   - script: |
-      expected=$(cat <<'YAMLEOF' | yq -o=json
+      expected=$(cat <<'YAMLEOF' | envsubst '$NAMESPACE' | yq -o=json
       authorizers.xml: |
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
         <authorizers>
@@ -851,7 +851,7 @@ commands:
               - extended_logs_*
             type: remap
             source: |
-              .namespace = "kuttl-test1"
+              .namespace = "$NAMESPACE"
               .cluster = "nifi"
               .role = "node"
               .roleGroup = "default"
