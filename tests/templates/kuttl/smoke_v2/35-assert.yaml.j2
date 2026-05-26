@@ -123,7 +123,7 @@ commands:
         nifi.administrative.yield.duration=30 sec
         nifi.authorizer.configuration.file=/stackable/nifi/conf/authorizers.xml
         nifi.cluster.flow.election.max.candidates=
-        nifi.cluster.flow.election.max.wait.time=1 mins
+        nifi.cluster.flow.election.max.wait.time=10 secs
         nifi.cluster.is.node=true
 {% if test_scenario['values']['use-zookeeper-manager'] == 'true' %}
         nifi.cluster.leader.election.implementation=CuratorLeaderElectionManager
@@ -140,7 +140,7 @@ commands:
         nifi.content.claim.max.appendable.size=1 MB
         nifi.content.repository.always.sync=false
         nifi.content.repository.archive.enabled=true
-        nifi.content.repository.archive.max.retention.period=
+        nifi.content.repository.archive.max.retention.period=3 days
         nifi.content.repository.archive.max.usage.percentage=50%
         nifi.content.repository.directory.default=/stackable/data/content
         nifi.content.repository.implementation=org.apache.nifi.controller.repository.FileSystemRepository

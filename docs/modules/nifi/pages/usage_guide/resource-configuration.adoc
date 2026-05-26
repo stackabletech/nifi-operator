@@ -46,3 +46,11 @@ A minimal HA setup consisting of 2 NiFi instances has the following https://kube
 * `18432Mi` persistent storage
 
 You can find the default resource configuration values in the {crd-docs}/nifi.stackable.tech/NifiCluster/v1alpha1/#spec-nodes-config-resources[NifiCluster reference docs {external-link-icon}^].
+
+== Content archive retention
+
+When a FlowFile's content claim is no longer referenced, NiFi moves the file into an `archive/` subdirectory of the content repository rather than deleting it immediately.
+Archived content is what powers *Replay* and *View Content* in the NiFi provenance UI.
+The operator configures both a time-based and a size-based purge threshold; the provenance audit trail itself is stored in a separate repository and is not affected by content archive retention.
+
+If the operator defaults don't fit your workload, for example you need a longer replay window, or you want to disable content archiving entirely, override the relevant `nifi.content.repository.archive.*` properties via xref:usage_guide/overrides.adoc[configOverrides].

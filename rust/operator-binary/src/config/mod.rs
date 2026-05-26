@@ -344,9 +344,19 @@ pub fn build_nifi_properties(
         "nifi.content.repository.directory.default".to_string(),
         NifiRepository::Content.mount_path(),
     );
+    // Cap archived content age so the archive directory stays bounded in
+    // file count. NiFi treats empty as Long.MAX_VALUE, leaving size-based
+    // purge as the only trigger; that lets the archive grow to whatever
+    // half the PVC holds, and the startup directory scan in
+    // FileSystemRepository.initializeRepository scales with file count.
+    // 3 days covers a Friday-incident-investigated-Monday window for
+    // content replay; users with longer requirements can extend via
+    // configOverrides. The percentage-based threshold below acts as a
+    // safety net if write rate outpaces time-based purge.
+    // Also see https://github.com/stackabletech/nifi-operator/issues/354
     properties.insert(
         "nifi.content.repository.archive.max.retention.period".to_string(),
-        "".to_string(),
+        "3 days".to_string(),
     );
     properties.insert(
         "nifi.content.repository.archive.max.usage.percentage".to_string(),
@@ -598,11 +608,6 @@ pub fn build_nifi_properties(
     properties.insert(
         "nifi.cluster.node.protocol.port".to_string(),
         PROTOCOL_PORT.to_string(),
-    );
-    // TODO: set to 1 min for testing (default 5)
-    properties.insert(
-        "nifi.cluster.flow.election.max.wait.time".to_string(),
-        "1 mins".to_string(),
     );
     properties.insert(
         "nifi.cluster.flow.election.max.candidates".to_string(),

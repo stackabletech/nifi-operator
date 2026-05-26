@@ -73,6 +73,8 @@ spec:
       "nifi.properties":
         "nifi.diagnostics.on.shutdown.enabled": "true"
         "nifi.diagnostics.on.shutdown.verbose": "false"
+        # Quicker startup, and we only have a single node
+        "nifi.cluster.flow.election.max.wait.time": "10 secs"
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
