@@ -1,0 +1,12 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+timeout: 900
+commands:
+  - script: >-
+      kubectl exec -n $NAMESPACE test-nifi-0 --
+      python /tmp/test_trigger_reconnect.py
+      -u admin -p admin
+      -n $NAMESPACE -c 2
+      --stable-seconds 30
+      --timeout-seconds 180

@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- BREAKING: Add required CLI argument and env var to set the image repository used to construct final product image names: `IMAGE_REPOSITORY` (`--image-repository`), eg. `oci.example.org/my/namespace` ([#928]).
 - Support for passing CAs to GitSync ([#903]).
 - Added support for NiFi `2.9.0` ([#922]).
 
@@ -15,11 +16,22 @@ All notable changes to this project will be documented in this file.
 - BREAKING: `configOverrides` now only accepts `bootstrap.conf`, `nifi.properties` and `security.properties`.
   Previously, arbitrary keys were silently accepted but ignored ([#921]).
 - Bump `stackable-operator` to 0.110.1 and `kube` to 3.1.0 ([#921]).
+- Internal operator refactoring: introduce dereference() and validate() steps in the reconciler ([#935]).
+- Default `nifi.cluster.flow.election.max.wait.time` to NiFi's upstream value (`5 mins`) instead of the operator's previous `1 mins`. The operator no longer sets this property explicitly; the previous shorter value was left over from a TODO marked as "for testing" and may have caused flow election to settle on incomplete vote sets in cold-start scenarios ([#936]).
+- Set `nifi.content.repository.archive.max.retention.period` to `3 days` (previously empty, which NiFi interprets as `Long.MAX_VALUE` and effectively disables time-based archive purge). Without a time-based ceiling, the content archive can grow to half the content PVC and accumulate millions of files, which makes the synchronous startup directory scan in `FileSystemRepository.initializeRepository` very slow. Users requiring a longer content-replay window can extend via `configOverrides`. The provenance audit trail is independent of this setting and unaffected ([#936]).
+
+### Fixed
+
+- Fix broken link to the NiFi authorization usage guide in the `spec.clusterConfig.authorization` CRD doc (`usage-guide` -> `usage_guide`) ([#924]).
 
 [#903]: https://github.com/stackabletech/nifi-operator/pull/903
 [#916]: https://github.com/stackabletech/nifi-operator/pull/916
 [#921]: https://github.com/stackabletech/nifi-operator/pull/921
 [#922]: https://github.com/stackabletech/nifi-operator/pull/922
+[#924]: https://github.com/stackabletech/nifi-operator/pull/924
+[#928]: https://github.com/stackabletech/nifi-operator/pull/928
+[#935]: https://github.com/stackabletech/nifi-operator/pull/935
+[#936]: https://github.com/stackabletech/nifi-operator/pull/936
 
 ## [26.3.0] - 2026-03-16
 
@@ -529,7 +541,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Support for 1.15.0 ([#125])
-- Sensitive property key is setable via a secret ([#125])
+- Sensitive property key is settable via a secret ([#125])
 
 ### Changed
 

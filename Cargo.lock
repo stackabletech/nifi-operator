@@ -1582,7 +1582,7 @@ dependencies = [
 [[package]]
 name = "k8s-version"
 version = "0.1.3"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#9e6a5d726f12d60fbd6546957e82d7334ac47f23"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#8eb179f9faf75afae2db8171445e84a6a54a4401"
 dependencies = [
  "darling",
  "regex",
@@ -2606,9 +2606,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.12"
+version = "0.103.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8279bb85272c9f10811ae6a6c547ff594d6a7f3c6c6b02ee9726d1d0dcfcdd06"
+checksum = "61c429a8649f110dddef65e2a5ad240f747e85f7758a6bccc7e5777bd33f756e"
 dependencies = [
  "ring",
  "rustls-pki-types",
@@ -2993,7 +2993,7 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 [[package]]
 name = "stackable-certs"
 version = "0.4.0"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#9e6a5d726f12d60fbd6546957e82d7334ac47f23"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#8eb179f9faf75afae2db8171445e84a6a54a4401"
 dependencies = [
  "const-oid",
  "ecdsa",
@@ -3043,8 +3043,8 @@ dependencies = [
 
 [[package]]
 name = "stackable-operator"
-version = "0.110.1"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#9e6a5d726f12d60fbd6546957e82d7334ac47f23"
+version = "0.111.1"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#8eb179f9faf75afae2db8171445e84a6a54a4401"
 dependencies = [
  "base64",
  "clap",
@@ -3080,12 +3080,13 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "url",
+ "winnow",
 ]
 
 [[package]]
 name = "stackable-operator-derive"
 version = "0.3.1"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#9e6a5d726f12d60fbd6546957e82d7334ac47f23"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#8eb179f9faf75afae2db8171445e84a6a54a4401"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -3096,7 +3097,7 @@ dependencies = [
 [[package]]
 name = "stackable-shared"
 version = "0.1.0"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#9e6a5d726f12d60fbd6546957e82d7334ac47f23"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#8eb179f9faf75afae2db8171445e84a6a54a4401"
 dependencies = [
  "jiff",
  "k8s-openapi",
@@ -3113,7 +3114,7 @@ dependencies = [
 [[package]]
 name = "stackable-telemetry"
 version = "0.6.3"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#9e6a5d726f12d60fbd6546957e82d7334ac47f23"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#8eb179f9faf75afae2db8171445e84a6a54a4401"
 dependencies = [
  "axum",
  "clap",
@@ -3136,9 +3137,10 @@ dependencies = [
 
 [[package]]
 name = "stackable-versioned"
-version = "0.9.0"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#9e6a5d726f12d60fbd6546957e82d7334ac47f23"
+version = "0.10.0"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#8eb179f9faf75afae2db8171445e84a6a54a4401"
 dependencies = [
+ "kube",
  "schemars",
  "serde",
  "serde_json",
@@ -3149,8 +3151,8 @@ dependencies = [
 
 [[package]]
 name = "stackable-versioned-macros"
-version = "0.9.0"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#9e6a5d726f12d60fbd6546957e82d7334ac47f23"
+version = "0.10.0"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#8eb179f9faf75afae2db8171445e84a6a54a4401"
 dependencies = [
  "convert_case",
  "convert_case_extras",
@@ -3168,7 +3170,7 @@ dependencies = [
 [[package]]
 name = "stackable-webhook"
 version = "0.9.1"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#9e6a5d726f12d60fbd6546957e82d7334ac47f23"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#8eb179f9faf75afae2db8171445e84a6a54a4401"
 dependencies = [
  "arc-swap",
  "async-trait",
@@ -4045,9 +4047,9 @@ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
 
 [[package]]
 name = "winnow"
-version = "1.0.1"
+version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09dac053f1cd375980747450bfc7250c264eaae0583872e845c0c7cd578872b5"
+checksum = "0592e1c9d151f854e6fd382574c3a0855250e1d9b2f99d9281c6e6391af352f1"
 dependencies = [
  "memchr",
 ]

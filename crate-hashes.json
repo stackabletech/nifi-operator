@@ -1,12 +1,12 @@
 {
-  "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#k8s-version@0.1.3": "1nf9m1m4kks349szfxzwypijlgwrbsspdrnyivgm2mwzbkawzzp5",
-  "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#stackable-certs@0.4.0": "1nf9m1m4kks349szfxzwypijlgwrbsspdrnyivgm2mwzbkawzzp5",
-  "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#stackable-operator-derive@0.3.1": "1nf9m1m4kks349szfxzwypijlgwrbsspdrnyivgm2mwzbkawzzp5",
-  "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#stackable-operator@0.110.1": "1nf9m1m4kks349szfxzwypijlgwrbsspdrnyivgm2mwzbkawzzp5",
-  "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#stackable-shared@0.1.0": "1nf9m1m4kks349szfxzwypijlgwrbsspdrnyivgm2mwzbkawzzp5",
-  "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#stackable-telemetry@0.6.3": "1nf9m1m4kks349szfxzwypijlgwrbsspdrnyivgm2mwzbkawzzp5",
-  "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#stackable-versioned-macros@0.9.0": "1nf9m1m4kks349szfxzwypijlgwrbsspdrnyivgm2mwzbkawzzp5",
-  "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#stackable-versioned@0.9.0": "1nf9m1m4kks349szfxzwypijlgwrbsspdrnyivgm2mwzbkawzzp5",
-  "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#stackable-webhook@0.9.1": "1nf9m1m4kks349szfxzwypijlgwrbsspdrnyivgm2mwzbkawzzp5",
+  "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#k8s-version@0.1.3": "0liwh50756wajvzrbklcdcasrzczrh7xsf3q4gzq32h145x9151d",
+  "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#stackable-certs@0.4.0": "0liwh50756wajvzrbklcdcasrzczrh7xsf3q4gzq32h145x9151d",
+  "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#stackable-operator-derive@0.3.1": "0liwh50756wajvzrbklcdcasrzczrh7xsf3q4gzq32h145x9151d",
+  "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#stackable-operator@0.111.1": "0liwh50756wajvzrbklcdcasrzczrh7xsf3q4gzq32h145x9151d",
+  "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#stackable-shared@0.1.0": "0liwh50756wajvzrbklcdcasrzczrh7xsf3q4gzq32h145x9151d",
+  "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#stackable-telemetry@0.6.3": "0liwh50756wajvzrbklcdcasrzczrh7xsf3q4gzq32h145x9151d",
+  "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#stackable-versioned-macros@0.10.0": "0liwh50756wajvzrbklcdcasrzczrh7xsf3q4gzq32h145x9151d",
+  "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#stackable-versioned@0.10.0": "0liwh50756wajvzrbklcdcasrzczrh7xsf3q4gzq32h145x9151d",
+  "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fannotation-auto-tls-cert-subject-dn#stackable-webhook@0.9.1": "0liwh50756wajvzrbklcdcasrzczrh7xsf3q4gzq32h145x9151d",
   "git+https://github.com/stackabletech/product-config.git?tag=0.8.0#product-config@0.8.0": "1dz70kapm2wdqcr7ndyjji0lhsl98bsq95gnb2lw487wf6yr7987"
 }

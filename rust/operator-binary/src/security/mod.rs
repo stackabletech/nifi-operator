@@ -19,7 +19,7 @@ pub enum Error {
     #[snafu(display("tls failure"))]
     Tls { source: tls::Error },
 
-    #[snafu(display("sensistive key failure"))]
+    #[snafu(display("sensitive key failure"))]
     SensitiveKey { source: sensitive_key::Error },
 
     #[snafu(display("failed to ensure OIDC admin password exists"))]

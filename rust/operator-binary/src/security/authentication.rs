@@ -5,14 +5,13 @@ use stackable_operator::{
         self,
         pod::{PodBuilder, container::ContainerBuilder},
     },
-    crd::authentication::{ldap, oidc, r#static},
+    client::Client,
+    crd::authentication::{core as auth_core, ldap, oidc, r#static},
     k8s_openapi::api::core::v1::{KeyToPath, SecretVolumeSource, Volume},
+    kube::{ResourceExt, runtime::reflector::ObjectRef},
 };
 
-use crate::{
-    crd::{authentication::AuthenticationClassResolved, v1alpha1},
-    security::oidc::build_oidc_admin_password_secret_name,
-};
+use crate::{crd::v1alpha1, security::oidc::build_oidc_admin_password_secret_name};
 
 pub const STACKABLE_ADMIN_USERNAME: &str = "admin";
 
@@ -26,14 +25,39 @@ pub const STACKABLE_TLS_STORE_PASSWORD: &str = "secret";
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("Only one authentication mechanism is supported by NiFi."))]
-    SingleAuthenticationMechanismSupported,
+    #[snafu(display("failed to retrieve AuthenticationClass"))]
+    AuthenticationClassRetrievalFailed {
+        source: stackable_operator::client::Error,
+    },
 
     #[snafu(display(
-        "The authentication class provider [{authentication_class_provider}] is not supported by NiFi."
+        "The nifi-operator does not support running Nifi without any authentication. Please provide an AuthenticationClass to use."
+    ))]
+    NoAuthenticationNotSupported,
+
+    #[snafu(display(
+        "The nifi-operator does not support multiple AuthenticationClasses simultaneously. Please provide a single AuthenticationClass to use."
+    ))]
+    MultipleAuthenticationClassesNotSupported,
+
+    #[snafu(display(
+        "The nifi-operator does not support the AuthenticationClass provider [{authentication_class_provider}] from AuthenticationClass [{authentication_class}]."
     ))]
     AuthenticationClassProviderNotSupported {
         authentication_class_provider: String,
+        authentication_class: ObjectRef<auth_core::v1alpha1::AuthenticationClass>,
+    },
+
+    #[snafu(display(
+        "Nifi doesn't support skipping the LDAP TLS verification of the AuthenticationClass {authentication_class}"
+    ))]
+    NoLdapTlsVerificationNotSupported {
+        authentication_class: ObjectRef<auth_core::v1alpha1::AuthenticationClass>,
+    },
+
+    #[snafu(display("invalid OIDC configuration"))]
+    OidcConfigurationInvalid {
+        source: stackable_operator::crd::authentication::core::v1alpha1::Error,
     },
 
     #[snafu(display("Failed to add LDAP volumes and volumeMounts to the Pod and containers"))]
@@ -58,6 +82,40 @@ pub enum Error {
     AddVolumeMount {
         source: builder::pod::container::Error,
     },
+}
+
+type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// `AuthenticationClass` objects fetched from Kubernetes, paired with the spec entries that
+/// referenced them. Produced by [`DereferencedAuthenticationClasses::dereference`] in the
+/// dereference step and consumed by [`NifiAuthenticationConfig::validate`] in the validate step.
+pub struct DereferencedAuthenticationClasses {
+    entries: Vec<(
+        auth_core::v1alpha1::ClientAuthenticationDetails,
+        auth_core::v1alpha1::AuthenticationClass,
+    )>,
+}
+
+impl DereferencedAuthenticationClasses {
+    /// Fetch all `AuthenticationClass` objects referenced from
+    /// `nifi.spec.clusterConfig.authentication`.
+    pub async fn dereference(
+        nifi: &v1alpha1::NifiCluster,
+        client: &Client,
+    ) -> Result<DereferencedAuthenticationClasses> {
+        let auth_details = &nifi.spec.cluster_config.authentication;
+        let mut entries = Vec::with_capacity(auth_details.len());
+
+        for entry in auth_details {
+            let auth_class = entry
+                .resolve_class(client)
+                .await
+                .context(AuthenticationClassRetrievalFailedSnafu)?;
+            entries.push((entry.clone(), auth_class));
+        }
+
+        Ok(DereferencedAuthenticationClasses { entries })
+    }
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -221,32 +279,59 @@ impl NifiAuthenticationConfig {
         Ok(())
     }
 
-    pub fn try_from(
-        auth_classes_resolved: Vec<AuthenticationClassResolved>,
-    ) -> Result<Self, Error> {
-        // Currently only one auth mechanism is supported in NiFi. This is checked in
-        // rust/crd/src/authentication.rs and just a fail-safe here. For Future changes,
-        // this is not just a "from" without error handling
-        let auth_class_resolved = auth_classes_resolved
-            .first()
-            .context(SingleAuthenticationMechanismSupportedSnafu)?;
+    /// Validates the dereferenced AuthenticationClasses and produces the final config.
+    ///
+    /// Enforces:
+    /// * exactly one AuthenticationClass is configured
+    /// * provider is one of the supported variants (Static/Ldap/Oidc)
+    /// * LDAP TLS verification is enabled if TLS is used
+    /// * an OIDC client spec is present when the provider is OIDC
+    pub fn validate(
+        nifi: &v1alpha1::NifiCluster,
+        dereferenced: &DereferencedAuthenticationClasses,
+    ) -> Result<Self> {
+        let (entry, auth_class) = match dereferenced.entries.as_slice() {
+            [] => return NoAuthenticationNotSupportedSnafu.fail(),
+            [only] => only,
+            _ => return MultipleAuthenticationClassesNotSupportedSnafu.fail(),
+        };
+        let auth_class_name = auth_class.name_any();
 
-        match &auth_class_resolved {
-            AuthenticationClassResolved::Static { provider } => Ok(Self::SingleUser {
-                provider: provider.clone(),
-            }),
-            AuthenticationClassResolved::Ldap { provider } => Ok(Self::Ldap {
-                provider: provider.clone(),
-            }),
-            AuthenticationClassResolved::Oidc {
-                provider,
-                oidc,
-                nifi,
-            } => Ok(Self::Oidc {
-                provider: provider.clone(),
-                oidc: oidc.clone(),
+        match &auth_class.spec.provider {
+            auth_core::v1alpha1::AuthenticationClassProvider::Static(provider) => {
+                Ok(Self::SingleUser {
+                    provider: provider.to_owned(),
+                })
+            }
+            auth_core::v1alpha1::AuthenticationClassProvider::Ldap(provider) => {
+                if provider.tls.uses_tls() && !provider.tls.uses_tls_verification() {
+                    return NoLdapTlsVerificationNotSupportedSnafu {
+                        authentication_class:
+                            ObjectRef::<auth_core::v1alpha1::AuthenticationClass>::new(
+                                &auth_class_name,
+                            ),
+                    }
+                    .fail();
+                }
+                Ok(Self::Ldap {
+                    provider: provider.to_owned(),
+                })
+            }
+            auth_core::v1alpha1::AuthenticationClassProvider::Oidc(provider) => Ok(Self::Oidc {
+                provider: provider.to_owned(),
+                oidc: entry
+                    .oidc_or_error(&auth_class_name)
+                    .context(OidcConfigurationInvalidSnafu)?
+                    .clone(),
                 nifi: nifi.clone(),
             }),
+            _ => AuthenticationClassProviderNotSupportedSnafu {
+                authentication_class_provider: auth_class.spec.provider.to_string(),
+                authentication_class: ObjectRef::<auth_core::v1alpha1::AuthenticationClass>::new(
+                    &auth_class_name,
+                ),
+            }
+            .fail(),
         }
     }
 }

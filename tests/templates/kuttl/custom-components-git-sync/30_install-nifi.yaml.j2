@@ -2,7 +2,7 @@
 apiVersion: authentication.stackable.tech/v1alpha1
 kind: AuthenticationClass
 metadata:
-  name: nifi-users
+  name: nifi-user-credentials
 spec:
   provider:
     static:
@@ -42,7 +42,7 @@ spec:
   clusterConfig:
     zookeeperConfigMapName: test-nifi-znode
     authentication:
-      - authenticationClass: nifi-users
+      - authenticationClass: nifi-user-credentials
     sensitiveProperties:
       keySecret: nifi-sensitive-property-key
       autoGenerate: true
@@ -67,6 +67,10 @@ spec:
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    configOverrides:
+      "nifi.properties":
+        # Quicker startup, and we only have a single node
+        "nifi.cluster.flow.election.max.wait.time": "10 secs"
     roleConfig:
       listenerClass: external-unstable
     podOverrides:

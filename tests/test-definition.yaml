@@ -50,7 +50,7 @@ dimensions:
       - 3.9.4
   - name: opa-l
     values:
-      - 1.12.3
+      - 1.16.2
   - name: hdfs-l
     values:
       - 3.4.2
@@ -132,6 +132,10 @@ tests:
   - name: cluster_operation
     dimensions:
       - nifi-latest
+      - openshift
+  - name: cluster-sync-cs-bug
+    dimensions:
+      - nifi-v2
       - openshift
   - name: oidc-opa
     dimensions:

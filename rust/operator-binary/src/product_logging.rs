@@ -39,7 +39,7 @@ pub const NIFI_LOG_FILE: &str = "nifi.log4j.xml";
 const CONSOLE_CONVERSION_PATTERN: &str = "%date %level [%thread] %logger{40} %msg%n";
 // This is required to remove double entries in the nifi.log4j.xml as well as nested
 // console output like: "<timestamp> <loglevel> ... <timestamp> <loglevel> ...
-const ADDITONAL_LOGBACK_CONFIG: &str = r#"  <appender name="PASSTHROUGH" class="ch.qos.logback.core.ConsoleAppender">
+const ADDITIONAL_LOGBACK_CONFIG: &str = r#"  <appender name="PASSTHROUGH" class="ch.qos.logback.core.ConsoleAppender">
     <encoder>
       <pattern>%msg%n</pattern>
     </encoder>
@@ -78,7 +78,7 @@ pub fn extend_role_group_config_map(
                     .value as u32,
                 CONSOLE_CONVERSION_PATTERN,
                 log_config,
-                Some(ADDITONAL_LOGBACK_CONFIG),
+                Some(ADDITIONAL_LOGBACK_CONFIG),
             ),
         );
     }
