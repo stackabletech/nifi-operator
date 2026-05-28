@@ -9,7 +9,7 @@ releases:
       commons:
         operatorVersion: 0.0.0-dev
       secret:
-        operatorVersion: 0.0.0-dev
+        operatorVersion: 0.0.0-pr708
       listener:
         operatorVersion: 0.0.0-dev
       opa:
@@ -23,4 +23,4 @@ releases:
       trino:
         operatorVersion: 0.0.0-dev
       nifi:
-        operatorVersion: 0.0.0-dev
+        operatorVersion: 0.0.0-pr941
