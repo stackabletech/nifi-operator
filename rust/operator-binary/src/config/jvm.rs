@@ -93,16 +93,16 @@ pub fn build_merged_jvm_config(
     // respects these JVM-wide SSL system properties. So there is no plugin-level configuration
     // available for truststore settings. This was last checked for version 1.7.0 of the Styra
     // OPA Java SDK.
-    if let Some(authz_config) = authorization_config {
-        if authz_config.has_opa_tls() {
-            jvm_args.push(format!(
-                "-Djavax.net.ssl.trustStore={STACKABLE_SERVER_TLS_DIR}/truststore.p12"
-            ));
-            jvm_args.push(format!(
-                "-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"
-            ));
-            jvm_args.push("-Djavax.net.ssl.trustStoreType=pkcs12".to_owned());
-        }
+    if let Some(authz_config) = authorization_config
+        && authz_config.has_opa_tls()
+    {
+        jvm_args.push(format!(
+            "-Djavax.net.ssl.trustStore={STACKABLE_SERVER_TLS_DIR}/truststore.p12"
+        ));
+        jvm_args.push(format!(
+            "-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"
+        ));
+        jvm_args.push("-Djavax.net.ssl.trustStoreType=pkcs12".to_owned());
     }
 
     let operator_generated = JvmArgumentOverrides::new_with_only_additions(jvm_args);
