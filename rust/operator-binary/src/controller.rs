@@ -4,7 +4,6 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use const_format::concatcp;
 use indoc::formatdoc;
-use product_config::ProductConfigManager;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
@@ -105,7 +104,6 @@ const LOG_VOLUME_NAME: &str = "log";
 
 pub struct Ctx {
     pub client: Client,
-    pub product_config: ProductConfigManager,
     pub operator_environment: OperatorEnvironmentOptions,
 }
 
@@ -324,7 +322,6 @@ pub async fn reconcile_nifi(
         nifi,
         &dereferenced_objects,
         &ctx.operator_environment,
-        &ctx.product_config,
         &client.kubernetes_cluster_info,
     )
     .context(ValidateClusterSnafu)?;
@@ -406,7 +403,7 @@ pub async fn reconcile_nifi(
     let nifi_role = NifiRole::Node;
     let node_role_group_configs = validated
         .role_group_configs
-        .get(&NifiRole::Node)
+        .get(&nifi_role)
         .context(NoNodesDefinedSnafu)?;
     for (rolegroup_name, rg) in node_role_group_configs.iter() {
         let rg_span = tracing::info_span!("rolegroup_span", rolegroup = rolegroup_name.as_str());
@@ -416,7 +413,7 @@ pub async fn reconcile_nifi(
             tracing::debug!("Processing rolegroup {}", rolegroup);
 
             let merged_config = nifi
-                .merged_config(&NifiRole::Node, rolegroup_name)
+                .merged_config(&nifi_role, rolegroup_name)
                 .context(FailedToResolveConfigSnafu)?;
 
             let git_sync_resources = git_sync::v1alpha2::GitSyncResources::new(
@@ -670,7 +667,6 @@ async fn build_node_rolegroup_statefulset(
     tracing::debug!("Building statefulset");
     let role_group = role.role_groups.get(&rolegroup_ref.role_group);
 
-    // get env vars and env overrides
     let mut env_vars: Vec<EnvVar> = env_vars_from_overrides(&rg.env_overrides);
 
     // we need the POD_NAME env var to overwrite `nifi.cluster.node.address` later

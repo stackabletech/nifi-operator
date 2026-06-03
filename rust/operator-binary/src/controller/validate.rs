@@ -5,20 +5,17 @@
 
 use std::collections::{BTreeMap, HashSet};
 
-use product_config::ProductConfigManager;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     commons::product_image_selection::{self, ResolvedProductImage},
     kube::ResourceExt as _,
-    product_config_utils::ValidatedRoleConfigByPropertyKind,
     role_utils::JavaCommonConfig,
     utils::cluster_info::KubernetesClusterInfo,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
-    config::{self, validated_product_config},
     controller::dereference::DereferencedObjects,
     crd::{
         HTTPS_PORT, NifiConfig, NifiRole, sensitive_properties,
@@ -46,12 +43,6 @@ pub enum Error {
 
     #[snafu(display("invalid NiFi authentication configuration"))]
     InvalidAuthenticationConfig { source: authentication::Error },
-
-    #[snafu(display("failed to load product config"))]
-    ProductConfigLoadFailed {
-        #[snafu(source(from(config::Error, Box::new)))]
-        source: Box<config::Error>,
-    },
 
     #[snafu(display("failed to build reporting task service name"))]
     ReportingTask {
@@ -84,9 +75,6 @@ pub struct ValidatedCluster {
     pub image: ResolvedProductImage,
     pub role_group_configs: BTreeMap<NifiRole, BTreeMap<String, NifiRoleGroupConfig>>,
     pub cluster_config: ValidatedClusterConfig,
-    // Populated but no longer read — removed in Task 7 along with the product-config dependency.
-    #[allow(dead_code)] // removed in Task 7 along with the product-config dependency
-    pub validated_role_config: ValidatedRoleConfigByPropertyKind,
 }
 
 pub struct ValidatedClusterConfig {
@@ -105,7 +93,6 @@ pub fn validate(
     nifi: &v1alpha1::NifiCluster,
     dereferenced_objects: &DereferencedObjects,
     operator_environment: &OperatorEnvironmentOptions,
-    product_config: &ProductConfigManager,
     cluster_info: &KubernetesClusterInfo,
 ) -> Result<ValidatedCluster> {
     let image = nifi
@@ -126,14 +113,6 @@ pub fn validate(
         &nifi.spec.cluster_config.authorization,
         &dereferenced_objects.authorization,
     );
-
-    let validated_role_config = validated_product_config(
-        nifi,
-        &image.product_version,
-        nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?,
-        product_config,
-    )
-    .context(ProductConfigLoadFailedSnafu)?;
 
     let proxy_hosts = compute_proxy_hosts(nifi, cluster_info)?;
 
@@ -159,7 +138,6 @@ pub fn validate(
             clustering_backend: nifi.spec.cluster_config.clustering_backend.clone(),
             sensitive_properties_algorithm,
         },
-        validated_role_config,
     })
 }
 
