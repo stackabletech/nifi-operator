@@ -2,4 +2,5 @@
 //!
 //! [`ValidatedCluster`]: crate::controller::validate::ValidatedCluster
 
+pub mod config_map;
 pub mod properties;

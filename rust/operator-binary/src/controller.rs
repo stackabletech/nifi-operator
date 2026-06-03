@@ -6,7 +6,6 @@ use std::{
     sync::Arc,
 };
 
-use crate::controller::build::properties::writer::PropertiesWriterError;
 use const_format::concatcp;
 use indoc::formatdoc;
 use product_config::{ProductConfigManager, types::PropertyNameKind};
@@ -14,7 +13,6 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
         self,
-        configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{
             PodBuilder, container::ContainerBuilder, resources::ResourceRequirementsBuilder,
@@ -32,8 +30,8 @@ use stackable_operator::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec, StatefulSetUpdateStrategy},
             core::v1::{
-                ConfigMap, ConfigMapKeySelector, ConfigMapVolumeSource, EmptyDirVolumeSource,
-                EnvVar, EnvVarSource, ObjectFieldSelector, PersistentVolumeClaim, Probe,
+                ConfigMapKeySelector, ConfigMapVolumeSource, EmptyDirVolumeSource, EnvVar,
+                EnvVarSource, ObjectFieldSelector, PersistentVolumeClaim, Probe,
                 SecretVolumeSource, TCPSocketAction, Volume,
             },
         },
@@ -75,14 +73,7 @@ mod validate;
 
 use crate::{
     OPERATOR_NAME,
-    config::{
-        self, JVM_SECURITY_PROPERTIES_FILE, NIFI_CONFIG_DIRECTORY, NIFI_PYTHON_WORKING_DIRECTORY,
-        NifiRepository,
-    },
-    controller::build::properties::{
-        ConfigFileName, authorizers, bootstrap_conf, login_identity_providers, nifi_properties,
-        security_properties, state_management_xml,
-    },
+    config::{NIFI_CONFIG_DIRECTORY, NIFI_PYTHON_WORKING_DIRECTORY, NifiRepository},
     crd::{
         APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, Container, HTTPS_PORT, HTTPS_PORT_NAME,
         METRICS_PORT, METRICS_PORT_NAME, NifiConfig, NifiNodeRoleConfig, NifiRole, NifiRoleType,
@@ -98,7 +89,6 @@ use crate::{
         pdb::add_pdbs,
         upgrade::{self, ClusterVersionUpdateState},
     },
-    product_logging::extend_role_group_config_map,
     reporting_task::{build_maybe_reporting_task, build_reporting_task_service_name},
     security::{
         authentication::{
@@ -110,7 +100,6 @@ use crate::{
     },
     service::{build_rolegroup_headless_service, build_rolegroup_metrics_service},
 };
-use validate::{NifiRoleGroupConfig, ValidatedCluster};
 
 pub const NIFI_CONTROLLER_NAME: &str = "nificluster";
 pub const NIFI_FULL_CONTROLLER_NAME: &str = concatcp!(NIFI_CONTROLLER_NAME, '.', OPERATOR_NAME);
@@ -169,9 +158,9 @@ pub enum Error {
         rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
     },
 
-    #[snafu(display("failed to build ConfigMap for {}", rolegroup))]
-    BuildRoleGroupConfig {
-        source: stackable_operator::builder::configmap::Error,
+    #[snafu(display("failed to build rolegroup ConfigMap for {}", rolegroup))]
+    BuildRoleGroupConfigMap {
+        source: build::config_map::Error,
         rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
     },
 
@@ -208,19 +197,6 @@ pub enum Error {
     #[snafu(display("Failed to find information about file [{}] in product config", kind))]
     ProductConfigKindNotSpecified { kind: String },
 
-    #[snafu(display("Bootstrap configuration error"))]
-    BootstrapConfig {
-        #[snafu(source(from(config::Error, Box::new)))]
-        source: Box<config::Error>,
-    },
-
-    #[snafu(display("failed to prepare NiFi configuration for rolegroup {rolegroup}"))]
-    BuildProductConfig {
-        #[snafu(source(from(config::Error, Box::new)))]
-        source: Box<config::Error>,
-        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
-    },
-
     #[snafu(display("illegal container name: [{container_name}]"))]
     IllegalContainerName {
         source: stackable_operator::builder::pod::container::Error,
@@ -236,12 +212,6 @@ pub enum Error {
     #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
     VectorAggregatorConfigMapMissing,
 
-    #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
-    InvalidLoggingConfig {
-        source: crate::product_logging::Error,
-        cm_name: String,
-    },
-
     #[snafu(display("failed to patch service account"))]
     ApplyServiceAccount {
         source: stackable_operator::cluster_resources::Error,
@@ -255,20 +225,6 @@ pub enum Error {
     #[snafu(display("failed to build RBAC resources"))]
     BuildRbacResources {
         source: stackable_operator::commons::rbac::Error,
-    },
-
-    #[snafu(display(
-        "failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}",
-        rolegroup
-    ))]
-    JvmSecurityProperties {
-        source: PropertiesWriterError,
-        rolegroup: String,
-    },
-
-    #[snafu(display("Invalid NiFi Authentication Configuration"))]
-    InvalidNifiAuthenticationConfig {
-        source: crate::security::authentication::Error,
     },
 
     #[snafu(display("Invalid NiFi Authorization Configuration"))]
@@ -517,18 +473,18 @@ pub async fn reconcile_nifi(
             // The proxy hosts allow-list lets external users access NiFi via addresses we cannot
             // predict, so all of them are added to the setting.
             // For more information see <https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#proxy_configuration>
-            let rg_configmap = build_node_rolegroup_config_map(
+            let rg_configmap = build::config_map::build_rolegroup_config_map(
                 nifi,
                 &validated,
                 rg,
-                resolved_product_image,
                 role,
                 &rolegroup,
-                rolegroup_config,
-                &merged_config,
                 &git_sync_resources,
+                &role_group_service_recommended_labels,
             )
-            .await?;
+            .context(BuildRoleGroupConfigMapSnafu {
+                rolegroup: rolegroup.clone(),
+            })?;
 
             let role_group = role.role_groups.get(&rolegroup.role_group);
             let replicas =
@@ -695,90 +651,6 @@ pub async fn reconcile_nifi(
         .context(StatusUpdateSnafu)?;
 
     Ok(Action::await_change())
-}
-
-/// The rolegroup [`ConfigMap`] configures the rolegroup based on the configuration given by the administrator
-#[allow(clippy::too_many_arguments)]
-async fn build_node_rolegroup_config_map(
-    nifi: &v1alpha1::NifiCluster,
-    cluster: &ValidatedCluster,
-    rg: &NifiRoleGroupConfig,
-    resolved_product_image: &ResolvedProductImage,
-    role: &NifiRoleType,
-    rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>,
-    _rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
-    _merged_config: &NifiConfig,
-    git_sync_resources: &git_sync::v1alpha2::GitSyncResources,
-) -> Result<ConfigMap> {
-    tracing::debug!("building rolegroup configmaps");
-
-    let mut cm_builder = ConfigMapBuilder::new();
-
-    cm_builder
-        .metadata(
-            ObjectMetaBuilder::new()
-                .name_and_namespace(nifi)
-                .name(rolegroup.object_name())
-                .ownerreference_from_resource(nifi, None, Some(true))
-                .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_recommended_labels(&build_recommended_labels(
-                    nifi,
-                    &resolved_product_image.app_version_label_value,
-                    &rolegroup.role,
-                    &rolegroup.role_group,
-                ))
-                .context(MetadataBuildSnafu)?
-                .build(),
-        )
-        .add_data(
-            ConfigFileName::BootstrapConf.to_string(),
-            bootstrap_conf::build(
-                rg,
-                role,
-                &rolegroup.role_group,
-                Some(&cluster.cluster_config.authorization),
-            )
-            .context(BootstrapConfigSnafu)?,
-        )
-        .add_data(
-            ConfigFileName::NifiProperties.to_string(),
-            nifi_properties::build(cluster, rg, git_sync_resources).with_context(|_| {
-                BuildProductConfigSnafu {
-                    rolegroup: rolegroup.clone(),
-                }
-            })?,
-        )
-        .add_data(
-            ConfigFileName::StateManagementXml.to_string(),
-            state_management_xml::build(&cluster.cluster_config.clustering_backend),
-        )
-        .add_data(
-            ConfigFileName::LoginIdentityProviders.to_string(),
-            login_identity_providers::build(cluster)
-                .context(InvalidNifiAuthenticationConfigSnafu)?,
-        )
-        .add_data(
-            ConfigFileName::Authorizers.to_string(),
-            authorizers::build(cluster, nifi),
-        )
-        .add_data(
-            ConfigFileName::SecurityProperties.to_string(),
-            security_properties::build(rg).with_context(|_| JvmSecurityPropertiesSnafu {
-                rolegroup: rolegroup.role_group.clone(),
-            })?,
-        );
-
-    extend_role_group_config_map(rolegroup, &rg.config.logging, &mut cm_builder).context(
-        InvalidLoggingConfigSnafu {
-            cm_name: rolegroup.object_name(),
-        },
-    )?;
-
-    cm_builder
-        .build()
-        .with_context(|_| BuildRoleGroupConfigSnafu {
-            rolegroup: rolegroup.clone(),
-        })
 }
 
 const USERDATA_MOUNTPOINT: &str = "/stackable/userdata";
