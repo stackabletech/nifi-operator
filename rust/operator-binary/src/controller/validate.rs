@@ -3,14 +3,16 @@
 //! Synchronously validates inputs that don't require Kubernetes API calls. Produces
 //! [`ValidatedInputs`], consumed by the rest of `reconcile_nifi`.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 use product_config::ProductConfigManager;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     commons::product_image_selection::{self, ResolvedProductImage},
+    kube::ResourceExt as _,
     product_config_utils::ValidatedRoleConfigByPropertyKind,
+    role_utils::JavaCommonConfig,
     utils::cluster_info::KubernetesClusterInfo,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
@@ -18,7 +20,8 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 use crate::{
     config::{self, validated_product_config},
     controller::dereference::DereferencedObjects,
-    crd::{HTTPS_PORT, v1alpha1},
+    crd::{HTTPS_PORT, NifiConfig, NifiRole, v1alpha1},
+    framework::role_utils::with_validated_config,
     reporting_task,
     security::{
         authentication::{self, NifiAuthenticationConfig},
@@ -51,7 +54,18 @@ pub enum Error {
     ReportingTask {
         source: crate::reporting_task::Error,
     },
+
+    #[snafu(display("failed to validate config fragment for a rolegroup"))]
+    InvalidConfigFragment {
+        source: stackable_operator::config::fragment::ValidationError,
+    },
 }
+
+pub type NifiRoleGroupConfig = crate::framework::role_utils::RoleGroupConfig<
+    NifiConfig,
+    JavaCommonConfig,
+    v1alpha1::NifiConfigOverrides,
+>;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -63,6 +77,9 @@ pub struct ValidatedInputs {
     pub validated_role_config: ValidatedRoleConfigByPropertyKind,
     // Comma-separated NiFi proxy hosts, or `"*"` if `spec.clusterConfig.hostHeaderCheck.allowAll` is set.
     pub proxy_hosts: String,
+    // Not yet consumed — Tasks 4-6 will use this to replace the product-config pipeline.
+    #[allow(dead_code)]
+    pub role_group_configs: BTreeMap<NifiRole, BTreeMap<String, NifiRoleGroupConfig>>,
 }
 
 /// Validates the cluster spec and the dereferenced inputs.
@@ -108,7 +125,27 @@ pub fn validate(
         authorization_config,
         validated_role_config,
         proxy_hosts,
+        role_group_configs: build_role_group_configs(nifi)?,
     })
+}
+
+fn build_role_group_configs(
+    nifi: &v1alpha1::NifiCluster,
+) -> Result<BTreeMap<NifiRole, BTreeMap<String, NifiRoleGroupConfig>>> {
+    let role = nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?;
+    let default_config = NifiConfig::default_config(&nifi.name_any(), &NifiRole::Node);
+
+    let mut groups: BTreeMap<String, NifiRoleGroupConfig> = BTreeMap::new();
+    for (rg_name, rg) in &role.role_groups {
+        let validated_rg =
+            with_validated_config::<NifiConfig, _, _, _, _>(rg, role, &default_config)
+                .context(InvalidConfigFragmentSnafu)?;
+        groups.insert(rg_name.clone(), validated_rg);
+    }
+
+    let mut role_group_configs = BTreeMap::new();
+    role_group_configs.insert(NifiRole::Node, groups);
+    Ok(role_group_configs)
 }
 
 fn compute_proxy_hosts(

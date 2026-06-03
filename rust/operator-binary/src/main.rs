@@ -41,6 +41,7 @@ use crate::{
 mod config;
 mod controller;
 mod crd;
+mod framework;
 mod listener;
 mod operations;
 mod product_logging;
