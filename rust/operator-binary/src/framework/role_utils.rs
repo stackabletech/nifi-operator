@@ -2,7 +2,7 @@
 //! `smooth-operator` branch, with simplifications appropriate for nifi-operator.
 //!
 //! Differences from upstream:
-//! - `env_overrides` is `HashMap<String, String>` instead of `EnvVarSet`.
+//! - `env_overrides` is `BTreeMap<String, String>` instead of `EnvVarSet`.
 //! - No `cli_overrides_to_vec` helper, `ResourceNames`, or service-account helpers.
 //! - The `CommonConfig` (a.k.a. `product_specific_common_config`) does NOT need to
 //!   implement `Merge`. Upstream Trino uses `JavaCommonConfig`, which intentionally
@@ -28,7 +28,7 @@ use stackable_operator::{
     schemars::JsonSchema,
 };
 
-/// Trino-friendly view of a validated, merged `RoleGroup`.
+/// NiFi-friendly view of a validated, merged `RoleGroup`.
 ///
 /// Mirrors `stackable_operator::v2::role_utils::RoleGroupConfig` on the
 /// `smooth-operator` branch, with `env_overrides: BTreeMap<String, String>`
