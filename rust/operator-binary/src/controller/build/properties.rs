@@ -6,12 +6,19 @@
 
 use std::collections::BTreeMap;
 
-use stackable_operator::config_overrides::KeyValueConfigOverrides;
+use stackable_operator::config_overrides::KeyValueOverridesProvider;
 
+use crate::controller::validate::NifiRoleGroupConfig;
+
+pub mod authorizers;
+pub mod bootstrap_conf;
+pub mod login_identity_providers;
+pub mod nifi_properties;
+pub mod security_properties;
+pub mod state_management_xml;
 pub mod writer;
 
 /// The names of the files assembled into the NiFi rolegroup ConfigMap.
-#[allow(dead_code)] // used once the per-file builders land in Task 4
 #[derive(Clone, Copy, Debug, strum::Display)]
 pub enum ConfigFileName {
     #[strum(serialize = "bootstrap.conf")]
@@ -29,7 +36,6 @@ pub enum ConfigFileName {
 }
 
 /// Keep only the set (`Some`) entries of a `key -> optional value` map, as `(key, value)` pairs.
-#[allow(dead_code)] // used once the per-file builders land in Task 4
 fn defined_entries(
     entries: BTreeMap<String, Option<String>>,
 ) -> impl Iterator<Item = (String, String)> {
@@ -38,10 +44,13 @@ fn defined_entries(
         .filter_map(|(key, value)| value.map(|value| (key, value)))
 }
 
-/// Resolve user-provided [`KeyValueConfigOverrides`] into key/value pairs.
-#[allow(dead_code)] // used once the per-file builders land in Task 4
-fn resolved_overrides(
-    overrides: KeyValueConfigOverrides,
+/// Resolve the user overrides for `file` from a rolegroup's config overrides, dropping unset values.
+pub(crate) fn resolved_overrides_for(
+    rg: &NifiRoleGroupConfig,
+    file: ConfigFileName,
 ) -> impl Iterator<Item = (String, String)> {
-    overrides.overrides.into_iter()
+    defined_entries(
+        rg.config_overrides
+            .get_key_value_overrides(&file.to_string()),
+    )
 }

@@ -17,9 +17,6 @@ pub const STACKABLE_ADMIN_USERNAME: &str = "admin";
 
 const STACKABLE_USER_VOLUME_MOUNT_PATH: &str = "/stackable/users";
 
-pub const LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME: &str = "login-identity-providers.xml";
-pub const AUTHORIZERS_XML_FILE_NAME: &str = "authorizers.xml";
-
 pub const STACKABLE_SERVER_TLS_DIR: &str = "/stackable/server_tls";
 pub const STACKABLE_TLS_STORE_PASSWORD: &str = "secret";
 

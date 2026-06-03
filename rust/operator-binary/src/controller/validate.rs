@@ -20,7 +20,10 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 use crate::{
     config::{self, validated_product_config},
     controller::dereference::DereferencedObjects,
-    crd::{HTTPS_PORT, NifiConfig, NifiRole, v1alpha1},
+    crd::{
+        HTTPS_PORT, NifiConfig, NifiRole, sensitive_properties,
+        sensitive_properties::NifiSensitiveKeyAlgorithm, v1alpha1,
+    },
     framework::role_utils::with_validated_config,
     reporting_task,
     security::{
@@ -59,6 +62,9 @@ pub enum Error {
     InvalidConfigFragment {
         source: stackable_operator::config::fragment::ValidationError,
     },
+
+    #[snafu(display("invalid sensitive properties algorithm"))]
+    InvalidSensitivePropertiesAlgorithm { source: sensitive_properties::Error },
 }
 
 pub type NifiRoleGroupConfig = crate::framework::role_utils::RoleGroupConfig<
@@ -89,6 +95,10 @@ pub struct ValidatedClusterConfig {
     pub authorization: ResolvedNifiAuthorizationConfig,
     /// Comma-separated NiFi proxy hosts, or `"*"` if `hostHeaderCheck.allowAll` is set.
     pub proxy_hosts: String,
+    /// The clustering backend (ZooKeeper or Kubernetes), copied from the spec.
+    pub clustering_backend: v1alpha1::NifiClusteringBackend,
+    /// The validated sensitive properties algorithm.
+    pub sensitive_properties_algorithm: NifiSensitiveKeyAlgorithm,
 }
 
 /// Validates the cluster spec and the dereferenced inputs.
@@ -128,6 +138,17 @@ pub fn validate(
 
     let proxy_hosts = compute_proxy_hosts(nifi, cluster_info)?;
 
+    let sensitive_properties_algorithm = nifi
+        .spec
+        .cluster_config
+        .sensitive_properties
+        .algorithm
+        .clone()
+        .unwrap_or_default();
+    sensitive_properties_algorithm
+        .check_for_nifi_version(&image.product_version)
+        .context(InvalidSensitivePropertiesAlgorithmSnafu)?;
+
     Ok(ValidatedCluster {
         name: nifi.name_any(),
         image,
@@ -136,6 +157,8 @@ pub fn validate(
             authentication: authentication_config,
             authorization: authorization_config,
             proxy_hosts,
+            clustering_backend: nifi.spec.cluster_config.clustering_backend.clone(),
+            sensitive_properties_algorithm,
         },
         validated_role_config,
     })

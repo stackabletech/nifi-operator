@@ -6,9 +6,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::controller::build::properties::writer::{
-    PropertiesWriterError, to_java_properties_string,
-};
+use crate::controller::build::properties::writer::PropertiesWriterError;
 use const_format::concatcp;
 use indoc::formatdoc;
 use product_config::{ProductConfigManager, types::PropertyNameKind};
@@ -78,9 +76,12 @@ mod validate;
 use crate::{
     OPERATOR_NAME,
     config::{
-        self, JVM_SECURITY_PROPERTIES_FILE, NIFI_BOOTSTRAP_CONF, NIFI_CONFIG_DIRECTORY,
-        NIFI_PROPERTIES, NIFI_PYTHON_WORKING_DIRECTORY, NIFI_STATE_MANAGEMENT_XML, NifiRepository,
-        build_bootstrap_conf, build_nifi_properties, build_state_management_xml,
+        self, JVM_SECURITY_PROPERTIES_FILE, NIFI_CONFIG_DIRECTORY, NIFI_PYTHON_WORKING_DIRECTORY,
+        NifiRepository,
+    },
+    controller::build::properties::{
+        ConfigFileName, authorizers, bootstrap_conf, login_identity_providers, nifi_properties,
+        security_properties, state_management_xml,
     },
     crd::{
         APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, Container, HTTPS_PORT, HTTPS_PORT_NAME,
@@ -101,7 +102,6 @@ use crate::{
     reporting_task::{build_maybe_reporting_task, build_reporting_task_service_name},
     security::{
         authentication::{
-            AUTHORIZERS_XML_FILE_NAME, LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME,
             NifiAuthenticationConfig, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
         },
         authorization::{self, OPA_TLS_MOUNT_PATH, ResolvedNifiAuthorizationConfig},
@@ -110,6 +110,7 @@ use crate::{
     },
     service::{build_rolegroup_headless_service, build_rolegroup_metrics_service},
 };
+use validate::{NifiRoleGroupConfig, ValidatedCluster};
 
 pub const NIFI_CONTROLLER_NAME: &str = "nificluster";
 pub const NIFI_FULL_CONTROLLER_NAME: &str = concatcp!(NIFI_CONTROLLER_NAME, '.', OPERATOR_NAME);
@@ -341,6 +342,9 @@ pub enum Error {
 
     #[snafu(display("failed to build authorization configuration"))]
     AuthorizationConfiguration { source: authorization::Error },
+
+    #[snafu(display("missing role group config for rolegroup {rolegroup_name}"))]
+    MissingRoleGroupConfig { rolegroup_name: String },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -379,17 +383,10 @@ pub async fn reconcile_nifi(
     )
     .context(ValidateClusterSnafu)?;
 
-    let validate::ValidatedCluster {
-        image: resolved_product_image,
-        cluster_config:
-            validate::ValidatedClusterConfig {
-                authentication: authentication_config,
-                authorization: authorization_config,
-                proxy_hosts,
-            },
-        validated_role_config: validated_config,
-        ..
-    } = validated;
+    let resolved_product_image = &validated.image;
+    let authentication_config = &validated.cluster_config.authentication;
+    let authorization_config = &validated.cluster_config.authorization;
+    let validated_config = &validated.validated_role_config;
 
     tracing::info!("Checking for sensitive key configuration");
     check_or_generate_sensitive_key(client, nifi)
@@ -478,9 +475,17 @@ pub async fn reconcile_nifi(
                 .merged_config(&NifiRole::Node, rolegroup_name)
                 .context(FailedToResolveConfigSnafu)?;
 
+            let rg = validated
+                .role_group_configs
+                .get(&NifiRole::Node)
+                .and_then(|g| g.get(rolegroup_name))
+                .context(MissingRoleGroupConfigSnafu {
+                    rolegroup_name: rolegroup_name.clone(),
+                })?;
+
             let git_sync_resources = git_sync::v1alpha2::GitSyncResources::new(
                 &nifi.spec.cluster_config.custom_components_git_sync,
-                &resolved_product_image,
+                resolved_product_image,
                 &env_vars_from_rolegroup_config(rolegroup_config),
                 &[],
                 LOG_VOLUME_NAME,
@@ -514,14 +519,13 @@ pub async fn reconcile_nifi(
             // For more information see <https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#proxy_configuration>
             let rg_configmap = build_node_rolegroup_config_map(
                 nifi,
-                &resolved_product_image,
-                &authentication_config,
-                &authorization_config,
+                &validated,
+                rg,
+                resolved_product_image,
                 role,
                 &rolegroup,
                 rolegroup_config,
                 &merged_config,
-                &proxy_hosts,
                 &git_sync_resources,
             )
             .await?;
@@ -536,14 +540,14 @@ pub async fn reconcile_nifi(
 
             let rg_statefulset = build_node_rolegroup_statefulset(
                 nifi,
-                &resolved_product_image,
+                resolved_product_image,
                 &client.kubernetes_cluster_info,
                 &rolegroup,
                 role,
                 rolegroup_config,
                 &merged_config,
-                &authentication_config,
-                &authorization_config,
+                authentication_config,
+                authorization_config,
                 rolling_upgrade_supported,
                 replicas,
                 &rbac_sa.name_any(),
@@ -634,9 +638,9 @@ pub async fn reconcile_nifi(
     if nifi.spec.cluster_config.create_reporting_task_job.enabled {
         if let Some((reporting_task_job, reporting_task_service)) = build_maybe_reporting_task(
             nifi,
-            &resolved_product_image,
+            resolved_product_image,
             &client.kubernetes_cluster_info,
-            &authentication_config,
+            authentication_config,
             &rbac_sa.name_any(),
         )
         .context(ReportingTaskSnafu)?
@@ -672,7 +676,7 @@ pub async fn reconcile_nifi(
     // we are still in the process of updating
     let status = if cluster_version_update_state != ClusterVersionUpdateState::UpdateRequested {
         NifiStatus {
-            deployed_version: Some(resolved_product_image.product_version),
+            deployed_version: Some(resolved_product_image.product_version.clone()),
             conditions,
         }
     } else {
@@ -697,33 +701,16 @@ pub async fn reconcile_nifi(
 #[allow(clippy::too_many_arguments)]
 async fn build_node_rolegroup_config_map(
     nifi: &v1alpha1::NifiCluster,
+    cluster: &ValidatedCluster,
+    rg: &NifiRoleGroupConfig,
     resolved_product_image: &ResolvedProductImage,
-    authentication_config: &NifiAuthenticationConfig,
-    authorization_config: &ResolvedNifiAuthorizationConfig,
     role: &NifiRoleType,
     rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>,
-    rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
-    merged_config: &NifiConfig,
-    proxy_hosts: &str,
+    _rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    _merged_config: &NifiConfig,
     git_sync_resources: &git_sync::v1alpha2::GitSyncResources,
 ) -> Result<ConfigMap> {
     tracing::debug!("building rolegroup configmaps");
-
-    let login_identity_provider_xml = authentication_config
-        .get_authentication_config()
-        .context(InvalidNifiAuthenticationConfigSnafu)?;
-
-    let authorizers_xml = authorization_config.get_authorizers_config(nifi);
-
-    let jvm_sec_props: BTreeMap<String, Option<String>> = rolegroup_config
-        .get(&PropertyNameKind::File(
-            JVM_SECURITY_PROPERTIES_FILE.to_string(),
-        ))
-        .cloned()
-        .unwrap_or_default()
-        .into_iter()
-        .map(|(k, v)| (k, Some(v)))
-        .collect();
 
     let mut cm_builder = ConfigMapBuilder::new();
 
@@ -744,60 +731,44 @@ async fn build_node_rolegroup_config_map(
                 .build(),
         )
         .add_data(
-            NIFI_BOOTSTRAP_CONF,
-            build_bootstrap_conf(
-                merged_config,
-                rolegroup_config
-                    .get(&PropertyNameKind::File(NIFI_BOOTSTRAP_CONF.to_string()))
-                    .with_context(|| ProductConfigKindNotSpecifiedSnafu {
-                        kind: NIFI_BOOTSTRAP_CONF.to_string(),
-                    })?
-                    .clone(),
+            ConfigFileName::BootstrapConf.to_string(),
+            bootstrap_conf::build(
+                rg,
                 role,
                 &rolegroup.role_group,
-                Some(authorization_config),
+                Some(&cluster.cluster_config.authorization),
             )
             .context(BootstrapConfigSnafu)?,
         )
         .add_data(
-            NIFI_PROPERTIES,
-            build_nifi_properties(
-                &nifi.spec,
-                &merged_config.resources,
-                proxy_hosts,
-                authentication_config,
-                rolegroup_config
-                    .get(&PropertyNameKind::File(NIFI_PROPERTIES.to_string()))
-                    .with_context(|| ProductConfigKindNotSpecifiedSnafu {
-                        kind: NIFI_PROPERTIES.to_string(),
-                    })?
-                    .clone(),
-                resolved_product_image.product_version.as_ref(),
-                git_sync_resources,
-            )
-            .with_context(|_| BuildProductConfigSnafu {
-                rolegroup: rolegroup.clone(),
+            ConfigFileName::NifiProperties.to_string(),
+            nifi_properties::build(cluster, rg, git_sync_resources).with_context(|_| {
+                BuildProductConfigSnafu {
+                    rolegroup: rolegroup.clone(),
+                }
             })?,
         )
         .add_data(
-            NIFI_STATE_MANAGEMENT_XML,
-            build_state_management_xml(&nifi.spec.cluster_config.clustering_backend),
+            ConfigFileName::StateManagementXml.to_string(),
+            state_management_xml::build(&cluster.cluster_config.clustering_backend),
         )
         .add_data(
-            LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME,
-            login_identity_provider_xml,
+            ConfigFileName::LoginIdentityProviders.to_string(),
+            login_identity_providers::build(cluster)
+                .context(InvalidNifiAuthenticationConfigSnafu)?,
         )
-        .add_data(AUTHORIZERS_XML_FILE_NAME, authorizers_xml)
         .add_data(
-            JVM_SECURITY_PROPERTIES_FILE,
-            to_java_properties_string(jvm_sec_props.iter()).with_context(|_| {
-                JvmSecurityPropertiesSnafu {
-                    rolegroup: rolegroup.role_group.clone(),
-                }
+            ConfigFileName::Authorizers.to_string(),
+            authorizers::build(cluster, nifi),
+        )
+        .add_data(
+            ConfigFileName::SecurityProperties.to_string(),
+            security_properties::build(rg).with_context(|_| JvmSecurityPropertiesSnafu {
+                rolegroup: rolegroup.role_group.clone(),
             })?,
         );
 
-    extend_role_group_config_map(rolegroup, &merged_config.logging, &mut cm_builder).context(
+    extend_role_group_config_map(rolegroup, &rg.config.logging, &mut cm_builder).context(
         InvalidLoggingConfigSnafu {
             cm_name: rolegroup.object_name(),
         },
