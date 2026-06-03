@@ -6,13 +6,12 @@ use std::{
     sync::Arc,
 };
 
+use crate::controller::build::properties::writer::{
+    PropertiesWriterError, to_java_properties_string,
+};
 use const_format::concatcp;
 use indoc::formatdoc;
-use product_config::{
-    ProductConfigManager,
-    types::PropertyNameKind,
-    writer::{PropertiesWriterError, to_java_properties_string},
-};
+use product_config::{ProductConfigManager, types::PropertyNameKind};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
@@ -72,6 +71,7 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
 
+mod build;
 mod dereference;
 mod validate;
 

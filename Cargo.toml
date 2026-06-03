@@ -20,6 +20,7 @@ const_format = "0.2"
 fnv = "1.0"
 futures = { version = "0.3", features = ["compat"] }
 indoc = "2.0"
+java-properties = "2.0"
 pin-project = "1.1"
 rand = "0.10"
 rstest = "0.26"

@@ -3015,6 +3015,7 @@ dependencies = [
  "fnv",
  "futures 0.3.32",
  "indoc",
+ "java-properties",
  "pin-project",
  "product-config",
  "rand 0.10.1",
