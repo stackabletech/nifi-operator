@@ -119,6 +119,7 @@ impl DereferencedAuthenticationClasses {
 }
 
 #[allow(clippy::large_enum_variant)]
+#[derive(Clone)]
 pub enum NifiAuthenticationConfig {
     SingleUser {
         provider: r#static::v1alpha1::AuthenticationProvider,

@@ -379,11 +379,17 @@ pub async fn reconcile_nifi(
     )
     .context(ValidateClusterSnafu)?;
 
-    let resolved_product_image = validated.image;
-    let authentication_config = validated.authentication_config;
-    let authorization_config = validated.authorization_config;
-    let validated_config = validated.validated_role_config;
-    let proxy_hosts = validated.proxy_hosts;
+    let validate::ValidatedCluster {
+        image: resolved_product_image,
+        cluster_config:
+            validate::ValidatedClusterConfig {
+                authentication: authentication_config,
+                authorization: authorization_config,
+                proxy_hosts,
+            },
+        validated_role_config: validated_config,
+        ..
+    } = validated;
 
     tracing::info!("Checking for sensitive key configuration");
     check_or_generate_sensitive_key(client, nifi)

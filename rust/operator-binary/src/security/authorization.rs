@@ -37,6 +37,7 @@ pub enum Error {
     },
 }
 
+#[derive(Clone)]
 pub enum ResolvedNifiAuthorizationConfig {
     Opa {
         config: OpaConfig,

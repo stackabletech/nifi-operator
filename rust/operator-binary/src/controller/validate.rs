@@ -1,7 +1,7 @@
 //! The validate step in the NifiCluster controller
 //!
 //! Synchronously validates inputs that don't require Kubernetes API calls. Produces
-//! [`ValidatedInputs`], consumed by the rest of `reconcile_nifi`.
+//! [`ValidatedCluster`], consumed by the rest of `reconcile_nifi`.
 
 use std::collections::{BTreeMap, HashSet};
 
@@ -69,17 +69,26 @@ pub type NifiRoleGroupConfig = crate::framework::role_utils::RoleGroupConfig<
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Synchronous inputs the rest of `reconcile_nifi` needs after dereferencing.
-pub struct ValidatedInputs {
+/// The validated NifiCluster: everything `reconcile_nifi` needs after dereferencing,
+/// in fail-safe / resolved form. The raw `NifiCluster` should only be needed for
+/// OwnerReferences after this point.
+pub struct ValidatedCluster {
+    #[allow(dead_code)]
+    pub name: String,
     pub image: ResolvedProductImage,
-    pub authentication_config: NifiAuthenticationConfig,
-    pub authorization_config: ResolvedNifiAuthorizationConfig,
-    pub validated_role_config: ValidatedRoleConfigByPropertyKind,
-    // Comma-separated NiFi proxy hosts, or `"*"` if `spec.clusterConfig.hostHeaderCheck.allowAll` is set.
-    pub proxy_hosts: String,
     // Not yet consumed — Tasks 4-6 will use this to replace the product-config pipeline.
     #[allow(dead_code)]
     pub role_group_configs: BTreeMap<NifiRole, BTreeMap<String, NifiRoleGroupConfig>>,
+    pub cluster_config: ValidatedClusterConfig,
+    // Temporary: retained until a later task migrates the configmap builder off product-config.
+    pub validated_role_config: ValidatedRoleConfigByPropertyKind,
+}
+
+pub struct ValidatedClusterConfig {
+    pub authentication: NifiAuthenticationConfig,
+    pub authorization: ResolvedNifiAuthorizationConfig,
+    /// Comma-separated NiFi proxy hosts, or `"*"` if `hostHeaderCheck.allowAll` is set.
+    pub proxy_hosts: String,
 }
 
 /// Validates the cluster spec and the dereferenced inputs.
@@ -89,7 +98,7 @@ pub fn validate(
     operator_environment: &OperatorEnvironmentOptions,
     product_config: &ProductConfigManager,
     cluster_info: &KubernetesClusterInfo,
-) -> Result<ValidatedInputs> {
+) -> Result<ValidatedCluster> {
     let image = nifi
         .spec
         .image
@@ -119,13 +128,16 @@ pub fn validate(
 
     let proxy_hosts = compute_proxy_hosts(nifi, cluster_info)?;
 
-    Ok(ValidatedInputs {
+    Ok(ValidatedCluster {
+        name: nifi.name_any(),
         image,
-        authentication_config,
-        authorization_config,
-        validated_role_config,
-        proxy_hosts,
         role_group_configs: build_role_group_configs(nifi)?,
+        cluster_config: ValidatedClusterConfig {
+            authentication: authentication_config,
+            authorization: authorization_config,
+            proxy_hosts,
+        },
+        validated_role_config,
     })
 }
 
