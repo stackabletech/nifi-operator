@@ -82,11 +82,10 @@ pub struct ValidatedCluster {
     #[allow(dead_code)]
     pub name: String,
     pub image: ResolvedProductImage,
-    // Not yet consumed — Tasks 4-6 will use this to replace the product-config pipeline.
-    #[allow(dead_code)]
     pub role_group_configs: BTreeMap<NifiRole, BTreeMap<String, NifiRoleGroupConfig>>,
     pub cluster_config: ValidatedClusterConfig,
-    // Temporary: retained until a later task migrates the configmap builder off product-config.
+    // Populated but no longer read — removed in Task 7 along with the product-config dependency.
+    #[allow(dead_code)] // removed in Task 7 along with the product-config dependency
     pub validated_role_config: ValidatedRoleConfigByPropertyKind,
 }
 

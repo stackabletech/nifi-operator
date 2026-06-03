@@ -1,14 +1,10 @@
 //! Ensures that `Pod`s are configured and running for each [`v1alpha1::NifiCluster`].
 
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 use const_format::concatcp;
 use indoc::formatdoc;
-use product_config::{ProductConfigManager, types::PropertyNameKind};
+use product_config::ProductConfigManager;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
@@ -45,7 +41,6 @@ use stackable_operator::{
     kvp::{Labels, ObjectLabels},
     logging::controller::ReconcilerError,
     memory::{BinaryMultiple, MemoryQuantity},
-    product_config_utils::env_vars_from_rolegroup_config,
     product_logging::{
         self,
         framework::{
@@ -100,6 +95,7 @@ use crate::{
     },
     service::{build_rolegroup_headless_service, build_rolegroup_metrics_service},
 };
+use validate::NifiRoleGroupConfig;
 
 pub const NIFI_CONTROLLER_NAME: &str = "nificluster";
 pub const NIFI_FULL_CONTROLLER_NAME: &str = concatcp!(NIFI_CONTROLLER_NAME, '.', OPERATOR_NAME);
@@ -193,9 +189,6 @@ pub enum Error {
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::builder::meta::Error,
     },
-
-    #[snafu(display("Failed to find information about file [{}] in product config", kind))]
-    ProductConfigKindNotSpecified { kind: String },
 
     #[snafu(display("illegal container name: [{container_name}]"))]
     IllegalContainerName {
@@ -298,9 +291,6 @@ pub enum Error {
 
     #[snafu(display("failed to build authorization configuration"))]
     AuthorizationConfiguration { source: authorization::Error },
-
-    #[snafu(display("missing role group config for rolegroup {rolegroup_name}"))]
-    MissingRoleGroupConfig { rolegroup_name: String },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -342,7 +332,6 @@ pub async fn reconcile_nifi(
     let resolved_product_image = &validated.image;
     let authentication_config = &validated.cluster_config.authentication;
     let authorization_config = &validated.cluster_config.authorization;
-    let validated_config = &validated.validated_role_config;
 
     tracing::info!("Checking for sensitive key configuration");
     check_or_generate_sensitive_key(client, nifi)
@@ -387,11 +376,6 @@ pub async fn reconcile_nifi(
     )
     .context(CreateClusterResourcesSnafu)?;
 
-    let nifi_node_config = validated_config
-        .get(&NifiRole::Node.to_string())
-        .map(Cow::Borrowed)
-        .unwrap_or_default();
-
     if let NifiAuthenticationConfig::Oidc { .. } = authentication_config {
         check_or_generate_oidc_admin_password(client, nifi)
             .await
@@ -420,7 +404,11 @@ pub async fn reconcile_nifi(
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
     let nifi_role = NifiRole::Node;
-    for (rolegroup_name, rolegroup_config) in nifi_node_config.iter() {
+    let node_role_group_configs = validated
+        .role_group_configs
+        .get(&NifiRole::Node)
+        .context(NoNodesDefinedSnafu)?;
+    for (rolegroup_name, rg) in node_role_group_configs.iter() {
         let rg_span = tracing::info_span!("rolegroup_span", rolegroup = rolegroup_name.as_str());
         async {
             let rolegroup = nifi.node_rolegroup_ref(rolegroup_name);
@@ -431,18 +419,10 @@ pub async fn reconcile_nifi(
                 .merged_config(&NifiRole::Node, rolegroup_name)
                 .context(FailedToResolveConfigSnafu)?;
 
-            let rg = validated
-                .role_group_configs
-                .get(&NifiRole::Node)
-                .and_then(|g| g.get(rolegroup_name))
-                .context(MissingRoleGroupConfigSnafu {
-                    rolegroup_name: rolegroup_name.clone(),
-                })?;
-
             let git_sync_resources = git_sync::v1alpha2::GitSyncResources::new(
                 &nifi.spec.cluster_config.custom_components_git_sync,
                 resolved_product_image,
-                &env_vars_from_rolegroup_config(rolegroup_config),
+                &env_vars_from_overrides(&rg.env_overrides),
                 &[],
                 LOG_VOLUME_NAME,
                 &merged_config.logging.for_container(&Container::GitSync),
@@ -500,7 +480,7 @@ pub async fn reconcile_nifi(
                 &client.kubernetes_cluster_info,
                 &rolegroup,
                 role,
-                rolegroup_config,
+                rg,
                 &merged_config,
                 authentication_config,
                 authorization_config,
@@ -655,6 +635,18 @@ pub async fn reconcile_nifi(
 
 const USERDATA_MOUNTPOINT: &str = "/stackable/userdata";
 
+/// Build a `Vec<EnvVar>` from a plain `BTreeMap<String, String>` of env overrides.
+fn env_vars_from_overrides(env_overrides: &BTreeMap<String, String>) -> Vec<EnvVar> {
+    env_overrides
+        .iter()
+        .map(|(name, value)| EnvVar {
+            name: name.clone(),
+            value: Some(value.clone()),
+            ..EnvVar::default()
+        })
+        .collect()
+}
+
 /// The rolegroup [`StatefulSet`] runs the rolegroup, as configured by the administrator.
 ///
 /// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the
@@ -666,7 +658,7 @@ async fn build_node_rolegroup_statefulset(
     cluster_info: &KubernetesClusterInfo,
     rolegroup_ref: &RoleGroupRef<v1alpha1::NifiCluster>,
     role: &NifiRoleType,
-    rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    rg: &NifiRoleGroupConfig,
     merged_config: &NifiConfig,
     authentication_config: &NifiAuthenticationConfig,
     authorization_config: &ResolvedNifiAuthorizationConfig,
@@ -679,18 +671,7 @@ async fn build_node_rolegroup_statefulset(
     let role_group = role.role_groups.get(&rolegroup_ref.role_group);
 
     // get env vars and env overrides
-    let mut env_vars: Vec<EnvVar> = rolegroup_config
-        .get(&PropertyNameKind::Env)
-        .with_context(|| ProductConfigKindNotSpecifiedSnafu {
-            kind: "ENV".to_string(),
-        })?
-        .iter()
-        .map(|(k, v)| EnvVar {
-            name: k.clone(),
-            value: Some(v.clone()),
-            ..EnvVar::default()
-        })
-        .collect();
+    let mut env_vars: Vec<EnvVar> = env_vars_from_overrides(&rg.env_overrides);
 
     // we need the POD_NAME env var to overwrite `nifi.cluster.node.address` later
     env_vars.push(EnvVar {
