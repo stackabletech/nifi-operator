@@ -40,7 +40,7 @@ pub enum Error {
     },
 
     #[snafu(display("failed to prepare NiFi configuration for rolegroup {rolegroup}"))]
-    BuildProductConfig {
+    BuildNifiProperties {
         #[snafu(source(from(crate::config::Error, Box::new)))]
         source: Box<crate::config::Error>,
         rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
@@ -115,7 +115,7 @@ pub fn build_rolegroup_config_map(
         .add_data(
             ConfigFileName::NifiProperties.to_string(),
             nifi_properties::build(cluster, rg, git_sync_resources).with_context(|_| {
-                BuildProductConfigSnafu {
+                BuildNifiPropertiesSnafu {
                     rolegroup: rolegroup.clone(),
                 }
             })?,

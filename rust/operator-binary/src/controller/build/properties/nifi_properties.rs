@@ -584,3 +584,117 @@ fn storage_quantity_to_nifi(quantity: MemoryQuantity) -> String {
             .value
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        controller::build::properties::test_support::{
+            default_rg, empty_git_sync_resources, minimal_validated_cluster,
+        },
+        crd::HTTPS_PORT,
+    };
+
+    /// Verify that core stable keys are present in the rendered nifi.properties with their
+    /// expected values.  Assertions are on substrings — they do NOT assert the full file.
+    #[test]
+    fn test_stable_keys_present() {
+        let cluster = minimal_validated_cluster();
+        let rg = default_rg(&cluster);
+        let git_sync = empty_git_sync_resources();
+
+        let props = build(&cluster, rg, &git_sync).expect("build should succeed");
+
+        // HTTPS port
+        assert!(
+            props.contains(&format!("nifi.web.https.port={HTTPS_PORT}")),
+            "expected nifi.web.https.port={HTTPS_PORT} in output, got:\n{props}"
+        );
+
+        // Clustering enabled
+        assert!(
+            props.contains("nifi.cluster.is.node=true"),
+            "expected nifi.cluster.is.node=true in output"
+        );
+
+        // Kubernetes clustering backend sets the Kubernetes election implementation
+        assert!(
+            props.contains(
+                "nifi.cluster.leader.election.implementation=KubernetesLeaderElectionManager"
+            ),
+            "expected KubernetesLeaderElectionManager in output"
+        );
+
+        // Sensitive-properties algorithm default (NifiArgon2AesGcm256)
+        assert!(
+            props.contains("nifi.sensitive.props.algorithm=NIFI_ARGON2_AES_GCM_256"),
+            "expected default algorithm NIFI_ARGON2_AES_GCM_256 in output"
+        );
+
+        // Proxy hosts wildcard from allow_all
+        assert!(
+            props.contains("nifi.web.proxy.host=*"),
+            "expected nifi.web.proxy.host=* in output"
+        );
+    }
+
+    /// Verify that a user configOverride for `nifi.properties` flows through to the output.
+    #[test]
+    fn test_config_override_wins() {
+        use stackable_operator::kube::ResourceExt as _;
+
+        use crate::crd::{NifiConfig, NifiRole, v1alpha1};
+        use crate::framework::role_utils::with_validated_config;
+
+        let yaml = r#"
+            apiVersion: nifi.stackable.tech/v1alpha1
+            kind: NifiCluster
+            metadata:
+              name: simple-nifi
+              namespace: default
+            spec:
+              image:
+                productVersion: 2.9.0
+              clusterConfig:
+                authentication:
+                  - authenticationClass: nifi-admin-credentials-simple
+                sensitiveProperties:
+                  keySecret: simple-nifi-sensitive-property-key
+                  autoGenerate: true
+              nodes:
+                roleGroups:
+                  default:
+                    replicas: 1
+                    configOverrides:
+                      nifi.properties:
+                        some.custom.key: some-custom-value
+        "#;
+        let nifi: v1alpha1::NifiCluster = serde_yaml::from_str(yaml).expect("invalid test YAML");
+        let role = nifi.spec.nodes.as_ref().unwrap();
+        let default_config = NifiConfig::default_config(&nifi.name_any(), &NifiRole::Node);
+        let rg = with_validated_config::<NifiConfig, _, _, _, _>(
+            role.role_groups.get("default").unwrap(),
+            role,
+            &default_config,
+        )
+        .expect("with_validated_config should succeed");
+
+        // Build a cluster with this rg substituted in
+        let mut cluster = minimal_validated_cluster();
+        cluster
+            .role_group_configs
+            .get_mut(&NifiRole::Node)
+            .unwrap()
+            .insert("default".to_string(), rg.clone());
+
+        let git_sync = empty_git_sync_resources();
+        let props = build(&cluster, &rg, &git_sync).expect("build with override should succeed");
+
+        assert!(
+            props.contains("some.custom.key=some-custom-value"),
+            "expected user override some.custom.key=some-custom-value to appear in output"
+        );
+        // The HTTPS port should still be present
+        assert!(props.contains(&format!("nifi.web.https.port={HTTPS_PORT}")));
+    }
+}
