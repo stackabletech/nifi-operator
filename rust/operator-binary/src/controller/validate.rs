@@ -9,6 +9,7 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     commons::product_image_selection::{self, ResolvedProductImage},
+    crd::git_sync,
     kube::ResourceExt as _,
     role_utils::JavaCommonConfig,
     utils::cluster_info::KubernetesClusterInfo,
@@ -16,9 +17,9 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
-    controller::dereference::DereferencedObjects,
+    controller::{LOG_VOLUME_NAME, dereference::DereferencedObjects, env_vars_from_overrides},
     crd::{
-        HTTPS_PORT, NifiConfig, NifiRole, sensitive_properties,
+        Container, HTTPS_PORT, NifiConfig, NifiRole, sensitive_properties,
         sensitive_properties::NifiSensitiveKeyAlgorithm, v1alpha1,
     },
     framework::role_utils::with_validated_config,
@@ -56,6 +57,9 @@ pub enum Error {
 
     #[snafu(display("invalid sensitive properties algorithm"))]
     InvalidSensitivePropertiesAlgorithm { source: sensitive_properties::Error },
+
+    #[snafu(display("invalid git-sync specification"))]
+    InvalidGitSyncSpec { source: git_sync::v1alpha2::Error },
 }
 
 pub type NifiRoleGroupConfig = crate::framework::role_utils::RoleGroupConfig<
@@ -74,6 +78,10 @@ pub struct ValidatedCluster {
     pub name: String,
     pub image: ResolvedProductImage,
     pub role_group_configs: BTreeMap<NifiRole, BTreeMap<String, NifiRoleGroupConfig>>,
+    /// The git-sync resources (volumes, mounts, containers) for each Node rolegroup,
+    /// keyed by rolegroup name. Precomputed here so both the ConfigMap and StatefulSet
+    /// builders can source them from `ValidatedCluster`.
+    pub git_sync_resources: BTreeMap<String, git_sync::v1alpha2::GitSyncResources>,
     pub cluster_config: ValidatedClusterConfig,
 }
 
@@ -127,10 +135,14 @@ pub fn validate(
         .check_for_nifi_version(&image.product_version)
         .context(InvalidSensitivePropertiesAlgorithmSnafu)?;
 
+    let role_group_configs = build_role_group_configs(nifi)?;
+    let git_sync_resources = build_git_sync_resources(nifi, &image, &role_group_configs)?;
+
     Ok(ValidatedCluster {
         name: nifi.name_any(),
         image,
-        role_group_configs: build_role_group_configs(nifi)?,
+        role_group_configs,
+        git_sync_resources,
         cluster_config: ValidatedClusterConfig {
             authentication: authentication_config,
             authorization: authorization_config,
@@ -158,6 +170,34 @@ fn build_role_group_configs(
     let mut role_group_configs = BTreeMap::new();
     role_group_configs.insert(NifiRole::Node, groups);
     Ok(role_group_configs)
+}
+
+/// Builds the [`git_sync::v1alpha2::GitSyncResources`] for every Node rolegroup, keyed by
+/// rolegroup name. The env vars and logging configuration differ per rolegroup, so the
+/// resources are computed per rolegroup rather than once for the whole cluster.
+fn build_git_sync_resources(
+    nifi: &v1alpha1::NifiCluster,
+    image: &ResolvedProductImage,
+    role_group_configs: &BTreeMap<NifiRole, BTreeMap<String, NifiRoleGroupConfig>>,
+) -> Result<BTreeMap<String, git_sync::v1alpha2::GitSyncResources>> {
+    let mut resources = BTreeMap::new();
+
+    if let Some(groups) = role_group_configs.get(&NifiRole::Node) {
+        for (rg_name, rg) in groups {
+            let git_sync_resources = git_sync::v1alpha2::GitSyncResources::new(
+                &nifi.spec.cluster_config.custom_components_git_sync,
+                image,
+                &env_vars_from_overrides(&rg.env_overrides),
+                &[],
+                LOG_VOLUME_NAME,
+                &rg.config.logging.for_container(&Container::GitSync),
+            )
+            .context(InvalidGitSyncSpecSnafu)?;
+            resources.insert(rg_name.clone(), git_sync_resources);
+        }
+    }
+
+    Ok(resources)
 }
 
 fn compute_proxy_hosts(

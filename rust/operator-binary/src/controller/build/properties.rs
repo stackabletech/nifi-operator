@@ -161,6 +161,7 @@ pub(crate) mod test_support {
             name: "simple-nifi".to_string(),
             image,
             role_group_configs,
+            git_sync_resources: Default::default(),
             cluster_config: ValidatedClusterConfig {
                 authentication: NifiAuthenticationConfig::SingleUser {
                     provider: StaticAuthProvider {

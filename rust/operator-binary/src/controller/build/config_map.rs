@@ -1,9 +1,8 @@
 //! Build per-rolegroup `ConfigMap` for the NiFi cluster.
 
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
-    crd::git_sync,
     k8s_openapi::api::core::v1::ConfigMap,
     kvp::ObjectLabels,
     role_utils::RoleGroupRef,
@@ -15,9 +14,9 @@ use crate::{
             ConfigFileName, authorizers, bootstrap_conf, login_identity_providers, nifi_properties,
             security_properties, state_management_xml,
         },
-        validate::{NifiRoleGroupConfig, ValidatedCluster},
+        validate::ValidatedCluster,
     },
-    crd::{NifiRoleType, v1alpha1},
+    crd::{NifiRole, v1alpha1},
     product_logging::extend_role_group_config_map,
 };
 
@@ -68,6 +67,15 @@ pub enum Error {
     InvalidNifiAuthenticationConfig {
         source: crate::security::authentication::Error,
     },
+
+    #[snafu(display("object has no nodes defined"))]
+    NoNodesDefined,
+
+    #[snafu(display("the cluster has no rolegroup [{role_group}] in role [{role}]"))]
+    MissingRoleGroup { role: String, role_group: String },
+
+    #[snafu(display("missing git-sync resources for rolegroup [{role_group}]"))]
+    MissingGitSyncResources { role_group: String },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -75,19 +83,36 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// Build the rolegroup [`ConfigMap`] configuring the rolegroup based on the
 /// resolved cluster configuration.
 ///
-/// The only use of `owner` is for the OwnerReference and `name_and_namespace`.
-/// All other NiFi configuration is sourced from `cluster` or `rg`.
-/// `recommended_labels` must be built by the caller (typically via `build_recommended_labels`).
+/// All NiFi configuration is sourced from `cluster`. The only use of `owner` is for
+/// the OwnerReference, `name_and_namespace`, and the raw role spec used for JVM
+/// argument merging. `recommended_labels` must be built by the caller (typically via
+/// `build_recommended_labels`).
 pub fn build_rolegroup_config_map(
-    owner: &v1alpha1::NifiCluster,
     cluster: &ValidatedCluster,
-    rg: &NifiRoleGroupConfig,
-    role: &NifiRoleType,
     rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>,
-    git_sync_resources: &git_sync::v1alpha2::GitSyncResources,
     recommended_labels: &ObjectLabels<'_, v1alpha1::NifiCluster>,
+    owner: &v1alpha1::NifiCluster,
 ) -> Result<ConfigMap> {
     tracing::debug!("building rolegroup ConfigMap");
+
+    let rg = cluster
+        .role_group_configs
+        .get(&NifiRole::Node)
+        .and_then(|groups| groups.get(&rolegroup.role_group))
+        .with_context(|| MissingRoleGroupSnafu {
+            role: NifiRole::Node.to_string(),
+            role_group: rolegroup.role_group.clone(),
+        })?;
+
+    // The raw role spec is only needed for JVM argument merging in `bootstrap_conf`.
+    let role = owner.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?;
+
+    let git_sync_resources = cluster
+        .git_sync_resources
+        .get(&rolegroup.role_group)
+        .with_context(|| MissingGitSyncResourcesSnafu {
+            role_group: rolegroup.role_group.clone(),
+        })?;
 
     let mut cm_builder = ConfigMapBuilder::new();
 
