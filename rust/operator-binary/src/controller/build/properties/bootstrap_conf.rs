@@ -54,7 +54,6 @@ pub fn build(
 #[cfg(test)]
 mod tests {
     use indoc::indoc;
-
     use stackable_operator::kube::ResourceExt as _;
 
     use super::*;

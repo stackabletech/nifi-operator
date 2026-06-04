@@ -643,8 +643,10 @@ mod tests {
     fn test_config_override_wins() {
         use stackable_operator::kube::ResourceExt as _;
 
-        use crate::crd::{NifiConfig, NifiRole, v1alpha1};
-        use crate::framework::role_utils::with_validated_config;
+        use crate::{
+            crd::{NifiConfig, NifiRole, v1alpha1},
+            framework::role_utils::with_validated_config,
+        };
 
         let yaml = r#"
             apiVersion: nifi.stackable.tech/v1alpha1

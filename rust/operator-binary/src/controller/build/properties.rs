@@ -1,8 +1,8 @@
 //! Per-file builders for the NiFi rolegroup ConfigMap.
 //!
 //! Each `<file>` module produces the rendered content for one NiFi config file.
-//! The shared [`writer`] module serializes `.properties`/`.conf` key/value maps to
-//! the Java-properties on-wire format.
+//! The shared [`crate::framework::writer`] module serializes `.properties`/`.conf`
+//! key/value maps to the Java-properties on-wire format.
 
 use std::collections::BTreeMap;
 
@@ -12,11 +12,11 @@ use crate::controller::validate::NifiRoleGroupConfig;
 
 pub mod authorizers;
 pub mod bootstrap_conf;
+pub mod logging;
 pub mod login_identity_providers;
 pub mod nifi_properties;
 pub mod security_properties;
 pub mod state_management_xml;
-pub mod writer;
 
 /// The names of the files assembled into the NiFi rolegroup ConfigMap.
 #[derive(Clone, Copy, Debug, strum::Display)]
@@ -33,6 +33,8 @@ pub enum ConfigFileName {
     LoginIdentityProviders,
     #[strum(serialize = "authorizers.xml")]
     Authorizers,
+    #[strum(serialize = "logback.xml")]
+    Logback,
 }
 
 /// Keep only the set (`Some`) entries of a `key -> optional value` map, as `(key, value)` pairs.

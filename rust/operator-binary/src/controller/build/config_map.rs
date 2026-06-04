@@ -5,19 +5,19 @@ use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     k8s_openapi::api::core::v1::ConfigMap,
     kvp::ObjectLabels,
+    product_logging::framework::VECTOR_CONFIG_FILE,
     role_utils::RoleGroupRef,
 };
 
 use crate::{
     controller::{
         build::properties::{
-            ConfigFileName, authorizers, bootstrap_conf, login_identity_providers, nifi_properties,
-            security_properties, state_management_xml,
+            ConfigFileName, authorizers, bootstrap_conf, logging, login_identity_providers,
+            nifi_properties, security_properties, state_management_xml,
         },
         validate::ValidatedCluster,
     },
     crd::{NifiRole, v1alpha1},
-    product_logging::extend_role_group_config_map,
 };
 
 #[derive(Debug, Snafu)]
@@ -45,12 +45,6 @@ pub enum Error {
         rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
     },
 
-    #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
-    InvalidLoggingConfig {
-        source: crate::product_logging::Error,
-        cm_name: String,
-    },
-
     #[snafu(display("failed to build ConfigMap for {rolegroup}"))]
     BuildRoleGroupConfig {
         source: stackable_operator::builder::configmap::Error,
@@ -59,7 +53,7 @@ pub enum Error {
 
     #[snafu(display("failed to serialize JVM security properties for {}", rolegroup))]
     JvmSecurityProperties {
-        source: crate::controller::build::properties::writer::PropertiesWriterError,
+        source: crate::framework::writer::PropertiesWriterError,
         rolegroup: String,
     },
 
@@ -167,11 +161,13 @@ pub fn build_rolegroup_config_map(
             })?,
         );
 
-    extend_role_group_config_map(rolegroup, &rg.config.logging, &mut cm_builder).context(
-        InvalidLoggingConfigSnafu {
-            cm_name: rolegroup.object_name(),
-        },
-    )?;
+    if let Some(logback_config) = logging::build_logback_config(&rg.config.logging) {
+        cm_builder.add_data(ConfigFileName::Logback.to_string(), logback_config);
+    }
+
+    if let Some(vector_config) = logging::build_vector_config(rolegroup, &rg.config.logging) {
+        cm_builder.add_data(VECTOR_CONFIG_FILE, vector_config);
+    }
 
     cm_builder
         .build()

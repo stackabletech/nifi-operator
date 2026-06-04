@@ -2,8 +2,8 @@
 
 use std::collections::BTreeMap;
 
-use super::{ConfigFileName, writer};
-use crate::controller::validate::NifiRoleGroupConfig;
+use super::ConfigFileName;
+use crate::{controller::validate::NifiRoleGroupConfig, framework::writer};
 
 pub fn build(rg: &NifiRoleGroupConfig) -> Result<String, writer::PropertiesWriterError> {
     let mut props: BTreeMap<String, Option<String>> = BTreeMap::new();

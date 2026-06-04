@@ -585,8 +585,9 @@ fn node_default_listener_class() -> String {
 mod merge_tests {
     use std::collections::BTreeMap;
 
-    use stackable_operator::config::merge::Merge as _;
-    use stackable_operator::config_overrides::KeyValueConfigOverrides;
+    use stackable_operator::{
+        config::merge::Merge as _, config_overrides::KeyValueConfigOverrides,
+    };
 
     use super::v1alpha1::NifiConfigOverrides;
 
