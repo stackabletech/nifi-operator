@@ -1,7 +1,7 @@
 //! Per-file builders for the NiFi rolegroup ConfigMap.
 //!
 //! Each `<file>` module produces the rendered content for one NiFi config file.
-//! The shared [`crate::framework::writer`] module serializes `.properties`/`.conf`
+//! The shared [`stackable_operator::v2::config_file_writer`] module serializes `.properties`/`.conf`
 //! key/value maps to the Java-properties on-wire format.
 
 use std::collections::BTreeMap;

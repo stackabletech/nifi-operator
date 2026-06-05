@@ -2,10 +2,14 @@
 
 use std::collections::BTreeMap;
 
-use super::ConfigFileName;
-use crate::{controller::validate::NifiRoleGroupConfig, framework::writer};
+use stackable_operator::v2::config_file_writer::{
+    PropertiesWriterError, to_java_properties_string,
+};
 
-pub fn build(rg: &NifiRoleGroupConfig) -> Result<String, writer::PropertiesWriterError> {
+use super::ConfigFileName;
+use crate::controller::validate::NifiRoleGroupConfig;
+
+pub fn build(rg: &NifiRoleGroupConfig) -> Result<String, PropertiesWriterError> {
     let mut props: BTreeMap<String, Option<String>> = BTreeMap::new();
     // Defaults previously injected by deploy/config-spec/properties.yaml:
     props.insert(
@@ -19,7 +23,7 @@ pub fn build(rg: &NifiRoleGroupConfig) -> Result<String, writer::PropertiesWrite
     for (k, v) in super::resolved_overrides_for(rg, ConfigFileName::SecurityProperties) {
         props.insert(k, Some(v));
     }
-    writer::to_java_properties_string(props.iter())
+    to_java_properties_string(props.iter())
 }
 
 #[cfg(test)]

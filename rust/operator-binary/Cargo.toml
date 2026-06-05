@@ -17,7 +17,6 @@ const_format.workspace = true
 fnv.workspace = true
 futures.workspace = true
 indoc.workspace = true
-java-properties.workspace = true
 pin-project.workspace = true
 rand.workspace = true
 semver.workspace = true

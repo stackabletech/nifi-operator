@@ -53,7 +53,7 @@ pub enum Error {
 
     #[snafu(display("failed to serialize JVM security properties for {}", rolegroup))]
     JvmSecurityProperties {
-        source: crate::framework::writer::PropertiesWriterError,
+        source: stackable_operator::v2::config_file_writer::PropertiesWriterError,
         rolegroup: String,
     },
 

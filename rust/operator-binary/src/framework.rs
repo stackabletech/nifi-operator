@@ -6,4 +6,3 @@
 //! the upstream `RoleGroupConfig` uses `EnvVarSet` rather than a plain map).
 
 pub mod role_utils;
-pub mod writer;
