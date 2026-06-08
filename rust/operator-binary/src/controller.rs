@@ -196,8 +196,8 @@ pub enum Error {
     #[snafu(display("failed to resolve and merge config for role and role group"))]
     FailedToResolveConfig { source: crate::crd::Error },
 
-    #[snafu(display("missing git-sync resources for rolegroup [{rolegroup}]"))]
-    MissingGitSyncResources { rolegroup: String },
+    #[snafu(display("failed to build git-sync resources"))]
+    BuildGitSyncResources { source: build::git_sync::Error },
 
     #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
     VectorAggregatorConfigMapMissing,
@@ -317,13 +317,9 @@ pub async fn reconcile_nifi(
         .context(DereferenceSnafu)?;
 
     // validate (no Kubernetes API calls required)
-    let validated_cluster = validate::validate(
-        nifi,
-        &dereferenced_objects,
-        &ctx.operator_environment,
-        &client.kubernetes_cluster_info,
-    )
-    .context(ValidateClusterSnafu)?;
+    let validated_cluster =
+        validate::validate(nifi, &dereferenced_objects, &ctx.operator_environment)
+            .context(ValidateClusterSnafu)?;
 
     let resolved_product_image = &validated_cluster.image;
     let authentication_config = &validated_cluster.cluster_config.authentication;
@@ -416,12 +412,10 @@ pub async fn reconcile_nifi(
                 .merged_config(&nifi_role, rolegroup_name)
                 .context(FailedToResolveConfigSnafu)?;
 
-            let git_sync_resources = validated_cluster
-                .git_sync_resources
-                .get(rolegroup_name)
-                .context(MissingGitSyncResourcesSnafu {
-                    rolegroup: rolegroup_name.clone(),
-                })?;
+            // Computed here for the StatefulSet; the ConfigMap builder computes its own copy.
+            let git_sync_resources =
+                build::git_sync::build_git_sync_resources(&validated_cluster, rg)
+                    .context(BuildGitSyncResourcesSnafu)?;
 
             let role_group_service_recommended_labels = build_recommended_labels(
                 nifi,
@@ -444,14 +438,11 @@ pub async fn reconcile_nifi(
 
             let role = nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?;
 
-            // The proxy hosts allow-list lets external users access NiFi via addresses we cannot
-            // predict, so all of them are added to the setting.
-            // For more information see <https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#proxy_configuration>
             let rg_configmap = build::config_map::build_rolegroup_config_map(
                 &validated_cluster,
                 &rolegroup,
                 &role_group_service_recommended_labels,
-                nifi,
+                &client.kubernetes_cluster_info,
             )
             .context(BuildRoleGroupConfigMapSnafu {
                 rolegroup: rolegroup.clone(),
@@ -479,7 +470,7 @@ pub async fn reconcile_nifi(
                 rolling_upgrade_supported,
                 replicas,
                 &rbac_sa.name_any(),
-                git_sync_resources,
+                &git_sync_resources,
             )
             .await?;
 

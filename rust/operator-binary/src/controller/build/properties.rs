@@ -88,7 +88,10 @@ pub(crate) mod test_support {
         },
         kube::ResourceExt as _,
         kvp::LabelValue,
-        v2::types::kubernetes::NamespaceName,
+        v2::types::{
+            kubernetes::{NamespaceName, Uid},
+            operator::ClusterName,
+        },
     };
 
     use crate::{
@@ -160,13 +163,18 @@ pub(crate) mod test_support {
             pull_secrets: None,
         };
 
-        ValidatedCluster {
-            name: "simple-nifi".to_string(),
-            namespace: NamespaceName::from_str("default").expect("valid namespace"),
+        let name = ClusterName::from_str("simple-nifi").expect("valid cluster name");
+        let namespace = NamespaceName::from_str("default").expect("valid namespace");
+        let uid = Uid::from_str("e6ac237d-a6d4-43a1-8135-f36506110912").expect("valid uid");
+
+        ValidatedCluster::new(
+            name,
+            namespace,
+            uid,
             image,
+            nifi.spec.nodes.clone().expect("minimal fixture has nodes"),
             role_group_configs,
-            git_sync_resources: Default::default(),
-            cluster_config: ValidatedClusterConfig {
+            ValidatedClusterConfig {
                 authentication: NifiAuthenticationConfig::SingleUser {
                     provider: StaticAuthProvider {
                         user_credentials_secret: UserCredentialsSecretRef {
@@ -175,11 +183,16 @@ pub(crate) mod test_support {
                     },
                 },
                 authorization: ResolvedNifiAuthorizationConfig::SingleUser,
-                proxy_hosts: "*".to_string(),
                 clustering_backend: v1alpha1::NifiClusteringBackend::Kubernetes {},
                 sensitive_properties_algorithm: Default::default(), // NifiArgon2AesGcm256
+                host_header_check: nifi.spec.cluster_config.host_header_check.clone(),
+                custom_components_git_sync: nifi
+                    .spec
+                    .cluster_config
+                    .custom_components_git_sync
+                    .clone(),
             },
-        }
+        )
     }
 
     /// Return the "default" role-group config from a [`ValidatedCluster`].

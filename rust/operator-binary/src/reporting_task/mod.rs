@@ -156,12 +156,11 @@ pub fn build_reporting_task_service_name(nifi_cluster_name: &str) -> String {
 
 /// Return the FQDN (with namespace, domain) of the reporting task.
 pub fn build_reporting_task_fqdn_service_name(
-    nifi: &v1alpha1::NifiCluster,
-    cluster_info: &KubernetesClusterInfo,
+    cluster_name: &str,
     namespace: &NamespaceName,
+    cluster_info: &KubernetesClusterInfo,
 ) -> String {
-    let nifi_cluster_name = nifi.name_any();
-    let reporting_task_service_name = build_reporting_task_service_name(&nifi_cluster_name);
+    let reporting_task_service_name = build_reporting_task_service_name(cluster_name);
     let cluster_domain = &cluster_info.cluster_domain;
     format!("{reporting_task_service_name}.{namespace}.svc.{cluster_domain}")
 }
@@ -271,7 +270,7 @@ fn build_reporting_task_job(
     sa_name: &str,
 ) -> Result<Job> {
     let reporting_task_fqdn_service_name =
-        build_reporting_task_fqdn_service_name(nifi, cluster_info, namespace);
+        build_reporting_task_fqdn_service_name(&nifi.name_any(), namespace, cluster_info);
     let product_version = &resolved_product_image.product_version;
     let nifi_connect_url =
         format!("https://{reporting_task_fqdn_service_name}:{HTTPS_PORT}/nifi-api",);

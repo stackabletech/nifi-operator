@@ -1,0 +1,38 @@
+//! Builds the git-sync resources (volumes, mounts, containers) for a NiFi Node rolegroup.
+
+use snafu::{ResultExt, Snafu};
+use stackable_operator::crd::git_sync;
+
+use crate::{
+    controller::{
+        LOG_VOLUME_NAME, env_vars_from_overrides,
+        validate::{NifiRoleGroupConfig, ValidatedCluster},
+    },
+    crd::Container,
+};
+
+#[derive(Snafu, Debug)]
+pub enum Error {
+    #[snafu(display("invalid git-sync specification"))]
+    InvalidGitSyncSpec { source: git_sync::v1alpha2::Error },
+}
+
+type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// Builds the [`git_sync::v1alpha2::GitSyncResources`] for a single Node rolegroup. The env vars
+/// and logging configuration differ per rolegroup, so the resources are computed per rolegroup
+/// rather than once for the whole cluster.
+pub fn build_git_sync_resources(
+    cluster: &ValidatedCluster,
+    rg: &NifiRoleGroupConfig,
+) -> Result<git_sync::v1alpha2::GitSyncResources> {
+    git_sync::v1alpha2::GitSyncResources::new(
+        &cluster.cluster_config.custom_components_git_sync,
+        &cluster.image,
+        &env_vars_from_overrides(&rg.env_overrides),
+        &[],
+        LOG_VOLUME_NAME,
+        &rg.config.logging.for_container(&Container::GitSync),
+    )
+    .context(InvalidGitSyncSpecSnafu)
+}

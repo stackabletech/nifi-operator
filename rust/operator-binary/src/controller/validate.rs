@@ -3,28 +3,34 @@
 //! Synchronously validates inputs that don't require Kubernetes API calls. Produces
 //! [`ValidatedCluster`], consumed by the rest of `reconcile_nifi`.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     commons::product_image_selection::{self, ResolvedProductImage},
     crd::git_sync,
-    kube::ResourceExt as _,
+    k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta,
+    kube::{Resource, ResourceExt as _},
     role_utils::JavaCommonConfig,
-    utils::cluster_info::KubernetesClusterInfo,
-    v2::types::kubernetes::NamespaceName,
+    v2::{
+        HasName, HasUid,
+        controller_utils::{self, get_cluster_name, get_uid},
+        types::{
+            kubernetes::{NamespaceName, Uid},
+            operator::ClusterName,
+        },
+    },
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
-    controller::{LOG_VOLUME_NAME, dereference::DereferencedObjects, env_vars_from_overrides},
+    controller::dereference::DereferencedObjects,
     crd::{
-        Container, HTTPS_PORT, NifiConfig, NifiRole, sensitive_properties,
+        HostHeaderCheckConfig, NifiConfig, NifiRole, NifiRoleType, sensitive_properties,
         sensitive_properties::NifiSensitiveKeyAlgorithm, v1alpha1,
     },
     framework::role_utils::with_validated_config,
-    reporting_task,
     security::{
         authentication::{self, NifiAuthenticationConfig},
         authorization::ResolvedNifiAuthorizationConfig,
@@ -43,6 +49,12 @@ pub enum Error {
     #[snafu(display("object has no nodes defined"))]
     NoNodesDefined,
 
+    #[snafu(display("failed to get the cluster name"))]
+    GetClusterName { source: controller_utils::Error },
+
+    #[snafu(display("failed to get the UID"))]
+    GetUid { source: controller_utils::Error },
+
     #[snafu(display("invalid NiFi authentication configuration"))]
     InvalidAuthenticationConfig { source: authentication::Error },
 
@@ -53,9 +65,6 @@ pub enum Error {
 
     #[snafu(display("invalid sensitive properties algorithm"))]
     InvalidSensitivePropertiesAlgorithm { source: sensitive_properties::Error },
-
-    #[snafu(display("invalid git-sync specification"))]
-    InvalidGitSyncSpec { source: git_sync::v1alpha2::Error },
 }
 
 pub type NifiRoleGroupConfig = crate::framework::role_utils::RoleGroupConfig<
@@ -67,31 +76,115 @@ pub type NifiRoleGroupConfig = crate::framework::role_utils::RoleGroupConfig<
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// The validated NifiCluster: everything `reconcile_nifi` needs after dereferencing,
-/// in fail-safe / resolved form. The raw `NifiCluster` should only be needed for
-/// OwnerReferences after this point.
+/// in fail-safe / resolved form. This is the single resolved representation of the cluster;
+/// downstream builders should source everything from here and never touch the raw `NifiCluster`.
 pub struct ValidatedCluster {
-    #[allow(dead_code)]
-    pub name: String,
+    /// Synthetic metadata (name, namespace, uid) so `ValidatedCluster` can implement
+    /// [`Resource`] and be used to build OwnerReferences without the raw `NifiCluster`.
+    metadata: ObjectMeta,
+    /// The name of the NifiCluster.
+    pub name: ClusterName,
     /// The namespace of the NifiCluster, parsed once in the dereference step and reused everywhere.
     pub namespace: NamespaceName,
+    /// The UID of the NifiCluster, used to build OwnerReferences downstream.
+    pub uid: Uid,
+    /// The product image.
     pub image: ResolvedProductImage,
-    pub role_group_configs: BTreeMap<NifiRole, BTreeMap<String, NifiRoleGroupConfig>>,
-    /// The git-sync resources (volumes, mounts, containers) for each Node rolegroup,
-    /// keyed by rolegroup name. Precomputed here so both the ConfigMap and StatefulSet
-    /// builders can source them from `ValidatedCluster`.
-    pub git_sync_resources: BTreeMap<String, git_sync::v1alpha2::GitSyncResources>,
+    /// Cluster wide settings.
     pub cluster_config: ValidatedClusterConfig,
+    /// The raw Node role spec (`spec.nodes`), needed for JVM argument merging in `bootstrap.conf`.
+    pub nodes: NifiRoleType,
+    /// Collected configuration per rolegroup.
+    pub role_group_configs: BTreeMap<NifiRole, BTreeMap<String, NifiRoleGroupConfig>>,
 }
 
+/// The resolved `spec.clusterConfig`.
 pub struct ValidatedClusterConfig {
+    /// The cluster authentication settings.
     pub authentication: NifiAuthenticationConfig,
+    /// The cluster authorization settings.
     pub authorization: ResolvedNifiAuthorizationConfig,
-    /// Comma-separated NiFi proxy hosts, or `"*"` if `hostHeaderCheck.allowAll` is set.
-    pub proxy_hosts: String,
+    /// The git-sync specs, resolved into git-sync resources at build time.
+    pub custom_components_git_sync: Vec<git_sync::v1alpha2::GitSync>,
     /// The clustering backend (ZooKeeper or Kubernetes), copied from the spec.
     pub clustering_backend: v1alpha1::NifiClusteringBackend,
+    /// The host-header-check config, resolved into the proxy hosts allow-list at build time.
+    pub host_header_check: HostHeaderCheckConfig,
     /// The validated sensitive properties algorithm.
     pub sensitive_properties_algorithm: NifiSensitiveKeyAlgorithm,
+}
+
+impl ValidatedCluster {
+    /// Builds a [`ValidatedCluster`], deriving the synthetic [`ObjectMeta`] from name, namespace
+    /// and uid so the struct can implement [`Resource`].
+    pub fn new(
+        name: ClusterName,
+        namespace: NamespaceName,
+        uid: Uid,
+        image: ResolvedProductImage,
+        nodes: NifiRoleType,
+        role_group_configs: BTreeMap<NifiRole, BTreeMap<String, NifiRoleGroupConfig>>,
+        cluster_config: ValidatedClusterConfig,
+    ) -> Self {
+        let metadata = ObjectMeta {
+            name: Some(name.to_string()),
+            namespace: Some(namespace.to_string()),
+            uid: Some(uid.to_string()),
+            ..ObjectMeta::default()
+        };
+
+        Self {
+            metadata,
+            name,
+            namespace,
+            uid,
+            image,
+            nodes,
+            role_group_configs,
+            cluster_config,
+        }
+    }
+}
+
+impl HasName for ValidatedCluster {
+    fn to_name(&self) -> String {
+        self.name.to_string()
+    }
+}
+
+impl HasUid for ValidatedCluster {
+    fn to_uid(&self) -> Uid {
+        self.uid.clone()
+    }
+}
+
+impl Resource for ValidatedCluster {
+    type DynamicType = <v1alpha1::NifiCluster as Resource>::DynamicType;
+    type Scope = <v1alpha1::NifiCluster as Resource>::Scope;
+
+    fn kind(dt: &Self::DynamicType) -> std::borrow::Cow<'_, str> {
+        v1alpha1::NifiCluster::kind(dt)
+    }
+
+    fn group(dt: &Self::DynamicType) -> std::borrow::Cow<'_, str> {
+        v1alpha1::NifiCluster::group(dt)
+    }
+
+    fn version(dt: &Self::DynamicType) -> std::borrow::Cow<'_, str> {
+        v1alpha1::NifiCluster::version(dt)
+    }
+
+    fn plural(dt: &Self::DynamicType) -> std::borrow::Cow<'_, str> {
+        v1alpha1::NifiCluster::plural(dt)
+    }
+
+    fn meta(&self) -> &ObjectMeta {
+        &self.metadata
+    }
+
+    fn meta_mut(&mut self) -> &mut ObjectMeta {
+        &mut self.metadata
+    }
 }
 
 /// Validates the cluster spec and the dereferenced inputs.
@@ -99,7 +192,6 @@ pub fn validate(
     nifi: &v1alpha1::NifiCluster,
     dereferenced_objects: &DereferencedObjects,
     operator_environment: &OperatorEnvironmentOptions,
-    cluster_info: &KubernetesClusterInfo,
 ) -> Result<ValidatedCluster> {
     let image = nifi
         .spec
@@ -120,8 +212,6 @@ pub fn validate(
         &dereferenced_objects.authorization,
     );
 
-    let proxy_hosts = compute_proxy_hosts(nifi, cluster_info, &dereferenced_objects.namespace);
-
     let sensitive_properties_algorithm = nifi
         .spec
         .cluster_config
@@ -133,23 +223,34 @@ pub fn validate(
         .check_for_nifi_version(&image.product_version)
         .context(InvalidSensitivePropertiesAlgorithmSnafu)?;
 
+    let nodes = nifi
+        .spec
+        .nodes
+        .as_ref()
+        .context(NoNodesDefinedSnafu)?
+        .clone();
     let role_group_configs = build_role_group_configs(nifi)?;
-    let git_sync_resources = build_git_sync_resources(nifi, &image, &role_group_configs)?;
 
-    Ok(ValidatedCluster {
-        name: nifi.name_any(),
-        namespace: dereferenced_objects.namespace.clone(),
+    let name = get_cluster_name(nifi).context(GetClusterNameSnafu)?;
+    let namespace = dereferenced_objects.namespace.clone();
+    let uid = get_uid(nifi).context(GetUidSnafu)?;
+
+    Ok(ValidatedCluster::new(
+        name,
+        namespace,
+        uid,
         image,
+        nodes,
         role_group_configs,
-        git_sync_resources,
-        cluster_config: ValidatedClusterConfig {
+        ValidatedClusterConfig {
             authentication: authentication_config,
             authorization: authorization_config,
-            proxy_hosts,
             clustering_backend: nifi.spec.cluster_config.clustering_backend.clone(),
             sensitive_properties_algorithm,
+            host_header_check: nifi.spec.cluster_config.host_header_check.clone(),
+            custom_components_git_sync: nifi.spec.cluster_config.custom_components_git_sync.clone(),
         },
-    })
+    ))
 }
 
 fn build_role_group_configs(
@@ -169,71 +270,4 @@ fn build_role_group_configs(
     let mut role_group_configs = BTreeMap::new();
     role_group_configs.insert(NifiRole::Node, groups);
     Ok(role_group_configs)
-}
-
-/// Builds the [`git_sync::v1alpha2::GitSyncResources`] for every Node rolegroup, keyed by
-/// rolegroup name. The env vars and logging configuration differ per rolegroup, so the
-/// resources are computed per rolegroup rather than once for the whole cluster.
-fn build_git_sync_resources(
-    nifi: &v1alpha1::NifiCluster,
-    image: &ResolvedProductImage,
-    role_group_configs: &BTreeMap<NifiRole, BTreeMap<String, NifiRoleGroupConfig>>,
-) -> Result<BTreeMap<String, git_sync::v1alpha2::GitSyncResources>> {
-    let mut resources = BTreeMap::new();
-
-    if let Some(groups) = role_group_configs.get(&NifiRole::Node) {
-        for (rg_name, rg) in groups {
-            let git_sync_resources = git_sync::v1alpha2::GitSyncResources::new(
-                &nifi.spec.cluster_config.custom_components_git_sync,
-                image,
-                &env_vars_from_overrides(&rg.env_overrides),
-                &[],
-                LOG_VOLUME_NAME,
-                &rg.config.logging.for_container(&Container::GitSync),
-            )
-            .context(InvalidGitSyncSpecSnafu)?;
-            resources.insert(rg_name.clone(), git_sync_resources);
-        }
-    }
-
-    Ok(resources)
-}
-
-fn compute_proxy_hosts(
-    nifi: &v1alpha1::NifiCluster,
-    cluster_info: &KubernetesClusterInfo,
-    namespace: &NamespaceName,
-) -> String {
-    let host_header_check = &nifi.spec.cluster_config.host_header_check;
-
-    if host_header_check.allow_all {
-        tracing::info!(
-            "spec.clusterConfig.hostHeaderCheck.allowAll is set to true. All proxy hosts will be allowed."
-        );
-        if !host_header_check.additional_allowed_hosts.is_empty() {
-            tracing::info!(
-                "spec.clusterConfig.hostHeaderCheck.additionalAllowedHosts is ignored and only '*' is added to the allow-list."
-            )
-        }
-        return "*".to_string();
-    }
-
-    // Address and port are injected from the listener volume during the prepare container
-    let mut proxy_hosts = HashSet::from([
-        "${env:LISTENER_DEFAULT_ADDRESS}:${env:LISTENER_DEFAULT_PORT_HTTPS}".to_string(),
-    ]);
-    proxy_hosts.extend(host_header_check.additional_allowed_hosts.iter().cloned());
-
-    // Reporting task only exists for NiFi 1.x
-    if nifi.spec.image.product_version().starts_with("1.") {
-        let reporting_task_service_name =
-            reporting_task::build_reporting_task_fqdn_service_name(nifi, cluster_info, namespace);
-
-        proxy_hosts.insert(format!("{reporting_task_service_name}:{HTTPS_PORT}"));
-    }
-
-    let mut proxy_hosts = Vec::from_iter(proxy_hosts);
-    proxy_hosts.sort();
-
-    proxy_hosts.join(",")
 }

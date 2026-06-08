@@ -7,15 +7,11 @@ use stackable_operator::{
     k8s_openapi::api::core::v1::{
         ConfigMap, ConfigMapKeySelector, EnvVar, EnvVarSource, Volume, VolumeMount,
     },
-    kube::ResourceExt,
 };
 
 use crate::{
     config::{NIFI_PVC_STORAGE_DIRECTORY, NifiRepository},
-    crd::{
-        authorization::{NifiAccessPolicyProvider, NifiAuthorization, NifiOpaConfig},
-        v1alpha1,
-    },
+    crd::authorization::{NifiAccessPolicyProvider, NifiAuthorization, NifiOpaConfig},
 };
 
 const OPA_TLS_VOLUME_NAME: &str = "opa-tls";
@@ -118,7 +114,7 @@ impl ResolvedNifiAuthorizationConfig {
         }
     }
 
-    pub fn get_authorizers_config(&self, nifi_cluster: &v1alpha1::NifiCluster) -> String {
+    pub fn get_authorizers_config(&self, cluster_name: &str) -> String {
         let mut authorizers_xml = indoc! {r#"
             <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
             <authorizers>
@@ -133,7 +129,7 @@ impl ResolvedNifiAuthorizationConfig {
                 ..
             } => {
                 // According to [`OpaConfig::document_url`] we default the stacklet name
-                let package = package.clone().unwrap_or_else(|| nifi_cluster.name_any());
+                let package = package.clone().unwrap_or_else(|| cluster_name.to_owned());
                 authorizers_xml.push_str(&formatdoc! {r#"
                     <authorizer>
                         <identifier>authorizer</identifier>

@@ -1,29 +1,24 @@
 //! Builder for `authorizers.xml`.
 
-use crate::{controller::validate::ValidatedCluster, crd::v1alpha1};
+use crate::controller::validate::ValidatedCluster;
 
-pub fn build(cluster: &ValidatedCluster, nifi: &v1alpha1::NifiCluster) -> String {
-    // TODO(follow-up PR): narrow get_authorizers_config to resolved fields on ValidatedCluster instead of taking the full NifiCluster.
+pub fn build(cluster: &ValidatedCluster) -> String {
     cluster
         .cluster_config
         .authorization
-        .get_authorizers_config(nifi)
+        .get_authorizers_config(cluster.name.as_ref())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::controller::build::properties::test_support::{
-        MINIMAL_NIFI_YAML, minimal_validated_cluster,
-    };
+    use crate::controller::build::properties::test_support::minimal_validated_cluster;
 
     #[test]
     fn test_build_returns_non_empty_xml_with_authorizers_root() {
         let cluster = minimal_validated_cluster();
-        let nifi: v1alpha1::NifiCluster =
-            serde_yaml::from_str(MINIMAL_NIFI_YAML).expect("invalid test YAML");
 
-        let xml = build(&cluster, &nifi);
+        let xml = build(&cluster);
 
         assert!(!xml.is_empty(), "authorizers.xml should not be empty");
         assert!(

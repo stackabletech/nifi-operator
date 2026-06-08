@@ -28,10 +28,10 @@ const STORAGE_CONTENT_ARCHIVE_UTILIZATION_FACTOR: f32 = 0.5;
 pub fn build(
     cluster: &ValidatedCluster,
     rg: &NifiRoleGroupConfig,
+    proxy_hosts: &str,
     git_sync_resources: &git_sync::v1alpha2::GitSyncResources,
 ) -> Result<String, Error> {
     let product_version = &cluster.image.product_version;
-    let proxy_hosts = &cluster.cluster_config.proxy_hosts;
     let auth_config = &cluster.cluster_config.authentication;
     let resource_config = &rg.config.resources;
 
@@ -603,7 +603,7 @@ mod tests {
         let rg = default_rg(&cluster);
         let git_sync = empty_git_sync_resources();
 
-        let props = build(&cluster, rg, &git_sync).expect("build should succeed");
+        let props = build(&cluster, rg, "*", &git_sync).expect("build should succeed");
 
         // HTTPS port
         assert!(
@@ -690,7 +690,8 @@ mod tests {
             .insert("default".to_string(), rg.clone());
 
         let git_sync = empty_git_sync_resources();
-        let props = build(&cluster, &rg, &git_sync).expect("build with override should succeed");
+        let props =
+            build(&cluster, &rg, "*", &git_sync).expect("build with override should succeed");
 
         assert!(
             props.contains("some.custom.key=some-custom-value"),
