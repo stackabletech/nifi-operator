@@ -13,6 +13,7 @@ use stackable_operator::{
     kube::ResourceExt as _,
     role_utils::JavaCommonConfig,
     utils::cluster_info::KubernetesClusterInfo,
+    v2::types::kubernetes::NamespaceName,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
@@ -45,11 +46,6 @@ pub enum Error {
     #[snafu(display("invalid NiFi authentication configuration"))]
     InvalidAuthenticationConfig { source: authentication::Error },
 
-    #[snafu(display("failed to build reporting task service name"))]
-    ReportingTask {
-        source: crate::reporting_task::Error,
-    },
-
     #[snafu(display("failed to validate config fragment for a rolegroup"))]
     InvalidConfigFragment {
         source: stackable_operator::config::fragment::ValidationError,
@@ -76,6 +72,8 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct ValidatedCluster {
     #[allow(dead_code)]
     pub name: String,
+    /// The namespace of the NifiCluster, parsed once in the dereference step and reused everywhere.
+    pub namespace: NamespaceName,
     pub image: ResolvedProductImage,
     pub role_group_configs: BTreeMap<NifiRole, BTreeMap<String, NifiRoleGroupConfig>>,
     /// The git-sync resources (volumes, mounts, containers) for each Node rolegroup,
@@ -122,7 +120,7 @@ pub fn validate(
         &dereferenced_objects.authorization,
     );
 
-    let proxy_hosts = compute_proxy_hosts(nifi, cluster_info)?;
+    let proxy_hosts = compute_proxy_hosts(nifi, cluster_info, &dereferenced_objects.namespace);
 
     let sensitive_properties_algorithm = nifi
         .spec
@@ -140,6 +138,7 @@ pub fn validate(
 
     Ok(ValidatedCluster {
         name: nifi.name_any(),
+        namespace: dereferenced_objects.namespace.clone(),
         image,
         role_group_configs,
         git_sync_resources,
@@ -203,7 +202,8 @@ fn build_git_sync_resources(
 fn compute_proxy_hosts(
     nifi: &v1alpha1::NifiCluster,
     cluster_info: &KubernetesClusterInfo,
-) -> Result<String> {
+    namespace: &NamespaceName,
+) -> String {
     let host_header_check = &nifi.spec.cluster_config.host_header_check;
 
     if host_header_check.allow_all {
@@ -215,7 +215,7 @@ fn compute_proxy_hosts(
                 "spec.clusterConfig.hostHeaderCheck.additionalAllowedHosts is ignored and only '*' is added to the allow-list."
             )
         }
-        return Ok("*".to_string());
+        return "*".to_string();
     }
 
     // Address and port are injected from the listener volume during the prepare container
@@ -227,8 +227,7 @@ fn compute_proxy_hosts(
     // Reporting task only exists for NiFi 1.x
     if nifi.spec.image.product_version().starts_with("1.") {
         let reporting_task_service_name =
-            reporting_task::build_reporting_task_fqdn_service_name(nifi, cluster_info)
-                .context(ReportingTaskSnafu)?;
+            reporting_task::build_reporting_task_fqdn_service_name(nifi, cluster_info, namespace);
 
         proxy_hosts.insert(format!("{reporting_task_service_name}:{HTTPS_PORT}"));
     }
@@ -236,5 +235,5 @@ fn compute_proxy_hosts(
     let mut proxy_hosts = Vec::from_iter(proxy_hosts);
     proxy_hosts.sort();
 
-    Ok(proxy_hosts.join(","))
+    proxy_hosts.join(",")
 }

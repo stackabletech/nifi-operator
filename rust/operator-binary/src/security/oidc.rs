@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use rand::{RngExt, distr::Alphanumeric};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     client::Client,
@@ -9,6 +9,7 @@ use stackable_operator::{
     crd::authentication::oidc,
     k8s_openapi::api::core::v1::Secret,
     kube::{ResourceExt, runtime::reflector::ObjectRef},
+    v2::types::kubernetes::NamespaceName,
 };
 
 use crate::{crd::v1alpha1, security::authentication::STACKABLE_ADMIN_USERNAME};
@@ -17,9 +18,6 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("the NiFi object defines no namespace"))]
-    ObjectHasNoNamespace,
-
     #[snafu(display("failed to fetch or create OIDC admin password secret"))]
     OidcAdminPasswordSecret {
         source: stackable_operator::client::Error,
@@ -45,11 +43,14 @@ pub enum Error {
 pub(crate) async fn check_or_generate_oidc_admin_password(
     client: &Client,
     nifi: &v1alpha1::NifiCluster,
+    namespace: &NamespaceName,
 ) -> Result<bool, Error> {
-    let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
     tracing::debug!("Checking for OIDC admin password configuration");
     match client
-        .get_opt::<Secret>(&build_oidc_admin_password_secret_name(nifi), namespace)
+        .get_opt::<Secret>(
+            &build_oidc_admin_password_secret_name(nifi),
+            namespace.as_ref(),
+        )
         .await
         .context(OidcAdminPasswordSecretSnafu)?
     {

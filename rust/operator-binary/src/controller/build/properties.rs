@@ -79,7 +79,7 @@ pub(crate) fn resolved_overrides_for(
 /// self-contained.
 #[cfg(test)]
 pub(crate) mod test_support {
-    use std::collections::BTreeMap;
+    use std::{collections::BTreeMap, str::FromStr as _};
 
     use stackable_operator::{
         commons::product_image_selection::ResolvedProductImage,
@@ -88,6 +88,7 @@ pub(crate) mod test_support {
         },
         kube::ResourceExt as _,
         kvp::LabelValue,
+        v2::types::kubernetes::NamespaceName,
     };
 
     use crate::{
@@ -161,6 +162,7 @@ pub(crate) mod test_support {
 
         ValidatedCluster {
             name: "simple-nifi".to_string(),
+            namespace: NamespaceName::from_str("default").expect("valid namespace"),
             image,
             role_group_configs,
             git_sync_resources: Default::default(),

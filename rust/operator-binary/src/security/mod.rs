@@ -1,7 +1,7 @@
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::pod::volume::SecretFormat, client::Client, k8s_openapi::api::core::v1::Volume,
-    shared::time::Duration,
+    shared::time::Duration, v2::types::kubernetes::NamespaceName,
 };
 
 use crate::crd::v1alpha1;
@@ -29,8 +29,9 @@ pub enum Error {
 pub async fn check_or_generate_sensitive_key(
     client: &Client,
     nifi: &v1alpha1::NifiCluster,
+    namespace: &NamespaceName,
 ) -> Result<bool> {
-    sensitive_key::check_or_generate_sensitive_key(client, nifi)
+    sensitive_key::check_or_generate_sensitive_key(client, nifi, namespace)
         .await
         .context(SensitiveKeySnafu)
 }
@@ -38,8 +39,9 @@ pub async fn check_or_generate_sensitive_key(
 pub async fn check_or_generate_oidc_admin_password(
     client: &Client,
     nifi: &v1alpha1::NifiCluster,
+    namespace: &NamespaceName,
 ) -> Result<bool> {
-    oidc::check_or_generate_oidc_admin_password(client, nifi)
+    oidc::check_or_generate_oidc_admin_password(client, nifi, namespace)
         .await
         .context(OidcAdminPasswordSnafu)
 }

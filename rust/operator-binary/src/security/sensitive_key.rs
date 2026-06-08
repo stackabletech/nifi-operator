@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 
 use rand::{RngExt, distr::Alphanumeric};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder, client::Client, k8s_openapi::api::core::v1::Secret,
-    kube::ResourceExt,
+    v2::types::kubernetes::NamespaceName,
 };
 
 use crate::crd::v1alpha1;
@@ -13,9 +13,6 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("object defines no namespace"))]
-    ObjectHasNoNamespace,
-
     #[snafu(display("failed to check sensitive property key secret"))]
     SensitiveKeySecret {
         source: stackable_operator::client::Error,
@@ -32,12 +29,12 @@ pub enum Error {
 pub(crate) async fn check_or_generate_sensitive_key(
     client: &Client,
     nifi: &v1alpha1::NifiCluster,
+    namespace: &NamespaceName,
 ) -> Result<bool, Error> {
     let sensitive_config = &nifi.spec.cluster_config.sensitive_properties;
-    let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
 
     match client
-        .get_opt::<Secret>(&sensitive_config.key_secret, namespace)
+        .get_opt::<Secret>(&sensitive_config.key_secret, namespace.as_ref())
         .await
         .context(SensitiveKeySecretSnafu)?
     {

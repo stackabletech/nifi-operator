@@ -866,9 +866,9 @@ rec {
       };
       "bitflags" = rec {
         crateName = "bitflags";
-        version = "2.12.1";
+        version = "2.13.0";
         edition = "2021";
-        sha256 = "02phhjm7w380zdh8928zf13cfi1bw2qz2ay36ml2jmwmmv8cxmw4";
+        sha256 = "1y239gpvl061rfvav7jds8mjs42kmwi39is7yx5d1qw3hvp8nf5l";
         authors = [
           "The Rust Project Developers"
         ];
@@ -1047,9 +1047,9 @@ rec {
       };
       "chrono" = rec {
         crateName = "chrono";
-        version = "0.4.44";
+        version = "0.4.45";
         edition = "2021";
-        sha256 = "1c64mk9a235271j5g3v4zrzqqmd43vp9vki7vqfllpqf5rd0fwy6";
+        sha256 = "09rkcgk6is2sdhqs9142zv8xqnj8ryx8m9hknllqwyv9wxi9x9qs";
         dependencies = [
           {
             name = "iana-time-zone";
@@ -3604,9 +3604,9 @@ rec {
       };
       "http" = rec {
         crateName = "http";
-        version = "1.4.1";
+        version = "1.4.2";
         edition = "2021";
-        sha256 = "1l7k2ia57z3q7q3ka497krzps795kd3fymm2k12lr623y4nldrwb";
+        sha256 = "09b4p8fiivkg7wm0b59fyrn1jkm7px298ci7zb9igz6n647gaw39";
         authors = [
           "Alex Crichton <alex@alexcrichton.com>"
           "Carl Lerche <me@carllerche.com>"
@@ -5891,9 +5891,9 @@ rec {
       };
       "log" = rec {
         crateName = "log";
-        version = "0.4.31";
+        version = "0.4.32";
         edition = "2021";
-        sha256 = "0kq2fh6q2bjkrm8m6hj8kb7gxfd7cr7qbcpxd1lc1xq5rns30fqi";
+        sha256 = "0fmdg0cxig7i4fwf1sw7fmg4d1gdbfzniawcfpwydy1q7320fgwm";
         authors = [
           "The Rust Project Developers"
         ];
@@ -7487,9 +7487,9 @@ rec {
       };
       "prost" = rec {
         crateName = "prost";
-        version = "0.14.3";
+        version = "0.14.4";
         edition = "2021";
-        sha256 = "0s057z9nzggzy7x4bbsiar852hg7zb81f4z4phcdb0ig99971snj";
+        sha256 = "1qas5v5rap45f43v3ja0jngxrrafrkcwl0iw5a3ld1pz2rscd2jj";
         authors = [
           "Dan Burkert <dan@danburkert.com>"
           "Lucio Franco <luciofranco14@gmail.com>"
@@ -7516,9 +7516,9 @@ rec {
       };
       "prost-derive" = rec {
         crateName = "prost-derive";
-        version = "0.14.3";
+        version = "0.14.4";
         edition = "2021";
-        sha256 = "02zvva6kb0pfvlyc4nac6gd37ncjrs8jq5scxcq4nbqkc8wh5ii7";
+        sha256 = "1pqa77d7da5pf6ba3kjj7510m5cynz6902ax01ckvr0pfrgv4w5m";
         procMacro = true;
         libName = "prost_derive";
         authors = [
@@ -7554,9 +7554,9 @@ rec {
       };
       "prost-types" = rec {
         crateName = "prost-types";
-        version = "0.14.3";
+        version = "0.14.4";
         edition = "2021";
-        sha256 = "1mrxrciryfgi6a0vmrgyj3g27r9hdhlgwkq71cgv3icbvg5w94c9";
+        sha256 = "02ivjvc4cwl5bfgjs3l00hwlrk74z8zlg1xcgx60bww8fvf6fjgr";
         libName = "prost_types";
         authors = [
           "Dan Burkert <dan@danburkert.com>"
@@ -14835,9 +14835,9 @@ rec {
       };
       "yoke" = rec {
         crateName = "yoke";
-        version = "0.8.2";
+        version = "0.8.3";
         edition = "2021";
-        sha256 = "1jprcs7a98a5whvfs6r3jvfh1nnfp6zyijl7y4ywmn88lzywbs5b";
+        sha256 = "1xgyj6c2lxj2bp891ynmhws87c6z7yyv2li1v0ss9di40hxf57vh";
         authors = [
           "Manish Goregaokar <manishsmail@gmail.com>"
         ];

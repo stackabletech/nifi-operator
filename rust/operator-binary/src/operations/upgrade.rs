@@ -1,20 +1,18 @@
 // TODO: This module can be removed once we don't support NiFi 1.x versions anymore
 // It manages the version upgrade procedure for NiFi versions prior to NiFi 2, since rolling upgrade is not supported there yet
 
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     client::Client,
     k8s_openapi::{api::apps::v1::StatefulSet, apimachinery::pkg::apis::meta::v1::LabelSelector},
     kvp::Labels,
+    v2::types::kubernetes::NamespaceName,
 };
 
 use crate::crd::{APP_NAME, NifiRole, v1alpha1};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("object defines no namespace"))]
-    ObjectHasNoNamespace,
-
     #[snafu(display("failed to fetch deployed StatefulSets"))]
     FetchStatefulsets {
         source: stackable_operator::client::Error,
@@ -41,15 +39,10 @@ pub enum ClusterVersionUpdateState {
 pub async fn cluster_version_update_state(
     nifi: &v1alpha1::NifiCluster,
     client: &Client,
+    namespace: &NamespaceName,
     resolved_version: &String,
     deployed_version: Option<&String>,
 ) -> Result<ClusterVersionUpdateState> {
-    let namespace = &nifi
-        .metadata
-        .namespace
-        .clone()
-        .with_context(|| ObjectHasNoNamespaceSnafu {})?;
-
     // Handle full restarts for a version change
     match deployed_version {
         Some(deployed_version) => {
@@ -66,7 +59,7 @@ pub async fn cluster_version_update_state(
 
                 // Retrieve the deployed statefulsets to check on the current status of the restart
                 let deployed_statefulsets = client
-                    .list_with_label_selector::<StatefulSet>(namespace, &selector)
+                    .list_with_label_selector::<StatefulSet>(namespace.as_ref(), &selector)
                     .await
                     .context(FetchStatefulsetsSnafu)?;
 

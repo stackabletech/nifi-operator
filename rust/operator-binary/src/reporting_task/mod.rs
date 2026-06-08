@@ -46,6 +46,7 @@ use stackable_operator::{
     kvp::Labels,
     shared::time::Duration,
     utils::cluster_info::KubernetesClusterInfo,
+    v2::types::kubernetes::NamespaceName,
 };
 
 use crate::{
@@ -65,9 +66,6 @@ const REPORTING_TASK_CONTAINER_NAME: &str = "reporting-task";
 pub enum Error {
     #[snafu(display("object defines no name"))]
     ObjectHasNoName,
-
-    #[snafu(display("object defines no namespace"))]
-    ObjectHasNoNamespace,
 
     #[snafu(display("failed to build metadata"))]
     MetadataBuild {
@@ -130,6 +128,7 @@ pub fn build_maybe_reporting_task(
     nifi: &v1alpha1::NifiCluster,
     resolved_product_image: &ResolvedProductImage,
     cluster_info: &KubernetesClusterInfo,
+    namespace: &NamespaceName,
     authentication_config: &NifiAuthenticationConfig,
     sa_name: &str,
 ) -> Result<Option<(Job, Service)>> {
@@ -139,6 +138,7 @@ pub fn build_maybe_reporting_task(
                 nifi,
                 resolved_product_image,
                 cluster_info,
+                namespace,
                 authentication_config,
                 sa_name,
             )?,
@@ -158,14 +158,12 @@ pub fn build_reporting_task_service_name(nifi_cluster_name: &str) -> String {
 pub fn build_reporting_task_fqdn_service_name(
     nifi: &v1alpha1::NifiCluster,
     cluster_info: &KubernetesClusterInfo,
-) -> Result<String> {
+    namespace: &NamespaceName,
+) -> String {
     let nifi_cluster_name = nifi.name_any();
-    let nifi_namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
     let reporting_task_service_name = build_reporting_task_service_name(&nifi_cluster_name);
     let cluster_domain = &cluster_info.cluster_domain;
-    Ok(format!(
-        "{reporting_task_service_name}.{nifi_namespace}.svc.{cluster_domain}"
-    ))
+    format!("{reporting_task_service_name}.{namespace}.svc.{cluster_domain}")
 }
 
 /// Return the name of the first pod belonging to the first role group that contains more than 0 replicas.
@@ -268,11 +266,12 @@ fn build_reporting_task_job(
     nifi: &v1alpha1::NifiCluster,
     resolved_product_image: &ResolvedProductImage,
     cluster_info: &KubernetesClusterInfo,
+    namespace: &NamespaceName,
     nifi_auth_config: &NifiAuthenticationConfig,
     sa_name: &str,
 ) -> Result<Job> {
     let reporting_task_fqdn_service_name =
-        build_reporting_task_fqdn_service_name(nifi, cluster_info)?;
+        build_reporting_task_fqdn_service_name(nifi, cluster_info, namespace);
     let product_version = &resolved_product_image.product_version;
     let nifi_connect_url =
         format!("https://{reporting_task_fqdn_service_name}:{HTTPS_PORT}/nifi-api",);

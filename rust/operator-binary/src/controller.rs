@@ -57,6 +57,7 @@ use stackable_operator::{
         statefulset::StatefulSetConditionBuilder,
     },
     utils::{COMMON_BASH_TRAP_FUNCTIONS, cluster_info::KubernetesClusterInfo},
+    v2::types::kubernetes::NamespaceName,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
@@ -122,9 +123,6 @@ pub enum Error {
 
     #[snafu(display("object defines no name"))]
     ObjectHasNoName,
-
-    #[snafu(display("object defines no namespace"))]
-    ObjectHasNoNamespace,
 
     #[snafu(display("failed to dereference resources"))]
     Dereference { source: dereference::Error },
@@ -332,7 +330,7 @@ pub async fn reconcile_nifi(
     let authorization_config = &validated_cluster.cluster_config.authorization;
 
     tracing::info!("Checking for sensitive key configuration");
-    check_or_generate_sensitive_key(client, nifi)
+    check_or_generate_sensitive_key(client, nifi, &validated_cluster.namespace)
         .await
         .context(SecuritySnafu)?;
 
@@ -352,6 +350,7 @@ pub async fn reconcile_nifi(
         cluster_version_update_state = upgrade::cluster_version_update_state(
             nifi,
             client,
+            &validated_cluster.namespace,
             &resolved_product_image.product_version,
             deployed_version,
         )
@@ -375,7 +374,7 @@ pub async fn reconcile_nifi(
     .context(CreateClusterResourcesSnafu)?;
 
     if let NifiAuthenticationConfig::Oidc { .. } = authentication_config {
-        check_or_generate_oidc_admin_password(client, nifi)
+        check_or_generate_oidc_admin_password(client, nifi, &validated_cluster.namespace)
             .await
             .context(SecuritySnafu)?;
     }
@@ -470,6 +469,7 @@ pub async fn reconcile_nifi(
                 nifi,
                 resolved_product_image,
                 &client.kubernetes_cluster_info,
+                &validated_cluster.namespace,
                 &rolegroup,
                 role,
                 rg,
@@ -568,6 +568,7 @@ pub async fn reconcile_nifi(
             nifi,
             resolved_product_image,
             &client.kubernetes_cluster_info,
+            &validated_cluster.namespace,
             authentication_config,
             &rbac_sa.name_any(),
         )
@@ -648,6 +649,7 @@ async fn build_node_rolegroup_statefulset(
     nifi: &v1alpha1::NifiCluster,
     resolved_product_image: &ResolvedProductImage,
     cluster_info: &KubernetesClusterInfo,
+    namespace: &NamespaceName,
     rolegroup_ref: &RoleGroupRef<v1alpha1::NifiCluster>,
     role: &NifiRoleType,
     rg: &NifiRoleGroupConfig,
@@ -723,11 +725,6 @@ async fn build_node_rolegroup_statefulset(
     let node_address = format!(
         "$POD_NAME.{service_name}.{namespace}.svc.{cluster_domain}",
         service_name = rolegroup_ref.rolegroup_headless_service_name(),
-        namespace = &nifi
-            .metadata
-            .namespace
-            .as_ref()
-            .context(ObjectHasNoNamespaceSnafu)?,
         cluster_domain = cluster_info.cluster_domain,
     );
 
