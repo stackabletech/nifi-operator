@@ -149,7 +149,7 @@ pub fn build_maybe_reporting_task(
     }
 }
 
-/// Return the name of the reporting task.
+/// Return the name of the reporting task Service.
 pub fn build_reporting_task_service_name(nifi_cluster_name: &str) -> String {
     format!("{nifi_cluster_name}-{REPORTING_TASK_CONTAINER_NAME}")
 }

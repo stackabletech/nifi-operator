@@ -217,11 +217,6 @@ pub enum Error {
         source: stackable_operator::commons::rbac::Error,
     },
 
-    #[snafu(display("Invalid NiFi Authorization Configuration"))]
-    InvalidNifiAuthorizationConfig {
-        source: crate::security::authorization::Error,
-    },
-
     #[snafu(display("failed to create PodDisruptionBudget"))]
     FailedToCreatePdb {
         source: crate::operations::pdb::Error,

@@ -206,8 +206,8 @@ impl NifiAuthenticationConfig {
         commands
     }
 
-    /// Returns
-    /// - A list of extra commands for the init container
+    /// Adds the volumes and volume mounts required by the configured authentication
+    /// method to the pod and the given container builders.
     pub fn add_volumes_and_mounts(
         &self,
         pod_builder: &mut PodBuilder,

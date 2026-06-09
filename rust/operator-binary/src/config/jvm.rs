@@ -30,7 +30,7 @@ pub enum Error {
     MergeJvmArgumentOverrides { source: role_utils::Error },
 }
 
-/// Create the NiFi bootstrap.conf
+/// Build the merged JVM argument overrides used in the NiFi bootstrap.conf
 pub fn build_merged_jvm_config(
     merged_config: &NifiConfig,
     role: &NifiRoleType,
