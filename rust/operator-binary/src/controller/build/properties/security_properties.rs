@@ -27,7 +27,9 @@ pub fn build(rg: &NifiRoleGroupConfig) -> Result<String, PropertiesWriterError> 
 mod tests {
     use std::collections::BTreeMap;
 
-    use stackable_operator::v2::config_overrides::KeyValueConfigOverrides;
+    use stackable_operator::v2::{
+        builder::pod::container::EnvVarSet, config_overrides::KeyValueConfigOverrides,
+    };
 
     use super::*;
     use crate::{
@@ -50,7 +52,7 @@ mod tests {
                 },
                 ..Default::default()
             },
-            env_overrides: BTreeMap::new(),
+            env_overrides: EnvVarSet::new(),
             cli_overrides: BTreeMap::new(),
             pod_overrides: Default::default(),
             product_specific_common_config: JavaCommonConfig::default(),

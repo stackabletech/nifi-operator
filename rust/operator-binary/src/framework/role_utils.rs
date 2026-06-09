@@ -2,7 +2,6 @@
 //! `smooth-operator` branch, with simplifications appropriate for nifi-operator.
 //!
 //! Differences from upstream:
-//! - `env_overrides` is `BTreeMap<String, String>` instead of `EnvVarSet`.
 //! - No `cli_overrides_to_vec` helper, `ResourceNames`, or service-account helpers.
 //! - The `CommonConfig` (a.k.a. `product_specific_common_config`) does NOT need to
 //!   implement `Merge`. Upstream Trino uses `JavaCommonConfig`, which intentionally
@@ -15,9 +14,10 @@
 //! Replace with `stackable_operator::v2::role_utils::*` once upstream publishes
 //! the module.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, str::FromStr};
 
 use serde::Serialize;
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     config::{
         fragment::{self, FromFragment},
@@ -26,19 +26,31 @@ use stackable_operator::{
     k8s_openapi::{DeepMerge, api::core::v1::PodTemplateSpec},
     role_utils::{Role, RoleGroup},
     schemars::JsonSchema,
+    v2::builder::pod::container::{self, EnvVarName, EnvVarSet},
 };
+
+#[derive(Snafu, Debug)]
+pub enum Error {
+    #[snafu(display("failed to validate the rolegroup config fragment"))]
+    ValidateConfig { source: fragment::ValidationError },
+
+    #[snafu(display("environment variable name {name:?} is invalid"))]
+    ParseEnvVarName {
+        source: container::Error,
+        name: String,
+    },
+}
 
 /// NiFi-friendly view of a validated, merged `RoleGroup`.
 ///
 /// Mirrors `stackable_operator::v2::role_utils::RoleGroupConfig` on the
-/// `smooth-operator` branch, with `env_overrides: BTreeMap<String, String>`
-/// instead of the upstream `EnvVarSet`.
+/// `smooth-operator` branch.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RoleGroupConfig<Config, CommonConfig, ConfigOverrides> {
     pub replicas: u16,
     pub config: Config,
     pub config_overrides: ConfigOverrides,
-    pub env_overrides: BTreeMap<String, String>,
+    pub env_overrides: EnvVarSet,
     pub cli_overrides: BTreeMap<String, String>,
     pub pod_overrides: PodTemplateSpec,
     pub product_specific_common_config: CommonConfig,
@@ -51,7 +63,9 @@ pub struct RoleGroupConfig<Config, CommonConfig, ConfigOverrides> {
 /// - `Config` (Fragment): `default_config <- role.config <- rg.config` via `Merge::merge`,
 ///   then validated to `ValidatedConfig` via `FromFragment`.
 /// - `ConfigOverrides`: `role.config_overrides <- rg.config_overrides` via `Merge::merge`.
-/// - `env_overrides` / `cli_overrides`: `extend` (rg keys overwrite role keys).
+/// - `env_overrides`: `extend` (rg keys overwrite role keys), then parsed into an `EnvVarSet`
+///   (rejecting invalid environment variable names).
+/// - `cli_overrides`: `extend` (rg keys overwrite role keys).
 /// - `pod_overrides`: `DeepMerge::merge_from` (rg overrides role).
 /// - `product_specific_common_config`: passes through the role-group level value
 ///   (see module docs for rationale).
@@ -59,10 +73,7 @@ pub fn with_validated_config<ValidatedConfig, CommonConfig, Config, RoleConfig, 
     role_group: &RoleGroup<Config, CommonConfig, ConfigOverrides>,
     role: &Role<Config, ConfigOverrides, RoleConfig, CommonConfig>,
     default_config: &Config,
-) -> Result<
-    RoleGroupConfig<ValidatedConfig, CommonConfig, ConfigOverrides>,
-    fragment::ValidationError,
->
+) -> Result<RoleGroupConfig<ValidatedConfig, CommonConfig, ConfigOverrides>, Error>
 where
     ValidatedConfig: FromFragment<Fragment = Config>,
     CommonConfig: Clone + Default + JsonSchema + Serialize,
@@ -70,7 +81,8 @@ where
     RoleConfig: Default + JsonSchema + Serialize,
     ConfigOverrides: Clone + Default + JsonSchema + Merge + Serialize,
 {
-    let validated_config = validate_config(role_group, role, default_config)?;
+    let validated_config =
+        validate_config(role_group, role, default_config).context(ValidateConfigSnafu)?;
     Ok(RoleGroupConfig {
         replicas: role_group.replicas.unwrap_or(1),
         config: validated_config,
@@ -90,7 +102,7 @@ where
                 .iter()
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect(),
-        ),
+        )?,
         cli_overrides: merged_cli_overrides(
             role.config.cli_overrides.clone(),
             role_group.config.cli_overrides.clone(),
@@ -131,10 +143,17 @@ where
 fn merged_env_overrides(
     role_env_overrides: BTreeMap<String, String>,
     role_group_env_overrides: BTreeMap<String, String>,
-) -> BTreeMap<String, String> {
+) -> Result<EnvVarSet, Error> {
     let mut merged = role_env_overrides;
     merged.extend(role_group_env_overrides);
-    merged
+
+    let mut env_overrides = EnvVarSet::new();
+    for (name, value) in merged {
+        let env_var_name =
+            EnvVarName::from_str(&name).context(ParseEnvVarNameSnafu { name: name.clone() })?;
+        env_overrides = env_overrides.with_value(&env_var_name, value);
+    }
+    Ok(env_overrides)
 }
 
 fn merged_cli_overrides(
@@ -153,4 +172,44 @@ fn merged_pod_overrides(
     let mut merged = role_pod_overrides;
     merged.merge_from(role_group_pod_overrides);
     merged
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use stackable_operator::v2::builder::pod::container::EnvVarName;
+
+    use super::merged_env_overrides;
+
+    #[test]
+    fn env_overrides_role_group_value_wins_over_role_value() {
+        let role = BTreeMap::from([
+            ("SHARED".to_owned(), "from-role".to_owned()),
+            ("ROLE_ONLY".to_owned(), "role".to_owned()),
+        ]);
+        let role_group = BTreeMap::from([("SHARED".to_owned(), "from-rolegroup".to_owned())]);
+
+        let merged = merged_env_overrides(role, role_group).expect("env overrides should merge");
+
+        assert_eq!(
+            merged
+                .get(&EnvVarName::from_str_unsafe("SHARED"))
+                .and_then(|env_var| env_var.value.clone()),
+            Some("from-rolegroup".to_owned())
+        );
+        assert_eq!(
+            merged
+                .get(&EnvVarName::from_str_unsafe("ROLE_ONLY"))
+                .and_then(|env_var| env_var.value.clone()),
+            Some("role".to_owned())
+        );
+    }
+
+    #[test]
+    fn invalid_env_var_name_is_rejected() {
+        let role = BTreeMap::from([("INVALID=NAME".to_owned(), "value".to_owned())]);
+
+        assert!(merged_env_overrides(role, BTreeMap::new()).is_err());
+    }
 }

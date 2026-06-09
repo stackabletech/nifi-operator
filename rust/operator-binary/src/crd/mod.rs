@@ -7,7 +7,6 @@ use affinity::get_affinity;
 use authorization::NifiAuthorization;
 use sensitive_properties::NifiSensitivePropertiesConfig;
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
@@ -18,17 +17,14 @@ use stackable_operator::{
             PvcConfig, PvcConfigFragment, Resources, ResourcesFragment,
         },
     },
-    config::{
-        fragment::{self, Fragment, ValidationError},
-        merge::Merge,
-    },
+    config::{fragment::Fragment, merge::Merge},
     crd::{authentication::core as auth_core, git_sync},
     deep_merger::ObjectOverrides,
     k8s_openapi::{
         api::core::v1::{PodTemplateSpec, Volume},
         apimachinery::pkg::api::resource::Quantity,
     },
-    kube::{CustomResource, ResourceExt, runtime::reflector::ObjectRef},
+    kube::{CustomResource, runtime::reflector::ObjectRef},
     memory::MemoryQuantity,
     product_logging::{self, spec::Logging},
     role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroupRef},
@@ -61,15 +57,6 @@ const DEFAULT_NODE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_minutes_
 
 pub type NifiRoleType =
     Role<NifiConfigFragment, v1alpha1::NifiConfigOverrides, NifiNodeRoleConfig, JavaCommonConfig>;
-
-#[derive(Snafu, Debug)]
-pub enum Error {
-    #[snafu(display("the NiFi role [{role}] is missing from spec"))]
-    MissingNifiRole { role: String },
-
-    #[snafu(display("fragment validation failure"))]
-    FragmentValidationFailure { source: ValidationError },
-}
 
 #[versioned(
     version(name = "v1alpha1"),
@@ -229,37 +216,6 @@ impl v1alpha1::NifiCluster {
     /// Return user provided server TLS settings
     pub fn server_tls_secret_class(&self) -> &str {
         &self.spec.cluster_config.tls.server_secret_class
-    }
-
-    /// Retrieve and merge resource configs for role and role groups
-    pub fn merged_config(&self, role: &NifiRole, role_group: &str) -> Result<NifiConfig, Error> {
-        // Initialize the result with all default values as baseline
-        let conf_defaults = NifiConfig::default_config(&self.name_any(), role);
-
-        let role = self.spec.nodes.as_ref().context(MissingNifiRoleSnafu {
-            role: role.to_string(),
-        })?;
-
-        // Retrieve role resource config
-        let mut conf_role = role.config.config.to_owned();
-
-        // Retrieve rolegroup specific resource config
-        let mut conf_rolegroup = role
-            .role_groups
-            .get(role_group)
-            .map(|rg| rg.config.config.clone())
-            .unwrap_or_default();
-
-        // Merge more specific configs into default config
-        // Hierarchy is:
-        // 1. RoleGroup
-        // 2. Role
-        // 3. Default
-        conf_role.merge(&conf_defaults);
-        conf_rolegroup.merge(&conf_role);
-
-        tracing::debug!("Merged config: {:?}", conf_rolegroup);
-        fragment::validate(conf_rolegroup).context(FragmentValidationFailureSnafu)
     }
 }
 

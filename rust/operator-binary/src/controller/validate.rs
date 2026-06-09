@@ -58,9 +58,9 @@ pub enum Error {
     #[snafu(display("invalid NiFi authentication configuration"))]
     InvalidAuthenticationConfig { source: authentication::Error },
 
-    #[snafu(display("failed to validate config fragment for a rolegroup"))]
-    InvalidConfigFragment {
-        source: stackable_operator::config::fragment::ValidationError,
+    #[snafu(display("failed to build the config for a rolegroup"))]
+    BuildRoleGroupConfig {
+        source: crate::framework::role_utils::Error,
     },
 
     #[snafu(display("invalid sensitive properties algorithm"))]
@@ -263,7 +263,7 @@ fn build_role_group_configs(
     for (rg_name, rg) in &role.role_groups {
         let validated_rg =
             with_validated_config::<NifiConfig, _, _, _, _>(rg, role, &default_config)
-                .context(InvalidConfigFragmentSnafu)?;
+                .context(BuildRoleGroupConfigSnafu)?;
         groups.insert(rg_name.clone(), validated_rg);
     }
 

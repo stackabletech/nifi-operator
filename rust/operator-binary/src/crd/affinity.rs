@@ -32,7 +32,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::crd::v1alpha1;
+    use crate::{
+        crd::{NifiConfig, v1alpha1},
+        framework::role_utils::with_validated_config,
+    };
 
     #[test]
     fn test_affinity_defaults() {
@@ -58,7 +61,14 @@ mod tests {
         let deserializer = serde_yaml::Deserializer::from_str(input);
         let nifi: v1alpha1::NifiCluster =
             serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
-        let merged_config = nifi.merged_config(&NifiRole::Node, "default").unwrap();
+
+        let role = nifi.spec.nodes.as_ref().unwrap();
+        let default_config = NifiConfig::default_config("simple-nifi", &NifiRole::Node);
+        let role_group = role.role_groups.get("default").unwrap();
+        let merged_config =
+            with_validated_config::<NifiConfig, _, _, _, _>(role_group, role, &default_config)
+                .unwrap()
+                .config;
 
         assert_eq!(
             merged_config.affinity,

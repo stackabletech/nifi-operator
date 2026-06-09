@@ -196,9 +196,6 @@ pub enum Error {
         container_name: String,
     },
 
-    #[snafu(display("failed to resolve and merge config for role and role group"))]
-    FailedToResolveConfig { source: crate::crd::Error },
-
     #[snafu(display("failed to build git-sync resources"))]
     BuildGitSyncResources { source: build::git_sync::Error },
 
@@ -406,11 +403,6 @@ pub async fn reconcile_nifi(
 
             tracing::debug!("Processing rolegroup {}", rolegroup);
 
-            let merged_config = nifi
-                .merged_config(&nifi_role, rolegroup_name)
-                .context(FailedToResolveConfigSnafu)?;
-
-            // Computed here for the StatefulSet; the ConfigMap builder computes its own copy.
             let git_sync_resources =
                 build::git_sync::build_git_sync_resources(&validated_cluster, rg)
                     .context(BuildGitSyncResourcesSnafu)?;
@@ -462,7 +454,6 @@ pub async fn reconcile_nifi(
                 &rolegroup,
                 role,
                 rg,
-                &merged_config,
                 authentication_config,
                 authorization_config,
                 rolling_upgrade_supported,
@@ -617,18 +608,6 @@ pub async fn reconcile_nifi(
 
 const USERDATA_MOUNTPOINT: &str = "/stackable/userdata";
 
-/// Build a `Vec<EnvVar>` from a plain `BTreeMap<String, String>` of env overrides.
-fn env_vars_from_overrides(env_overrides: &BTreeMap<String, String>) -> Vec<EnvVar> {
-    env_overrides
-        .iter()
-        .map(|(name, value)| EnvVar {
-            name: name.clone(),
-            value: Some(value.clone()),
-            ..EnvVar::default()
-        })
-        .collect()
-}
-
 /// The rolegroup [`StatefulSet`] runs the rolegroup, as configured by the administrator.
 ///
 /// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the
@@ -642,7 +621,6 @@ async fn build_node_rolegroup_statefulset(
     rolegroup_ref: &RoleGroupRef<v1alpha1::NifiCluster>,
     role: &NifiRoleType,
     rg: &NifiRoleGroupConfig,
-    merged_config: &NifiConfig,
     authentication_config: &NifiAuthenticationConfig,
     authorization_config: &ResolvedNifiAuthorizationConfig,
     rolling_update_supported: bool,
@@ -651,9 +629,12 @@ async fn build_node_rolegroup_statefulset(
     git_sync_resources: &git_sync::v1alpha2::GitSyncResources,
 ) -> Result<StatefulSet> {
     tracing::debug!("Building statefulset");
-    let role_group = role.role_groups.get(&rolegroup_ref.role_group);
 
-    let mut env_vars: Vec<EnvVar> = env_vars_from_overrides(&rg.env_overrides);
+    // The validated, merged `NifiConfig` is the single source of truth; the ConfigMap builder
+    // sources the same `rg.config`.
+    let merged_config = &rg.config;
+
+    let mut env_vars: Vec<EnvVar> = rg.env_overrides.clone().into();
 
     // we need the POD_NAME env var to overwrite `nifi.cluster.node.address` later
     env_vars.push(EnvVar {
@@ -1153,10 +1134,8 @@ async fn build_node_rolegroup_statefulset(
     );
 
     let mut pod_template = pod_builder.build_template();
-    pod_template.merge_from(role.config.pod_overrides.clone());
-    if let Some(role_group) = role_group {
-        pod_template.merge_from(role_group.config.pod_overrides.clone());
-    }
+    // `rg.pod_overrides` is already the role <- rolegroup merge produced by the framework.
+    pod_template.merge_from(rg.pod_overrides.clone());
 
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()

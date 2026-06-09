@@ -1,11 +1,11 @@
 //! Builds the git-sync resources (volumes, mounts, containers) for a NiFi Node rolegroup.
 
 use snafu::{ResultExt, Snafu};
-use stackable_operator::crd::git_sync;
+use stackable_operator::{crd::git_sync, k8s_openapi::api::core::v1::EnvVar};
 
 use crate::{
     controller::{
-        LOG_VOLUME_NAME, env_vars_from_overrides,
+        LOG_VOLUME_NAME,
         validate::{NifiRoleGroupConfig, ValidatedCluster},
     },
     crd::Container,
@@ -26,10 +26,11 @@ pub fn build_git_sync_resources(
     cluster: &ValidatedCluster,
     rg: &NifiRoleGroupConfig,
 ) -> Result<git_sync::v1alpha2::GitSyncResources> {
+    let env_vars: Vec<EnvVar> = rg.env_overrides.clone().into();
     git_sync::v1alpha2::GitSyncResources::new(
         &cluster.cluster_config.custom_components_git_sync,
         &cluster.image,
-        &env_vars_from_overrides(&rg.env_overrides),
+        &env_vars,
         &[],
         LOG_VOLUME_NAME,
         &rg.config.logging.for_container(&Container::GitSync),
