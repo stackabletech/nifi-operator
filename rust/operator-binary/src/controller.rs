@@ -70,7 +70,10 @@ use validate::NifiRoleGroupConfig;
 
 use crate::{
     OPERATOR_NAME,
-    config::{NIFI_CONFIG_DIRECTORY, NIFI_PYTHON_WORKING_DIRECTORY, NifiRepository},
+    config::{
+        NIFI_CONFIG_DIRECTORY, NIFI_PYTHON_WORKING_DIRECTORY, NifiRepository,
+        PERSISTENT_REPOSITORIES,
+    },
     crd::{
         APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, Container, HTTPS_PORT, HTTPS_PORT_NAME,
         METRICS_PORT, METRICS_PORT_NAME, NifiConfig, NifiNodeRoleConfig, NifiRole, NifiRoleType,
@@ -805,29 +808,10 @@ async fn build_node_rolegroup_statefulset(
         ])
         .add_env_vars(env_vars.clone())
         .args(vec![prepare_args.join(" && ")])
-        .add_volume_mount(
-            NifiRepository::Flowfile.repository(),
-            NifiRepository::Flowfile.mount_path(),
-        )
-        .context(AddVolumeMountSnafu)?
-        .add_volume_mount(
-            NifiRepository::Database.repository(),
-            NifiRepository::Database.mount_path(),
-        )
-        .context(AddVolumeMountSnafu)?
-        .add_volume_mount(
-            NifiRepository::Content.repository(),
-            NifiRepository::Content.mount_path(),
-        )
-        .context(AddVolumeMountSnafu)?
-        .add_volume_mount(
-            NifiRepository::Provenance.repository(),
-            NifiRepository::Provenance.mount_path(),
-        )
-        .context(AddVolumeMountSnafu)?
-        .add_volume_mount(
-            NifiRepository::State.repository(),
-            NifiRepository::State.mount_path(),
+        .add_volume_mounts(
+            PERSISTENT_REPOSITORIES
+                .iter()
+                .map(NifiRepository::volume_mount),
         )
         .context(AddVolumeMountSnafu)?
         .add_volume_mount("conf", "/conf")
@@ -891,29 +875,10 @@ async fn build_node_rolegroup_statefulset(
         .add_env_vars(env_vars)
         .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_NIFI_CONTAINER_MOUNT)
         .context(AddVolumeMountSnafu)?
-        .add_volume_mount(
-            NifiRepository::Flowfile.repository(),
-            NifiRepository::Flowfile.mount_path(),
-        )
-        .context(AddVolumeMountSnafu)?
-        .add_volume_mount(
-            NifiRepository::Database.repository(),
-            NifiRepository::Database.mount_path(),
-        )
-        .context(AddVolumeMountSnafu)?
-        .add_volume_mount(
-            NifiRepository::Content.repository(),
-            NifiRepository::Content.mount_path(),
-        )
-        .context(AddVolumeMountSnafu)?
-        .add_volume_mount(
-            NifiRepository::Provenance.repository(),
-            NifiRepository::Provenance.mount_path(),
-        )
-        .context(AddVolumeMountSnafu)?
-        .add_volume_mount(
-            NifiRepository::State.repository(),
-            NifiRepository::State.mount_path(),
+        .add_volume_mounts(
+            PERSISTENT_REPOSITORIES
+                .iter()
+                .map(NifiRepository::volume_mount),
         )
         .context(AddVolumeMountSnafu)?
         .add_volume_mount("activeconf", NIFI_CONFIG_DIRECTORY)

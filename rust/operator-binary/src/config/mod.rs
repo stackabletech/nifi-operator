@@ -1,6 +1,7 @@
 use std::{collections::BTreeMap, fmt::Write};
 
 use snafu::Snafu;
+use stackable_operator::k8s_openapi::api::core::v1::VolumeMount;
 use strum::{Display, EnumIter};
 
 use crate::security::oidc;
@@ -29,6 +30,21 @@ pub enum NifiRepository {
     State,
 }
 
+/// The repositories that are backed by a [`PersistentVolume`] and therefore need a volume mount
+/// in both the prepare and the nifi container.
+///
+/// [`NifiRepository::Filebased`] is intentionally excluded: it is only mounted conditionally for
+/// file-based authorization (see [`crate::security::authorization`]).
+///
+/// [`PersistentVolume`]: stackable_operator::k8s_openapi::api::core::v1::PersistentVolume
+pub const PERSISTENT_REPOSITORIES: [NifiRepository; 5] = [
+    NifiRepository::Flowfile,
+    NifiRepository::Database,
+    NifiRepository::Content,
+    NifiRepository::Provenance,
+    NifiRepository::State,
+];
+
 impl NifiRepository {
     pub fn repository(&self) -> String {
         format!("{}-repository", self)
@@ -36,6 +52,15 @@ impl NifiRepository {
 
     pub fn mount_path(&self) -> String {
         format!("{NIFI_PVC_STORAGE_DIRECTORY}/{}", self)
+    }
+
+    /// The [`VolumeMount`] mounting this repository's volume into a container.
+    pub fn volume_mount(&self) -> VolumeMount {
+        VolumeMount {
+            name: self.repository(),
+            mount_path: self.mount_path(),
+            ..VolumeMount::default()
+        }
     }
 }
 
