@@ -10,18 +10,15 @@ use super::ConfigFileName;
 use crate::controller::validate::NifiRoleGroupConfig;
 
 pub fn build(rg: &NifiRoleGroupConfig) -> Result<String, PropertiesWriterError> {
-    let mut props: BTreeMap<String, Option<String>> = BTreeMap::new();
+    let mut props: BTreeMap<String, String> = BTreeMap::new();
     // Defaults previously injected by deploy/config-spec/properties.yaml:
-    props.insert(
-        "networkaddress.cache.ttl".to_string(),
-        Some("30".to_string()),
-    );
+    props.insert("networkaddress.cache.ttl".to_string(), "30".to_string());
     props.insert(
         "networkaddress.cache.negative.ttl".to_string(),
-        Some("0".to_string()),
+        "0".to_string(),
     );
     for (k, v) in super::resolved_overrides_for(rg, ConfigFileName::SecurityProperties) {
-        props.insert(k, Some(v));
+        props.insert(k, v);
     }
     to_java_properties_string(props.iter())
 }
@@ -30,7 +27,7 @@ pub fn build(rg: &NifiRoleGroupConfig) -> Result<String, PropertiesWriterError> 
 mod tests {
     use std::collections::BTreeMap;
 
-    use stackable_operator::config_overrides::KeyValueConfigOverrides;
+    use stackable_operator::v2::config_overrides::KeyValueConfigOverrides;
 
     use super::*;
     use crate::{
@@ -44,7 +41,13 @@ mod tests {
             replicas: 1,
             config: NifiConfig::default(),
             config_overrides: NifiConfigOverrides {
-                security_properties: overrides.map(|o| KeyValueConfigOverrides { overrides: o }),
+                security_properties: KeyValueConfigOverrides {
+                    overrides: overrides
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|(k, v)| (k, Some(v)))
+                        .collect(),
+                },
                 ..Default::default()
             },
             env_overrides: BTreeMap::new(),

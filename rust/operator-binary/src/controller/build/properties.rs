@@ -4,10 +4,6 @@
 //! The shared [`stackable_operator::v2::config_file_writer`] module serializes `.properties`/`.conf`
 //! key/value maps to the Java-properties on-wire format.
 
-use std::collections::BTreeMap;
-
-use stackable_operator::config_overrides::KeyValueOverridesProvider;
-
 use crate::controller::validate::NifiRoleGroupConfig;
 
 pub mod authorizers;
@@ -37,24 +33,27 @@ pub enum ConfigFileName {
     Logback,
 }
 
-/// Keep only the set (`Some`) entries of a `key -> optional value` map, as `(key, value)` pairs.
-fn defined_entries(
-    entries: BTreeMap<String, Option<String>>,
-) -> impl Iterator<Item = (String, String)> {
-    entries
-        .into_iter()
-        .filter_map(|(key, value)| value.map(|value| (key, value)))
-}
-
-/// Resolve the user overrides for `file` from a rolegroup's config overrides, dropping unset values.
+/// Resolve the user overrides for `file` from a rolegroup's config overrides.
+///
+/// Keys whose value is unset (`None`, i.e. `key: null` in YAML) are dropped, so only the defined
+/// `(key, value)` pairs reach the property writer.
 pub(crate) fn resolved_overrides_for(
     rg: &NifiRoleGroupConfig,
     file: ConfigFileName,
-) -> impl Iterator<Item = (String, String)> {
-    defined_entries(
-        rg.config_overrides
-            .get_key_value_overrides(&file.to_string()),
-    )
+) -> impl Iterator<Item = (String, String)> + '_ {
+    let overrides = match file {
+        ConfigFileName::BootstrapConf => Some(&rg.config_overrides.bootstrap_conf),
+        ConfigFileName::NifiProperties => Some(&rg.config_overrides.nifi_properties),
+        ConfigFileName::SecurityProperties => Some(&rg.config_overrides.security_properties),
+        ConfigFileName::StateManagementXml
+        | ConfigFileName::LoginIdentityProviders
+        | ConfigFileName::Authorizers
+        | ConfigFileName::Logback => None,
+    };
+    overrides
+        .into_iter()
+        .flat_map(|o| &o.overrides)
+        .filter_map(|(key, value)| value.clone().map(|value| (key.clone(), value)))
 }
 
 /// Test helpers for constructing a minimal [`ValidatedCluster`] and related types without

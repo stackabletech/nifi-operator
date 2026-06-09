@@ -3,8 +3,6 @@ pub mod authorization;
 pub mod sensitive_properties;
 pub mod tls;
 
-use std::collections::BTreeMap;
-
 use affinity::get_affinity;
 use authorization::NifiAuthorization;
 use sensitive_properties::NifiSensitivePropertiesConfig;
@@ -24,7 +22,6 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
-    config_overrides::{KeyValueConfigOverrides, KeyValueOverridesProvider},
     crd::{authentication::core as auth_core, git_sync},
     deep_merger::ObjectOverrides,
     k8s_openapi::{
@@ -39,11 +36,10 @@ use stackable_operator::{
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
     utils::crds::{raw_object_list_schema, raw_object_schema},
+    v2::config_overrides::KeyValueConfigOverrides,
     versioned::versioned,
 };
 use tls::NifiTls;
-
-use crate::config::{JVM_SECURITY_PROPERTIES_FILE, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES};
 
 pub const APP_NAME: &str = "nifi";
 
@@ -191,62 +187,17 @@ pub mod versioned {
         Kubernetes {},
     }
 
-    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, Merge, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct NifiConfigOverrides {
-        #[serde(rename = "bootstrap.conf", skip_serializing_if = "Option::is_none")]
-        pub bootstrap_conf: Option<KeyValueConfigOverrides>,
+        #[serde(rename = "bootstrap.conf", default)]
+        pub bootstrap_conf: KeyValueConfigOverrides,
 
-        #[serde(rename = "nifi.properties", skip_serializing_if = "Option::is_none")]
-        pub nifi_properties: Option<KeyValueConfigOverrides>,
+        #[serde(rename = "nifi.properties", default)]
+        pub nifi_properties: KeyValueConfigOverrides,
 
-        #[serde(
-            rename = "security.properties",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub security_properties: Option<KeyValueConfigOverrides>,
-    }
-}
-
-impl KeyValueOverridesProvider for v1alpha1::NifiConfigOverrides {
-    fn get_key_value_overrides(&self, file: &str) -> BTreeMap<String, Option<String>> {
-        let overrides = match file {
-            NIFI_BOOTSTRAP_CONF => &self.bootstrap_conf,
-            NIFI_PROPERTIES => &self.nifi_properties,
-            JVM_SECURITY_PROPERTIES_FILE => &self.security_properties,
-            _ => return BTreeMap::new(),
-        };
-        overrides
-            .as_ref()
-            .map(|o| {
-                o.overrides
-                    .iter()
-                    .map(|(k, v)| (k.clone(), Some(v.clone())))
-                    .collect()
-            })
-            .unwrap_or_default()
-    }
-}
-
-impl Merge for v1alpha1::NifiConfigOverrides {
-    /// Merges per-file overrides: individual key-value pairs from `defaults` are
-    /// inserted only when the same key is absent from `self`.
-    fn merge(&mut self, defaults: &Self) {
-        fn merge_kv(
-            target: &mut Option<KeyValueConfigOverrides>,
-            default: &Option<KeyValueConfigOverrides>,
-        ) {
-            if let Some(default_kv) = default {
-                let target_kv = target.get_or_insert_with(Default::default);
-                for (k, v) in &default_kv.overrides {
-                    target_kv.overrides.entry(k.clone()).or_insert(v.clone());
-                }
-            }
-        }
-
-        merge_kv(&mut self.bootstrap_conf, &defaults.bootstrap_conf);
-        merge_kv(&mut self.nifi_properties, &defaults.nifi_properties);
-        merge_kv(&mut self.security_properties, &defaults.security_properties);
+        #[serde(rename = "security.properties", default)]
+        pub security_properties: KeyValueConfigOverrides,
     }
 }
 
@@ -586,7 +537,7 @@ mod merge_tests {
     use std::collections::BTreeMap;
 
     use stackable_operator::{
-        config::merge::Merge as _, config_overrides::KeyValueConfigOverrides,
+        config::merge::Merge as _, v2::config_overrides::KeyValueConfigOverrides,
     };
 
     use super::v1alpha1::NifiConfigOverrides;
@@ -595,15 +546,15 @@ mod merge_tests {
         KeyValueConfigOverrides {
             overrides: pairs
                 .iter()
-                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .map(|(k, v)| (k.to_string(), Some(v.to_string())))
                 .collect::<BTreeMap<_, _>>(),
         }
     }
 
     fn overrides(
-        bootstrap: Option<KeyValueConfigOverrides>,
-        nifi: Option<KeyValueConfigOverrides>,
-        security: Option<KeyValueConfigOverrides>,
+        bootstrap: KeyValueConfigOverrides,
+        nifi: KeyValueConfigOverrides,
+        security: KeyValueConfigOverrides,
     ) -> NifiConfigOverrides {
         NifiConfigOverrides {
             bootstrap_conf: bootstrap,
@@ -614,56 +565,78 @@ mod merge_tests {
 
     #[test]
     fn rolegroup_key_wins_over_role_key() {
-        let mut rg = overrides(Some(kv(&[("nifi.bootstrap.key", "rg-value")])), None, None);
+        let mut rg = overrides(
+            kv(&[("nifi.bootstrap.key", "rg-value")]),
+            Default::default(),
+            Default::default(),
+        );
         let role = overrides(
-            Some(kv(&[("nifi.bootstrap.key", "role-value")])),
-            None,
-            None,
+            kv(&[("nifi.bootstrap.key", "role-value")]),
+            Default::default(),
+            Default::default(),
         );
         rg.merge(&role);
         assert_eq!(
-            rg.bootstrap_conf.unwrap().overrides["nifi.bootstrap.key"],
-            "rg-value"
+            rg.bootstrap_conf.overrides["nifi.bootstrap.key"],
+            Some("rg-value".to_string())
         );
     }
 
     #[test]
     fn role_key_fills_gap_absent_from_rolegroup() {
-        let mut rg = overrides(Some(kv(&[("rg.only.key", "rg-value")])), None, None);
+        let mut rg = overrides(
+            kv(&[("rg.only.key", "rg-value")]),
+            Default::default(),
+            Default::default(),
+        );
         let role = overrides(
-            Some(kv(&[
+            kv(&[
                 ("rg.only.key", "role-value"),
                 ("role.only.key", "role-default"),
-            ])),
-            None,
-            None,
-        );
-        rg.merge(&role);
-        let result = rg.bootstrap_conf.unwrap();
-        assert_eq!(result.overrides["rg.only.key"], "rg-value");
-        assert_eq!(result.overrides["role.only.key"], "role-default");
-    }
-
-    #[test]
-    fn none_field_adopts_role_values() {
-        let mut rg = overrides(None, Some(kv(&[("nifi.some.prop", "rg-val")])), None);
-        let role = overrides(
-            Some(kv(&[("nifi.bootstrap.key", "role-default")])),
-            Some(kv(&[
-                ("nifi.some.prop", "role-val"),
-                ("nifi.other.prop", "role-other"),
-            ])),
-            None,
+            ]),
+            Default::default(),
+            Default::default(),
         );
         rg.merge(&role);
         assert_eq!(
-            rg.bootstrap_conf.as_ref().unwrap().overrides["nifi.bootstrap.key"],
-            "role-default"
+            rg.bootstrap_conf.overrides["rg.only.key"],
+            Some("rg-value".to_string())
         );
-        let nifi = rg.nifi_properties.as_ref().unwrap();
-        assert_eq!(nifi.overrides["nifi.some.prop"], "rg-val");
-        assert_eq!(nifi.overrides["nifi.other.prop"], "role-other");
-        assert!(rg.security_properties.is_none());
+        assert_eq!(
+            rg.bootstrap_conf.overrides["role.only.key"],
+            Some("role-default".to_string())
+        );
+    }
+
+    #[test]
+    fn empty_field_adopts_role_values() {
+        let mut rg = overrides(
+            Default::default(),
+            kv(&[("nifi.some.prop", "rg-val")]),
+            Default::default(),
+        );
+        let role = overrides(
+            kv(&[("nifi.bootstrap.key", "role-default")]),
+            kv(&[
+                ("nifi.some.prop", "role-val"),
+                ("nifi.other.prop", "role-other"),
+            ]),
+            Default::default(),
+        );
+        rg.merge(&role);
+        assert_eq!(
+            rg.bootstrap_conf.overrides["nifi.bootstrap.key"],
+            Some("role-default".to_string())
+        );
+        assert_eq!(
+            rg.nifi_properties.overrides["nifi.some.prop"],
+            Some("rg-val".to_string())
+        );
+        assert_eq!(
+            rg.nifi_properties.overrides["nifi.other.prop"],
+            Some("role-other".to_string())
+        );
+        assert!(rg.security_properties.overrides.is_empty());
     }
 }
 
