@@ -5,7 +5,6 @@ use std::collections::BTreeMap;
 use snafu::{ResultExt, ensure};
 use stackable_operator::{crd::git_sync, memory::MemoryQuantity};
 
-use super::ConfigFileName;
 use crate::{
     config::{
         CalculateStorageQuotaSnafu, Error, GenerateOidcConfigSnafu, NIFI_PYTHON_WORKING_DIRECTORY,
@@ -569,9 +568,7 @@ pub fn build(
     //##########################
 
     // override with config overrides
-    for (k, v) in super::resolved_overrides_for(rg, ConfigFileName::NifiProperties) {
-        properties.insert(k, v);
-    }
+    properties.extend(rg.config_overrides.nifi_properties.overrides.clone());
 
     Ok(format_properties(properties))
 }

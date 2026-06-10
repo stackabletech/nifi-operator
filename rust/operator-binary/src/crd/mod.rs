@@ -502,7 +502,7 @@ mod merge_tests {
         KeyValueConfigOverrides {
             overrides: pairs
                 .iter()
-                .map(|(k, v)| (k.to_string(), Some(v.to_string())))
+                .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect::<BTreeMap<_, _>>(),
         }
     }
@@ -534,7 +534,7 @@ mod merge_tests {
         rg.merge(&role);
         assert_eq!(
             rg.bootstrap_conf.overrides["nifi.bootstrap.key"],
-            Some("rg-value".to_string())
+            "rg-value"
         );
     }
 
@@ -554,14 +554,8 @@ mod merge_tests {
             Default::default(),
         );
         rg.merge(&role);
-        assert_eq!(
-            rg.bootstrap_conf.overrides["rg.only.key"],
-            Some("rg-value".to_string())
-        );
-        assert_eq!(
-            rg.bootstrap_conf.overrides["role.only.key"],
-            Some("role-default".to_string())
-        );
+        assert_eq!(rg.bootstrap_conf.overrides["rg.only.key"], "rg-value");
+        assert_eq!(rg.bootstrap_conf.overrides["role.only.key"], "role-default");
     }
 
     #[test]
@@ -582,15 +576,12 @@ mod merge_tests {
         rg.merge(&role);
         assert_eq!(
             rg.bootstrap_conf.overrides["nifi.bootstrap.key"],
-            Some("role-default".to_string())
+            "role-default"
         );
-        assert_eq!(
-            rg.nifi_properties.overrides["nifi.some.prop"],
-            Some("rg-val".to_string())
-        );
+        assert_eq!(rg.nifi_properties.overrides["nifi.some.prop"], "rg-val");
         assert_eq!(
             rg.nifi_properties.overrides["nifi.other.prop"],
-            Some("role-other".to_string())
+            "role-other"
         );
         assert!(rg.security_properties.overrides.is_empty());
     }

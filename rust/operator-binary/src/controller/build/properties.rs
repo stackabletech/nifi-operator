@@ -4,8 +4,6 @@
 //! The shared [`stackable_operator::v2::config_file_writer`] module serializes `.properties`/`.conf`
 //! key/value maps to the Java-properties on-wire format.
 
-use crate::controller::validate::NifiRoleGroupConfig;
-
 pub mod authorizers;
 pub mod bootstrap_conf;
 pub mod logging;
@@ -31,29 +29,6 @@ pub enum ConfigFileName {
     Authorizers,
     #[strum(serialize = "logback.xml")]
     Logback,
-}
-
-/// Resolve the user overrides for `file` from a rolegroup's config overrides.
-///
-/// Keys whose value is unset (`None`, i.e. `key: null` in YAML) are dropped, so only the defined
-/// `(key, value)` pairs reach the property writer.
-pub(crate) fn resolved_overrides_for(
-    rg: &NifiRoleGroupConfig,
-    file: ConfigFileName,
-) -> impl Iterator<Item = (String, String)> + '_ {
-    let overrides = match file {
-        ConfigFileName::BootstrapConf => Some(&rg.config_overrides.bootstrap_conf),
-        ConfigFileName::NifiProperties => Some(&rg.config_overrides.nifi_properties),
-        ConfigFileName::SecurityProperties => Some(&rg.config_overrides.security_properties),
-        ConfigFileName::StateManagementXml
-        | ConfigFileName::LoginIdentityProviders
-        | ConfigFileName::Authorizers
-        | ConfigFileName::Logback => None,
-    };
-    overrides
-        .into_iter()
-        .flat_map(|o| &o.overrides)
-        .filter_map(|(key, value)| value.clone().map(|value| (key.clone(), value)))
 }
 
 /// Test helpers for constructing a minimal [`ValidatedCluster`] and related types without

@@ -1266,36 +1266,21 @@ spec:
                     properties:
                       bootstrap.conf:
                         additionalProperties:
-                          nullable: true
                           type: string
                         default: {}
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       nifi.properties:
                         additionalProperties:
-                          nullable: true
                           type: string
                         default: {}
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       security.properties:
                         additionalProperties:
-                          nullable: true
                           type: string
                         default: {}
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                     type: object
                   envOverrides:
@@ -2140,36 +2125,21 @@ spec:
                           properties:
                             bootstrap.conf:
                               additionalProperties:
-                                nullable: true
                                 type: string
                               default: {}
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                             nifi.properties:
                               additionalProperties:
-                                nullable: true
                                 type: string
                               default: {}
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                             security.properties:
                               additionalProperties:
-                                nullable: true
                                 type: string
                               default: {}
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                           type: object
                         envOverrides:

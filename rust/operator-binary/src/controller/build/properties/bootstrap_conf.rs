@@ -4,7 +4,6 @@ use std::collections::BTreeMap;
 
 use snafu::ResultExt;
 
-use super::ConfigFileName;
 use crate::{
     config::{Error, InvalidJVMConfigSnafu, jvm::build_merged_jvm_config},
     controller::validate::NifiRoleGroupConfig,
@@ -44,9 +43,7 @@ pub fn build(
     }
 
     // configOverrides come last
-    for (k, v) in super::resolved_overrides_for(rg, ConfigFileName::BootstrapConf) {
-        bootstrap.insert(k, v);
-    }
+    bootstrap.extend(rg.config_overrides.bootstrap_conf.overrides.clone());
 
     Ok(crate::config::format_properties(bootstrap))
 }

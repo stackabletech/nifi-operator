@@ -6,7 +6,6 @@ use stackable_operator::v2::config_file_writer::{
     PropertiesWriterError, to_java_properties_string,
 };
 
-use super::ConfigFileName;
 use crate::controller::validate::NifiRoleGroupConfig;
 
 pub fn build(rg: &NifiRoleGroupConfig) -> Result<String, PropertiesWriterError> {
@@ -17,9 +16,7 @@ pub fn build(rg: &NifiRoleGroupConfig) -> Result<String, PropertiesWriterError> 
         "networkaddress.cache.negative.ttl".to_string(),
         "0".to_string(),
     );
-    for (k, v) in super::resolved_overrides_for(rg, ConfigFileName::SecurityProperties) {
-        props.insert(k, v);
-    }
+    props.extend(rg.config_overrides.security_properties.overrides.clone());
     to_java_properties_string(props.iter())
 }
 
@@ -44,11 +41,7 @@ mod tests {
             config: NifiConfig::default(),
             config_overrides: NifiConfigOverrides {
                 security_properties: KeyValueConfigOverrides {
-                    overrides: overrides
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|(k, v)| (k, Some(v)))
-                        .collect(),
+                    overrides: overrides.unwrap_or_default(),
                 },
                 ..Default::default()
             },
