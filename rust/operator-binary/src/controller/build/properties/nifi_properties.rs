@@ -5,13 +5,17 @@ use std::collections::BTreeMap;
 use snafu::{ResultExt, ensure};
 use stackable_operator::{crd::git_sync, memory::MemoryQuantity};
 
+use super::format_properties;
 use crate::{
-    config::{
-        CalculateStorageQuotaSnafu, Error, GenerateOidcConfigSnafu, NIFI_PYTHON_WORKING_DIRECTORY,
-        Nifi1RequiresZookeeperSnafu, NifiRepository, format_properties,
+    controller::{
+        ValidatedCluster, ValidatedRoleGroupConfig,
+        build::{
+            CalculateStorageQuotaSnafu, Error, GenerateOidcConfigSnafu, Nifi1RequiresZookeeperSnafu,
+        },
     },
-    controller::{ValidatedCluster, validate::NifiRoleGroupConfig},
-    crd::{HTTPS_PORT, v1alpha1},
+    crd::{
+        HTTPS_PORT, constants::NIFI_PYTHON_WORKING_DIRECTORY, storage::NifiRepository, v1alpha1,
+    },
     security::{
         authentication::{
             NifiAuthenticationConfig, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
@@ -26,7 +30,7 @@ const STORAGE_CONTENT_ARCHIVE_UTILIZATION_FACTOR: f32 = 0.5;
 
 pub fn build(
     cluster: &ValidatedCluster,
-    rg: &NifiRoleGroupConfig,
+    rg: &ValidatedRoleGroupConfig,
     proxy_hosts: &str,
     git_sync_resources: &git_sync::v1alpha2::GitSyncResources,
 ) -> Result<String, Error> {
@@ -638,11 +642,9 @@ mod tests {
     /// Verify that a user configOverride for `nifi.properties` flows through to the output.
     #[test]
     fn test_config_override_wins() {
-        use stackable_operator::kube::ResourceExt as _;
-
         use crate::{
-            crd::{NifiConfig, NifiRole, v1alpha1},
-            framework::role_utils::with_validated_config,
+            controller::validate::build_role_group_configs,
+            crd::{NifiRole, v1alpha1},
         };
 
         let yaml = r#"
@@ -669,14 +671,12 @@ mod tests {
                         some.custom.key: some-custom-value
         "#;
         let nifi: v1alpha1::NifiCluster = serde_yaml::from_str(yaml).expect("invalid test YAML");
-        let role = nifi.spec.nodes.as_ref().unwrap();
-        let default_config = NifiConfig::default_config(&nifi.name_any(), &NifiRole::Node);
-        let rg = with_validated_config::<NifiConfig, _, _, _, _>(
-            role.role_groups.get("default").unwrap(),
-            role,
-            &default_config,
-        )
-        .expect("with_validated_config should succeed");
+        let mut role_group_configs =
+            build_role_group_configs(&nifi).expect("failed to build role group configs");
+        let rg = role_group_configs
+            .get_mut(&NifiRole::Node)
+            .and_then(|groups| groups.remove("default"))
+            .expect("default role group must exist");
 
         // Build a cluster with this rg substituted in
         let mut cluster = minimal_validated_cluster();

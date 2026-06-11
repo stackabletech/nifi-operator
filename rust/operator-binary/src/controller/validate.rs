@@ -3,23 +3,27 @@
 //! Synchronously validates inputs that don't require Kubernetes API calls. Produces
 //! [`ValidatedCluster`], consumed by the rest of `reconcile_nifi`.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, str::FromStr as _};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     commons::product_image_selection,
+    config::fragment,
     kube::ResourceExt as _,
-    role_utils::JavaCommonConfig,
-    v2::controller_utils::{self, get_cluster_name, get_uid},
+    role_utils::CommonConfiguration,
+    v2::{
+        builder::pod::container::{self, EnvVarName, EnvVarSet},
+        controller_utils::{self, get_cluster_name, get_uid},
+        role_utils::with_validated_config,
+    },
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-use super::{ValidatedCluster, ValidatedClusterConfig};
+use super::{ValidatedCluster, ValidatedClusterConfig, ValidatedRoleGroupConfig};
 use crate::{
     controller::dereference::DereferencedObjects,
     crd::{NifiConfig, NifiRole, sensitive_properties, v1alpha1},
-    framework::role_utils::with_validated_config,
     security::{
         authentication::{self, NifiAuthenticationConfig},
         authorization::ResolvedNifiAuthorizationConfig,
@@ -47,20 +51,18 @@ pub enum Error {
     #[snafu(display("invalid NiFi authentication configuration"))]
     InvalidAuthenticationConfig { source: authentication::Error },
 
-    #[snafu(display("failed to build the config for a rolegroup"))]
-    BuildRoleGroupConfig {
-        source: crate::framework::role_utils::Error,
+    #[snafu(display("failed to validate the rolegroup config fragment"))]
+    ValidateRoleGroupConfig { source: fragment::ValidationError },
+
+    #[snafu(display("environment variable name {name:?} is invalid"))]
+    ParseEnvVarName {
+        source: container::Error,
+        name: String,
     },
 
     #[snafu(display("invalid sensitive properties algorithm"))]
     InvalidSensitivePropertiesAlgorithm { source: sensitive_properties::Error },
 }
-
-pub type NifiRoleGroupConfig = crate::framework::role_utils::RoleGroupConfig<
-    NifiConfig,
-    JavaCommonConfig,
-    v1alpha1::NifiConfigOverrides,
->;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -100,12 +102,6 @@ pub fn validate(
         .check_for_nifi_version(&image.product_version)
         .context(InvalidSensitivePropertiesAlgorithmSnafu)?;
 
-    let nodes = nifi
-        .spec
-        .nodes
-        .as_ref()
-        .context(NoNodesDefinedSnafu)?
-        .clone();
     let role_group_configs = build_role_group_configs(nifi)?;
 
     let name = get_cluster_name(nifi).context(GetClusterNameSnafu)?;
@@ -117,7 +113,6 @@ pub fn validate(
         namespace,
         uid,
         image,
-        nodes,
         role_group_configs,
         ValidatedClusterConfig {
             authentication: authentication_config,
@@ -130,18 +125,48 @@ pub fn validate(
     ))
 }
 
-fn build_role_group_configs(
+pub(crate) fn build_role_group_configs(
     nifi: &v1alpha1::NifiCluster,
-) -> Result<BTreeMap<NifiRole, BTreeMap<String, NifiRoleGroupConfig>>> {
+) -> Result<BTreeMap<NifiRole, BTreeMap<String, ValidatedRoleGroupConfig>>> {
     let role = nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?;
     let default_config = NifiConfig::default_config(&nifi.name_any(), &NifiRole::Node);
 
-    let mut groups: BTreeMap<String, NifiRoleGroupConfig> = BTreeMap::new();
+    let mut groups: BTreeMap<String, ValidatedRoleGroupConfig> = BTreeMap::new();
     for (rg_name, rg) in &role.role_groups {
-        let validated_rg =
-            with_validated_config::<NifiConfig, _, _, _, _>(rg, role, &default_config)
-                .context(BuildRoleGroupConfigSnafu)?;
-        groups.insert(rg_name.clone(), validated_rg);
+        let validated = with_validated_config::<NifiConfig, _, _, _, _>(rg, role, &default_config)
+            .context(ValidateRoleGroupConfigSnafu)?;
+
+        let CommonConfiguration {
+            config,
+            config_overrides,
+            env_overrides,
+            cli_overrides: _,
+            pod_overrides,
+            product_specific_common_config,
+        } = validated.config;
+
+        // Convert the merged env-override HashMap into an EnvVarSet, validating each name
+        // eagerly. Keys are unique (HashMap), so insertion order is irrelevant.
+        let mut env_overrides_set = EnvVarSet::new();
+        for (name, value) in env_overrides {
+            env_overrides_set = env_overrides_set.with_value(
+                &EnvVarName::from_str(&name)
+                    .context(ParseEnvVarNameSnafu { name: name.clone() })?,
+                value,
+            );
+        }
+
+        groups.insert(
+            rg_name.clone(),
+            ValidatedRoleGroupConfig {
+                replicas: validated.replicas.unwrap_or(1),
+                config,
+                config_overrides,
+                env_overrides: env_overrides_set,
+                pod_overrides,
+                product_specific_common_config,
+            },
+        );
     }
 
     let mut role_group_configs = BTreeMap::new();

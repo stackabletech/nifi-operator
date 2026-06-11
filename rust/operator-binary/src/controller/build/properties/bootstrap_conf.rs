@@ -5,17 +5,16 @@ use std::collections::BTreeMap;
 use snafu::ResultExt;
 
 use crate::{
-    config::{Error, InvalidJVMConfigSnafu, jvm::build_merged_jvm_config},
-    controller::validate::NifiRoleGroupConfig,
-    crd::NifiRoleType,
+    controller::{
+        ValidatedRoleGroupConfig,
+        build::{Error, InvalidJVMConfigSnafu, jvm::build_merged_jvm_config},
+    },
     operations::graceful_shutdown::graceful_shutdown_config_properties,
     security::authorization::ResolvedNifiAuthorizationConfig,
 };
 
 pub fn build(
-    rg: &NifiRoleGroupConfig,
-    role: &NifiRoleType,
-    role_group: &str,
+    rg: &ValidatedRoleGroupConfig,
     authorization_config: Option<&ResolvedNifiAuthorizationConfig>,
 ) -> Result<String, Error> {
     let mut bootstrap = BTreeMap::new();
@@ -30,50 +29,45 @@ pub fn build(
     bootstrap.insert("conf.dir".to_string(), "./conf".to_string());
     bootstrap.extend(graceful_shutdown_config_properties(&rg.config));
 
-    let merged_jvm_config =
-        build_merged_jvm_config(&rg.config, role, role_group, authorization_config)
-            .context(InvalidJVMConfigSnafu)?;
+    let jvm_args = build_merged_jvm_config(
+        &rg.config,
+        &rg.product_specific_common_config.jvm_argument_overrides,
+        authorization_config,
+    )
+    .context(InvalidJVMConfigSnafu)?;
 
-    for (index, argument) in merged_jvm_config
-        .effective_jvm_config_after_merging()
-        .iter()
-        .enumerate()
-    {
+    for (index, argument) in jvm_args.iter().enumerate() {
         bootstrap.insert(format!("java.arg.{}", index + 1), argument.clone());
     }
 
     // configOverrides come last
     bootstrap.extend(rg.config_overrides.bootstrap_conf.overrides.clone());
 
-    Ok(crate::config::format_properties(bootstrap))
+    Ok(super::format_properties(bootstrap))
 }
 
 #[cfg(test)]
 mod tests {
     use indoc::indoc;
-    use stackable_operator::kube::ResourceExt as _;
 
     use super::*;
     use crate::{
-        crd::{NifiConfig, NifiRole, v1alpha1},
-        framework::role_utils::with_validated_config,
+        controller::validate::build_role_group_configs,
+        crd::{NifiRole, v1alpha1},
     };
 
     fn construct_bootstrap_conf(nifi_cluster: &str) -> String {
         let nifi: v1alpha1::NifiCluster =
             serde_yaml::from_str(nifi_cluster).expect("illegal test input");
 
-        let nifi_role = NifiRole::Node;
-        let role = nifi.spec.nodes.as_ref().unwrap();
-        let default_config = NifiConfig::default_config(&nifi.name_any(), &nifi_role);
-        let rg = with_validated_config::<NifiConfig, _, _, _, _>(
-            role.role_groups.get("default").unwrap(),
-            role,
-            &default_config,
-        )
-        .expect("failed to build role group config");
+        let role_group_configs =
+            build_role_group_configs(&nifi).expect("failed to build role group configs");
+        let rg = role_group_configs
+            .get(&NifiRole::Node)
+            .and_then(|groups| groups.get("default"))
+            .expect("default role group must exist");
 
-        build(&rg, role, "default", None).unwrap()
+        build(rg, None).unwrap()
     }
 
     #[test]

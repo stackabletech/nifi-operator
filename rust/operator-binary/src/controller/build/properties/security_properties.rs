@@ -6,9 +6,9 @@ use stackable_operator::v2::config_file_writer::{
     PropertiesWriterError, to_java_properties_string,
 };
 
-use crate::controller::validate::NifiRoleGroupConfig;
+use crate::controller::ValidatedRoleGroupConfig;
 
-pub fn build(rg: &NifiRoleGroupConfig) -> Result<String, PropertiesWriterError> {
+pub fn build(rg: &ValidatedRoleGroupConfig) -> Result<String, PropertiesWriterError> {
     let mut props: BTreeMap<String, String> = BTreeMap::new();
     // Defaults previously injected by deploy/config-spec/properties.yaml:
     props.insert("networkaddress.cache.ttl".to_string(), "30".to_string());
@@ -30,13 +30,13 @@ mod tests {
 
     use super::*;
     use crate::{
-        controller::validate::NifiRoleGroupConfig,
+        controller::ValidatedRoleGroupConfig,
         crd::{NifiConfig, v1alpha1::NifiConfigOverrides},
     };
 
-    fn make_rg(overrides: Option<BTreeMap<String, String>>) -> NifiRoleGroupConfig {
-        use stackable_operator::role_utils::JavaCommonConfig;
-        NifiRoleGroupConfig {
+    fn make_rg(overrides: Option<BTreeMap<String, String>>) -> ValidatedRoleGroupConfig {
+        use stackable_operator::v2::role_utils::JavaCommonConfig;
+        ValidatedRoleGroupConfig {
             replicas: 1,
             config: NifiConfig::default(),
             config_overrides: NifiConfigOverrides {
@@ -46,7 +46,6 @@ mod tests {
                 ..Default::default()
             },
             env_overrides: EnvVarSet::new(),
-            cli_overrides: BTreeMap::new(),
             pod_overrides: Default::default(),
             product_specific_common_config: JavaCommonConfig::default(),
         }

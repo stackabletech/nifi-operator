@@ -1,6 +1,6 @@
 //! Builder for `state-management.xml`.
 
-use crate::{config::NifiRepository, crd::v1alpha1::NifiClusteringBackend};
+use crate::crd::{storage::NifiRepository, v1alpha1::NifiClusteringBackend};
 
 pub fn build(clustering_backend: &NifiClusteringBackend) -> String {
     // Inert providers are ignored by NiFi itself, but templating still fails if they refer to invalid environment variables,

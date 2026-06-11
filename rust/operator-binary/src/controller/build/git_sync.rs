@@ -4,7 +4,7 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{crd::git_sync, k8s_openapi::api::core::v1::EnvVar};
 
 use crate::{
-    controller::{ValidatedCluster, validate::NifiRoleGroupConfig},
+    controller::{ValidatedCluster, ValidatedRoleGroupConfig},
     crd::Container,
     nifi_controller::LOG_VOLUME_NAME,
 };
@@ -22,7 +22,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// rather than once for the whole cluster.
 pub fn build_git_sync_resources(
     cluster: &ValidatedCluster,
-    rg: &NifiRoleGroupConfig,
+    rg: &ValidatedRoleGroupConfig,
 ) -> Result<git_sync::v1alpha2::GitSyncResources> {
     let env_vars: Vec<EnvVar> = rg.env_overrides.clone().into();
     git_sync::v1alpha2::GitSyncResources::new(

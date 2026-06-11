@@ -64,16 +64,15 @@ use tracing::Instrument;
 
 use crate::{
     OPERATOR_NAME,
-    config::{
-        NIFI_CONFIG_DIRECTORY, NIFI_PYTHON_WORKING_DIRECTORY, NifiRepository,
-        PERSISTENT_REPOSITORIES,
-    },
-    controller::{build, dereference, validate, validate::NifiRoleGroupConfig},
+    controller::{ValidatedRoleGroupConfig, build, dereference, validate},
     crd::{
         APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, Container, HTTPS_PORT, HTTPS_PORT_NAME,
         METRICS_PORT, METRICS_PORT_NAME, NifiConfig, NifiNodeRoleConfig, NifiRole, NifiRoleType,
         NifiStatus, PROTOCOL_PORT, PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
-        authorization::NifiAccessPolicyProvider, v1alpha1,
+        authorization::NifiAccessPolicyProvider,
+        constants::{NIFI_CONFIG_DIRECTORY, NIFI_PYTHON_WORKING_DIRECTORY},
+        storage::{NifiRepository, PERSISTENT_REPOSITORIES},
+        v1alpha1,
     },
     listener::{
         LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_group_listener, build_group_listener_pvc,
@@ -615,7 +614,7 @@ async fn build_node_rolegroup_statefulset(
     namespace: &NamespaceName,
     rolegroup_ref: &RoleGroupRef<v1alpha1::NifiCluster>,
     role: &NifiRoleType,
-    rg: &NifiRoleGroupConfig,
+    rg: &ValidatedRoleGroupConfig,
     authentication_config: &NifiAuthenticationConfig,
     authorization_config: &ResolvedNifiAuthorizationConfig,
     rolling_update_supported: bool,

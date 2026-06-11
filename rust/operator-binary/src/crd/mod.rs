@@ -1,6 +1,8 @@
 pub mod affinity;
 pub mod authorization;
+pub mod constants;
 pub mod sensitive_properties;
+pub mod storage;
 pub mod tls;
 
 use affinity::get_affinity;
@@ -27,12 +29,12 @@ use stackable_operator::{
     kube::{CustomResource, runtime::reflector::ObjectRef},
     memory::MemoryQuantity,
     product_logging::{self, spec::Logging},
-    role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroupRef},
+    role_utils::{GenericRoleConfig, Role, RoleGroupRef},
     schemars::{self, JsonSchema},
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
     utils::crds::{raw_object_list_schema, raw_object_schema},
-    v2::config_overrides::KeyValueConfigOverrides,
+    v2::{config_overrides::KeyValueConfigOverrides, role_utils::JavaCommonConfig},
     versioned::versioned,
 };
 use tls::NifiTls;

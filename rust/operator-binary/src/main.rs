@@ -38,10 +38,8 @@ use crate::{
     webhooks::conversion::create_webhook_server,
 };
 
-mod config;
 mod controller;
 mod crd;
-mod framework;
 mod listener;
 mod nifi_controller;
 mod operations;

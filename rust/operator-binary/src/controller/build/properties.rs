@@ -4,6 +4,8 @@
 //! The shared [`stackable_operator::v2::config_file_writer`] module serializes `.properties`/`.conf`
 //! key/value maps to the Java-properties on-wire format.
 
+use std::{collections::BTreeMap, fmt::Write};
+
 pub mod authorizers;
 pub mod bootstrap_conf;
 pub mod logging;
@@ -11,6 +13,18 @@ pub mod login_identity_providers;
 pub mod nifi_properties;
 pub mod security_properties;
 pub mod state_management_xml;
+
+// TODO: Use crate like https://crates.io/crates/java-properties (currently does not work for Nifi
+// because of escapes), to have save handling of escapes etc.
+pub(crate) fn format_properties(properties: BTreeMap<String, String>) -> String {
+    let mut result = String::new();
+
+    for (key, value) in properties {
+        let _ = writeln!(result, "{}={}", key, value);
+    }
+
+    result
+}
 
 /// The names of the files assembled into the NiFi rolegroup ConfigMap.
 #[derive(Clone, Copy, Debug, strum::Display)]
@@ -53,14 +67,13 @@ pub enum ConfigFileName {
 /// self-contained.
 #[cfg(test)]
 pub(crate) mod test_support {
-    use std::{collections::BTreeMap, str::FromStr as _};
+    use std::str::FromStr as _;
 
     use stackable_operator::{
         commons::product_image_selection::ResolvedProductImage,
         crd::authentication::r#static::v1alpha1::{
             AuthenticationProvider as StaticAuthProvider, UserCredentialsSecretRef,
         },
-        kube::ResourceExt as _,
         kvp::LabelValue,
         v2::types::{
             kubernetes::{NamespaceName, Uid},
@@ -69,9 +82,11 @@ pub(crate) mod test_support {
     };
 
     use crate::{
-        controller::{ValidatedCluster, ValidatedClusterConfig, validate::NifiRoleGroupConfig},
-        crd::{NifiConfig, NifiRole, v1alpha1},
-        framework::role_utils::with_validated_config,
+        controller::{
+            ValidatedCluster, ValidatedClusterConfig, ValidatedRoleGroupConfig,
+            validate::build_role_group_configs,
+        },
+        crd::{NifiRole, v1alpha1},
         security::{
             authentication::NifiAuthenticationConfig,
             authorization::ResolvedNifiAuthorizationConfig,
@@ -115,19 +130,8 @@ pub(crate) mod test_support {
         let nifi: v1alpha1::NifiCluster =
             serde_yaml::from_str(MINIMAL_NIFI_YAML).expect("invalid test YAML");
 
-        let nifi_role = NifiRole::Node;
-        let role = nifi.spec.nodes.as_ref().unwrap();
-        let default_config = NifiConfig::default_config(&nifi.name_any(), &nifi_role);
-
-        let mut role_groups: BTreeMap<String, NifiRoleGroupConfig> = BTreeMap::new();
-        for (rg_name, rg) in &role.role_groups {
-            let validated_rg =
-                with_validated_config::<NifiConfig, _, _, _, _>(rg, role, &default_config)
-                    .expect("with_validated_config should succeed for minimal fixture");
-            role_groups.insert(rg_name.clone(), validated_rg);
-        }
-        let mut role_group_configs = BTreeMap::new();
-        role_group_configs.insert(NifiRole::Node, role_groups);
+        let role_group_configs = build_role_group_configs(&nifi)
+            .expect("role group configs should merge for minimal fixture");
 
         let image = ResolvedProductImage {
             product_version: "2.9.0".to_string(),
@@ -146,7 +150,6 @@ pub(crate) mod test_support {
             namespace,
             uid,
             image,
-            nifi.spec.nodes.clone().expect("minimal fixture has nodes"),
             role_group_configs,
             ValidatedClusterConfig {
                 authentication: NifiAuthenticationConfig::SingleUser {
@@ -170,7 +173,7 @@ pub(crate) mod test_support {
     }
 
     /// Return the "default" role-group config from a [`ValidatedCluster`].
-    pub fn default_rg(cluster: &ValidatedCluster) -> &NifiRoleGroupConfig {
+    pub fn default_rg(cluster: &ValidatedCluster) -> &ValidatedRoleGroupConfig {
         cluster
             .role_group_configs
             .get(&NifiRole::Node)

@@ -9,9 +9,10 @@ use stackable_operator::{
     },
 };
 
-use crate::{
-    config::{NIFI_PVC_STORAGE_DIRECTORY, NifiRepository},
-    crd::authorization::{NifiAccessPolicyProvider, NifiAuthorization, NifiOpaConfig},
+use crate::crd::{
+    authorization::{NifiAccessPolicyProvider, NifiAuthorization, NifiOpaConfig},
+    constants::NIFI_PVC_STORAGE_DIRECTORY,
+    storage::NifiRepository,
 };
 
 const OPA_TLS_VOLUME_NAME: &str = "opa-tls";

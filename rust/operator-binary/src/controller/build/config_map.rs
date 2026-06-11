@@ -35,14 +35,14 @@ pub enum Error {
 
     #[snafu(display("failed to build bootstrap.conf"))]
     BootstrapConfig {
-        #[snafu(source(from(crate::config::Error, Box::new)))]
-        source: Box<crate::config::Error>,
+        #[snafu(source(from(crate::controller::build::Error, Box::new)))]
+        source: Box<crate::controller::build::Error>,
     },
 
     #[snafu(display("failed to prepare NiFi configuration for rolegroup {rolegroup}"))]
     BuildNifiProperties {
-        #[snafu(source(from(crate::config::Error, Box::new)))]
-        source: Box<crate::config::Error>,
+        #[snafu(source(from(crate::controller::build::Error, Box::new)))]
+        source: Box<crate::controller::build::Error>,
         rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
     },
 
@@ -94,9 +94,6 @@ pub fn build_rolegroup_config_map(
             role_group: rolegroup.role_group.clone(),
         })?;
 
-    // The raw role spec is only needed for JVM argument merging in `bootstrap_conf`.
-    let role = &cluster.nodes;
-
     let proxy_hosts = proxy_hosts::compute_proxy_hosts(cluster, cluster_info);
     let git_sync_resources =
         git_sync::build_git_sync_resources(cluster, rg).context(BuildGitSyncResourcesSnafu)?;
@@ -115,13 +112,8 @@ pub fn build_rolegroup_config_map(
         )
         .add_data(
             ConfigFileName::BootstrapConf.to_string(),
-            bootstrap_conf::build(
-                rg,
-                role,
-                &rolegroup.role_group,
-                Some(&cluster.cluster_config.authorization),
-            )
-            .context(BootstrapConfigSnafu)?,
+            bootstrap_conf::build(rg, Some(&cluster.cluster_config.authorization))
+                .context(BootstrapConfigSnafu)?,
         )
         .add_data(
             ConfigFileName::NifiProperties.to_string(),

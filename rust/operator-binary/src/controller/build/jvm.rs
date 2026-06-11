@@ -1,12 +1,16 @@
+//! Builder for the NiFi JVM arguments used in `bootstrap.conf`.
+
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     memory::{BinaryMultiple, MemoryQuantity},
-    role_utils::{self, JvmArgumentOverrides},
+    v2::jvm_argument_overrides::JvmArgumentOverrides,
 };
 
 use crate::{
-    config::{JVM_SECURITY_PROPERTIES_FILE, NIFI_CONFIG_DIRECTORY},
-    crd::{NifiConfig, NifiRoleType},
+    crd::{
+        NifiConfig,
+        constants::{JVM_SECURITY_PROPERTIES_FILE, NIFI_CONFIG_DIRECTORY},
+    },
     security::{
         authentication::{STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD},
         authorization::ResolvedNifiAuthorizationConfig,
@@ -25,18 +29,19 @@ pub enum Error {
     InvalidMemoryConfig {
         source: stackable_operator::memory::Error,
     },
-
-    #[snafu(display("failed to merge jvm argument overrides"))]
-    MergeJvmArgumentOverrides { source: role_utils::Error },
 }
 
-/// Build the merged JVM argument overrides used in the NiFi bootstrap.conf
+/// Build the effective JVM arguments for the NiFi bootstrap.conf.
+///
+/// The operator-generated arguments below form the base that the role <- role-group merged
+/// user overrides (`merged_jvm_argument_overrides`, produced by
+/// [`with_validated_config`](stackable_operator::v2::role_utils::with_validated_config)) are
+/// applied on top of.
 pub fn build_merged_jvm_config(
     merged_config: &NifiConfig,
-    role: &NifiRoleType,
-    role_group: &str,
+    merged_jvm_argument_overrides: &JvmArgumentOverrides,
     authorization_config: Option<&ResolvedNifiAuthorizationConfig>,
-) -> Result<JvmArgumentOverrides, Error> {
+) -> Result<Vec<String>, Error> {
     let heap_size = MemoryQuantity::try_from(
         merged_config
             .resources
@@ -52,7 +57,7 @@ pub fn build_merged_jvm_config(
         .format_for_java()
         .context(InvalidMemoryConfigSnafu)?;
 
-    let mut jvm_args = vec![
+    let mut operator_generated = vec![
         // Heap settings
         format!("-Xmx{java_heap}"),
         format!("-Xms{java_heap}"),
@@ -95,17 +100,15 @@ pub fn build_merged_jvm_config(
     // OPA Java SDK.
     if let Some(authz_config) = authorization_config {
         if authz_config.has_opa_tls() {
-            jvm_args.push(format!(
+            operator_generated.push(format!(
                 "-Djavax.net.ssl.trustStore={STACKABLE_SERVER_TLS_DIR}/truststore.p12"
             ));
-            jvm_args.push(format!(
+            operator_generated.push(format!(
                 "-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"
             ));
-            jvm_args.push("-Djavax.net.ssl.trustStoreType=pkcs12".to_owned());
+            operator_generated.push("-Djavax.net.ssl.trustStoreType=pkcs12".to_owned());
         }
     }
 
-    let operator_generated = JvmArgumentOverrides::new_with_only_additions(jvm_args);
-    role.get_merged_jvm_argument_overrides(role_group, &operator_generated)
-        .context(MergeJvmArgumentOverridesSnafu)
+    Ok(merged_jvm_argument_overrides.apply_to(operator_generated))
 }
