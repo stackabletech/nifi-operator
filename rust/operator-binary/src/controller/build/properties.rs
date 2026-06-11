@@ -69,7 +69,7 @@ pub(crate) mod test_support {
     };
 
     use crate::{
-        controller::validate::{NifiRoleGroupConfig, ValidatedCluster, ValidatedClusterConfig},
+        controller::{ValidatedCluster, ValidatedClusterConfig, validate::NifiRoleGroupConfig},
         crd::{NifiConfig, NifiRole, v1alpha1},
         framework::role_utils::with_validated_config,
         security::{

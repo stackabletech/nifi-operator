@@ -1,6 +1,6 @@
 //! Builders that assemble Kubernetes resources from a [`ValidatedCluster`].
 //!
-//! [`ValidatedCluster`]: crate::controller::validate::ValidatedCluster
+//! [`ValidatedCluster`]: crate::controller::ValidatedCluster
 
 pub mod config_map;
 pub mod git_sync;

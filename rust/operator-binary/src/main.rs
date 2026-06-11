@@ -33,8 +33,8 @@ use stackable_operator::{
 };
 
 use crate::{
-    controller::NIFI_FULL_CONTROLLER_NAME,
     crd::{NifiCluster, NifiClusterVersion, authorization::NifiOpaConfig, v1alpha1},
+    nifi_controller::NIFI_FULL_CONTROLLER_NAME,
     webhooks::conversion::create_webhook_server,
 };
 
@@ -43,6 +43,7 @@ mod controller;
 mod crd;
 mod framework;
 mod listener;
+mod nifi_controller;
 mod operations;
 mod reporting_task;
 mod security;
@@ -172,9 +173,9 @@ async fn main() -> anyhow::Result<()> {
                 )
                 .graceful_shutdown_on(sigterm_watcher.handle())
                 .run(
-                    controller::reconcile_nifi,
-                    controller::error_policy,
-                    Arc::new(controller::Ctx {
+                    nifi_controller::reconcile_nifi,
+                    nifi_controller::error_policy,
+                    Arc::new(nifi_controller::Ctx {
                         client: client.clone(),
                         operator_environment,
                     }),

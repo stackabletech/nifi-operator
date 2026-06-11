@@ -1,6 +1,6 @@
 //! Builder for `authorizers.xml`.
 
-use crate::controller::validate::ValidatedCluster;
+use crate::controller::ValidatedCluster;
 
 pub fn build(cluster: &ValidatedCluster) -> String {
     cluster

@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use stackable_operator::utils::cluster_info::KubernetesClusterInfo;
 
-use crate::{controller::validate::ValidatedCluster, crd::HTTPS_PORT, reporting_task};
+use crate::{controller::ValidatedCluster, crd::HTTPS_PORT, reporting_task};
 
 /// Computes the comma-separated NiFi proxy hosts, or `"*"` if `hostHeaderCheck.allowAll` is set.
 ///

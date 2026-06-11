@@ -50,8 +50,8 @@ use stackable_operator::{
 };
 
 use crate::{
-    controller::build_recommended_labels,
     crd::{APP_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, NifiRole, v1alpha1},
+    nifi_controller::build_recommended_labels,
     security::{
         authentication::{NifiAuthenticationConfig, STACKABLE_ADMIN_USERNAME},
         build_tls_volume,

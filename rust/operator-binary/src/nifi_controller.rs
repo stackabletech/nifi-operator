@@ -62,18 +62,13 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
 
-mod build;
-mod dereference;
-mod validate;
-
-use validate::NifiRoleGroupConfig;
-
 use crate::{
     OPERATOR_NAME,
     config::{
         NIFI_CONFIG_DIRECTORY, NIFI_PYTHON_WORKING_DIRECTORY, NifiRepository,
         PERSISTENT_REPOSITORIES,
     },
+    controller::{build, dereference, validate, validate::NifiRoleGroupConfig},
     crd::{
         APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, Container, HTTPS_PORT, HTTPS_PORT_NAME,
         METRICS_PORT, METRICS_PORT_NAME, NifiConfig, NifiNodeRoleConfig, NifiRole, NifiRoleType,
@@ -104,8 +99,8 @@ use crate::{
 pub const NIFI_CONTROLLER_NAME: &str = "nificluster";
 pub const NIFI_FULL_CONTROLLER_NAME: &str = concatcp!(NIFI_CONTROLLER_NAME, '.', OPERATOR_NAME);
 
-const CONTAINER_IMAGE_BASE_NAME: &str = "nifi";
-const LOG_VOLUME_NAME: &str = "log";
+pub(crate) const CONTAINER_IMAGE_BASE_NAME: &str = "nifi";
+pub(crate) const LOG_VOLUME_NAME: &str = "log";
 
 pub struct Ctx {
     pub client: Client,
@@ -408,7 +403,7 @@ pub async fn reconcile_nifi(
                     .context(BuildGitSyncResourcesSnafu)?;
 
             let role_group_service_recommended_labels = build_recommended_labels(
-                nifi,
+                &validated_cluster,
                 &resolved_product_image.app_version_label_value,
                 &rolegroup.role,
                 &rolegroup.role_group,
@@ -419,9 +414,9 @@ pub async fn reconcile_nifi(
                     .context(LabelBuildSnafu)?;
 
             let rg_headless_service = build_rolegroup_headless_service(
-                nifi,
+                &validated_cluster,
                 &rolegroup,
-                role_group_service_recommended_labels.clone(),
+                &role_group_service_recommended_labels,
                 role_group_service_selector.clone().into(),
             )
             .context(ServiceConfigurationSnafu)?;
@@ -464,9 +459,9 @@ pub async fn reconcile_nifi(
             .await?;
 
             let rg_metrics_service = build_rolegroup_metrics_service(
-                nifi,
+                &validated_cluster,
                 &rolegroup,
-                role_group_service_recommended_labels,
+                &role_group_service_recommended_labels,
                 role_group_service_selector.into(),
                 &resolved_product_image.product_version,
             )
@@ -1262,12 +1257,12 @@ pub fn error_policy(
     }
 }
 
-pub fn build_recommended_labels<'a>(
-    owner: &'a v1alpha1::NifiCluster,
+pub fn build_recommended_labels<'a, T>(
+    owner: &'a T,
     app_version: &'a str,
     role: &'a str,
     role_group: &'a str,
-) -> ObjectLabels<'a, v1alpha1::NifiCluster> {
+) -> ObjectLabels<'a, T> {
     ObjectLabels {
         owner,
         app_name: APP_NAME,

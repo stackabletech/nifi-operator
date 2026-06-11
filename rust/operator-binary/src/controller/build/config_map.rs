@@ -13,6 +13,7 @@ use stackable_operator::{
 
 use crate::{
     controller::{
+        ValidatedCluster,
         build::{
             git_sync,
             properties::{
@@ -21,7 +22,6 @@ use crate::{
             },
             proxy_hosts,
         },
-        validate::ValidatedCluster,
     },
     crd::{NifiRole, v1alpha1},
 };
@@ -80,7 +80,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 pub fn build_rolegroup_config_map(
     cluster: &ValidatedCluster,
     rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>,
-    recommended_labels: &ObjectLabels<'_, v1alpha1::NifiCluster>,
+    recommended_labels: &ObjectLabels<'_, ValidatedCluster>,
     cluster_info: &KubernetesClusterInfo,
 ) -> Result<ConfigMap> {
     tracing::debug!("building rolegroup ConfigMap");

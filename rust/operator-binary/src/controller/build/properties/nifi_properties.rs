@@ -10,7 +10,7 @@ use crate::{
         CalculateStorageQuotaSnafu, Error, GenerateOidcConfigSnafu, NIFI_PYTHON_WORKING_DIRECTORY,
         Nifi1RequiresZookeeperSnafu, NifiRepository, format_properties,
     },
-    controller::validate::{NifiRoleGroupConfig, ValidatedCluster},
+    controller::{ValidatedCluster, validate::NifiRoleGroupConfig},
     crd::{HTTPS_PORT, v1alpha1},
     security::{
         authentication::{
