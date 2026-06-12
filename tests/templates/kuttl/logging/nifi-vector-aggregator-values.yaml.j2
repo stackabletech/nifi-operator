@@ -28,37 +28,37 @@ customConfig:
       type: filter
       inputs: [validEvents]
       condition: >-
-        .pod == "test-nifi-node-automatic-log-config-0" &&
+        .pod == "test-nifi-node-automatic-log-0" &&
         .container == "nifi"
     filteredAutomaticLogConfigNodeGitSync:
       type: filter
       inputs: [validEvents]
       condition: >-
-        .pod == "test-nifi-node-automatic-log-config-0" &&
+        .pod == "test-nifi-node-automatic-log-0" &&
         .container == "git-sync-0"
     filteredAutomaticLogConfigNodeGitSyncInit:
       type: filter
       inputs: [validEvents]
       condition: >-
-        .pod == "test-nifi-node-automatic-log-config-0" &&
+        .pod == "test-nifi-node-automatic-log-0" &&
         .container == "git-sync-0-init"
     filteredAutomaticLogConfigNodeVector:
       type: filter
       inputs: [validEvents]
       condition: >-
-        .pod == "test-nifi-node-automatic-log-config-0" &&
+        .pod == "test-nifi-node-automatic-log-0" &&
         .container == "vector"
     filteredCustomLogConfigNodeNifi:
       type: filter
       inputs: [validEvents]
       condition: >-
-        .pod == "test-nifi-node-custom-log-config-0" &&
+        .pod == "test-nifi-node-custom-log-0" &&
         .container == "nifi"
     filteredCustomLogConfigNodeVector:
       type: filter
       inputs: [validEvents]
       condition: >-
-        .pod == "test-nifi-node-custom-log-config-0" &&
+        .pod == "test-nifi-node-custom-log-0" &&
         .container == "vector"
     filteredInvalidEvents:
       type: filter

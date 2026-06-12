@@ -7,7 +7,7 @@ timeout: 1800
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: test-nifi-node-resources-from-role
+  name: test-nifi-node-from-role
 spec:
   template:
     spec:
@@ -30,7 +30,7 @@ status:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: test-nifi-node-resources-from-role-group
+  name: test-nifi-node-from-role-group
 spec:
   template:
     spec:
@@ -53,7 +53,7 @@ status:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: test-nifi-node-resources-from-pod-overrides
+  name: test-nifi-node-pod-overrides
 spec:
   template:
     spec:

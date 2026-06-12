@@ -6,7 +6,7 @@ timeout: 600
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: test-nifi-node-automatic-log-config
+  name: test-nifi-node-automatic-log
 status:
   readyReplicas: 1
   replicas: 1
@@ -14,7 +14,7 @@ status:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: test-nifi-node-custom-log-config
+  name: test-nifi-node-custom-log
 status:
   readyReplicas: 1
   replicas: 1
