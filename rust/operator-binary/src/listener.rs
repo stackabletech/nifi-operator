@@ -7,26 +7,20 @@ use stackable_operator::{
     crd::listener::v1alpha1::{Listener, ListenerPort, ListenerSpec},
     k8s_openapi::api::core::v1::PersistentVolumeClaim,
     kube::ResourceExt,
-    kvp::{Labels, ObjectLabels},
+    kvp::Labels,
+    v2::builder::meta::ownerreference_from_resource,
 };
 
-use crate::crd::{HTTPS_PORT, HTTPS_PORT_NAME, v1alpha1};
+use crate::{
+    controller::ValidatedCluster,
+    crd::{HTTPS_PORT, HTTPS_PORT_NAME, v1alpha1},
+};
 
 pub const LISTENER_VOLUME_NAME: &str = "listener";
 pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("listener object is missing metadata to build owner reference"))]
-    ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::builder::meta::Error,
-    },
-
-    #[snafu(display("failed to build listener object meta data"))]
-    BuildObjectMeta {
-        source: stackable_operator::builder::meta::Error,
-    },
-
     #[snafu(display("failed to build listener volume"))]
     BuildListenerPersistentVolume {
         source: stackable_operator::builder::pod::volume::ListenerOperatorVolumeSourceBuilderError,
@@ -34,19 +28,16 @@ pub enum Error {
 }
 
 pub fn build_group_listener(
-    nifi: &v1alpha1::NifiCluster,
-    object_labels: ObjectLabels<v1alpha1::NifiCluster>,
+    cluster: &ValidatedCluster,
     listener_class: String,
     listener_group_name: String,
 ) -> Result<Listener, Error> {
     Ok(Listener {
         metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(nifi)
+            .name_and_namespace(cluster)
             .name(listener_group_name)
-            .ownerreference_from_resource(nifi, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(&object_labels)
-            .context(BuildObjectMetaSnafu)?
+            .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
+            .with_labels(cluster.recommended_labels_role_level())
             .build(),
         spec: ListenerSpec {
             class_name: Some(listener_class),

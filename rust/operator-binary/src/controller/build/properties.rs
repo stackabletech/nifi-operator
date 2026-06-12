@@ -77,7 +77,7 @@ pub(crate) mod test_support {
         kvp::LabelValue,
         v2::types::{
             kubernetes::{NamespaceName, Uid},
-            operator::ClusterName,
+            operator::{ClusterName, ProductVersion, RoleGroupName},
         },
     };
 
@@ -144,12 +144,15 @@ pub(crate) mod test_support {
         let name = ClusterName::from_str("simple-nifi").expect("valid cluster name");
         let namespace = NamespaceName::from_str("default").expect("valid namespace");
         let uid = Uid::from_str("e6ac237d-a6d4-43a1-8135-f36506110912").expect("valid uid");
+        let product_version = ProductVersion::from_str(&image.app_version_label_value)
+            .expect("valid product version");
 
         ValidatedCluster::new(
             name,
             namespace,
             uid,
             image,
+            product_version,
             role_group_configs,
             ValidatedClusterConfig {
                 authentication: NifiAuthenticationConfig::SingleUser {
@@ -177,7 +180,9 @@ pub(crate) mod test_support {
         cluster
             .role_group_configs
             .get(&NifiRole::Node)
-            .and_then(|rgs| rgs.get("default"))
+            .and_then(|rgs| {
+                rgs.get(&RoleGroupName::from_str("default").expect("valid role-group name"))
+            })
             .expect("minimal_validated_cluster must contain a 'default' role group")
     }
 

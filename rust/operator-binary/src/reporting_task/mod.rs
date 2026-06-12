@@ -22,7 +22,7 @@
 //! Therefore, since the support of NiFi 1.25.0, an additional service for the Reporting Task Job containing a
 //! random but deterministic NiFi node to ensure the communication with a single node.
 //!
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, str::FromStr as _};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -43,15 +43,17 @@ use stackable_operator::{
         },
     },
     kube::ResourceExt,
-    kvp::Labels,
     shared::time::Duration,
     utils::cluster_info::KubernetesClusterInfo,
-    v2::types::kubernetes::NamespaceName,
+    v2::{
+        builder::meta::ownerreference_from_resource,
+        types::{kubernetes::NamespaceName, operator::RoleGroupName},
+    },
 };
 
 use crate::{
-    crd::{APP_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, NifiRole, v1alpha1},
-    nifi_controller::build_recommended_labels,
+    controller::ValidatedCluster,
+    crd::{HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, NifiRole, v1alpha1},
     security::{
         authentication::{NifiAuthenticationConfig, STACKABLE_ADMIN_USERNAME},
         build_tls_volume,
@@ -67,30 +69,15 @@ pub enum Error {
     #[snafu(display("object defines no name"))]
     ObjectHasNoName,
 
-    #[snafu(display("failed to build metadata"))]
-    MetadataBuild {
-        source: stackable_operator::builder::meta::Error,
-    },
-
     #[snafu(display("illegal container name: [{container_name}]"))]
     IllegalContainerName {
         source: stackable_operator::builder::pod::container::Error,
         container_name: String,
     },
 
-    #[snafu(display("object is missing metadata to build owner reference"))]
-    ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::builder::meta::Error,
-    },
-
     #[snafu(display("failed to add Authentication Volumes and VolumeMounts"))]
     AddAuthVolumes {
         source: crate::security::authentication::Error,
-    },
-
-    #[snafu(display("failed to build labels"))]
-    LabelBuild {
-        source: stackable_operator::kvp::LabelError,
     },
 
     #[snafu(display("failed to build secret volume"))]
@@ -124,8 +111,10 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// NiFi 2.x and above automatically server Prometheus metrics via the API, but as of 2024-11-08
 /// requires authentication.
+#[allow(clippy::too_many_arguments)]
 pub fn build_maybe_reporting_task(
     nifi: &v1alpha1::NifiCluster,
+    cluster: &ValidatedCluster,
     resolved_product_image: &ResolvedProductImage,
     cluster_info: &KubernetesClusterInfo,
     namespace: &NamespaceName,
@@ -136,17 +125,24 @@ pub fn build_maybe_reporting_task(
         Ok(Some((
             build_reporting_task_job(
                 nifi,
+                cluster,
                 resolved_product_image,
                 cluster_info,
                 namespace,
                 authentication_config,
                 sa_name,
             )?,
-            build_reporting_task_service(nifi, resolved_product_image)?,
+            build_reporting_task_service(nifi, cluster)?,
         )))
     } else {
         Ok(None)
     }
+}
+
+/// The placeholder role-group name (`global`) used for the labels of the cluster-global reporting
+/// task resources, which are not tied to a specific role group.
+fn reporting_task_role_group() -> RoleGroupName {
+    RoleGroupName::from_str("global").expect("'global' is a valid role-group name")
 }
 
 /// Return the name of the reporting task Service.
@@ -205,13 +201,10 @@ fn get_reporting_task_service_selector_pod(nifi: &v1alpha1::NifiCluster) -> Resu
 /// Build the internal Reporting Task Service in order to communicate with a single NiFi node.
 fn build_reporting_task_service(
     nifi: &v1alpha1::NifiCluster,
-    resolved_product_image: &ResolvedProductImage,
+    cluster: &ValidatedCluster,
 ) -> Result<Service> {
     let nifi_cluster_name = nifi.name_any();
-    let role_name = NifiRole::Node.to_string();
-    let mut selector: BTreeMap<String, String> = Labels::role_selector(nifi, APP_NAME, &role_name)
-        .context(LabelBuildSnafu)?
-        .into();
+    let mut selector: BTreeMap<String, String> = cluster.role_selector().into();
 
     let service_selector_pod = get_reporting_task_service_selector_pod(nifi)?;
     selector.insert(
@@ -221,17 +214,10 @@ fn build_reporting_task_service(
 
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(nifi)
+            .name_and_namespace(cluster)
             .name(build_reporting_task_service_name(&nifi_cluster_name))
-            .ownerreference_from_resource(nifi, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(&build_recommended_labels(
-                nifi,
-                &resolved_product_image.app_version_label_value,
-                &role_name,
-                "global",
-            ))
-            .context(MetadataBuildSnafu)?
+            .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
+            .with_labels(cluster.recommended_labels(&reporting_task_role_group()))
             .build(),
         spec: Some(ServiceSpec {
             ports: Some(vec![ServicePort {
@@ -261,8 +247,10 @@ fn build_reporting_task_service(
 /// as well as a public certificate provided by the Stackable
 /// [`secret-operator`](https://github.com/stackabletech/secret-operator)
 ///
+#[allow(clippy::too_many_arguments)]
 fn build_reporting_task_job(
     nifi: &v1alpha1::NifiCluster,
+    cluster: &ValidatedCluster,
     resolved_product_image: &ResolvedProductImage,
     cluster_info: &KubernetesClusterInfo,
     namespace: &NamespaceName,
@@ -333,10 +321,9 @@ fn build_reporting_task_job(
     let mut pod_template = pb
         .metadata(
             ObjectMetaBuilder::new()
-                .name_and_namespace(nifi)
+                .name_and_namespace(cluster)
                 .name(job_name.clone())
-                .ownerreference_from_resource(nifi, None, Some(true))
-                .context(ObjectMissingMetadataForOwnerRefSnafu)?
+                .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
                 .build(),
         )
         .image_pull_secrets_from_product_image(resolved_product_image)
@@ -372,17 +359,10 @@ fn build_reporting_task_job(
 
     let job = Job {
         metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(nifi)
+            .name_and_namespace(cluster)
             .name(job_name)
-            .ownerreference_from_resource(nifi, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(&build_recommended_labels(
-                nifi,
-                &resolved_product_image.app_version_label_value,
-                "global",
-                "global",
-            ))
-            .context(MetadataBuildSnafu)?
+            .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
+            .with_labels(cluster.recommended_labels(&reporting_task_role_group()))
             .build(),
         spec: Some(JobSpec {
             backoff_limit: Some(100),

@@ -4,11 +4,9 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     k8s_openapi::api::core::v1::ConfigMap,
-    kvp::ObjectLabels,
     product_logging::framework::VECTOR_CONFIG_FILE,
-    role_utils::RoleGroupRef,
     utils::cluster_info::KubernetesClusterInfo,
-    v2::builder::meta::ownerreference_from_resource,
+    v2::{builder::meta::ownerreference_from_resource, types::operator::RoleGroupName},
 };
 
 use crate::{
@@ -23,16 +21,11 @@ use crate::{
             proxy_hosts,
         },
     },
-    crd::{NifiRole, v1alpha1},
+    crd::NifiRole,
 };
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("failed to build metadata"))]
-    MetadataBuild {
-        source: stackable_operator::builder::meta::Error,
-    },
-
     #[snafu(display("failed to build bootstrap.conf"))]
     BootstrapConfig {
         #[snafu(source(from(crate::controller::build::Error, Box::new)))]
@@ -43,19 +36,19 @@ pub enum Error {
     BuildNifiProperties {
         #[snafu(source(from(crate::controller::build::Error, Box::new)))]
         source: Box<crate::controller::build::Error>,
-        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
+        rolegroup: RoleGroupName,
     },
 
     #[snafu(display("failed to build ConfigMap for {rolegroup}"))]
     BuildRoleGroupConfig {
         source: stackable_operator::builder::configmap::Error,
-        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
+        rolegroup: RoleGroupName,
     },
 
     #[snafu(display("failed to serialize JVM security properties for {}", rolegroup))]
     JvmSecurityProperties {
         source: stackable_operator::v2::config_file_writer::PropertiesWriterError,
-        rolegroup: String,
+        rolegroup: RoleGroupName,
     },
 
     #[snafu(display("failed to build login-identity-providers configuration"))]
@@ -75,23 +68,25 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// Build the rolegroup [`ConfigMap`] configuring the rolegroup based on the
 /// resolved cluster configuration.
 ///
-/// All NiFi configuration is sourced from `cluster`. `recommended_labels` must be built by the
-/// caller (typically via `build_recommended_labels`).
+/// All NiFi configuration is sourced from `cluster`.
+///
+/// `vector_config` is the Vector agent config (`vector.yaml`) built by the caller (where a
+/// `RoleGroupRef` is available); it is `None` when the Vector agent is disabled.
 pub fn build_rolegroup_config_map(
     cluster: &ValidatedCluster,
-    rolegroup: &RoleGroupRef<v1alpha1::NifiCluster>,
-    recommended_labels: &ObjectLabels<'_, ValidatedCluster>,
+    role_group_name: &RoleGroupName,
     cluster_info: &KubernetesClusterInfo,
+    vector_config: Option<String>,
 ) -> Result<ConfigMap> {
     tracing::debug!("building rolegroup ConfigMap");
 
     let rg = cluster
         .role_group_configs
         .get(&NifiRole::Node)
-        .and_then(|groups| groups.get(&rolegroup.role_group))
+        .and_then(|groups| groups.get(role_group_name))
         .with_context(|| MissingRoleGroupSnafu {
             role: NifiRole::Node.to_string(),
-            role_group: rolegroup.role_group.clone(),
+            role_group: role_group_name.to_string(),
         })?;
 
     let proxy_hosts = proxy_hosts::compute_proxy_hosts(cluster, cluster_info);
@@ -103,11 +98,15 @@ pub fn build_rolegroup_config_map(
     cm_builder
         .metadata(
             ObjectMetaBuilder::new()
-                .namespace(&cluster.namespace)
-                .name(rolegroup.object_name())
+                .name_and_namespace(cluster)
+                .name(
+                    cluster
+                        .resource_names(role_group_name)
+                        .role_group_config_map()
+                        .to_string(),
+                )
                 .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
-                .with_recommended_labels(recommended_labels)
-                .context(MetadataBuildSnafu)?
+                .with_labels(cluster.recommended_labels(role_group_name))
                 .build(),
         )
         .add_data(
@@ -119,7 +118,7 @@ pub fn build_rolegroup_config_map(
             ConfigFileName::NifiProperties.to_string(),
             nifi_properties::build(cluster, rg, &proxy_hosts, &git_sync_resources).with_context(
                 |_| BuildNifiPropertiesSnafu {
-                    rolegroup: rolegroup.clone(),
+                    rolegroup: role_group_name.clone(),
                 },
             )?,
         )
@@ -139,7 +138,7 @@ pub fn build_rolegroup_config_map(
         .add_data(
             ConfigFileName::SecurityProperties.to_string(),
             security_properties::build(rg).with_context(|_| JvmSecurityPropertiesSnafu {
-                rolegroup: rolegroup.role_group.clone(),
+                rolegroup: role_group_name.clone(),
             })?,
         );
 
@@ -147,13 +146,13 @@ pub fn build_rolegroup_config_map(
         cm_builder.add_data(ConfigFileName::Logback.to_string(), logback_config);
     }
 
-    if let Some(vector_config) = logging::build_vector_config(rolegroup, &rg.config.logging) {
+    if let Some(vector_config) = vector_config {
         cm_builder.add_data(VECTOR_CONFIG_FILE, vector_config);
     }
 
     cm_builder
         .build()
         .with_context(|_| BuildRoleGroupConfigSnafu {
-            rolegroup: rolegroup.clone(),
+            rolegroup: role_group_name.clone(),
         })
 }

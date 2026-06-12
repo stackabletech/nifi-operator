@@ -642,6 +642,8 @@ mod tests {
     /// Verify that a user configOverride for `nifi.properties` flows through to the output.
     #[test]
     fn test_config_override_wins() {
+        use stackable_operator::v2::types::operator::RoleGroupName;
+
         use crate::{
             controller::validate::build_role_group_configs,
             crd::{NifiRole, v1alpha1},
@@ -673,9 +675,12 @@ mod tests {
         let nifi: v1alpha1::NifiCluster = serde_yaml::from_str(yaml).expect("invalid test YAML");
         let mut role_group_configs =
             build_role_group_configs(&nifi).expect("failed to build role group configs");
+        let default_rg_name = "default"
+            .parse::<RoleGroupName>()
+            .expect("valid role-group name");
         let rg = role_group_configs
             .get_mut(&NifiRole::Node)
-            .and_then(|groups| groups.remove("default"))
+            .and_then(|groups| groups.remove(&default_rg_name))
             .expect("default role group must exist");
 
         // Build a cluster with this rg substituted in
@@ -684,7 +689,7 @@ mod tests {
             .role_group_configs
             .get_mut(&NifiRole::Node)
             .unwrap()
-            .insert("default".to_string(), rg.clone());
+            .insert(default_rg_name, rg.clone());
 
         let git_sync = empty_git_sync_resources();
         let props =

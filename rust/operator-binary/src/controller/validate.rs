@@ -16,6 +16,7 @@ use stackable_operator::{
         builder::pod::container::{self, EnvVarName, EnvVarSet},
         controller_utils::{self, get_cluster_name, get_uid},
         role_utils::with_validated_config,
+        types::operator::{ProductVersion, RoleGroupName},
     },
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
@@ -53,6 +54,12 @@ pub enum Error {
 
     #[snafu(display("failed to validate the rolegroup config fragment"))]
     ValidateRoleGroupConfig { source: fragment::ValidationError },
+
+    #[snafu(display("the role-group name {role_group:?} is invalid"))]
+    ParseRoleGroupName {
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
+        role_group: String,
+    },
 
     #[snafu(display("environment variable name {name:?} is invalid"))]
     ParseEnvVarName {
@@ -108,11 +115,17 @@ pub fn validate(
     let namespace = dereferenced_objects.namespace.clone();
     let uid = get_uid(nifi).context(GetUidSnafu)?;
 
+    // `app_version_label_value` is constructed to be a valid label value, so it is always a valid
+    // `ProductVersion`. It is used for the `app.kubernetes.io/version` label on built resources.
+    let product_version = ProductVersion::from_str(&image.app_version_label_value)
+        .expect("the app version label value is a valid product version");
+
     Ok(ValidatedCluster::new(
         name,
         namespace,
         uid,
         image,
+        product_version,
         role_group_configs,
         ValidatedClusterConfig {
             authentication: authentication_config,
@@ -127,12 +140,16 @@ pub fn validate(
 
 pub(crate) fn build_role_group_configs(
     nifi: &v1alpha1::NifiCluster,
-) -> Result<BTreeMap<NifiRole, BTreeMap<String, ValidatedRoleGroupConfig>>> {
+) -> Result<BTreeMap<NifiRole, BTreeMap<RoleGroupName, ValidatedRoleGroupConfig>>> {
     let role = nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?;
     let default_config = NifiConfig::default_config(&nifi.name_any(), &NifiRole::Node);
 
-    let mut groups: BTreeMap<String, ValidatedRoleGroupConfig> = BTreeMap::new();
+    let mut groups: BTreeMap<RoleGroupName, ValidatedRoleGroupConfig> = BTreeMap::new();
     for (rg_name, rg) in &role.role_groups {
+        let role_group_name =
+            RoleGroupName::from_str(rg_name).with_context(|_| ParseRoleGroupNameSnafu {
+                role_group: rg_name.clone(),
+            })?;
         let validated = with_validated_config::<NifiConfig, _, _, _, _>(rg, role, &default_config)
             .context(ValidateRoleGroupConfigSnafu)?;
 
@@ -157,7 +174,7 @@ pub(crate) fn build_role_group_configs(
         }
 
         groups.insert(
-            rg_name.clone(),
+            role_group_name,
             ValidatedRoleGroupConfig {
                 replicas: validated.replicas.unwrap_or(1),
                 config,

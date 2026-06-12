@@ -37,7 +37,6 @@ use stackable_operator::{
         core::{DeserializeGuard, error_boundary},
         runtime::controller::Action,
     },
-    kvp::{Labels, ObjectLabels},
     logging::controller::ReconcilerError,
     memory::{BinaryMultiple, MemoryQuantity},
     product_logging::{
@@ -50,21 +49,21 @@ use stackable_operator::{
             CustomContainerLogConfig,
         },
     },
-    role_utils::{GenericRoleConfig, RoleGroupRef},
+    role_utils::GenericRoleConfig,
     shared::time::Duration,
     status::condition::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
         statefulset::StatefulSetConditionBuilder,
     },
     utils::{COMMON_BASH_TRAP_FUNCTIONS, cluster_info::KubernetesClusterInfo},
-    v2::types::kubernetes::NamespaceName,
+    v2::{builder::meta::ownerreference_from_resource, types::operator::RoleGroupName},
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
 
 use crate::{
     OPERATOR_NAME,
-    controller::{ValidatedRoleGroupConfig, build, dereference, validate},
+    controller::{ValidatedCluster, ValidatedRoleGroupConfig, build, dereference, validate},
     crd::{
         APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, Container, HTTPS_PORT, HTTPS_PORT_NAME,
         METRICS_PORT, METRICS_PORT_NAME, NifiConfig, NifiNodeRoleConfig, NifiRole, NifiRoleType,
@@ -145,13 +144,13 @@ pub enum Error {
     #[snafu(display("failed to apply Service for {}", rolegroup))]
     ApplyRoleGroupService {
         source: stackable_operator::cluster_resources::Error,
-        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
+        rolegroup: RoleGroupName,
     },
 
     #[snafu(display("failed to build rolegroup ConfigMap for {}", rolegroup))]
     BuildRoleGroupConfigMap {
         source: build::config_map::Error,
-        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
+        rolegroup: RoleGroupName,
     },
 
     #[snafu(display("object has no nodes defined"))]
@@ -160,13 +159,13 @@ pub enum Error {
     #[snafu(display("failed to apply ConfigMap for {}", rolegroup))]
     ApplyRoleGroupConfig {
         source: stackable_operator::cluster_resources::Error,
-        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
+        rolegroup: RoleGroupName,
     },
 
     #[snafu(display("failed to apply StatefulSet for {}", rolegroup))]
     ApplyRoleGroupStatefulSet {
         source: stackable_operator::cluster_resources::Error,
-        rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
+        rolegroup: RoleGroupName,
     },
 
     #[snafu(display("failed to apply create ReportingTask service"))]
@@ -177,11 +176,6 @@ pub enum Error {
     #[snafu(display("failed to apply create ReportingTask job"))]
     ApplyCreateReportingTaskJob {
         source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("object is missing metadata to build owner reference"))]
-    ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::builder::meta::Error,
     },
 
     #[snafu(display("illegal container name: [{container_name}]"))]
@@ -221,20 +215,10 @@ pub enum Error {
         source: crate::operations::graceful_shutdown::Error,
     },
 
-    #[snafu(display("failed to build metadata"))]
-    MetadataBuild {
-        source: stackable_operator::builder::meta::Error,
-    },
-
     #[snafu(display("failed to get required labels"))]
     GetRequiredLabels {
         source:
             stackable_operator::kvp::KeyValuePairError<stackable_operator::kvp::LabelValueError>,
-    },
-
-    #[snafu(display("failed to build labels"))]
-    LabelBuild {
-        source: stackable_operator::kvp::LabelError,
     },
 
     #[snafu(display("failed to add Authentication Volumes and VolumeMounts"))]
@@ -271,9 +255,6 @@ pub enum Error {
 
     #[snafu(display("failed to configure listener"))]
     ListenerConfiguration { source: crate::listener::Error },
-
-    #[snafu(display("failed to configure service"))]
-    ServiceConfiguration { source: crate::service::Error },
 
     #[snafu(display("failed to build authorization configuration"))]
     AuthorizationConfiguration { source: authorization::Error },
@@ -390,49 +371,38 @@ pub async fn reconcile_nifi(
         .role_group_configs
         .get(&nifi_role)
         .context(NoNodesDefinedSnafu)?;
-    for (rolegroup_name, rg) in node_role_group_configs.iter() {
-        let rg_span = tracing::info_span!("rolegroup_span", rolegroup = rolegroup_name.as_str());
+    for (role_group_name, rg) in node_role_group_configs.iter() {
+        let rg_span = tracing::info_span!("rolegroup_span", rolegroup = role_group_name.as_ref());
         async {
-            let rolegroup = nifi.node_rolegroup_ref(rolegroup_name);
-
-            tracing::debug!("Processing rolegroup {}", rolegroup);
+            tracing::debug!("Processing rolegroup {role_group_name}");
 
             let git_sync_resources =
                 build::git_sync::build_git_sync_resources(&validated_cluster, rg)
                     .context(BuildGitSyncResourcesSnafu)?;
 
-            let role_group_service_recommended_labels = build_recommended_labels(
-                &validated_cluster,
-                &resolved_product_image.app_version_label_value,
-                &rolegroup.role,
-                &rolegroup.role_group,
-            );
-
-            let role_group_service_selector =
-                Labels::role_group_selector(nifi, APP_NAME, &rolegroup.role, &rolegroup.role_group)
-                    .context(LabelBuildSnafu)?;
-
-            let rg_headless_service = build_rolegroup_headless_service(
-                &validated_cluster,
-                &rolegroup,
-                &role_group_service_recommended_labels,
-                role_group_service_selector.clone().into(),
-            )
-            .context(ServiceConfigurationSnafu)?;
+            let rg_headless_service =
+                build_rolegroup_headless_service(&validated_cluster, role_group_name);
 
             let role = nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?;
 
+            // The Vector agent config is the only remaining consumer of `RoleGroupRef`, which is
+            // therefore constructed on demand here rather than threaded through the build steps.
+            let vector_config = build::properties::logging::build_vector_config(
+                &nifi.node_rolegroup_ref(role_group_name.to_string()),
+                &rg.config.logging,
+            );
+
             let rg_configmap = build::config_map::build_rolegroup_config_map(
                 &validated_cluster,
-                &rolegroup,
-                &role_group_service_recommended_labels,
+                role_group_name,
                 &client.kubernetes_cluster_info,
+                vector_config,
             )
             .context(BuildRoleGroupConfigMapSnafu {
-                rolegroup: rolegroup.clone(),
+                rolegroup: role_group_name.clone(),
             })?;
 
-            let role_group = role.role_groups.get(&rolegroup.role_group);
+            let role_group = role.role_groups.get(role_group_name.as_ref());
             let replicas =
                 if cluster_version_update_state == ClusterVersionUpdateState::UpdateRequested {
                     Some(0)
@@ -442,10 +412,10 @@ pub async fn reconcile_nifi(
 
             let rg_statefulset = build_node_rolegroup_statefulset(
                 nifi,
+                &validated_cluster,
                 resolved_product_image,
                 &client.kubernetes_cluster_info,
-                &validated_cluster.namespace,
-                &rolegroup,
+                role_group_name,
                 role,
                 rg,
                 authentication_config,
@@ -457,34 +427,28 @@ pub async fn reconcile_nifi(
             )
             .await?;
 
-            let rg_metrics_service = build_rolegroup_metrics_service(
-                &validated_cluster,
-                &rolegroup,
-                &role_group_service_recommended_labels,
-                role_group_service_selector.into(),
-                &resolved_product_image.product_version,
-            )
-            .context(ServiceConfigurationSnafu)?;
+            let rg_metrics_service =
+                build_rolegroup_metrics_service(&validated_cluster, role_group_name);
 
             cluster_resources
                 .add(client, rg_metrics_service)
                 .await
                 .with_context(|_| ApplyRoleGroupServiceSnafu {
-                    rolegroup: rolegroup.clone(),
+                    rolegroup: role_group_name.clone(),
                 })?;
 
             cluster_resources
                 .add(client, rg_headless_service)
                 .await
                 .with_context(|_| ApplyRoleGroupServiceSnafu {
-                    rolegroup: rolegroup.clone(),
+                    rolegroup: role_group_name.clone(),
                 })?;
 
             cluster_resources
                 .add(client, rg_configmap)
                 .await
                 .with_context(|_| ApplyRoleGroupConfigSnafu {
-                    rolegroup: rolegroup.clone(),
+                    rolegroup: role_group_name.clone(),
                 })?;
 
             // Note: The StatefulSet needs to be applied after all ConfigMaps and Secrets it mounts
@@ -495,7 +459,7 @@ pub async fn reconcile_nifi(
                     .add(client, rg_statefulset)
                     .await
                     .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
-                        rolegroup: rolegroup.clone(),
+                        rolegroup: role_group_name.clone(),
                     })?,
             );
 
@@ -518,13 +482,7 @@ pub async fn reconcile_nifi(
             .context(FailedToCreatePdbSnafu)?;
 
         let role_group_listener = build_group_listener(
-            nifi,
-            build_recommended_labels(
-                nifi,
-                &resolved_product_image.app_version_label_value,
-                &nifi_role.to_string(),
-                "none",
-            ),
+            &validated_cluster,
             listener_class.to_owned(),
             group_listener_name(nifi, &nifi_role.to_string()),
         )
@@ -540,6 +498,7 @@ pub async fn reconcile_nifi(
     if nifi.spec.cluster_config.create_reporting_task_job.enabled {
         if let Some((reporting_task_job, reporting_task_service)) = build_maybe_reporting_task(
             nifi,
+            &validated_cluster,
             resolved_product_image,
             &client.kubernetes_cluster_info,
             &validated_cluster.namespace,
@@ -609,10 +568,10 @@ const USERDATA_MOUNTPOINT: &str = "/stackable/userdata";
 #[allow(clippy::too_many_arguments)]
 async fn build_node_rolegroup_statefulset(
     nifi: &v1alpha1::NifiCluster,
+    cluster: &ValidatedCluster,
     resolved_product_image: &ResolvedProductImage,
     cluster_info: &KubernetesClusterInfo,
-    namespace: &NamespaceName,
-    rolegroup_ref: &RoleGroupRef<v1alpha1::NifiCluster>,
+    role_group_name: &RoleGroupName,
     role: &NifiRoleType,
     rg: &ValidatedRoleGroupConfig,
     authentication_config: &NifiAuthenticationConfig,
@@ -623,6 +582,9 @@ async fn build_node_rolegroup_statefulset(
     git_sync_resources: &git_sync::v1alpha2::GitSyncResources,
 ) -> Result<StatefulSet> {
     tracing::debug!("Building statefulset");
+
+    // Type-safe names for this role group's resources (StatefulSet, ConfigMap, headless Service).
+    let resource_names = cluster.resource_names(role_group_name);
 
     // The validated, merged `NifiConfig` is the single source of truth; the ConfigMap builder
     // sources the same `rg.config`.
@@ -688,7 +650,8 @@ async fn build_node_rolegroup_statefulset(
 
     let node_address = format!(
         "$POD_NAME.{service_name}.{namespace}.svc.{cluster_domain}",
-        service_name = rolegroup_ref.rolegroup_headless_service_name(),
+        service_name = resource_names.headless_service_name(),
+        namespace = cluster.namespace,
         cluster_domain = cluster_info.cluster_domain,
     );
 
@@ -899,12 +862,7 @@ async fn build_node_rolegroup_statefulset(
 
     let mut pod_builder = PodBuilder::new();
 
-    let recommended_object_labels = build_recommended_labels(
-        nifi,
-        &resolved_product_image.app_version_label_value,
-        &rolegroup_ref.role,
-        &rolegroup_ref.role_group,
-    );
+    let recommended_object_labels = cluster.recommended_labels(role_group_name);
 
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
 
@@ -981,7 +939,7 @@ async fn build_node_rolegroup_statefulset(
             .add_volume(Volume {
                 name: "log-config".to_string(),
                 config_map: Some(ConfigMapVolumeSource {
-                    name: rolegroup_ref.object_name(),
+                    name: resource_names.role_group_config_map().to_string(),
                     ..ConfigMapVolumeSource::default()
                 }),
                 ..Volume::default()
@@ -1020,13 +978,7 @@ async fn build_node_rolegroup_statefulset(
         .context(AddAuthVolumesSnafu)?;
 
     let metadata = ObjectMetaBuilder::new()
-        .with_recommended_labels(&build_recommended_labels(
-            nifi,
-            &resolved_product_image.app_version_label_value,
-            &rolegroup_ref.role,
-            &rolegroup_ref.role_group,
-        ))
-        .context(MetadataBuildSnafu)?
+        .with_labels(recommended_object_labels.clone())
         .build();
 
     let requested_secret_lifetime = merged_config
@@ -1043,7 +995,7 @@ async fn build_node_rolegroup_statefulset(
         .add_volume(stackable_operator::k8s_openapi::api::core::v1::Volume {
             name: "config".to_string(),
             config_map: Some(ConfigMapVolumeSource {
-                name: rolegroup_ref.object_name(),
+                name: resource_names.role_group_config_map().to_string(),
                 ..Default::default()
             }),
             ..Default::default()
@@ -1052,7 +1004,7 @@ async fn build_node_rolegroup_statefulset(
         .add_volume(Volume {
             name: "conf".to_string(),
             config_map: Some(ConfigMapVolumeSource {
-                name: rolegroup_ref.object_name(),
+                name: resource_names.role_group_config_map().to_string(),
                 ..ConfigMapVolumeSource::default()
             }),
             ..Volume::default()
@@ -1076,7 +1028,7 @@ async fn build_node_rolegroup_statefulset(
                 nifi,
                 KEYSTORE_VOLUME_NAME,
                 [
-                    rolegroup_ref.rolegroup_metrics_service_name(),
+                    crate::service::metrics_service_name(cluster, role_group_name),
                     build_reporting_task_service_name(&nifi_cluster_name),
                 ],
                 SecretFormat::TlsPkcs12,
@@ -1133,31 +1085,20 @@ async fn build_node_rolegroup_statefulset(
 
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(nifi)
-            .name(rolegroup_ref.object_name())
-            .ownerreference_from_resource(nifi, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(&recommended_object_labels)
-            .context(MetadataBuildSnafu)?
+            .name_and_namespace(cluster)
+            .name(resource_names.stateful_set_name().to_string())
+            .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
+            .with_labels(recommended_object_labels)
             .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
             .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("Parallel".to_string()),
             replicas,
             selector: LabelSelector {
-                match_labels: Some(
-                    Labels::role_group_selector(
-                        nifi,
-                        APP_NAME,
-                        &rolegroup_ref.role,
-                        &rolegroup_ref.role_group,
-                    )
-                    .context(LabelBuildSnafu)?
-                    .into(),
-                ),
+                match_labels: Some(cluster.role_group_selector(role_group_name).into()),
                 ..LabelSelector::default()
             },
-            service_name: Some(rolegroup_ref.rolegroup_headless_service_name()),
+            service_name: Some(resource_names.headless_service_name().to_string()),
             template: pod_template,
             update_strategy: Some(StatefulSetUpdateStrategy {
                 type_: if rolling_update_supported {
@@ -1169,7 +1110,8 @@ async fn build_node_rolegroup_statefulset(
             }),
             volume_claim_templates: Some(get_volume_claim_templates(
                 nifi,
-                rolegroup_ref,
+                cluster,
+                role_group_name,
                 merged_config,
                 authorization_config,
             )?),
@@ -1181,7 +1123,8 @@ async fn build_node_rolegroup_statefulset(
 
 fn get_volume_claim_templates(
     nifi: &v1alpha1::NifiCluster,
-    rolegroup_ref: &RoleGroupRef<v1alpha1::NifiCluster>,
+    cluster: &ValidatedCluster,
+    role_group_name: &RoleGroupName,
     merged_config: &NifiConfig,
     authorization_config: &ResolvedNifiAuthorizationConfig,
 ) -> Result<Vec<PersistentVolumeClaim>> {
@@ -1208,22 +1151,16 @@ fn get_volume_claim_templates(
         ),
     ];
 
-    // Used for PVC templates that cannot be modified once they are deployed
-    let unversioned_recommended_labels = Labels::recommended(&build_recommended_labels(
-        nifi,
-        // A version value is required, and we do want to use the "recommended" format for the other desired labels
-        "none",
-        &rolegroup_ref.role,
-        &rolegroup_ref.role_group,
-    ))
-    .context(LabelBuildSnafu)?;
+    // Used for PVC templates that cannot be modified once they are deployed, so the version label
+    // is set to the placeholder `none` to keep the labels stable across version upgrades.
+    let unversioned_recommended_labels = cluster.recommended_labels_unversioned(role_group_name);
 
     // listener endpoints will use persistent volumes
     // so that load balancers can hard-code the target addresses and
     // that it is possible to connect to a consistent address
     pvcs.push(
         build_group_listener_pvc(
-            &group_listener_name(nifi, &rolegroup_ref.role),
+            &group_listener_name(nifi, &NifiRole::Node.to_string()),
             &unversioned_recommended_labels,
         )
         .context(ListenerConfigurationSnafu)?,
@@ -1253,22 +1190,5 @@ pub fn error_policy(
         Error::InvalidNifiCluster { .. } => Action::await_change(),
 
         _ => Action::requeue(*Duration::from_secs(10)),
-    }
-}
-
-pub fn build_recommended_labels<'a, T>(
-    owner: &'a T,
-    app_version: &'a str,
-    role: &'a str,
-    role_group: &'a str,
-) -> ObjectLabels<'a, T> {
-    ObjectLabels {
-        owner,
-        app_name: APP_NAME,
-        app_version,
-        operator_name: OPERATOR_NAME,
-        controller_name: NIFI_CONTROLLER_NAME,
-        role,
-        role_group,
     }
 }

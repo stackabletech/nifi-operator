@@ -29,6 +29,7 @@ mod tests {
             api::core::v1::{PodAffinityTerm, PodAntiAffinity, WeightedPodAffinityTerm},
             apimachinery::pkg::apis::meta::v1::LabelSelector,
         },
+        v2::types::operator::RoleGroupName,
     };
 
     use super::*;
@@ -62,7 +63,13 @@ mod tests {
         let role_group_configs = build_role_group_configs(&nifi).unwrap();
         let merged_config = &role_group_configs
             .get(&NifiRole::Node)
-            .and_then(|groups| groups.get("default"))
+            .and_then(|groups| {
+                groups.get(
+                    &"default"
+                        .parse::<RoleGroupName>()
+                        .expect("valid role-group name"),
+                )
+            })
             .unwrap()
             .config;
 

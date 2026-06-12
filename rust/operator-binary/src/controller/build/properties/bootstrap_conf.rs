@@ -49,6 +49,7 @@ pub fn build(
 #[cfg(test)]
 mod tests {
     use indoc::indoc;
+    use stackable_operator::v2::types::operator::RoleGroupName;
 
     use super::*;
     use crate::{
@@ -64,7 +65,13 @@ mod tests {
             build_role_group_configs(&nifi).expect("failed to build role group configs");
         let rg = role_group_configs
             .get(&NifiRole::Node)
-            .and_then(|groups| groups.get("default"))
+            .and_then(|groups| {
+                groups.get(
+                    &"default"
+                        .parse::<RoleGroupName>()
+                        .expect("valid role-group name"),
+                )
+            })
             .expect("default role group must exist");
 
         build(rg, None).unwrap()

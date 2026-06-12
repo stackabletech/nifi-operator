@@ -1,77 +1,58 @@
-use std::collections::BTreeMap;
-
-use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     k8s_openapi::api::core::v1::{Service, ServicePort, ServiceSpec},
-    kvp::{Annotations, Labels, ObjectLabels},
-    role_utils::RoleGroupRef,
+    kvp::{Annotations, Labels},
+    v2::{builder::meta::ownerreference_from_resource, types::operator::RoleGroupName},
 };
 
 use crate::{
     controller::ValidatedCluster,
-    crd::{HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, v1alpha1},
+    crd::{HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME},
 };
-
-#[derive(Snafu, Debug)]
-pub enum Error {
-    #[snafu(display("object is missing metadata to build owner reference"))]
-    ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::builder::meta::Error,
-    },
-
-    #[snafu(display("failed to build Metadata"))]
-    MetadataBuild {
-        source: stackable_operator::builder::meta::Error,
-    },
-}
 
 /// The rolegroup headless [`Service`] is a service that allows direct access to the instances of a certain rolegroup
 /// This is mostly useful for internal communication between peers, or for clients that perform client-side load balancing.
 pub fn build_rolegroup_headless_service(
     cluster: &ValidatedCluster,
-    role_group_ref: &RoleGroupRef<v1alpha1::NifiCluster>,
-    object_labels: &ObjectLabels<ValidatedCluster>,
-    selector: BTreeMap<String, String>,
-) -> Result<Service, Error> {
-    Ok(Service {
+    role_group_name: &RoleGroupName,
+) -> Service {
+    Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(cluster)
-            .name(role_group_ref.rolegroup_headless_service_name())
-            .ownerreference_from_resource(cluster, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(object_labels)
-            .context(MetadataBuildSnafu)?
+            .name(
+                cluster
+                    .resource_names(role_group_name)
+                    .headless_service_name()
+                    .to_string(),
+            )
+            .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
+            .with_labels(cluster.recommended_labels(role_group_name))
             .build(),
         spec: Some(ServiceSpec {
             // Internal communication does not need to be exposed
             type_: Some("ClusterIP".to_string()),
             cluster_ip: Some("None".to_string()),
             ports: Some(headless_service_ports()),
-            selector: Some(selector),
+            selector: Some(cluster.role_group_selector(role_group_name).into()),
             publish_not_ready_addresses: Some(true),
             ..ServiceSpec::default()
         }),
         status: None,
-    })
+    }
 }
 
 /// The rolegroup metrics [`Service`] is a service that exposes metrics and a prometheus scraping label.
 pub fn build_rolegroup_metrics_service(
     cluster: &ValidatedCluster,
-    role_group_ref: &RoleGroupRef<v1alpha1::NifiCluster>,
-    object_labels: &ObjectLabels<ValidatedCluster>,
-    selector: BTreeMap<String, String>,
-    product_version: &str,
-) -> Result<Service, Error> {
-    Ok(Service {
+    role_group_name: &RoleGroupName,
+) -> Service {
+    let product_version = &cluster.image.product_version;
+    Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(cluster)
-            .name(role_group_ref.rolegroup_metrics_service_name())
-            .ownerreference_from_resource(cluster, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(object_labels)
-            .context(MetadataBuildSnafu)?
+            .name(metrics_service_name(cluster, role_group_name))
+            .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
+            .with_labels(cluster.recommended_labels(role_group_name))
             .with_labels(prometheus_labels())
             .with_annotations(prometheus_annotations(product_version))
             .build(),
@@ -80,12 +61,27 @@ pub fn build_rolegroup_metrics_service(
             type_: Some("ClusterIP".to_string()),
             cluster_ip: Some("None".to_string()),
             ports: Some(vec![metrics_service_port(product_version)]),
-            selector: Some(selector),
+            selector: Some(cluster.role_group_selector(role_group_name).into()),
             publish_not_ready_addresses: Some(true),
             ..ServiceSpec::default()
         }),
         status: None,
-    })
+    }
+}
+
+/// The name of the rolegroup metrics [`Service`] (`<cluster>-<role>-<rolegroup>-metrics`).
+///
+/// [`ResourceNames`](stackable_operator::v2::role_group_utils::ResourceNames) has no metrics
+/// service name, so it is derived from the qualified role-group name (which equals the StatefulSet
+/// name) here, preserving the previous `RoleGroupRef::rolegroup_metrics_service_name` output.
+pub(crate) fn metrics_service_name(
+    cluster: &ValidatedCluster,
+    role_group_name: &RoleGroupName,
+) -> String {
+    format!(
+        "{qualified}-metrics",
+        qualified = cluster.resource_names(role_group_name).stateful_set_name()
+    )
 }
 
 fn headless_service_ports() -> Vec<ServicePort> {
