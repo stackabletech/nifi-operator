@@ -57,6 +57,7 @@ use crate::{
         ValidatedCluster, ValidatedRoleGroupConfig,
         build::{
             graceful_shutdown::add_graceful_shutdown_config,
+            properties::ConfigFileName,
             resource::{
                 listener::{
                     LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_group_listener_pvc,
@@ -291,8 +292,11 @@ pub(crate) async fn build_node_rolegroup_statefulset(
         format!("keytool -importkeystore -srckeystore {KEYSTORE_NIFI_CONTAINER_MOUNT}/truststore.p12 -destkeystore {STACKABLE_SERVER_TLS_DIR}/truststore.p12 -srcstorepass {STACKABLE_TLS_STORE_PASSWORD} -deststorepass {STACKABLE_TLS_STORE_PASSWORD}"),
 
         "echo Replacing config directory".to_string(),
-        "cp /conf/* /stackable/nifi/conf".to_string(),
-        "test -L /stackable/nifi/conf/logback.xml || ln -sf /stackable/log_config/logback.xml /stackable/nifi/conf/logback.xml".to_string(),
+        format!("cp {CONFIG_VOLUME_MOUNT}/* {NIFI_CONFIG_DIRECTORY}"),
+        format!(
+            "test -L {NIFI_CONFIG_DIRECTORY}/{logback} || ln -sf {STACKABLE_LOG_CONFIG_DIR}/{logback} {NIFI_CONFIG_DIRECTORY}/{logback}",
+            logback = ConfigFileName::Logback
+        ),
         format!(r#"export NODE_ADDRESS="{node_address}""#),
     ]);
 
@@ -311,23 +315,27 @@ pub(crate) async fn build_node_rolegroup_statefulset(
         ]);
     }
 
-    prepare_args.extend(vec![
-        "export LISTENER_DEFAULT_ADDRESS=$(cat /stackable/listener/default-address/address)"
-            .to_string(),
-    ]);
-    prepare_args.extend(vec![
-        "export LISTENER_DEFAULT_PORT_HTTPS=$(cat /stackable/listener/default-address/ports/https)"
-            .to_string(),
-    ]);
+    prepare_args.push(format!(
+        "export LISTENER_DEFAULT_ADDRESS=$(cat {LISTENER_VOLUME_DIR}/default-address/address)"
+    ));
+    prepare_args.push(format!(
+        "export LISTENER_DEFAULT_PORT_HTTPS=$(cat {LISTENER_VOLUME_DIR}/default-address/ports/https)"
+    ));
 
-    prepare_args.extend(vec![
-        "echo Templating config files".to_string(),
-        "config-utils template /stackable/nifi/conf/nifi.properties".to_string(),
-        "config-utils template /stackable/nifi/conf/state-management.xml".to_string(),
-        "config-utils template /stackable/nifi/conf/login-identity-providers.xml".to_string(),
-        "config-utils template /stackable/nifi/conf/authorizers.xml".to_string(),
-        "config-utils template /stackable/nifi/conf/security.properties".to_string(),
-    ]);
+    // Template the config files that contain `${env:...}`/`${file:...}` placeholders, in a fixed
+    // order. Sourced from the `ConfigFileName` enum so the file names stay in sync with the
+    // ConfigMap builder; `bootstrap.conf` and `logback.xml` are intentionally not templated.
+    prepare_args.push("echo Templating config files".to_string());
+    prepare_args.extend(
+        [
+            ConfigFileName::NifiProperties,
+            ConfigFileName::StateManagementXml,
+            ConfigFileName::LoginIdentityProviders,
+            ConfigFileName::Authorizers,
+            ConfigFileName::SecurityProperties,
+        ]
+        .map(|file| format!("config-utils template {NIFI_CONFIG_DIRECTORY}/{file}")),
+    );
 
     let mut container_prepare = new_container_builder(&PREPARE_CONTAINER_NAME);
 

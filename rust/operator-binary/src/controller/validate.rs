@@ -246,3 +246,107 @@ pub(crate) fn build_role_group_configs(
     role_group_configs.insert(NifiRole::Node, groups);
     Ok(role_group_configs)
 }
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+    use stackable_operator::v2::types::kubernetes::ConfigMapName;
+
+    use super::*;
+
+    /// A NiFi cluster with the Vector agent enabled at the Node role level.
+    const NIFI_VECTOR_ENABLED_YAML: &str = r#"
+        apiVersion: nifi.stackable.tech/v1alpha1
+        kind: NifiCluster
+        metadata:
+          name: simple-nifi
+          namespace: default
+        spec:
+          image:
+            productVersion: 2.9.0
+          clusterConfig:
+            authentication:
+              - authenticationClass: nifi-admin-credentials-simple
+            sensitiveProperties:
+              keySecret: simple-nifi-sensitive-property-key
+              autoGenerate: true
+          nodes:
+            config:
+              logging:
+                enableVectorAgent: true
+            roleGroups:
+              default:
+                replicas: 1
+    "#;
+
+    /// A minimal NiFi cluster with the Vector agent disabled (the default).
+    const NIFI_VECTOR_DISABLED_YAML: &str = r#"
+        apiVersion: nifi.stackable.tech/v1alpha1
+        kind: NifiCluster
+        metadata:
+          name: simple-nifi
+          namespace: default
+        spec:
+          image:
+            productVersion: 2.9.0
+          clusterConfig:
+            authentication:
+              - authenticationClass: nifi-admin-credentials-simple
+            sensitiveProperties:
+              keySecret: simple-nifi-sensitive-property-key
+              autoGenerate: true
+          nodes:
+            roleGroups:
+              default:
+                replicas: 1
+    "#;
+
+    fn default_rg(
+        configs: &BTreeMap<NifiRole, BTreeMap<RoleGroupName, ValidatedRoleGroupConfig>>,
+    ) -> &ValidatedRoleGroupConfig {
+        configs[&NifiRole::Node]
+            .get(&RoleGroupName::from_str("default").expect("valid role-group name"))
+            .expect("the 'default' role group must exist")
+    }
+
+    #[test]
+    fn vector_container_is_validated_when_agent_enabled() {
+        let nifi: v1alpha1::NifiCluster =
+            serde_yaml::from_str(NIFI_VECTOR_ENABLED_YAML).expect("invalid test YAML");
+        let aggregator = Some(ConfigMapName::from_str("nifi-vector-aggregator-discovery").unwrap());
+
+        let configs = build_role_group_configs(&nifi, &aggregator)
+            .expect("role group configs should validate");
+
+        let vector = default_rg(&configs)
+            .vector_container
+            .as_ref()
+            .expect("the Vector container config should be present when the agent is enabled");
+        assert_eq!(
+            "nifi-vector-aggregator-discovery",
+            vector.vector_aggregator_config_map_name.to_string()
+        );
+    }
+
+    #[test]
+    fn vector_agent_enabled_without_aggregator_name_fails() {
+        let nifi: v1alpha1::NifiCluster =
+            serde_yaml::from_str(NIFI_VECTOR_ENABLED_YAML).expect("invalid test YAML");
+
+        let error = build_role_group_configs(&nifi, &None)
+            .expect_err("a missing aggregator ConfigMap name must fail when Vector is enabled");
+        assert!(matches!(error, Error::MissingVectorAggregatorConfigMapName));
+    }
+
+    #[test]
+    fn no_vector_container_when_agent_disabled() {
+        let nifi: v1alpha1::NifiCluster =
+            serde_yaml::from_str(NIFI_VECTOR_DISABLED_YAML).expect("invalid test YAML");
+
+        // The aggregator name is not required when the Vector agent is disabled.
+        let configs =
+            build_role_group_configs(&nifi, &None).expect("role group configs should validate");
+
+        assert!(default_rg(&configs).vector_container.is_none());
+    }
+}

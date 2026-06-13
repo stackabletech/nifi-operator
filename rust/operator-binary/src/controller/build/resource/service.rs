@@ -139,3 +139,47 @@ fn prometheus_annotations(product_version: &str) -> Annotations {
     ])
     .expect("should be valid annotations")
 }
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr as _;
+
+    use pretty_assertions::assert_eq;
+    use rstest::rstest;
+
+    use super::*;
+    use crate::controller::build::properties::test_support::minimal_validated_cluster;
+
+    #[rstest]
+    // NiFi 1.x exposes metrics on a dedicated JMX-exporter port ...
+    #[case("1.28.1", METRICS_PORT_NAME, METRICS_PORT)]
+    // ... while NiFi 2.x serves them on the HTTPS port.
+    #[case("2.9.0", HTTPS_PORT_NAME, HTTPS_PORT)]
+    fn metrics_service_port_depends_on_version(
+        #[case] product_version: &str,
+        #[case] expected_name: &str,
+        #[case] expected_port: u16,
+    ) {
+        let port = metrics_service_port(product_version);
+        assert_eq!(Some(expected_name.to_string()), port.name);
+        assert_eq!(i32::from(expected_port), port.port);
+    }
+
+    #[test]
+    fn headless_service_is_cluster_ip_none_with_https_port() {
+        let cluster = minimal_validated_cluster();
+        let rg = RoleGroupName::from_str("default").expect("valid role-group name");
+
+        let spec = build_rolegroup_headless_service(&cluster, &rg)
+            .spec
+            .expect("headless service must have a spec");
+
+        assert_eq!(Some("ClusterIP".to_string()), spec.type_);
+        assert_eq!(Some("None".to_string()), spec.cluster_ip);
+
+        let ports = spec.ports.expect("headless service must expose ports");
+        assert_eq!(1, ports.len());
+        assert_eq!(Some(HTTPS_PORT_NAME.to_string()), ports[0].name);
+        assert_eq!(i32::from(HTTPS_PORT), ports[0].port);
+    }
+}
