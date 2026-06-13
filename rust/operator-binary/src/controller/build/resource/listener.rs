@@ -6,14 +6,13 @@ use stackable_operator::{
     },
     crd::listener::v1alpha1::{Listener, ListenerPort, ListenerSpec},
     k8s_openapi::api::core::v1::PersistentVolumeClaim,
-    kube::ResourceExt,
     kvp::Labels,
     v2::builder::meta::ownerreference_from_resource,
 };
 
 use crate::{
     controller::ValidatedCluster,
-    crd::{HTTPS_PORT, HTTPS_PORT_NAME, v1alpha1},
+    crd::{HTTPS_PORT, HTTPS_PORT_NAME},
 };
 
 pub const LISTENER_VOLUME_NAME: &str = "listener";
@@ -64,6 +63,6 @@ pub fn build_group_listener_pvc(
     .context(BuildListenerPersistentVolumeSnafu)
 }
 
-pub fn group_listener_name(nifi: &v1alpha1::NifiCluster, role_name: &String) -> String {
-    format!("{cluster_name}-{role_name}", cluster_name = nifi.name_any(),)
+pub fn group_listener_name(cluster: &ValidatedCluster, role_name: &String) -> String {
+    format!("{cluster_name}-{role_name}", cluster_name = cluster.name)
 }

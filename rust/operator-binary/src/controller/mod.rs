@@ -7,7 +7,10 @@ use std::{collections::BTreeMap, str::FromStr as _};
 use stackable_operator::{
     commons::product_image_selection::ResolvedProductImage,
     crd::git_sync,
-    k8s_openapi::{api::core::v1::PodTemplateSpec, apimachinery::pkg::apis::meta::v1::ObjectMeta},
+    k8s_openapi::{
+        api::core::v1::{PodTemplateSpec, Volume},
+        apimachinery::pkg::apis::meta::v1::ObjectMeta,
+    },
     kube::Resource,
     kvp::Labels,
     v2::{
@@ -53,10 +56,9 @@ pub(crate) mod validate;
 pub struct ValidatedRoleGroupConfig {
     /// The desired number of replicas (defaulted to 1 during validation).
     ///
-    /// The StatefulSet replica count is currently sourced from the raw role-group spec in
-    /// `nifi_controller` (to keep `replicas: null` semantics during version updates), so this
-    /// validated value is carried for completeness but not yet read.
-    #[allow(dead_code)]
+    /// The StatefulSet replica count is sourced from the raw role-group spec in `nifi_controller`
+    /// (to keep `replicas: null` semantics during version updates); this validated value is used to
+    /// pick the single node targeted by the (NiFi 1.x-only) reporting-task Service.
     pub replicas: u16,
     /// The merged and validated rolegroup config.
     pub config: NifiConfig,
@@ -113,6 +115,14 @@ pub struct ValidatedClusterConfig {
     pub host_header_check: HostHeaderCheckConfig,
     /// The validated sensitive properties algorithm.
     pub sensitive_properties_algorithm: NifiSensitiveKeyAlgorithm,
+    /// The name of the Secret holding the sensitive-properties key, mounted into the NiFi Pods.
+    pub sensitive_key_secret: String,
+    /// The SecretClass providing the server TLS certificates.
+    pub server_tls_secret_class: String,
+    /// User-provided extra volumes, mounted into every container under `/stackable/userdata/`.
+    pub extra_volumes: Vec<Volume>,
+    /// Pod overrides for the (NiFi 1.x-only) create-reporting-task Job.
+    pub reporting_task_pod_overrides: PodTemplateSpec,
 }
 
 impl ValidatedCluster {

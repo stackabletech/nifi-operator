@@ -208,7 +208,6 @@ pub async fn reconcile_nifi(
 
     let resolved_product_image = &validated_cluster.image;
     let authentication_config = &validated_cluster.cluster_config.authentication;
-    let authorization_config = &validated_cluster.cluster_config.authorization;
 
     tracing::info!("Checking for sensitive key configuration");
     check_or_generate_sensitive_key(client, nifi, &validated_cluster.namespace)
@@ -319,15 +318,11 @@ pub async fn reconcile_nifi(
                 };
 
             let rg_statefulset = build_node_rolegroup_statefulset(
-                nifi,
                 &validated_cluster,
-                resolved_product_image,
                 &client.kubernetes_cluster_info,
                 role_group_name,
                 role,
                 rg,
-                authentication_config,
-                authorization_config,
                 rolling_upgrade_supported,
                 replicas,
                 &rbac_sa.name_any(),
@@ -398,7 +393,7 @@ pub async fn reconcile_nifi(
         let role_group_listener = build_group_listener(
             &validated_cluster,
             listener_class.to_owned(),
-            group_listener_name(nifi, &nifi_role.to_string()),
+            group_listener_name(&validated_cluster, &nifi_role.to_string()),
         )
         .context(ListenerConfigurationSnafu)?;
 
@@ -411,12 +406,8 @@ pub async fn reconcile_nifi(
     // Only add the reporting task in case it is enabled.
     if nifi.spec.cluster_config.create_reporting_task_job.enabled {
         if let Some((reporting_task_job, reporting_task_service)) = build_maybe_reporting_task(
-            nifi,
             &validated_cluster,
-            resolved_product_image,
             &client.kubernetes_cluster_info,
-            &validated_cluster.namespace,
-            authentication_config,
             &rbac_sa.name_any(),
         )
         .context(ReportingTaskSnafu)?

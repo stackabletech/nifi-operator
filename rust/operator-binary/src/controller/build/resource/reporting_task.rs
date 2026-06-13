@@ -34,7 +34,6 @@ use stackable_operator::{
             security::PodSecurityContextBuilder, volume::SecretFormat,
         },
     },
-    commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
         DeepMerge,
         api::{
@@ -42,7 +41,6 @@ use stackable_operator::{
             core::v1::{Service, ServicePort, ServiceSpec},
         },
     },
-    kube::ResourceExt,
     shared::time::Duration,
     utils::cluster_info::KubernetesClusterInfo,
     v2::{
@@ -56,11 +54,8 @@ use stackable_operator::{
 
 use crate::{
     controller::ValidatedCluster,
-    crd::{HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, NifiRole, v1alpha1},
-    security::{
-        authentication::{NifiAuthenticationConfig, STACKABLE_ADMIN_USERNAME},
-        build_tls_volume,
-    },
+    crd::{HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, NifiRole},
+    security::{authentication::STACKABLE_ADMIN_USERNAME, build_tls_volume},
 };
 
 const REPORTING_TASK_CERT_VOLUME_NAME: &str = "tls";
@@ -108,28 +103,15 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// NiFi 2.x and above automatically server Prometheus metrics via the API, but as of 2024-11-08
 /// requires authentication.
-#[allow(clippy::too_many_arguments)]
 pub fn build_maybe_reporting_task(
-    nifi: &v1alpha1::NifiCluster,
     cluster: &ValidatedCluster,
-    resolved_product_image: &ResolvedProductImage,
     cluster_info: &KubernetesClusterInfo,
-    namespace: &NamespaceName,
-    authentication_config: &NifiAuthenticationConfig,
     sa_name: &str,
 ) -> Result<Option<(Job, Service)>> {
-    if resolved_product_image.product_version.starts_with("1.") {
+    if cluster.image.product_version.starts_with("1.") {
         Ok(Some((
-            build_reporting_task_job(
-                nifi,
-                cluster,
-                resolved_product_image,
-                cluster_info,
-                namespace,
-                authentication_config,
-                sa_name,
-            )?,
-            build_reporting_task_service(nifi, cluster)?,
+            build_reporting_task_job(cluster, cluster_info, sa_name)?,
+            build_reporting_task_service(cluster)?,
         )))
     } else {
         Ok(None)
@@ -162,51 +144,48 @@ pub fn build_reporting_task_fqdn_service_name(
 }
 
 /// Return the name of the first pod belonging to the first role group that contains more than 0 replicas.
-/// If no replicas are set in any rolegroup (e.g. HPA, see <https://docs.stackable.tech/home/stable/concepts/operations/#_performance>)
+/// If no role group has replicas set (e.g. HPA, see <https://docs.stackable.tech/home/stable/concepts/operations/#_performance>)
 /// return the first rolegroup just in case.
 /// This is required to only select a single node in the Reporting Task Service.
-fn get_reporting_task_service_selector_pod(nifi: &v1alpha1::NifiCluster) -> Result<String> {
-    let cluster_name = nifi.name_any();
+///
+/// Note: the validated replicas default to `1` (see [`ValidatedRoleGroupConfig`]), so an
+/// HPA-managed role group (raw `replicas: null`) is treated as having a single replica here.
+fn get_reporting_task_service_selector_pod(cluster: &ValidatedCluster) -> Result<String> {
     let node_name = NifiRole::Node.to_string();
 
-    // sort the rolegroups to avoid random sorting and therefore unnecessary reconciles
-    let sorted_role_groups = nifi
-        .spec
-        .nodes
-        .iter()
-        .flat_map(|role| &role.role_groups)
-        .collect::<BTreeMap<_, _>>();
+    // The role groups are already sorted by name (`BTreeMap`), avoiding random ordering and
+    // therefore unnecessary reconciles.
+    let role_groups = cluster
+        .role_group_configs
+        .get(&NifiRole::Node)
+        .context(FailedBuildReportingTaskServiceSnafu)?;
 
     let mut selector_role_group = None;
-    for (role_group_name, role_group) in sorted_role_groups {
-        // just pick the first rolegroup in case no replicas are set
+    for (role_group_name, role_group) in role_groups {
+        // just pick the first rolegroup in case none has replicas set
         if selector_role_group.is_none() {
             selector_role_group = Some(role_group_name);
         }
 
-        if let Some(replicas) = role_group.replicas {
-            if replicas > 0 {
-                selector_role_group = Some(role_group_name);
-                break;
-            }
+        if role_group.replicas > 0 {
+            selector_role_group = Some(role_group_name);
+            break;
         }
     }
 
     Ok(format!(
         "{cluster_name}-{node_name}-{role_group_name}-0",
+        cluster_name = cluster.name,
         role_group_name = selector_role_group.context(FailedBuildReportingTaskServiceSnafu)?
     ))
 }
 
 /// Build the internal Reporting Task Service in order to communicate with a single NiFi node.
-fn build_reporting_task_service(
-    nifi: &v1alpha1::NifiCluster,
-    cluster: &ValidatedCluster,
-) -> Result<Service> {
-    let nifi_cluster_name = nifi.name_any();
+fn build_reporting_task_service(cluster: &ValidatedCluster) -> Result<Service> {
+    let nifi_cluster_name = cluster.name.to_string();
     let mut selector: BTreeMap<String, String> = cluster.role_selector().into();
 
-    let service_selector_pod = get_reporting_task_service_selector_pod(nifi)?;
+    let service_selector_pod = get_reporting_task_service_selector_pod(cluster)?;
     selector.insert(
         "statefulset.kubernetes.io/pod-name".to_string(),
         service_selector_pod,
@@ -247,18 +226,18 @@ fn build_reporting_task_service(
 /// as well as a public certificate provided by the Stackable
 /// [`secret-operator`](https://github.com/stackabletech/secret-operator)
 ///
-#[allow(clippy::too_many_arguments)]
 fn build_reporting_task_job(
-    nifi: &v1alpha1::NifiCluster,
     cluster: &ValidatedCluster,
-    resolved_product_image: &ResolvedProductImage,
     cluster_info: &KubernetesClusterInfo,
-    namespace: &NamespaceName,
-    nifi_auth_config: &NifiAuthenticationConfig,
     sa_name: &str,
 ) -> Result<Job> {
-    let reporting_task_fqdn_service_name =
-        build_reporting_task_fqdn_service_name(&nifi.name_any(), namespace, cluster_info);
+    let resolved_product_image = &cluster.image;
+    let nifi_auth_config = &cluster.cluster_config.authentication;
+    let reporting_task_fqdn_service_name = build_reporting_task_fqdn_service_name(
+        cluster.name.as_ref(),
+        &cluster.namespace,
+        cluster_info,
+    );
     let product_version = &resolved_product_image.product_version;
     let nifi_connect_url =
         format!("https://{reporting_task_fqdn_service_name}:{HTTPS_PORT}/nifi-api",);
@@ -305,7 +284,7 @@ fn build_reporting_task_job(
 
     let job_name = format!(
         "{}-create-reporting-task-{}",
-        nifi.name_any(),
+        cluster.name,
         product_version.replace('.', "-").to_ascii_lowercase()
     );
 
@@ -329,7 +308,7 @@ fn build_reporting_task_job(
         .add_container(cb.build())
         .add_volume(
             build_tls_volume(
-                nifi,
+                &cluster.cluster_config.server_tls_secret_class,
                 REPORTING_TASK_CERT_VOLUME_NAME,
                 Vec::<String>::new(),
                 SecretFormat::TlsPem,
@@ -345,13 +324,7 @@ fn build_reporting_task_job(
         .context(AddVolumeSnafu)?
         .build_template();
 
-    pod_template.merge_from(
-        nifi.spec
-            .cluster_config
-            .create_reporting_task_job
-            .pod_overrides
-            .clone(),
-    );
+    pod_template.merge_from(cluster.cluster_config.reporting_task_pod_overrides.clone());
 
     let job = Job {
         metadata: ObjectMetaBuilder::new()

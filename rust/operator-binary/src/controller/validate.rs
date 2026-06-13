@@ -167,6 +167,20 @@ pub fn validate(
             authorization: authorization_config,
             clustering_backend: nifi.spec.cluster_config.clustering_backend.clone(),
             sensitive_properties_algorithm,
+            sensitive_key_secret: nifi
+                .spec
+                .cluster_config
+                .sensitive_properties
+                .key_secret
+                .clone(),
+            server_tls_secret_class: nifi.server_tls_secret_class().to_string(),
+            extra_volumes: nifi.spec.cluster_config.extra_volumes.clone(),
+            reporting_task_pod_overrides: nifi
+                .spec
+                .cluster_config
+                .create_reporting_task_job
+                .pod_overrides
+                .clone(),
             host_header_check: nifi.spec.cluster_config.host_header_check.clone(),
             custom_components_git_sync: nifi.spec.cluster_config.custom_components_git_sync.clone(),
         },

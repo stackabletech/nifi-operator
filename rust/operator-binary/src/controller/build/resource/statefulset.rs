@@ -1,6 +1,6 @@
 //! Builds the rolegroup [`StatefulSet`] that runs a NiFi node role group.
 
-use std::{collections::BTreeMap, str::FromStr};
+use std::str::FromStr;
 
 use indoc::formatdoc;
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -13,7 +13,6 @@ use stackable_operator::{
             security::PodSecurityContextBuilder, volume::SecretFormat,
         },
     },
-    commons::product_image_selection::ResolvedProductImage,
     constants::RESTART_CONTROLLER_ENABLED_LABEL,
     crd::{authentication::oidc::v1alpha1::AuthenticationProvider, git_sync},
     k8s_openapi::{
@@ -28,7 +27,6 @@ use stackable_operator::{
         },
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
     },
-    kube::ResourceExt,
     memory::{BinaryMultiple, MemoryQuantity},
     product_logging::{
         self,
@@ -92,9 +90,6 @@ use crate::{
 pub enum Error {
     #[snafu(display("missing secret lifetime"))]
     MissingSecretLifetime,
-
-    #[snafu(display("object defines no name"))]
-    ObjectHasNoName,
 
     #[snafu(display("failed to add Authentication Volumes and VolumeMounts"))]
     AddAuthVolumes {
@@ -168,21 +163,23 @@ stackable_operator::constant!(VECTOR_LOG_VOLUME_NAME: VolumeName = "log");
 /// corresponding [`stackable_operator::k8s_openapi::api::core::v1::Service`] (from [`build_rolegroup_headless_service`]).
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn build_node_rolegroup_statefulset(
-    nifi: &v1alpha1::NifiCluster,
     cluster: &ValidatedCluster,
-    resolved_product_image: &ResolvedProductImage,
     cluster_info: &KubernetesClusterInfo,
     role_group_name: &RoleGroupName,
     role: &NifiRoleType,
     rg: &ValidatedRoleGroupConfig,
-    authentication_config: &NifiAuthenticationConfig,
-    authorization_config: &ResolvedNifiAuthorizationConfig,
     rolling_update_supported: bool,
     replicas: Option<i32>,
     service_account_name: &str,
     git_sync_resources: &git_sync::v1alpha2::GitSyncResources,
 ) -> Result<StatefulSet> {
     tracing::debug!("Building statefulset");
+
+    // Everything cluster-global is sourced from the `ValidatedCluster`; the raw `NifiCluster` is
+    // never touched here.
+    let resolved_product_image = &cluster.image;
+    let authentication_config = &cluster.cluster_config.authentication;
+    let authorization_config = &cluster.cluster_config.authorization;
 
     // Type-safe names for this role group's resources (StatefulSet, ConfigMap, headless Service).
     let resource_names = cluster.resource_names(role_group_name);
@@ -215,11 +212,11 @@ pub(crate) async fn build_node_rolegroup_statefulset(
 
     env_vars.push(EnvVar {
         name: "STACKLET_NAME".to_string(),
-        value: Some(nifi.name_unchecked().to_string()),
+        value: Some(cluster.name.to_string()),
         ..Default::default()
     });
 
-    match &nifi.spec.cluster_config.clustering_backend {
+    match &cluster.cluster_config.clustering_backend {
         v1alpha1::NifiClusteringBackend::ZooKeeper {
             zookeeper_config_map_name,
         } => {
@@ -256,7 +253,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
         cluster_domain = cluster_info.cluster_domain,
     );
 
-    let sensitive_key_secret = &nifi.spec.cluster_config.sensitive_properties.key_secret;
+    let sensitive_key_secret = &cluster.cluster_config.sensitive_key_secret;
 
     let prepare_container_name = PREPARE_CONTAINER_NAME.to_string();
     let mut prepare_args = vec![];
@@ -467,7 +464,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
 
     // Add user configured extra volumes if any are specified
-    for volume in &nifi.spec.cluster_config.extra_volumes {
+    for volume in &cluster.cluster_config.extra_volumes {
         // Extract values into vars so we make it impossible to log something other than
         // what we actually use to create the mounts - maybe paranoid, but hey ..
         let volume_name = &volume.name;
@@ -574,7 +571,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
     let requested_secret_lifetime = merged_config
         .requested_secret_lifetime
         .context(MissingSecretLifetimeSnafu)?;
-    let nifi_cluster_name = nifi.name_any();
+    let nifi_cluster_name = cluster.name.to_string();
     pod_builder
         .metadata(metadata)
         .image_pull_secrets_from_product_image(resolved_product_image)
@@ -615,7 +612,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
         // One volume for the keystore and truststore data configmap
         .add_volume(
             build_tls_volume(
-                nifi,
+                &cluster.cluster_config.server_tls_secret_class,
                 KEYSTORE_VOLUME_NAME,
                 [
                     crate::controller::build::resource::service::metrics_service_name(
@@ -662,16 +659,6 @@ pub(crate) async fn build_node_rolegroup_statefulset(
         .service_account_name(service_account_name)
         .security_context(PodSecurityContextBuilder::new().fs_group(1000).build());
 
-    let mut labels = BTreeMap::new();
-    labels.insert(
-        "app.kubernetes.io/instance".to_string(),
-        nifi.metadata
-            .name
-            .as_deref()
-            .with_context(|| ObjectHasNoNameSnafu {})?
-            .to_string(),
-    );
-
     let mut pod_template = pod_builder.build_template();
     // `rg.pod_overrides` is already the role <- rolegroup merge produced by the framework.
     pod_template.merge_from(rg.pod_overrides.clone());
@@ -702,11 +689,9 @@ pub(crate) async fn build_node_rolegroup_statefulset(
                 ..StatefulSetUpdateStrategy::default()
             }),
             volume_claim_templates: Some(get_volume_claim_templates(
-                nifi,
                 cluster,
                 role_group_name,
                 merged_config,
-                authorization_config,
             )?),
             ..StatefulSetSpec::default()
         }),
@@ -715,12 +700,11 @@ pub(crate) async fn build_node_rolegroup_statefulset(
 }
 
 fn get_volume_claim_templates(
-    nifi: &v1alpha1::NifiCluster,
     cluster: &ValidatedCluster,
     role_group_name: &RoleGroupName,
     merged_config: &NifiConfig,
-    authorization_config: &ResolvedNifiAuthorizationConfig,
 ) -> Result<Vec<PersistentVolumeClaim>> {
+    let authorization_config = &cluster.cluster_config.authorization;
     let mut pvcs = vec![
         merged_config.resources.storage.content_repo.build_pvc(
             &NifiRepository::Content.repository(),
@@ -753,7 +737,7 @@ fn get_volume_claim_templates(
     // that it is possible to connect to a consistent address
     pvcs.push(
         build_group_listener_pvc(
-            &group_listener_name(nifi, &NifiRole::Node.to_string()),
+            &group_listener_name(cluster, &NifiRole::Node.to_string()),
             &unversioned_recommended_labels,
         )
         .context(ListenerConfigurationSnafu)?,
