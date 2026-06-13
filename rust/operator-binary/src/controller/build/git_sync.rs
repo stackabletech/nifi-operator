@@ -4,9 +4,10 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{crd::git_sync, k8s_openapi::api::core::v1::EnvVar};
 
 use crate::{
-    controller::{ValidatedCluster, ValidatedRoleGroupConfig},
+    controller::{
+        ValidatedCluster, ValidatedRoleGroupConfig, build::resource::statefulset::LOG_VOLUME_NAME,
+    },
     crd::Container,
-    nifi_controller::LOG_VOLUME_NAME,
 };
 
 #[derive(Snafu, Debug)]

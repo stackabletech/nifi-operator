@@ -31,6 +31,9 @@ use crate::{
     },
 };
 
+/// The base name of the NiFi product image, used to resolve the fully-qualified image reference.
+const CONTAINER_IMAGE_BASE_NAME: &str = "nifi";
+
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
@@ -83,7 +86,7 @@ pub fn validate(
         .spec
         .image
         .resolve(
-            crate::nifi_controller::CONTAINER_IMAGE_BASE_NAME,
+            CONTAINER_IMAGE_BASE_NAME,
             &operator_environment.image_repository,
             crate::built_info::PKG_VERSION,
         )

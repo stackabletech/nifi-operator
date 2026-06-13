@@ -67,7 +67,6 @@ use crate::{
         storage::{NifiRepository, PERSISTENT_REPOSITORIES},
         v1alpha1,
     },
-    nifi_controller::LOG_VOLUME_NAME,
     security::{
         authentication::{
             NifiAuthenticationConfig, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
@@ -133,6 +132,26 @@ pub enum Error {
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 const USERDATA_MOUNTPOINT: &str = "/stackable/userdata";
+
+/// Volume providing the rendered NiFi config (the `conf` ConfigMap), mounted into the prepare
+/// container which templates it into [`ACTIVE_CONFIG_VOLUME_NAME`].
+const CONFIG_VOLUME_NAME: &str = "conf";
+const CONFIG_VOLUME_MOUNT: &str = "/conf";
+
+/// `emptyDir` holding the live config templated by the prepare container and shared with the NiFi
+/// container.
+const ACTIVE_CONFIG_VOLUME_NAME: &str = "activeconf";
+
+/// Volume holding the generated sensitive-properties key.
+const SENSITIVE_PROPERTY_VOLUME_NAME: &str = "sensitiveproperty";
+const SENSITIVE_PROPERTY_VOLUME_MOUNT: &str = "/stackable/sensitiveproperty";
+
+/// Volume providing the log config (logback/log4j) ConfigMap.
+const LOG_CONFIG_VOLUME_NAME: &str = "log-config";
+
+/// Volume the NiFi logs are written to and shared with the Vector sidecar (also used by the
+/// git-sync container, see [`crate::controller::build::git_sync`]).
+pub(crate) const LOG_VOLUME_NAME: &str = "log";
 
 /// The rolegroup [`StatefulSet`] runs the rolegroup, as configured by the administrator.
 ///
@@ -325,13 +344,16 @@ pub(crate) async fn build_node_rolegroup_statefulset(
                 .map(NifiRepository::volume_mount),
         )
         .context(AddVolumeMountSnafu)?
-        .add_volume_mount("conf", "/conf")
+        .add_volume_mount(CONFIG_VOLUME_NAME, CONFIG_VOLUME_MOUNT)
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_NIFI_CONTAINER_MOUNT)
         .context(AddVolumeMountSnafu)?
-        .add_volume_mount("activeconf", NIFI_CONFIG_DIRECTORY)
+        .add_volume_mount(ACTIVE_CONFIG_VOLUME_NAME, NIFI_CONFIG_DIRECTORY)
         .context(AddVolumeMountSnafu)?
-        .add_volume_mount("sensitiveproperty", "/stackable/sensitiveproperty")
+        .add_volume_mount(
+            SENSITIVE_PROPERTY_VOLUME_NAME,
+            SENSITIVE_PROPERTY_VOLUME_MOUNT,
+        )
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(LOG_VOLUME_NAME, STACKABLE_LOG_DIR)
         .context(AddVolumeMountSnafu)?
@@ -392,9 +414,9 @@ pub(crate) async fn build_node_rolegroup_statefulset(
                 .map(NifiRepository::volume_mount),
         )
         .context(AddVolumeMountSnafu)?
-        .add_volume_mount("activeconf", NIFI_CONFIG_DIRECTORY)
+        .add_volume_mount(ACTIVE_CONFIG_VOLUME_NAME, NIFI_CONFIG_DIRECTORY)
         .context(AddVolumeMountSnafu)?
-        .add_volume_mount("log-config", STACKABLE_LOG_CONFIG_DIR)
+        .add_volume_mount(LOG_CONFIG_VOLUME_NAME, STACKABLE_LOG_CONFIG_DIR)
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(LOG_VOLUME_NAME, STACKABLE_LOG_DIR)
         .context(AddVolumeMountSnafu)?
@@ -499,7 +521,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
     {
         pod_builder
             .add_volume(Volume {
-                name: "log-config".to_string(),
+                name: LOG_CONFIG_VOLUME_NAME.to_string(),
                 config_map: Some(ConfigMapVolumeSource {
                     name: config_map.clone(),
                     ..ConfigMapVolumeSource::default()
@@ -510,7 +532,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
     } else {
         pod_builder
             .add_volume(Volume {
-                name: "log-config".to_string(),
+                name: LOG_CONFIG_VOLUME_NAME.to_string(),
                 config_map: Some(ConfigMapVolumeSource {
                     name: resource_names.role_group_config_map().to_string(),
                     ..ConfigMapVolumeSource::default()
@@ -575,7 +597,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
         })
         .context(AddVolumeSnafu)?
         .add_volume(Volume {
-            name: "conf".to_string(),
+            name: CONFIG_VOLUME_NAME.to_string(),
             config_map: Some(ConfigMapVolumeSource {
                 name: resource_names.role_group_config_map().to_string(),
                 ..ConfigMapVolumeSource::default()
@@ -625,7 +647,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
 
     pod_builder
         .add_volume(Volume {
-            name: "sensitiveproperty".to_string(),
+            name: SENSITIVE_PROPERTY_VOLUME_NAME.to_string(),
             secret: Some(SecretVolumeSource {
                 secret_name: Some(sensitive_key_secret.to_string()),
                 ..SecretVolumeSource::default()
@@ -638,7 +660,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
                 medium: None,
                 size_limit: None,
             }),
-            name: "activeconf".to_string(),
+            name: ACTIVE_CONFIG_VOLUME_NAME.to_string(),
             ..Volume::default()
         })
         .context(AddVolumeSnafu)?

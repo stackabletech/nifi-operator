@@ -51,9 +51,6 @@ use crate::{
 pub const NIFI_CONTROLLER_NAME: &str = "nificluster";
 pub const NIFI_FULL_CONTROLLER_NAME: &str = concatcp!(NIFI_CONTROLLER_NAME, '.', OPERATOR_NAME);
 
-pub(crate) const CONTAINER_IMAGE_BASE_NAME: &str = "nifi";
-pub(crate) const LOG_VOLUME_NAME: &str = "log";
-
 pub struct Ctx {
     pub client: Client,
     pub operator_environment: OperatorEnvironmentOptions,
