@@ -1,6 +1,6 @@
 //! Builds the rolegroup [`StatefulSet`] that runs a NiFi node role group.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, str::FromStr};
 
 use indoc::formatdoc;
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -32,16 +32,21 @@ use stackable_operator::{
     memory::{BinaryMultiple, MemoryQuantity},
     product_logging::{
         self,
-        framework::{
-            LoggingError, create_vector_shutdown_file_command, remove_vector_shutdown_file_command,
-        },
+        framework::{create_vector_shutdown_file_command, remove_vector_shutdown_file_command},
         spec::{
             ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
             CustomContainerLogConfig,
         },
     },
     utils::{COMMON_BASH_TRAP_FUNCTIONS, cluster_info::KubernetesClusterInfo},
-    v2::{builder::meta::ownerreference_from_resource, types::operator::RoleGroupName},
+    v2::{
+        builder::{meta::ownerreference_from_resource, pod::container::EnvVarSet},
+        product_logging::framework::vector_container,
+        types::{
+            kubernetes::{ContainerName, VolumeName},
+            operator::RoleGroupName,
+        },
+    },
 };
 
 use crate::{
@@ -93,9 +98,6 @@ pub enum Error {
         container_name: String,
     },
 
-    #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
-    VectorAggregatorConfigMapMissing,
-
     #[snafu(display("failed to add Authentication Volumes and VolumeMounts"))]
     AddAuthVolumes {
         source: crate::security::authentication::Error,
@@ -103,9 +105,6 @@ pub enum Error {
 
     #[snafu(display("security failure"))]
     Security { source: crate::security::Error },
-
-    #[snafu(display("failed to configure logging"))]
-    ConfigureLogging { source: LoggingError },
 
     #[snafu(display("failed to add needed volume"))]
     AddVolume { source: builder::pod::Error },
@@ -152,6 +151,14 @@ const LOG_CONFIG_VOLUME_NAME: &str = "log-config";
 /// Volume the NiFi logs are written to and shared with the Vector sidecar (also used by the
 /// git-sync container, see [`crate::controller::build::git_sync`]).
 pub(crate) const LOG_VOLUME_NAME: &str = "log";
+
+stackable_operator::constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
+
+// Typed `VolumeName`s for the Vector container's log-config and log volumes. They reuse the
+// existing rolegroup-`ConfigMap` "config" volume (which carries `vector.yaml`) and the "log"
+// empty-dir, both already added to the pod by `build_node_rolegroup_statefulset`.
+stackable_operator::constant!(VECTOR_LOG_CONFIG_VOLUME_NAME: VolumeName = "config");
+stackable_operator::constant!(VECTOR_LOG_VOLUME_NAME: VolumeName = "log");
 
 /// The rolegroup [`StatefulSet`] runs the rolegroup, as configured by the administrator.
 ///
@@ -542,30 +549,20 @@ pub(crate) async fn build_node_rolegroup_statefulset(
             .context(AddVolumeSnafu)?;
     }
 
-    if merged_config.logging.enable_vector_agent {
-        match &nifi.spec.cluster_config.vector_aggregator_config_map_name {
-            Some(vector_aggregator_config_map_name) => {
-                pod_builder.add_container(
-                    product_logging::framework::vector_container(
-                        resolved_product_image,
-                        "config",
-                        LOG_VOLUME_NAME,
-                        merged_config.logging.containers.get(&Container::Vector),
-                        ResourceRequirementsBuilder::new()
-                            .with_cpu_request("250m")
-                            .with_cpu_limit("500m")
-                            .with_memory_request("128Mi")
-                            .with_memory_limit("128Mi")
-                            .build(),
-                        vector_aggregator_config_map_name,
-                    )
-                    .context(ConfigureLoggingSnafu)?,
-                );
-            }
-            None => {
-                VectorAggregatorConfigMapMissingSnafu.fail()?;
-            }
-        }
+    // The Vector logging config was validated up-front in the `validate` step. The static
+    // `vector.yaml` is shipped in the rolegroup `ConfigMap`; the per-rolegroup values (namespace,
+    // cluster/role/role-group, aggregator address, log levels) are injected as environment
+    // variables here and substituted by Vector at runtime.
+    if let Some(vector_log_config) = &rg.vector_container {
+        pod_builder.add_container(vector_container(
+            &VECTOR_CONTAINER_NAME,
+            resolved_product_image,
+            vector_log_config,
+            &resource_names,
+            &VECTOR_LOG_CONFIG_VOLUME_NAME,
+            &VECTOR_LOG_VOLUME_NAME,
+            EnvVarSet::new(),
+        ));
     }
 
     authentication_config

@@ -674,7 +674,7 @@ mod tests {
         "#;
         let nifi: v1alpha1::NifiCluster = serde_yaml::from_str(yaml).expect("invalid test YAML");
         let mut role_group_configs =
-            build_role_group_configs(&nifi).expect("failed to build role group configs");
+            build_role_group_configs(&nifi, &None).expect("failed to build role group configs");
         let default_rg_name = "default"
             .parse::<RoleGroupName>()
             .expect("valid role-group name");

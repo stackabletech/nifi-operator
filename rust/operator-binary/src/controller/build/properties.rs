@@ -8,9 +8,9 @@ use std::{collections::BTreeMap, fmt::Write};
 
 pub mod authorizers;
 pub mod bootstrap_conf;
-pub mod logging;
 pub mod login_identity_providers;
 pub mod nifi_properties;
+pub mod product_logging;
 pub mod security_properties;
 pub mod state_management_xml;
 
@@ -130,7 +130,7 @@ pub(crate) mod test_support {
         let nifi: v1alpha1::NifiCluster =
             serde_yaml::from_str(MINIMAL_NIFI_YAML).expect("invalid test YAML");
 
-        let role_group_configs = build_role_group_configs(&nifi)
+        let role_group_configs = build_role_group_configs(&nifi, &None)
             .expect("role group configs should merge for minimal fixture");
 
         let image = ResolvedProductImage {

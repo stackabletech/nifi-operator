@@ -49,6 +49,54 @@ spec:
         app.kubernetes.io/role-group: default
         stackable.tech/vendor: Stackable
     spec:
+      containers:
+        - name: nifi
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+        # The Vector sidecar is configured via environment variables injected by the v2
+        # `vector_container` helper; `vector.yaml` references these and they are substituted by
+        # Vector at runtime.
+        - name: vector
+          env:
+            - name: CLUSTER_NAME
+              value: nifi
+            - name: DATA_DIR
+              value: /stackable/log/_vector-state
+            - name: LOG_DIR
+              value: /stackable/log
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: ROLE_GROUP_NAME
+              value: default
+            - name: ROLE_NAME
+              value: node
+            - name: VECTOR_AGGREGATOR_ADDRESS
+              valueFrom:
+                configMapKeyRef:
+                  key: ADDRESS
+                  name: vector-aggregator-discovery
+            - name: VECTOR_CONFIG_YAML
+              value: /stackable/config/vector.yaml
+            - name: VECTOR_FILE_LOG_LEVEL
+              value: info
+            - name: VECTOR_LOG
+              value: info
+          resources:
+            limits:
+              cpu: 500m
+              memory: 128Mi
+            requests:
+              cpu: 250m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /stackable/config/vector.yaml
+              name: config
+              readOnly: true
+              subPath: vector.yaml
+            - mountPath: /stackable/log
+              name: log
+{% endif %}
       serviceAccount: nifi-serviceaccount
       serviceAccountName: nifi-serviceaccount
       terminationGracePeriodSeconds: 300

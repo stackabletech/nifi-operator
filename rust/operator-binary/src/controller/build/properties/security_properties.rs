@@ -48,6 +48,7 @@ mod tests {
             env_overrides: EnvVarSet::new(),
             pod_overrides: Default::default(),
             product_specific_common_config: JavaCommonConfig::default(),
+            vector_container: None,
         }
     }
 

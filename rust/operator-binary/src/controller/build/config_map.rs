@@ -15,8 +15,8 @@ use crate::{
         build::{
             git_sync,
             properties::{
-                ConfigFileName, authorizers, bootstrap_conf, logging, login_identity_providers,
-                nifi_properties, security_properties, state_management_xml,
+                ConfigFileName, authorizers, bootstrap_conf, login_identity_providers,
+                nifi_properties, product_logging, security_properties, state_management_xml,
             },
             proxy_hosts,
         },
@@ -69,14 +69,10 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// resolved cluster configuration.
 ///
 /// All NiFi configuration is sourced from `cluster`.
-///
-/// `vector_config` is the Vector agent config (`vector.yaml`) built by the caller (where a
-/// `RoleGroupRef` is available); it is `None` when the Vector agent is disabled.
 pub fn build_rolegroup_config_map(
     cluster: &ValidatedCluster,
     role_group_name: &RoleGroupName,
     cluster_info: &KubernetesClusterInfo,
-    vector_config: Option<String>,
 ) -> Result<ConfigMap> {
     tracing::debug!("building rolegroup ConfigMap");
 
@@ -142,12 +138,15 @@ pub fn build_rolegroup_config_map(
             })?,
         );
 
-    if let Some(logback_config) = logging::build_logback_config(&rg.config.logging) {
+    if let Some(logback_config) = product_logging::build_logback_config(&rg.config.logging) {
         cm_builder.add_data(ConfigFileName::Logback.to_string(), logback_config);
     }
 
-    if let Some(vector_config) = vector_config {
-        cm_builder.add_data(VECTOR_CONFIG_FILE, vector_config);
+    if rg.config.logging.enable_vector_agent {
+        cm_builder.add_data(
+            VECTOR_CONFIG_FILE,
+            product_logging::vector_config_file_content(),
+        );
     }
 
     cm_builder

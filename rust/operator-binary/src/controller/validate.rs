@@ -15,8 +15,14 @@ use stackable_operator::{
     v2::{
         builder::pod::container::{self, EnvVarName, EnvVarSet},
         controller_utils::{self, get_cluster_name, get_uid},
+        product_logging::framework::{
+            VectorContainerLogConfig, validate_logging_configuration_for_container,
+        },
         role_utils::with_validated_config,
-        types::operator::{ProductVersion, RoleGroupName},
+        types::{
+            kubernetes::ConfigMapName,
+            operator::{ProductVersion, RoleGroupName},
+        },
     },
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
@@ -24,7 +30,7 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 use super::{ValidatedCluster, ValidatedClusterConfig, ValidatedRoleGroupConfig};
 use crate::{
     controller::dereference::DereferencedObjects,
-    crd::{NifiConfig, NifiRole, sensitive_properties, v1alpha1},
+    crd::{Container, NifiConfig, NifiRole, sensitive_properties, v1alpha1},
     security::{
         authentication::{self, NifiAuthenticationConfig},
         authorization::ResolvedNifiAuthorizationConfig,
@@ -72,6 +78,21 @@ pub enum Error {
 
     #[snafu(display("invalid sensitive properties algorithm"))]
     InvalidSensitivePropertiesAlgorithm { source: sensitive_properties::Error },
+
+    #[snafu(display("invalid Vector aggregator discovery ConfigMap name"))]
+    ParseVectorAggregatorConfigMapName {
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
+    },
+
+    #[snafu(display(
+        "the Vector aggregator discovery ConfigMap name is required when the Vector agent is enabled"
+    ))]
+    MissingVectorAggregatorConfigMapName,
+
+    #[snafu(display("failed to validate logging configuration"))]
+    ValidateLoggingConfig {
+        source: stackable_operator::v2::product_logging::framework::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -112,7 +133,18 @@ pub fn validate(
         .check_for_nifi_version(&image.product_version)
         .context(InvalidSensitivePropertiesAlgorithmSnafu)?;
 
-    let role_group_configs = build_role_group_configs(nifi)?;
+    // The Vector aggregator discovery ConfigMap name is validated here so an invalid name fails
+    // up-front. It is only required when the Vector agent is enabled for a role group.
+    let vector_aggregator_config_map_name = nifi
+        .spec
+        .cluster_config
+        .vector_aggregator_config_map_name
+        .as_deref()
+        .map(ConfigMapName::from_str)
+        .transpose()
+        .context(ParseVectorAggregatorConfigMapNameSnafu)?;
+
+    let role_group_configs = build_role_group_configs(nifi, &vector_aggregator_config_map_name)?;
 
     let name = get_cluster_name(nifi).context(GetClusterNameSnafu)?;
     let namespace = dereferenced_objects.namespace.clone();
@@ -143,6 +175,7 @@ pub fn validate(
 
 pub(crate) fn build_role_group_configs(
     nifi: &v1alpha1::NifiCluster,
+    vector_aggregator_config_map_name: &Option<ConfigMapName>,
 ) -> Result<BTreeMap<NifiRole, BTreeMap<RoleGroupName, ValidatedRoleGroupConfig>>> {
     let role = nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?;
     let default_config = NifiConfig::default_config(&nifi.name_any(), &NifiRole::Node);
@@ -176,6 +209,25 @@ pub(crate) fn build_role_group_configs(
             );
         }
 
+        // Validate the Vector container logging config up-front (mirroring the opensearch- and
+        // hive-operators) so an invalid log ConfigMap name, or a missing aggregator discovery
+        // ConfigMap name, fails before any resources are built.
+        let vector_container = if config.logging.enable_vector_agent {
+            let vector_aggregator_config_map_name = vector_aggregator_config_map_name
+                .clone()
+                .context(MissingVectorAggregatorConfigMapNameSnafu)?;
+            Some(VectorContainerLogConfig {
+                log_config: validate_logging_configuration_for_container(
+                    &config.logging,
+                    &Container::Vector,
+                )
+                .context(ValidateLoggingConfigSnafu)?,
+                vector_aggregator_config_map_name,
+            })
+        } else {
+            None
+        };
+
         groups.insert(
             role_group_name,
             ValidatedRoleGroupConfig {
@@ -185,6 +237,7 @@ pub(crate) fn build_role_group_configs(
                 env_overrides: env_overrides_set,
                 pod_overrides,
                 product_specific_common_config,
+                vector_container,
             },
         );
     }

@@ -64,7 +64,7 @@ mod tests {
             serde_yaml::from_str(nifi_cluster).expect("illegal test input");
 
         let role_group_configs =
-            build_role_group_configs(&nifi).expect("failed to build role group configs");
+            build_role_group_configs(&nifi, &None).expect("failed to build role group configs");
         let rg = role_group_configs
             .get(&NifiRole::Node)
             .and_then(|groups| {

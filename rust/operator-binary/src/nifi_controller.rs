@@ -305,18 +305,10 @@ pub async fn reconcile_nifi(
 
             let role = nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?;
 
-            // The Vector agent config is the only remaining consumer of `RoleGroupRef`, which is
-            // therefore constructed on demand here rather than threaded through the build steps.
-            let vector_config = build::properties::logging::build_vector_config(
-                &nifi.node_rolegroup_ref(role_group_name.to_string()),
-                &rg.config.logging,
-            );
-
             let rg_configmap = build::config_map::build_rolegroup_config_map(
                 &validated_cluster,
                 role_group_name,
                 &client.kubernetes_cluster_info,
-                vector_config,
             )
             .context(BuildRoleGroupConfigMapSnafu {
                 rolegroup: role_group_name.clone(),

@@ -60,7 +60,7 @@ mod tests {
         let nifi: v1alpha1::NifiCluster =
             serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
 
-        let role_group_configs = build_role_group_configs(&nifi).unwrap();
+        let role_group_configs = build_role_group_configs(&nifi, &None).unwrap();
         let merged_config = &role_group_configs
             .get(&NifiRole::Node)
             .and_then(|groups| {

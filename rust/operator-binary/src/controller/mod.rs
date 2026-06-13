@@ -14,6 +14,7 @@ use stackable_operator::{
         HasName, HasUid, NameIsValidLabelValue,
         builder::pod::container::EnvVarSet,
         kvp::label::{recommended_labels, role_group_selector, role_selector},
+        product_logging::framework::VectorContainerLogConfig,
         role_group_utils::ResourceNames,
         role_utils::JavaCommonConfig,
         types::{
@@ -68,6 +69,10 @@ pub struct ValidatedRoleGroupConfig {
     /// The merged (role <- role group) JVM argument overrides, applied on top of the
     /// operator-generated JVM arguments when building `bootstrap.conf`.
     pub product_specific_common_config: JavaCommonConfig,
+    /// The validated Vector container logging config (log config choice + aggregator discovery
+    /// ConfigMap name), validated up-front in the [`validate`] step. `None` when the Vector agent
+    /// is disabled for this role group.
+    pub vector_container: Option<VectorContainerLogConfig>,
 }
 
 /// The validated NifiCluster: everything `reconcile_nifi` needs after dereferencing,

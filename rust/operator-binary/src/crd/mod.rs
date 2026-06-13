@@ -26,10 +26,10 @@ use stackable_operator::{
         api::core::v1::{PodTemplateSpec, Volume},
         apimachinery::pkg::api::resource::Quantity,
     },
-    kube::{CustomResource, runtime::reflector::ObjectRef},
+    kube::CustomResource,
     memory::MemoryQuantity,
     product_logging::{self, spec::Logging},
-    role_utils::{GenericRoleConfig, Role, RoleGroupRef},
+    role_utils::{GenericRoleConfig, Role},
     schemars::{self, JsonSchema},
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
@@ -200,15 +200,6 @@ impl HasStatusCondition for v1alpha1::NifiCluster {
 }
 
 impl v1alpha1::NifiCluster {
-    /// Metadata about a Node rolegroup
-    pub fn node_rolegroup_ref(&self, group_name: impl Into<String>) -> RoleGroupRef<Self> {
-        RoleGroupRef {
-            cluster: ObjectRef::from_obj(self),
-            role: NifiRole::Node.to_string(),
-            role_group: group_name.into(),
-        }
-    }
-
     pub fn role_config(&self, role: &NifiRole) -> Option<&NifiNodeRoleConfig> {
         match role {
             NifiRole::Node => self.spec.nodes.as_ref().map(|n| &n.role_config),
