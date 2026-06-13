@@ -43,10 +43,7 @@ use stackable_operator::{
             pod::container::{EnvVarSet, new_container_builder},
         },
         product_logging::framework::vector_container,
-        types::{
-            kubernetes::{ContainerName, VolumeName},
-            operator::RoleGroupName,
-        },
+        types::kubernetes::{ContainerName, VolumeName},
     },
 };
 
@@ -67,7 +64,7 @@ use crate::{
     },
     crd::{
         BALANCE_PORT, BALANCE_PORT_NAME, Container, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT,
-        METRICS_PORT_NAME, NifiConfig, NifiRole, NifiRoleType, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
+        METRICS_PORT_NAME, NifiRole, NifiRoleType, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
         STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
         authorization::NifiAccessPolicyProvider,
         constants::{NIFI_CONFIG_DIRECTORY, NIFI_PYTHON_WORKING_DIRECTORY},
@@ -165,7 +162,6 @@ stackable_operator::constant!(VECTOR_LOG_VOLUME_NAME: VolumeName = "log");
 pub(crate) async fn build_node_rolegroup_statefulset(
     cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
-    role_group_name: &RoleGroupName,
     role: &NifiRoleType,
     rg: &ValidatedRoleGroupConfig,
     rolling_update_supported: bool,
@@ -182,7 +178,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
     let git_sync_resources = &rg.git_sync_resources;
 
     // Type-safe names for this role group's resources (StatefulSet, ConfigMap, headless Service).
-    let resource_names = cluster.resource_names(role_group_name);
+    let resource_names = cluster.resource_names(&rg.name);
 
     // The validated, merged `NifiConfig` is the single source of truth; the ConfigMap builder
     // sources the same `rg.config`.
@@ -459,7 +455,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
 
     let mut pod_builder = PodBuilder::new();
 
-    let recommended_object_labels = cluster.recommended_labels(role_group_name);
+    let recommended_object_labels = cluster.recommended_labels(&rg.name);
 
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
 
@@ -616,8 +612,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
                 KEYSTORE_VOLUME_NAME,
                 [
                     crate::controller::build::resource::service::metrics_service_name(
-                        cluster,
-                        role_group_name,
+                        cluster, &rg.name,
                     ),
                     build_reporting_task_service_name(&nifi_cluster_name),
                 ],
@@ -675,7 +670,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
             pod_management_policy: Some("Parallel".to_string()),
             replicas,
             selector: LabelSelector {
-                match_labels: Some(cluster.role_group_selector(role_group_name).into()),
+                match_labels: Some(cluster.role_group_selector(&rg.name).into()),
                 ..LabelSelector::default()
             },
             service_name: Some(resource_names.headless_service_name().to_string()),
@@ -688,11 +683,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
                 },
                 ..StatefulSetUpdateStrategy::default()
             }),
-            volume_claim_templates: Some(get_volume_claim_templates(
-                cluster,
-                role_group_name,
-                merged_config,
-            )?),
+            volume_claim_templates: Some(get_volume_claim_templates(cluster, rg)?),
             ..StatefulSetSpec::default()
         }),
         status: None,
@@ -701,9 +692,9 @@ pub(crate) async fn build_node_rolegroup_statefulset(
 
 fn get_volume_claim_templates(
     cluster: &ValidatedCluster,
-    role_group_name: &RoleGroupName,
-    merged_config: &NifiConfig,
+    rg: &ValidatedRoleGroupConfig,
 ) -> Result<Vec<PersistentVolumeClaim>> {
+    let merged_config = &rg.config;
     let authorization_config = &cluster.cluster_config.authorization;
     let mut pvcs = vec![
         merged_config.resources.storage.content_repo.build_pvc(
@@ -730,7 +721,7 @@ fn get_volume_claim_templates(
 
     // Used for PVC templates that cannot be modified once they are deployed, so the version label
     // is set to the placeholder `none` to keep the labels stable across version upgrades.
-    let unversioned_recommended_labels = cluster.recommended_labels_unversioned(role_group_name);
+    let unversioned_recommended_labels = cluster.recommended_labels_unversioned(&rg.name);
 
     // listener endpoints will use persistent volumes
     // so that load balancers can hard-code the target addresses and

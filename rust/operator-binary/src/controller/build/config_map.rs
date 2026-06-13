@@ -1,6 +1,6 @@
 //! Build per-rolegroup `ConfigMap` for the NiFi cluster.
 
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     k8s_openapi::api::core::v1::ConfigMap,
@@ -9,18 +9,15 @@ use stackable_operator::{
     v2::{builder::meta::ownerreference_from_resource, types::operator::RoleGroupName},
 };
 
-use crate::{
-    controller::{
-        ValidatedCluster,
-        build::{
-            properties::{
-                ConfigFileName, authorizers, bootstrap_conf, login_identity_providers,
-                nifi_properties, product_logging, security_properties, state_management_xml,
-            },
-            proxy_hosts,
+use crate::controller::{
+    ValidatedCluster, ValidatedRoleGroupConfig,
+    build::{
+        properties::{
+            ConfigFileName, authorizers, bootstrap_conf, login_identity_providers, nifi_properties,
+            product_logging, security_properties, state_management_xml,
         },
+        proxy_hosts,
     },
-    crd::NifiRole,
 };
 
 #[derive(Debug, Snafu)]
@@ -54,9 +51,6 @@ pub enum Error {
     InvalidNifiAuthenticationConfig {
         source: crate::security::authentication::Error,
     },
-
-    #[snafu(display("the cluster has no rolegroup [{role_group}] in role [{role}]"))]
-    MissingRoleGroup { role: String, role_group: String },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -67,19 +61,10 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// All NiFi configuration is sourced from `cluster`.
 pub fn build_rolegroup_config_map(
     cluster: &ValidatedCluster,
-    role_group_name: &RoleGroupName,
+    rg: &ValidatedRoleGroupConfig,
     cluster_info: &KubernetesClusterInfo,
 ) -> Result<ConfigMap> {
     tracing::debug!("building rolegroup ConfigMap");
-
-    let rg = cluster
-        .role_group_configs
-        .get(&NifiRole::Node)
-        .and_then(|groups| groups.get(role_group_name))
-        .with_context(|| MissingRoleGroupSnafu {
-            role: NifiRole::Node.to_string(),
-            role_group: role_group_name.to_string(),
-        })?;
 
     let proxy_hosts = proxy_hosts::compute_proxy_hosts(cluster, cluster_info);
 
@@ -91,12 +76,12 @@ pub fn build_rolegroup_config_map(
                 .name_and_namespace(cluster)
                 .name(
                     cluster
-                        .resource_names(role_group_name)
+                        .resource_names(&rg.name)
                         .role_group_config_map()
                         .to_string(),
                 )
                 .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
-                .with_labels(cluster.recommended_labels(role_group_name))
+                .with_labels(cluster.recommended_labels(&rg.name))
                 .build(),
         )
         .add_data(
@@ -108,7 +93,7 @@ pub fn build_rolegroup_config_map(
             ConfigFileName::NifiProperties.to_string(),
             nifi_properties::build(cluster, rg, &proxy_hosts).with_context(|_| {
                 BuildNifiPropertiesSnafu {
-                    rolegroup: role_group_name.clone(),
+                    rolegroup: rg.name.clone(),
                 }
             })?,
         )
@@ -128,7 +113,7 @@ pub fn build_rolegroup_config_map(
         .add_data(
             ConfigFileName::SecurityProperties.to_string(),
             security_properties::build(rg).with_context(|_| JvmSecurityPropertiesSnafu {
-                rolegroup: role_group_name.clone(),
+                rolegroup: rg.name.clone(),
             })?,
         );
 
@@ -146,6 +131,6 @@ pub fn build_rolegroup_config_map(
     cm_builder
         .build()
         .with_context(|_| BuildRoleGroupConfigSnafu {
-            rolegroup: role_group_name.clone(),
+            rolegroup: rg.name.clone(),
         })
 }

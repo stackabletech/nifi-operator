@@ -35,8 +35,13 @@ mod tests {
     };
 
     fn make_rg(overrides: Option<BTreeMap<String, String>>) -> ValidatedRoleGroupConfig {
-        use stackable_operator::v2::role_utils::JavaCommonConfig;
+        use std::str::FromStr as _;
+
+        use stackable_operator::v2::{
+            role_utils::JavaCommonConfig, types::operator::RoleGroupName,
+        };
         ValidatedRoleGroupConfig {
+            name: RoleGroupName::from_str("default").expect("valid role-group name"),
             replicas: 1,
             config: NifiConfig::default(),
             config_overrides: NifiConfigOverrides {

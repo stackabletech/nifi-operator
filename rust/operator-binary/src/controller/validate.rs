@@ -259,8 +259,9 @@ pub(crate) fn build_role_group_configs(
         .context(BuildGitSyncResourcesSnafu)?;
 
         groups.insert(
-            role_group_name,
+            role_group_name.clone(),
             ValidatedRoleGroupConfig {
+                name: role_group_name,
                 replicas: validated.replicas.unwrap_or(1),
                 config,
                 config_overrides,

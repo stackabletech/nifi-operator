@@ -53,6 +53,10 @@ pub(crate) mod validate;
 /// [`with_validated_config`](stackable_operator::v2::role_utils::with_validated_config) in the
 /// [`validate`] step; downstream builders consume this rather than the raw `NifiCluster`.
 pub struct ValidatedRoleGroupConfig {
+    /// The role-group name (the key under which this config is stored in
+    /// [`ValidatedCluster::role_group_configs`]). Carried here so builders that consume the config
+    /// don't also need the name threaded through as a separate parameter.
+    pub name: RoleGroupName,
     /// The desired number of replicas (defaulted to 1 during validation).
     ///
     /// The StatefulSet replica count is sourced from the raw role-group spec in `nifi_controller`
