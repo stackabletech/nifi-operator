@@ -14,7 +14,7 @@ use stackable_operator::{
         },
     },
     constants::RESTART_CONTROLLER_ENABLED_LABEL,
-    crd::{authentication::oidc::v1alpha1::AuthenticationProvider, git_sync},
+    crd::authentication::oidc::v1alpha1::AuthenticationProvider,
     k8s_openapi::{
         DeepMerge,
         api::{
@@ -171,7 +171,6 @@ pub(crate) async fn build_node_rolegroup_statefulset(
     rolling_update_supported: bool,
     replicas: Option<i32>,
     service_account_name: &str,
-    git_sync_resources: &git_sync::v1alpha2::GitSyncResources,
 ) -> Result<StatefulSet> {
     tracing::debug!("Building statefulset");
 
@@ -180,6 +179,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
     let resolved_product_image = &cluster.image;
     let authentication_config = &cluster.cluster_config.authentication;
     let authorization_config = &cluster.cluster_config.authorization;
+    let git_sync_resources = &rg.git_sync_resources;
 
     // Type-safe names for this role group's resources (StatefulSet, ConfigMap, headless Service).
     let resource_names = cluster.resource_names(role_group_name);

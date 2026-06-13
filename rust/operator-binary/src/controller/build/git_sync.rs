@@ -1,13 +1,14 @@
 //! Builds the git-sync resources (volumes, mounts, containers) for a NiFi Node rolegroup.
 
 use snafu::{ResultExt, Snafu};
-use stackable_operator::{crd::git_sync, k8s_openapi::api::core::v1::EnvVar};
+use stackable_operator::{
+    commons::product_image_selection::ResolvedProductImage, crd::git_sync,
+    k8s_openapi::api::core::v1::EnvVar, v2::builder::pod::container::EnvVarSet,
+};
 
 use crate::{
-    controller::{
-        ValidatedCluster, ValidatedRoleGroupConfig, build::resource::statefulset::LOG_VOLUME_NAME,
-    },
-    crd::Container,
+    controller::build::resource::statefulset::LOG_VOLUME_NAME,
+    crd::{Container, NifiConfig},
 };
 
 #[derive(Snafu, Debug)]
@@ -21,18 +22,24 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// Builds the [`git_sync::v1alpha2::GitSyncResources`] for a single Node rolegroup. The env vars
 /// and logging configuration differ per rolegroup, so the resources are computed per rolegroup
 /// rather than once for the whole cluster.
+///
+/// Called from the [`validate`](crate::controller::validate) step; the result is stored on the
+/// [`ValidatedRoleGroupConfig`](crate::controller::ValidatedRoleGroupConfig) and consumed by the
+/// downstream builders.
 pub fn build_git_sync_resources(
-    cluster: &ValidatedCluster,
-    rg: &ValidatedRoleGroupConfig,
+    custom_components_git_sync: &[git_sync::v1alpha2::GitSync],
+    image: &ResolvedProductImage,
+    config: &NifiConfig,
+    env_overrides: &EnvVarSet,
 ) -> Result<git_sync::v1alpha2::GitSyncResources> {
-    let env_vars: Vec<EnvVar> = rg.env_overrides.clone().into();
+    let env_vars: Vec<EnvVar> = env_overrides.clone().into();
     git_sync::v1alpha2::GitSyncResources::new(
-        &cluster.cluster_config.custom_components_git_sync,
-        &cluster.image,
+        custom_components_git_sync,
+        image,
         &env_vars,
         &[],
         LOG_VOLUME_NAME,
-        &rg.config.logging.for_container(&Container::GitSync),
+        &config.logging.for_container(&Container::GitSync),
     )
     .context(InvalidGitSyncSpecSnafu)
 }

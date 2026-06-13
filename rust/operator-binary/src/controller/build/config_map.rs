@@ -13,7 +13,6 @@ use crate::{
     controller::{
         ValidatedCluster,
         build::{
-            git_sync,
             properties::{
                 ConfigFileName, authorizers, bootstrap_conf, login_identity_providers,
                 nifi_properties, product_logging, security_properties, state_management_xml,
@@ -58,9 +57,6 @@ pub enum Error {
 
     #[snafu(display("the cluster has no rolegroup [{role_group}] in role [{role}]"))]
     MissingRoleGroup { role: String, role_group: String },
-
-    #[snafu(display("failed to build git-sync resources"))]
-    BuildGitSyncResources { source: git_sync::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -86,8 +82,6 @@ pub fn build_rolegroup_config_map(
         })?;
 
     let proxy_hosts = proxy_hosts::compute_proxy_hosts(cluster, cluster_info);
-    let git_sync_resources =
-        git_sync::build_git_sync_resources(cluster, rg).context(BuildGitSyncResourcesSnafu)?;
 
     let mut cm_builder = ConfigMapBuilder::new();
 
@@ -112,11 +106,11 @@ pub fn build_rolegroup_config_map(
         )
         .add_data(
             ConfigFileName::NifiProperties.to_string(),
-            nifi_properties::build(cluster, rg, &proxy_hosts, &git_sync_resources).with_context(
-                |_| BuildNifiPropertiesSnafu {
+            nifi_properties::build(cluster, rg, &proxy_hosts).with_context(|_| {
+                BuildNifiPropertiesSnafu {
                     rolegroup: role_group_name.clone(),
-                },
-            )?,
+                }
+            })?,
         )
         .add_data(
             ConfigFileName::StateManagementXml.to_string(),

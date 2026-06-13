@@ -49,6 +49,7 @@ mod tests {
             pod_overrides: Default::default(),
             product_specific_common_config: JavaCommonConfig::default(),
             vector_container: None,
+            git_sync_resources: Default::default(),
         }
     }
 

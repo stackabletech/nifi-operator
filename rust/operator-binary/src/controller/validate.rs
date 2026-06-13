@@ -29,7 +29,7 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 
 use super::{ValidatedCluster, ValidatedClusterConfig, ValidatedRoleGroupConfig};
 use crate::{
-    controller::dereference::DereferencedObjects,
+    controller::{build::git_sync::build_git_sync_resources, dereference::DereferencedObjects},
     crd::{Container, NifiConfig, NifiRole, sensitive_properties, v1alpha1},
     security::{
         authentication::{self, NifiAuthenticationConfig},
@@ -78,6 +78,11 @@ pub enum Error {
 
     #[snafu(display("invalid sensitive properties algorithm"))]
     InvalidSensitivePropertiesAlgorithm { source: sensitive_properties::Error },
+
+    #[snafu(display("failed to build git-sync resources"))]
+    BuildGitSyncResources {
+        source: crate::controller::build::git_sync::Error,
+    },
 
     #[snafu(display("invalid Vector aggregator discovery ConfigMap name"))]
     ParseVectorAggregatorConfigMapName {
@@ -144,7 +149,8 @@ pub fn validate(
         .transpose()
         .context(ParseVectorAggregatorConfigMapNameSnafu)?;
 
-    let role_group_configs = build_role_group_configs(nifi, &vector_aggregator_config_map_name)?;
+    let role_group_configs =
+        build_role_group_configs(nifi, &image, &vector_aggregator_config_map_name)?;
 
     let name = get_cluster_name(nifi).context(GetClusterNameSnafu)?;
     let namespace = dereferenced_objects.namespace.clone();
@@ -182,13 +188,13 @@ pub fn validate(
                 .pod_overrides
                 .clone(),
             host_header_check: nifi.spec.cluster_config.host_header_check.clone(),
-            custom_components_git_sync: nifi.spec.cluster_config.custom_components_git_sync.clone(),
         },
     ))
 }
 
 pub(crate) fn build_role_group_configs(
     nifi: &v1alpha1::NifiCluster,
+    image: &product_image_selection::ResolvedProductImage,
     vector_aggregator_config_map_name: &Option<ConfigMapName>,
 ) -> Result<BTreeMap<NifiRole, BTreeMap<RoleGroupName, ValidatedRoleGroupConfig>>> {
     let role = nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?;
@@ -242,6 +248,16 @@ pub(crate) fn build_role_group_configs(
             None
         };
 
+        // The git-sync resources depend on this role group's env-var overrides and logging config,
+        // so they are resolved (and validated) per role group up-front rather than at build time.
+        let git_sync_resources = build_git_sync_resources(
+            &nifi.spec.cluster_config.custom_components_git_sync,
+            image,
+            &config,
+            &env_overrides_set,
+        )
+        .context(BuildGitSyncResourcesSnafu)?;
+
         groups.insert(
             role_group_name,
             ValidatedRoleGroupConfig {
@@ -252,6 +268,7 @@ pub(crate) fn build_role_group_configs(
                 pod_overrides,
                 product_specific_common_config,
                 vector_container,
+                git_sync_resources,
             },
         );
     }
@@ -259,6 +276,18 @@ pub(crate) fn build_role_group_configs(
     let mut role_group_configs = BTreeMap::new();
     role_group_configs.insert(NifiRole::Node, groups);
     Ok(role_group_configs)
+}
+
+/// A minimal resolved product image (NiFi 2.9.0) for tests that need to build role-group configs.
+#[cfg(test)]
+pub(crate) fn test_resolved_product_image() -> product_image_selection::ResolvedProductImage {
+    product_image_selection::ResolvedProductImage {
+        product_version: "2.9.0".to_string(),
+        app_version_label_value: "2.9.0".parse().expect("valid label value"),
+        image: "oci.stackable.tech/sdp/nifi:2.9.0-stackable0.0.0-dev".to_string(),
+        image_pull_policy: "IfNotPresent".to_string(),
+        pull_secrets: None,
+    }
 }
 
 #[cfg(test)]
@@ -329,7 +358,7 @@ mod tests {
             serde_yaml::from_str(NIFI_VECTOR_ENABLED_YAML).expect("invalid test YAML");
         let aggregator = Some(ConfigMapName::from_str("nifi-vector-aggregator-discovery").unwrap());
 
-        let configs = build_role_group_configs(&nifi, &aggregator)
+        let configs = build_role_group_configs(&nifi, &test_resolved_product_image(), &aggregator)
             .expect("role group configs should validate");
 
         let vector = default_rg(&configs)
@@ -347,9 +376,13 @@ mod tests {
         let nifi: v1alpha1::NifiCluster =
             serde_yaml::from_str(NIFI_VECTOR_ENABLED_YAML).expect("invalid test YAML");
 
-        let error = build_role_group_configs(&nifi, &None)
-            .expect_err("a missing aggregator ConfigMap name must fail when Vector is enabled");
-        assert!(matches!(error, Error::MissingVectorAggregatorConfigMapName));
+        // `ValidatedRoleGroupConfig` is not `Debug`, so match on the result rather than using
+        // `expect_err` (which would require the `Ok` value to be `Debug`).
+        let result = build_role_group_configs(&nifi, &test_resolved_product_image(), &None);
+        assert!(matches!(
+            result,
+            Err(Error::MissingVectorAggregatorConfigMapName)
+        ));
     }
 
     #[test]
@@ -358,8 +391,8 @@ mod tests {
             serde_yaml::from_str(NIFI_VECTOR_DISABLED_YAML).expect("invalid test YAML");
 
         // The aggregator name is not required when the Vector agent is disabled.
-        let configs =
-            build_role_group_configs(&nifi, &None).expect("role group configs should validate");
+        let configs = build_role_group_configs(&nifi, &test_resolved_product_image(), &None)
+            .expect("role group configs should validate");
 
         assert!(default_rg(&configs).vector_container.is_none());
     }

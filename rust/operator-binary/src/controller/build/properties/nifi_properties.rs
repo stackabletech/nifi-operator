@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use snafu::{ResultExt, ensure};
-use stackable_operator::{crd::git_sync, memory::MemoryQuantity};
+use stackable_operator::memory::MemoryQuantity;
 
 use super::format_properties;
 use crate::{
@@ -32,8 +32,8 @@ pub fn build(
     cluster: &ValidatedCluster,
     rg: &ValidatedRoleGroupConfig,
     proxy_hosts: &str,
-    git_sync_resources: &git_sync::v1alpha2::GitSyncResources,
 ) -> Result<String, Error> {
+    let git_sync_resources = &rg.git_sync_resources;
     let product_version = &cluster.image.product_version;
     let auth_config = &cluster.cluster_config.authentication;
     let resource_config = &rg.config.resources;
@@ -590,9 +590,7 @@ fn storage_quantity_to_nifi(quantity: MemoryQuantity) -> String {
 mod tests {
     use super::*;
     use crate::{
-        controller::build::properties::test_support::{
-            default_rg, empty_git_sync_resources, minimal_validated_cluster,
-        },
+        controller::build::properties::test_support::{default_rg, minimal_validated_cluster},
         crd::HTTPS_PORT,
     };
 
@@ -602,9 +600,8 @@ mod tests {
     fn test_stable_keys_present() {
         let cluster = minimal_validated_cluster();
         let rg = default_rg(&cluster);
-        let git_sync = empty_git_sync_resources();
 
-        let props = build(&cluster, rg, "*", &git_sync).expect("build should succeed");
+        let props = build(&cluster, rg, "*").expect("build should succeed");
 
         // HTTPS port
         assert!(
@@ -645,7 +642,7 @@ mod tests {
         use stackable_operator::v2::types::operator::RoleGroupName;
 
         use crate::{
-            controller::validate::build_role_group_configs,
+            controller::validate::{build_role_group_configs, test_resolved_product_image},
             crd::{NifiRole, v1alpha1},
         };
 
@@ -674,7 +671,8 @@ mod tests {
         "#;
         let nifi: v1alpha1::NifiCluster = serde_yaml::from_str(yaml).expect("invalid test YAML");
         let mut role_group_configs =
-            build_role_group_configs(&nifi, &None).expect("failed to build role group configs");
+            build_role_group_configs(&nifi, &test_resolved_product_image(), &None)
+                .expect("failed to build role group configs");
         let default_rg_name = "default"
             .parse::<RoleGroupName>()
             .expect("valid role-group name");
@@ -683,17 +681,21 @@ mod tests {
             .and_then(|groups| groups.remove(&default_rg_name))
             .expect("default role group must exist");
 
-        // Build a cluster with this rg substituted in
+        // Build a cluster with this rg substituted in, then borrow it back for the build call
+        // (`ValidatedRoleGroupConfig` is not `Clone`).
         let mut cluster = minimal_validated_cluster();
         cluster
             .role_group_configs
             .get_mut(&NifiRole::Node)
             .unwrap()
-            .insert(default_rg_name, rg.clone());
+            .insert(default_rg_name.clone(), rg);
+        let rg = cluster
+            .role_group_configs
+            .get(&NifiRole::Node)
+            .and_then(|groups| groups.get(&default_rg_name))
+            .expect("default role group must exist");
 
-        let git_sync = empty_git_sync_resources();
-        let props =
-            build(&cluster, &rg, "*", &git_sync).expect("build with override should succeed");
+        let props = build(&cluster, rg, "*").expect("build with override should succeed");
 
         assert!(
             props.contains("some.custom.key=some-custom-value"),

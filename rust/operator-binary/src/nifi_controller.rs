@@ -124,9 +124,6 @@ pub enum Error {
         source: stackable_operator::cluster_resources::Error,
     },
 
-    #[snafu(display("failed to build git-sync resources"))]
-    BuildGitSyncResources { source: build::git_sync::Error },
-
     #[snafu(display("failed to patch service account"))]
     ApplyServiceAccount {
         source: stackable_operator::cluster_resources::Error,
@@ -291,10 +288,6 @@ pub async fn reconcile_nifi(
         async {
             tracing::debug!("Processing rolegroup {role_group_name}");
 
-            let git_sync_resources =
-                build::git_sync::build_git_sync_resources(&validated_cluster, rg)
-                    .context(BuildGitSyncResourcesSnafu)?;
-
             let rg_headless_service =
                 build_rolegroup_headless_service(&validated_cluster, role_group_name);
 
@@ -326,7 +319,6 @@ pub async fn reconcile_nifi(
                 rolling_upgrade_supported,
                 replicas,
                 &rbac_sa.name_any(),
-                &git_sync_resources,
             )
             .await
             .with_context(|_| BuildStatefulSetSnafu {

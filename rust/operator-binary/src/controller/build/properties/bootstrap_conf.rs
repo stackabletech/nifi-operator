@@ -55,7 +55,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        controller::validate::build_role_group_configs,
+        controller::validate::{build_role_group_configs, test_resolved_product_image},
         crd::{NifiRole, v1alpha1},
     };
 
@@ -64,7 +64,8 @@ mod tests {
             serde_yaml::from_str(nifi_cluster).expect("illegal test input");
 
         let role_group_configs =
-            build_role_group_configs(&nifi, &None).expect("failed to build role group configs");
+            build_role_group_configs(&nifi, &test_resolved_product_image(), &None)
+                .expect("failed to build role group configs");
         let rg = role_group_configs
             .get(&NifiRole::Node)
             .and_then(|groups| {

@@ -52,7 +52,6 @@ pub(crate) mod validate;
 /// Produced from the result of
 /// [`with_validated_config`](stackable_operator::v2::role_utils::with_validated_config) in the
 /// [`validate`] step; downstream builders consume this rather than the raw `NifiCluster`.
-#[derive(Clone, Debug)]
 pub struct ValidatedRoleGroupConfig {
     /// The desired number of replicas (defaulted to 1 during validation).
     ///
@@ -75,6 +74,11 @@ pub struct ValidatedRoleGroupConfig {
     /// ConfigMap name), validated up-front in the [`validate`] step. `None` when the Vector agent
     /// is disabled for this role group.
     pub vector_container: Option<VectorContainerLogConfig>,
+    /// The git-sync resources (containers, volumes, mounts) for this role group, resolved from the
+    /// cluster's `customComponentsGitSync` specs up-front in the [`validate`] step. The env vars and
+    /// logging config differ per role group, so these are computed per role group. Consumed by both
+    /// the StatefulSet builder and the `nifi.properties` builder.
+    pub git_sync_resources: git_sync::v1alpha2::GitSyncResources,
 }
 
 /// The validated NifiCluster: everything `reconcile_nifi` needs after dereferencing,
@@ -107,8 +111,6 @@ pub struct ValidatedClusterConfig {
     pub authentication: NifiAuthenticationConfig,
     /// The cluster authorization settings.
     pub authorization: ResolvedNifiAuthorizationConfig,
-    /// The git-sync specs, resolved into git-sync resources at build time.
-    pub custom_components_git_sync: Vec<git_sync::v1alpha2::GitSync>,
     /// The clustering backend (ZooKeeper or Kubernetes), copied from the spec.
     pub clustering_backend: v1alpha1::NifiClusteringBackend,
     /// The host-header-check config, resolved into the proxy hosts allow-list at build time.

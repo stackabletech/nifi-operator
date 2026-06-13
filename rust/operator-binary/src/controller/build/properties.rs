@@ -130,9 +130,6 @@ pub(crate) mod test_support {
         let nifi: v1alpha1::NifiCluster =
             serde_yaml::from_str(MINIMAL_NIFI_YAML).expect("invalid test YAML");
 
-        let role_group_configs = build_role_group_configs(&nifi, &None)
-            .expect("role group configs should merge for minimal fixture");
-
         let image = ResolvedProductImage {
             product_version: "2.9.0".to_string(),
             app_version_label_value: "2.9.0".parse::<LabelValue>().unwrap(),
@@ -140,6 +137,9 @@ pub(crate) mod test_support {
             image_pull_policy: "IfNotPresent".to_string(),
             pull_secrets: None,
         };
+
+        let role_group_configs = build_role_group_configs(&nifi, &image, &None)
+            .expect("role group configs should merge for minimal fixture");
 
         let name = ClusterName::from_str("simple-nifi").expect("valid cluster name");
         let namespace = NamespaceName::from_str("default").expect("valid namespace");
@@ -180,11 +180,6 @@ pub(crate) mod test_support {
                     .pod_overrides
                     .clone(),
                 host_header_check: nifi.spec.cluster_config.host_header_check.clone(),
-                custom_components_git_sync: nifi
-                    .spec
-                    .cluster_config
-                    .custom_components_git_sync
-                    .clone(),
             },
         )
     }
@@ -198,11 +193,5 @@ pub(crate) mod test_support {
                 rgs.get(&RoleGroupName::from_str("default").expect("valid role-group name"))
             })
             .expect("minimal_validated_cluster must contain a 'default' role group")
-    }
-
-    /// Build an empty [`GitSyncResources`] (no git-sync configured).
-    pub fn empty_git_sync_resources()
-    -> stackable_operator::crd::git_sync::v1alpha2::GitSyncResources {
-        stackable_operator::crd::git_sync::v1alpha2::GitSyncResources::default()
     }
 }
