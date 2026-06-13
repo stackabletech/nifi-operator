@@ -40,6 +40,7 @@ use crate::{
 
 pub(crate) mod build;
 pub(crate) mod dereference;
+pub(crate) mod upgrade;
 pub(crate) mod validate;
 
 /// A validated, merged (default <- role <- role-group) NiFi rolegroup config.

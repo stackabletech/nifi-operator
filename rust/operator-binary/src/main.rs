@@ -40,12 +40,8 @@ use crate::{
 
 mod controller;
 mod crd;
-mod listener;
 mod nifi_controller;
-mod operations;
-mod reporting_task;
 mod security;
-mod service;
 mod webhooks;
 
 mod built_info {

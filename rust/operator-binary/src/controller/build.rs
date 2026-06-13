@@ -8,9 +8,11 @@ use crate::{crd::storage::NifiRepository, security::oidc};
 
 pub mod config_map;
 pub mod git_sync;
+pub mod graceful_shutdown;
 pub mod jvm;
 pub mod properties;
 pub mod proxy_hosts;
+pub mod resource;
 
 /// Errors that can occur while building the NiFi product configuration files.
 #[derive(Snafu, Debug)]

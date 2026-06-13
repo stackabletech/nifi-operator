@@ -7,9 +7,11 @@ use snafu::ResultExt;
 use crate::{
     controller::{
         ValidatedRoleGroupConfig,
-        build::{Error, InvalidJVMConfigSnafu, jvm::build_merged_jvm_config},
+        build::{
+            Error, InvalidJVMConfigSnafu, graceful_shutdown::graceful_shutdown_config_properties,
+            jvm::build_merged_jvm_config,
+        },
     },
-    operations::graceful_shutdown::graceful_shutdown_config_properties,
     security::authorization::ResolvedNifiAuthorizationConfig,
 };
 
