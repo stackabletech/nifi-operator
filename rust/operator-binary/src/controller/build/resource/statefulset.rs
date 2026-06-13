@@ -9,7 +9,7 @@ use stackable_operator::{
         self,
         meta::ObjectMetaBuilder,
         pod::{
-            PodBuilder, container::ContainerBuilder, resources::ResourceRequirementsBuilder,
+            PodBuilder, resources::ResourceRequirementsBuilder,
             security::PodSecurityContextBuilder, volume::SecretFormat,
         },
     },
@@ -40,7 +40,10 @@ use stackable_operator::{
     },
     utils::{COMMON_BASH_TRAP_FUNCTIONS, cluster_info::KubernetesClusterInfo},
     v2::{
-        builder::{meta::ownerreference_from_resource, pod::container::EnvVarSet},
+        builder::{
+            meta::ownerreference_from_resource,
+            pod::container::{EnvVarSet, new_container_builder},
+        },
         product_logging::framework::vector_container,
         types::{
             kubernetes::{ContainerName, VolumeName},
@@ -91,12 +94,6 @@ pub enum Error {
 
     #[snafu(display("object defines no name"))]
     ObjectHasNoName,
-
-    #[snafu(display("illegal container name: [{container_name}]"))]
-    IllegalContainerName {
-        source: stackable_operator::builder::pod::container::Error,
-        container_name: String,
-    },
 
     #[snafu(display("failed to add Authentication Volumes and VolumeMounts"))]
     AddAuthVolumes {
@@ -152,6 +149,10 @@ const LOG_CONFIG_VOLUME_NAME: &str = "log-config";
 /// git-sync container, see [`crate::controller::build::git_sync`]).
 pub(crate) const LOG_VOLUME_NAME: &str = "log";
 
+// Container names. These must match the corresponding (kebab-cased) `crate::crd::Container`
+// variants, which key the per-container logging config.
+stackable_operator::constant!(PREPARE_CONTAINER_NAME: ContainerName = "prepare");
+stackable_operator::constant!(NIFI_CONTAINER_NAME: ContainerName = "nifi");
 stackable_operator::constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
 
 // Typed `VolumeName`s for the Vector container's log-config and log volumes. They reuse the
@@ -256,7 +257,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
 
     let sensitive_key_secret = &nifi.spec.cluster_config.sensitive_properties.key_secret;
 
-    let prepare_container_name = Container::Prepare.to_string();
+    let prepare_container_name = PREPARE_CONTAINER_NAME.to_string();
     let mut prepare_args = vec![];
 
     if let Some(ContainerLogConfig {
@@ -328,12 +329,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
         "config-utils template /stackable/nifi/conf/security.properties".to_string(),
     ]);
 
-    let mut container_prepare =
-        ContainerBuilder::new(&prepare_container_name).with_context(|_| {
-            IllegalContainerNameSnafu {
-                container_name: prepare_container_name.to_string(),
-            }
-        })?;
+    let mut container_prepare = new_container_builder(&PREPARE_CONTAINER_NAME);
 
     container_prepare
         .image_from_product_image(resolved_product_image)
@@ -379,13 +375,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
                 .build(),
         );
 
-    let nifi_container_name = Container::Nifi.to_string();
-    let mut container_nifi_builder =
-        ContainerBuilder::new(&nifi_container_name).with_context(|_| {
-            IllegalContainerNameSnafu {
-                container_name: nifi_container_name,
-            }
-        })?;
+    let mut container_nifi_builder = new_container_builder(&NIFI_CONTAINER_NAME);
 
     let nifi_args = vec![formatdoc! {"
             {COMMON_BASH_TRAP_FUNCTIONS}

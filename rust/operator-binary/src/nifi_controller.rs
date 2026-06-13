@@ -7,10 +7,10 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     client::Client,
-    cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
+    cluster_resources::ClusterResourceApplyStrategy,
     commons::rbac::build_rbac_resources,
     kube::{
-        Resource, ResourceExt,
+        ResourceExt,
         core::{DeserializeGuard, error_boundary},
         runtime::controller::Action,
     },
@@ -21,7 +21,7 @@ use stackable_operator::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
         statefulset::StatefulSetConditionBuilder,
     },
-    v2::types::operator::RoleGroupName,
+    v2::{cluster_resources::cluster_resources_new, types::operator::RoleGroupName},
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
@@ -32,12 +32,12 @@ use crate::{
         build,
         build::resource::{
             listener::{build_group_listener, group_listener_name},
-            pdb::add_pdbs,
+            pdb::build_pdb,
             reporting_task::build_maybe_reporting_task,
             service::{build_rolegroup_headless_service, build_rolegroup_metrics_service},
             statefulset::build_node_rolegroup_statefulset,
         },
-        dereference,
+        controller_name, dereference, operator_name, product_name,
         upgrade::{self, ClusterVersionUpdateState},
         validate,
     },
@@ -70,11 +70,6 @@ pub enum Error {
 
     #[snafu(display("failed to validate cluster"))]
     ValidateCluster { source: validate::Error },
-
-    #[snafu(display("failed to create cluster resources"))]
-    CreateClusterResources {
-        source: stackable_operator::cluster_resources::Error,
-    },
 
     #[snafu(display("failed to delete orphaned resources"))]
     DeleteOrphanedResources {
@@ -147,9 +142,9 @@ pub enum Error {
         source: stackable_operator::commons::rbac::Error,
     },
 
-    #[snafu(display("failed to create PodDisruptionBudget"))]
-    FailedToCreatePdb {
-        source: crate::controller::build::resource::pdb::Error,
+    #[snafu(display("failed to apply PodDisruptionBudget"))]
+    ApplyPdb {
+        source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("failed to get required labels"))]
@@ -249,15 +244,16 @@ pub async fn reconcile_nifi(
     }
     // end todo
 
-    let mut cluster_resources = ClusterResources::new(
-        APP_NAME,
-        OPERATOR_NAME,
-        NIFI_CONTROLLER_NAME,
-        &nifi.object_ref(&()),
+    let mut cluster_resources = cluster_resources_new(
+        &product_name(),
+        &operator_name(),
+        &controller_name(),
+        &validated_cluster.name,
+        &validated_cluster.namespace,
+        &validated_cluster.uid,
         ClusterResourceApplyStrategy::from(&nifi.spec.cluster_operation),
         &nifi.spec.object_overrides,
-    )
-    .context(CreateClusterResourcesSnafu)?;
+    );
 
     if let NifiAuthenticationConfig::Oidc { .. } = authentication_config {
         check_or_generate_oidc_admin_password(client, nifi, &validated_cluster.namespace)
@@ -392,9 +388,12 @@ pub async fn reconcile_nifi(
         listener_class,
     }) = role_config
     {
-        add_pdbs(pdb, nifi, &nifi_role, client, &mut cluster_resources)
-            .await
-            .context(FailedToCreatePdbSnafu)?;
+        if let Some(pdb) = build_pdb(pdb, &validated_cluster, &nifi_role) {
+            cluster_resources
+                .add(client, pdb)
+                .await
+                .context(ApplyPdbSnafu)?;
+        }
 
         let role_group_listener = build_group_listener(
             &validated_cluster,

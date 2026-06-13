@@ -1,61 +1,36 @@
-use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::pdb::PodDisruptionBudgetBuilder, client::Client, cluster_resources::ClusterResources,
-    commons::pdb::PdbConfig, kube::ResourceExt,
+    commons::pdb::PdbConfig, k8s_openapi::api::policy::v1::PodDisruptionBudget,
+    v2::builder::pdb::pod_disruption_budget_builder_with_role,
 };
 
 use crate::{
-    OPERATOR_NAME,
-    crd::{APP_NAME, NifiRole, v1alpha1},
-    nifi_controller::NIFI_CONTROLLER_NAME,
+    controller::{ValidatedCluster, controller_name, operator_name, product_name},
+    crd::NifiRole,
 };
 
-#[derive(Snafu, Debug)]
-pub enum Error {
-    #[snafu(display("Cannot create PodDisruptionBudget for role [{role}]"))]
-    CreatePdb {
-        source: stackable_operator::builder::pdb::Error,
-        role: String,
-    },
-    #[snafu(display("Cannot apply PodDisruptionBudget [{name}]"))]
-    ApplyPdb {
-        source: stackable_operator::cluster_resources::Error,
-        name: String,
-    },
-}
-
-pub async fn add_pdbs(
+/// Builds the [`PodDisruptionBudget`] for the given `role`, or `None` if PDBs are disabled.
+pub fn build_pdb(
     pdb: &PdbConfig,
-    nifi: &v1alpha1::NifiCluster,
+    cluster: &ValidatedCluster,
     role: &NifiRole,
-    client: &Client,
-    cluster_resources: &mut ClusterResources<'_>,
-) -> Result<(), Error> {
+) -> Option<PodDisruptionBudget> {
     if !pdb.enabled {
-        return Ok(());
+        return None;
     }
     let max_unavailable = pdb.max_unavailable.unwrap_or(match role {
         NifiRole::Node => max_unavailable_nodes(),
     });
-    let pdb = PodDisruptionBudgetBuilder::new_with_role(
-        nifi,
-        APP_NAME,
-        &role.to_string(),
-        OPERATOR_NAME,
-        NIFI_CONTROLLER_NAME,
+    let pdb = pod_disruption_budget_builder_with_role(
+        cluster,
+        &product_name(),
+        &ValidatedCluster::role_name(),
+        &operator_name(),
+        &controller_name(),
     )
-    .with_context(|_| CreatePdbSnafu {
-        role: role.to_string(),
-    })?
     .with_max_unavailable(max_unavailable)
     .build();
-    let pdb_name = pdb.name_any();
-    cluster_resources
-        .add(client, pdb)
-        .await
-        .with_context(|_| ApplyPdbSnafu { name: pdb_name })?;
 
-    Ok(())
+    Some(pdb)
 }
 
 fn max_unavailable_nodes() -> u16 {

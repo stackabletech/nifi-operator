@@ -30,7 +30,7 @@ use stackable_operator::{
         self,
         meta::ObjectMetaBuilder,
         pod::{
-            PodBuilder, container::ContainerBuilder, resources::ResourceRequirementsBuilder,
+            PodBuilder, resources::ResourceRequirementsBuilder,
             security::PodSecurityContextBuilder, volume::SecretFormat,
         },
     },
@@ -46,8 +46,11 @@ use stackable_operator::{
     shared::time::Duration,
     utils::cluster_info::KubernetesClusterInfo,
     v2::{
-        builder::meta::ownerreference_from_resource,
-        types::{kubernetes::NamespaceName, operator::RoleGroupName},
+        builder::{meta::ownerreference_from_resource, pod::container::new_container_builder},
+        types::{
+            kubernetes::{ContainerName, NamespaceName},
+            operator::RoleGroupName,
+        },
     },
 };
 
@@ -62,18 +65,12 @@ use crate::{
 
 const REPORTING_TASK_CERT_VOLUME_NAME: &str = "tls";
 const REPORTING_TASK_CERT_VOLUME_MOUNT: &str = "/stackable/cert";
-const REPORTING_TASK_CONTAINER_NAME: &str = "reporting-task";
+stackable_operator::constant!(REPORTING_TASK_CONTAINER_NAME: ContainerName = "reporting-task");
 
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display("object defines no name"))]
     ObjectHasNoName,
-
-    #[snafu(display("illegal container name: [{container_name}]"))]
-    IllegalContainerName {
-        source: stackable_operator::builder::pod::container::Error,
-        container_name: String,
-    },
 
     #[snafu(display("failed to add Authentication Volumes and VolumeMounts"))]
     AddAuthVolumes {
@@ -147,7 +144,10 @@ fn reporting_task_role_group() -> RoleGroupName {
 
 /// Return the name of the reporting task Service.
 pub fn build_reporting_task_service_name(nifi_cluster_name: &str) -> String {
-    format!("{nifi_cluster_name}-{REPORTING_TASK_CONTAINER_NAME}")
+    format!(
+        "{nifi_cluster_name}-{container}",
+        container = &*REPORTING_TASK_CONTAINER_NAME
+    )
 }
 
 /// Return the FQDN (with namespace, domain) of the reporting task.
@@ -284,11 +284,7 @@ fn build_reporting_task_job(
         format!("-m {METRICS_PORT}"),
         format!("-c {REPORTING_TASK_CERT_VOLUME_MOUNT}/ca.crt"),
     ];
-    let mut cb = ContainerBuilder::new(REPORTING_TASK_CONTAINER_NAME).with_context(|_| {
-        IllegalContainerNameSnafu {
-            container_name: REPORTING_TASK_CONTAINER_NAME.to_string(),
-        }
-    })?;
+    let mut cb = new_container_builder(&REPORTING_TASK_CONTAINER_NAME);
     cb.image_from_product_image(resolved_product_image)
         .command(vec!["sh".to_string(), "-c".to_string()])
         .args(vec![args.join(" ")])
