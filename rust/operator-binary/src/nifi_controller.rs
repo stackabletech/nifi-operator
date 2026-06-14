@@ -224,15 +224,10 @@ pub async fn reconcile_nifi(
         && deployed_version.is_some_and(|v| v.starts_with("2."));
 
     if !rolling_upgrade_supported {
-        cluster_version_update_state = upgrade::cluster_version_update_state(
-            nifi,
-            client,
-            &validated_cluster.namespace,
-            &resolved_product_image.product_version,
-            deployed_version,
-        )
-        .await
-        .context(ClusterVersionUpdateStateSnafu)?;
+        cluster_version_update_state =
+            upgrade::cluster_version_update_state(&validated_cluster, client, deployed_version)
+                .await
+                .context(ClusterVersionUpdateStateSnafu)?;
 
         if cluster_version_update_state == ClusterVersionUpdateState::UpdateInProgress {
             return Ok(Action::await_change());

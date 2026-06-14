@@ -5,22 +5,15 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     client::Client,
     k8s_openapi::{api::apps::v1::StatefulSet, apimachinery::pkg::apis::meta::v1::LabelSelector},
-    kvp::Labels,
-    v2::types::kubernetes::NamespaceName,
 };
 
-use crate::crd::{APP_NAME, NifiRole, v1alpha1};
+use super::ValidatedCluster;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display("failed to fetch deployed StatefulSets"))]
     FetchStatefulsets {
         source: stackable_operator::client::Error,
-    },
-
-    #[snafu(display("failed to build labels"))]
-    LabelBuild {
-        source: stackable_operator::kvp::LabelError,
     },
 }
 
@@ -37,12 +30,13 @@ pub enum ClusterVersionUpdateState {
 }
 
 pub async fn cluster_version_update_state(
-    nifi: &v1alpha1::NifiCluster,
+    cluster: &ValidatedCluster,
     client: &Client,
-    namespace: &NamespaceName,
-    resolved_version: &String,
     deployed_version: Option<&String>,
 ) -> Result<ClusterVersionUpdateState> {
+    // The version we want to converge to, i.e. the resolved product image version.
+    let resolved_version = &cluster.image.product_version;
+
     // Handle full restarts for a version change
     match deployed_version {
         Some(deployed_version) => {
@@ -50,16 +44,12 @@ pub async fn cluster_version_update_state(
                 // Check if statefulsets are already scaled to zero, if not - requeue
                 let selector = LabelSelector {
                     match_expressions: None,
-                    match_labels: Some(
-                        Labels::role_selector(nifi, APP_NAME, &NifiRole::Node.to_string())
-                            .context(LabelBuildSnafu)?
-                            .into(),
-                    ),
+                    match_labels: Some(cluster.role_selector().into()),
                 };
 
                 // Retrieve the deployed statefulsets to check on the current status of the restart
                 let deployed_statefulsets = client
-                    .list_with_label_selector::<StatefulSet>(namespace.as_ref(), &selector)
+                    .list_with_label_selector::<StatefulSet>(cluster.namespace.as_ref(), &selector)
                     .await
                     .context(FetchStatefulsetsSnafu)?;
 
