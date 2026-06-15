@@ -109,11 +109,6 @@ pub enum Error {
         source: crate::controller::build::graceful_shutdown::Error,
     },
 
-    #[snafu(display("failed to configure listener"))]
-    ListenerConfiguration {
-        source: crate::controller::build::resource::listener::Error,
-    },
-
     #[snafu(display("failed to build authorization configuration"))]
     AuthorizationConfiguration { source: authorization::Error },
 }
@@ -727,13 +722,10 @@ fn get_volume_claim_templates(
     // listener endpoints will use persistent volumes
     // so that load balancers can hard-code the target addresses and
     // that it is possible to connect to a consistent address
-    pvcs.push(
-        build_group_listener_pvc(
-            &group_listener_name(cluster, &NifiRole::Node.to_string()),
-            &unversioned_recommended_labels,
-        )
-        .context(ListenerConfigurationSnafu)?,
-    );
+    pvcs.push(build_group_listener_pvc(
+        &group_listener_name(cluster, &NifiRole::Node.to_string()),
+        &unversioned_recommended_labels,
+    ));
 
     // Add file-based PVC if required
     if let ResolvedNifiAuthorizationConfig::Standard {

@@ -168,11 +168,6 @@ pub enum Error {
     ApplyGroupListener {
         source: stackable_operator::cluster_resources::Error,
     },
-
-    #[snafu(display("failed to configure listener"))]
-    ListenerConfiguration {
-        source: crate::controller::build::resource::listener::Error,
-    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -383,8 +378,7 @@ pub async fn reconcile_nifi(
             &validated_cluster,
             listener_class.to_owned(),
             group_listener_name(&validated_cluster, &nifi_role.to_string()),
-        )
-        .context(ListenerConfigurationSnafu)?;
+        );
 
         cluster_resources
             .add(client, role_group_listener)

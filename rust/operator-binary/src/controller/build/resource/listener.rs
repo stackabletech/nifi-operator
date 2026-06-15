@@ -1,13 +1,17 @@
-use snafu::{ResultExt, Snafu};
+use std::str::FromStr;
+
 use stackable_operator::{
-    builder::{
-        meta::ObjectMetaBuilder,
-        pod::volume::{ListenerOperatorVolumeSourceBuilder, ListenerReference},
-    },
+    builder::meta::ObjectMetaBuilder,
     crd::listener::v1alpha1::{Listener, ListenerPort, ListenerSpec},
     k8s_openapi::api::core::v1::PersistentVolumeClaim,
     kvp::Labels,
-    v2::{builder::meta::ownerreference_from_resource, types::kubernetes::ListenerClassName},
+    v2::{
+        builder::{
+            meta::ownerreference_from_resource,
+            pod::volume::{ListenerReference, listener_operator_volume_source_builder_build_pvc},
+        },
+        types::kubernetes::{ListenerClassName, ListenerName, PersistentVolumeClaimName},
+    },
 };
 
 use crate::{
@@ -18,23 +22,15 @@ use crate::{
 pub const LISTENER_VOLUME_NAME: &str = "listener";
 pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
 
-#[derive(Snafu, Debug)]
-pub enum Error {
-    #[snafu(display("failed to build listener volume"))]
-    BuildListenerPersistentVolume {
-        source: stackable_operator::builder::pod::volume::ListenerOperatorVolumeSourceBuilderError,
-    },
-}
-
 pub fn build_group_listener(
     cluster: &ValidatedCluster,
     listener_class: ListenerClassName,
-    listener_group_name: String,
-) -> Result<Listener, Error> {
-    Ok(Listener {
+    listener_group_name: ListenerName,
+) -> Listener {
+    Listener {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(cluster)
-            .name(listener_group_name)
+            .name(listener_group_name.to_string())
             .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
             .with_labels(cluster.recommended_labels_role_level())
             .build(),
@@ -48,21 +44,25 @@ pub fn build_group_listener(
             ..Default::default()
         },
         status: None,
-    })
+    }
 }
 
 pub fn build_group_listener_pvc(
-    group_listener_name: &String,
+    group_listener_name: &ListenerName,
     unversioned_recommended_labels: &Labels,
-) -> Result<PersistentVolumeClaim, Error> {
-    ListenerOperatorVolumeSourceBuilder::new(
-        &ListenerReference::ListenerName(group_listener_name.to_string()),
+) -> PersistentVolumeClaim {
+    listener_operator_volume_source_builder_build_pvc(
+        &ListenerReference::Listener(group_listener_name.clone()),
         unversioned_recommended_labels,
+        &PersistentVolumeClaimName::from_str(LISTENER_VOLUME_NAME)
+            .expect("'listener' is a valid PersistentVolumeClaim name"),
     )
-    .build_pvc(LISTENER_VOLUME_NAME.to_string())
-    .context(BuildListenerPersistentVolumeSnafu)
 }
 
-pub fn group_listener_name(cluster: &ValidatedCluster, role_name: &String) -> String {
-    format!("{cluster_name}-{role_name}", cluster_name = cluster.name)
+pub fn group_listener_name(cluster: &ValidatedCluster, role_name: &String) -> ListenerName {
+    ListenerName::from_str(&format!(
+        "{cluster_name}-{role_name}",
+        cluster_name = cluster.name
+    ))
+    .expect("the cluster name and role name form a valid listener name")
 }
