@@ -5,6 +5,8 @@ pub mod sensitive_properties;
 pub mod storage;
 pub mod tls;
 
+use std::str::FromStr;
+
 use affinity::get_affinity;
 use authorization::NifiAuthorization;
 use sensitive_properties::NifiSensitivePropertiesConfig;
@@ -34,7 +36,11 @@ use stackable_operator::{
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
     utils::crds::{raw_object_list_schema, raw_object_schema},
-    v2::{config_overrides::KeyValueConfigOverrides, role_utils::JavaCommonConfig},
+    v2::{
+        config_overrides::KeyValueConfigOverrides,
+        role_utils::JavaCommonConfig,
+        types::kubernetes::{ConfigMapName, ListenerClassName, SecretClassName},
+    },
     versioned::versioned,
 };
 use tls::NifiTls;
@@ -133,7 +139,7 @@ pub mod versioned {
         /// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
         /// to learn how to configure log aggregation with Vector.
         #[serde(skip_serializing_if = "Option::is_none")]
-        pub vector_aggregator_config_map_name: Option<String>,
+        pub vector_aggregator_config_map_name: Option<ConfigMapName>,
 
         #[serde(flatten)]
         pub clustering_backend: NifiClusteringBackend,
@@ -171,7 +177,7 @@ pub mod versioned {
             ///
             /// The Kubernetes provider will be used if this field is unset. Kubernetes is only supported for NiFi 2.x and newer,
             /// NiFi 1.x requires ZooKeeper.
-            zookeeper_config_map_name: String,
+            zookeeper_config_map_name: ConfigMapName,
         },
         Kubernetes {},
     }
@@ -207,7 +213,7 @@ impl v1alpha1::NifiCluster {
     }
 
     /// Return user provided server TLS settings
-    pub fn server_tls_secret_class(&self) -> &str {
+    pub fn server_tls_secret_class(&self) -> &SecretClassName {
         &self.spec.cluster_config.tls.server_secret_class
     }
 }
@@ -465,7 +471,7 @@ pub struct NifiNodeRoleConfig {
     pub common: GenericRoleConfig,
 
     #[serde(default = "node_default_listener_class")]
-    pub listener_class: String,
+    pub listener_class: ListenerClassName,
 }
 
 impl Default for NifiNodeRoleConfig {
@@ -477,8 +483,9 @@ impl Default for NifiNodeRoleConfig {
     }
 }
 
-fn node_default_listener_class() -> String {
-    "cluster-internal".to_string()
+fn node_default_listener_class() -> ListenerClassName {
+    ListenerClassName::from_str("cluster-internal")
+        .expect("'cluster-internal' is a valid listener class name")
 }
 
 #[cfg(test)]

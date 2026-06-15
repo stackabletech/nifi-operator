@@ -216,7 +216,7 @@ fn references_config_map(
     let references_zookeeper_config_map = match &nifi.spec.cluster_config.clustering_backend {
         NifiClusteringBackend::ZooKeeper {
             zookeeper_config_map_name,
-        } => *zookeeper_config_map_name == config_map.name_any(),
+        } => zookeeper_config_map_name.to_string() == config_map.name_any(),
         NifiClusteringBackend::Kubernetes {} => false,
     };
     let references_authorization_config_map = references_authorization_config_map(nifi, config_map);

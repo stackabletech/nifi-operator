@@ -7,7 +7,7 @@ use stackable_operator::{
     crd::listener::v1alpha1::{Listener, ListenerPort, ListenerSpec},
     k8s_openapi::api::core::v1::PersistentVolumeClaim,
     kvp::Labels,
-    v2::builder::meta::ownerreference_from_resource,
+    v2::{builder::meta::ownerreference_from_resource, types::kubernetes::ListenerClassName},
 };
 
 use crate::{
@@ -28,7 +28,7 @@ pub enum Error {
 
 pub fn build_group_listener(
     cluster: &ValidatedCluster,
-    listener_class: String,
+    listener_class: ListenerClassName,
     listener_group_name: String,
 ) -> Result<Listener, Error> {
     Ok(Listener {
@@ -39,7 +39,7 @@ pub fn build_group_listener(
             .with_labels(cluster.recommended_labels_role_level())
             .build(),
         spec: ListenerSpec {
-            class_name: Some(listener_class),
+            class_name: Some(listener_class.to_string()),
             ports: Some(vec![ListenerPort {
                 name: HTTPS_PORT_NAME.into(),
                 port: HTTPS_PORT.into(),

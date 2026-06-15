@@ -43,6 +43,10 @@ pub fn build(clustering_backend: &NifiClusteringBackend) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
+    use stackable_operator::v2::types::kubernetes::ConfigMapName;
+
     use super::*;
 
     #[test]
@@ -57,7 +61,8 @@ mod tests {
     #[test]
     fn test_build_state_management_xml_zookeeper() {
         let xml = build(&NifiClusteringBackend::ZooKeeper {
-            zookeeper_config_map_name: "my-zk".to_string(),
+            zookeeper_config_map_name: ConfigMapName::from_str("my-zk")
+                .expect("'my-zk' is a valid ConfigMap name"),
         });
         assert!(xml.contains("zk-provider"));
         assert!(xml.contains("ZooKeeperStateProvider"));

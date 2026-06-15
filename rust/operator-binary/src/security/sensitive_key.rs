@@ -34,7 +34,7 @@ pub(crate) async fn check_or_generate_sensitive_key(
     let sensitive_config = &nifi.spec.cluster_config.sensitive_properties;
 
     match client
-        .get_opt::<Secret>(&sensitive_config.key_secret, namespace.as_ref())
+        .get_opt::<Secret>(sensitive_config.key_secret.as_ref(), namespace.as_ref())
         .await
         .context(SensitiveKeySecretSnafu)?
     {
@@ -42,7 +42,7 @@ pub(crate) async fn check_or_generate_sensitive_key(
         None => {
             if !sensitive_config.auto_generate {
                 return Err(Error::SensitiveKeySecretMissing {
-                    name: sensitive_config.key_secret.clone(),
+                    name: sensitive_config.key_secret.to_string(),
                     namespace: namespace.to_string(),
                 });
             }

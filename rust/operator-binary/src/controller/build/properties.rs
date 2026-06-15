@@ -170,7 +170,7 @@ pub(crate) mod test_support {
                     .cluster_config
                     .sensitive_properties
                     .key_secret
-                    .clone(),
+                    .to_string(),
                 server_tls_secret_class: nifi.server_tls_secret_class().to_string(),
                 extra_volumes: nifi.spec.cluster_config.extra_volumes.clone(),
                 reporting_task_pod_overrides: nifi

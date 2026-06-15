@@ -84,11 +84,6 @@ pub enum Error {
         source: crate::controller::build::git_sync::Error,
     },
 
-    #[snafu(display("invalid Vector aggregator discovery ConfigMap name"))]
-    ParseVectorAggregatorConfigMapName {
-        source: stackable_operator::v2::macros::attributed_string_type::Error,
-    },
-
     #[snafu(display(
         "the Vector aggregator discovery ConfigMap name is required when the Vector agent is enabled"
     ))]
@@ -138,16 +133,13 @@ pub fn validate(
         .check_for_nifi_version(&image.product_version)
         .context(InvalidSensitivePropertiesAlgorithmSnafu)?;
 
-    // The Vector aggregator discovery ConfigMap name is validated here so an invalid name fails
-    // up-front. It is only required when the Vector agent is enabled for a role group.
+    // The Vector aggregator discovery ConfigMap name is validated by the CRD's typed field. It is
+    // only required when the Vector agent is enabled for a role group.
     let vector_aggregator_config_map_name = nifi
         .spec
         .cluster_config
         .vector_aggregator_config_map_name
-        .as_deref()
-        .map(ConfigMapName::from_str)
-        .transpose()
-        .context(ParseVectorAggregatorConfigMapNameSnafu)?;
+        .clone();
 
     let role_group_configs =
         build_role_group_configs(nifi, &image, &vector_aggregator_config_map_name)?;
@@ -178,7 +170,7 @@ pub fn validate(
                 .cluster_config
                 .sensitive_properties
                 .key_secret
-                .clone(),
+                .to_string(),
             server_tls_secret_class: nifi.server_tls_secret_class().to_string(),
             extra_volumes: nifi.spec.cluster_config.extra_volumes.clone(),
             reporting_task_pod_overrides: nifi
