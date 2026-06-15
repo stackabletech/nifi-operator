@@ -5,6 +5,7 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     client::Client,
     k8s_openapi::{api::apps::v1::StatefulSet, apimachinery::pkg::apis::meta::v1::LabelSelector},
+    v2::types::operator::ProductVersion,
 };
 
 use super::ValidatedCluster;
@@ -32,7 +33,7 @@ pub enum ClusterVersionUpdateState {
 pub async fn cluster_version_update_state(
     cluster: &ValidatedCluster,
     client: &Client,
-    deployed_version: Option<&String>,
+    deployed_version: Option<&ProductVersion>,
 ) -> Result<ClusterVersionUpdateState> {
     // The version we want to converge to, i.e. the resolved product image version.
     let resolved_version = &cluster.image.product_version;
@@ -40,7 +41,7 @@ pub async fn cluster_version_update_state(
     // Handle full restarts for a version change
     match deployed_version {
         Some(deployed_version) => {
-            if deployed_version != resolved_version {
+            if deployed_version.as_ref() != resolved_version.as_str() {
                 // Check if statefulsets are already scaled to zero, if not - requeue
                 let selector = LabelSelector {
                     match_expressions: None,

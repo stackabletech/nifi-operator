@@ -1,6 +1,6 @@
 //! Ensures that `Pod`s are configured and running for each [`v1alpha1::NifiCluster`].
 
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
 use const_format::concatcp;
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -21,7 +21,10 @@ use stackable_operator::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
         statefulset::StatefulSetConditionBuilder,
     },
-    v2::{cluster_resources::cluster_resources_new, types::operator::RoleGroupName},
+    v2::{
+        cluster_resources::cluster_resources_new,
+        types::operator::{ProductVersion, RoleGroupName},
+    },
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 use tracing::Instrument;
@@ -221,7 +224,7 @@ pub async fn reconcile_nifi(
         .as_ref()
         .and_then(|status| status.deployed_version.as_ref());
     let rolling_upgrade_supported = resolved_product_image.product_version.starts_with("2.")
-        && deployed_version.is_some_and(|v| v.starts_with("2."));
+        && deployed_version.is_some_and(|v| v.as_ref().starts_with("2."));
 
     if !rolling_upgrade_supported {
         cluster_version_update_state =
@@ -429,7 +432,10 @@ pub async fn reconcile_nifi(
     // we are still in the process of updating
     let status = if cluster_version_update_state != ClusterVersionUpdateState::UpdateRequested {
         NifiStatus {
-            deployed_version: Some(resolved_product_image.product_version.clone()),
+            deployed_version: Some(
+                ProductVersion::from_str(&resolved_product_image.product_version)
+                    .expect("the resolved product version is a valid product version label value"),
+            ),
             conditions,
         }
     } else {

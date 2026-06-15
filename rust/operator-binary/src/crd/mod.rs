@@ -39,7 +39,10 @@ use stackable_operator::{
     v2::{
         config_overrides::KeyValueConfigOverrides,
         role_utils::JavaCommonConfig,
-        types::kubernetes::{ConfigMapName, ListenerClassName, SecretClassName},
+        types::{
+            kubernetes::{ConfigMapName, ListenerClassName, SecretClassName},
+            operator::ProductVersion,
+        },
     },
     versioned::versioned,
 };
@@ -292,7 +295,7 @@ pub enum NifiRole {
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, Serialize)]
 pub struct NifiStatus {
-    pub deployed_version: Option<String>,
+    pub deployed_version: Option<ProductVersion>,
     #[serde(default)]
     pub conditions: Vec<ClusterCondition>,
 }

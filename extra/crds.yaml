@@ -2280,7 +2280,10 @@ spec:
                   type: object
                 type: array
               deployed_version:
+                maxLength: 63
+                minLength: 1
                 nullable: true
+                pattern: ^[a-z0-9A-Z]([a-z0-9A-Z-_.]*[a-z0-9A-Z]+)?$
                 type: string
             type: object
         required:
