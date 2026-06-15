@@ -611,9 +611,10 @@ pub(crate) async fn build_node_rolegroup_statefulset(
                 &cluster.cluster_config.server_tls_secret_class,
                 KEYSTORE_VOLUME_NAME,
                 [
-                    crate::controller::build::resource::service::metrics_service_name(
-                        cluster, &rg.name,
-                    ),
+                    cluster
+                        .resource_names(&rg.name)
+                        .metrics_service_name()
+                        .to_string(),
                     build_reporting_task_service_name(&nifi_cluster_name),
                 ],
                 SecretFormat::TlsPkcs12,

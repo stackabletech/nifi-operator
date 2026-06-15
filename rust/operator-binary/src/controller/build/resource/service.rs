@@ -50,7 +50,12 @@ pub fn build_rolegroup_metrics_service(
     Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(cluster)
-            .name(metrics_service_name(cluster, role_group_name))
+            .name(
+                cluster
+                    .resource_names(role_group_name)
+                    .metrics_service_name()
+                    .to_string(),
+            )
             .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
             .with_labels(cluster.recommended_labels(role_group_name))
             .with_labels(prometheus_labels())
@@ -67,21 +72,6 @@ pub fn build_rolegroup_metrics_service(
         }),
         status: None,
     }
-}
-
-/// The name of the rolegroup metrics [`Service`] (`<cluster>-<role>-<rolegroup>-metrics`).
-///
-/// [`ResourceNames`](stackable_operator::v2::role_group_utils::ResourceNames) has no metrics
-/// service name, so it is derived from the qualified role-group name (which equals the StatefulSet
-/// name) here, preserving the previous `RoleGroupRef::rolegroup_metrics_service_name` output.
-pub(crate) fn metrics_service_name(
-    cluster: &ValidatedCluster,
-    role_group_name: &RoleGroupName,
-) -> String {
-    format!(
-        "{qualified}-metrics",
-        qualified = cluster.resource_names(role_group_name).stateful_set_name()
-    )
 }
 
 fn headless_service_ports() -> Vec<ServicePort> {
