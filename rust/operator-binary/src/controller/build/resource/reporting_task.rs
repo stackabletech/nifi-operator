@@ -60,6 +60,8 @@ use crate::{
 
 const REPORTING_TASK_CERT_VOLUME_NAME: &str = "tls";
 const REPORTING_TASK_CERT_VOLUME_MOUNT: &str = "/stackable/cert";
+/// Path (inside the image) of the script that registers the NiFi 1.x reporting task.
+const REPORTING_TASK_SCRIPT_PATH: &str = "/stackable/python/create_nifi_reporting_task.py";
 stackable_operator::constant!(REPORTING_TASK_CONTAINER_NAME: ContainerName = "reporting-task");
 
 #[derive(Snafu, Debug)]
@@ -256,7 +258,7 @@ fn build_reporting_task_job(
     };
 
     let args = [
-        "/stackable/python/create_nifi_reporting_task.py".to_string(),
+        REPORTING_TASK_SCRIPT_PATH.to_string(),
         format!("-n {nifi_connect_url}"),
         user_name_command,
         format!("-p \"$(cat {admin_password_file})\""),

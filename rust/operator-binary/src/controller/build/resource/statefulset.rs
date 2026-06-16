@@ -133,6 +133,10 @@ const LOG_CONFIG_VOLUME_NAME: &str = "log-config";
 /// git-sync container, see [`crate::controller::build::git_sync`]).
 pub(crate) const LOG_VOLUME_NAME: &str = "log";
 
+/// `emptyDir` for the Python working directory, mounted into the NiFi container at
+/// [`NIFI_PYTHON_WORKING_DIRECTORY`].
+const PYTHON_WORKING_DIR_VOLUME_NAME: &str = "nifi-python-working-directory";
+
 // Container names. These must match the corresponding (kebab-cased) `crate::crd::Container`
 // variants, which key the per-container logging config.
 stackable_operator::constant!(PREPARE_CONTAINER_NAME: ContainerName = "prepare");
@@ -471,12 +475,14 @@ pub(crate) async fn build_node_rolegroup_statefulset(
             .context(AddVolumeMountSnafu)?;
     }
 
-    let volume_name = "nifi-python-working-directory".to_string();
     pod_builder
-        .add_empty_dir_volume(&volume_name, None)
+        .add_empty_dir_volume(PYTHON_WORKING_DIR_VOLUME_NAME, None)
         .context(AddVolumeSnafu)?;
     container_nifi
-        .add_volume_mount(&volume_name, NIFI_PYTHON_WORKING_DIRECTORY)
+        .add_volume_mount(
+            PYTHON_WORKING_DIR_VOLUME_NAME,
+            NIFI_PYTHON_WORKING_DIRECTORY,
+        )
         .context(AddVolumeMountSnafu)?;
 
     container_nifi
@@ -553,15 +559,15 @@ pub(crate) async fn build_node_rolegroup_statefulset(
         .image_pull_secrets_from_product_image(resolved_product_image)
         .add_init_container(container_prepare.build())
         .affinity(&merged_config.affinity)
-        // One volume for the NiFi configuration. A script will later on edit (e.g. nodename)
-        // and copy the whole content to the <NIFI_HOME>/conf folder.
-        .add_volume(stackable_operator::k8s_openapi::api::core::v1::Volume {
-            name: "config".to_string(),
+        // The rolegroup `ConfigMap` mounted as-is (it also carries `vector.yaml`); read by the
+        // Vector sidecar via [`VECTOR_LOG_CONFIG_VOLUME_NAME`].
+        .add_volume(Volume {
+            name: VECTOR_LOG_CONFIG_VOLUME_NAME.to_string(),
             config_map: Some(ConfigMapVolumeSource {
                 name: resource_names.role_group_config_map().to_string(),
-                ..Default::default()
+                ..ConfigMapVolumeSource::default()
             }),
-            ..Default::default()
+            ..Volume::default()
         })
         .context(AddVolumeSnafu)?
         .add_volume(Volume {

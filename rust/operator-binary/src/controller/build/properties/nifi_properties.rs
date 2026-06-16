@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use snafu::{ResultExt, ensure};
 use stackable_operator::memory::MemoryQuantity;
 
-use super::format_properties;
+use super::{ConfigFileName, format_properties};
 use crate::{
     controller::{
         ValidatedCluster, ValidatedRoleGroupConfig,
@@ -14,7 +14,13 @@ use crate::{
         },
     },
     crd::{
-        HTTPS_PORT, constants::NIFI_PYTHON_WORKING_DIRECTORY, storage::NifiRepository, v1alpha1,
+        HTTPS_PORT,
+        constants::{
+            NIFI_CONFIG_DIRECTORY, NIFI_PYTHON_EXTENSIONS_DIRECTORY,
+            NIFI_PYTHON_FRAMEWORK_DIRECTORY, NIFI_PYTHON_WORKING_DIRECTORY,
+        },
+        storage::NifiRepository,
+        v1alpha1,
     },
     security::{
         authentication::{
@@ -71,7 +77,7 @@ pub fn build(
     );
     properties.insert(
         "nifi.flow.configuration.archive.dir".to_string(),
-        "/stackable/nifi/conf/archive/".to_string(),
+        format!("{NIFI_CONFIG_DIRECTORY}/archive/"),
     );
     properties.insert(
         "nifi.flow.configuration.archive.max.time".to_string(),
@@ -110,11 +116,14 @@ pub fn build(
 
     properties.insert(
         "nifi.authorizer.configuration.file".to_string(),
-        "/stackable/nifi/conf/authorizers.xml".to_string(),
+        format!("{NIFI_CONFIG_DIRECTORY}/{}", ConfigFileName::Authorizers),
     );
     properties.insert(
         "nifi.login.identity.provider.configuration.file".to_string(),
-        "/stackable/nifi/conf/login-identity-providers.xml".to_string(),
+        format!(
+            "{NIFI_CONFIG_DIRECTORY}/{}",
+            ConfigFileName::LoginIdentityProviders
+        ),
     );
     properties.insert(
         "nifi.templates.directory".to_string(),
@@ -536,7 +545,7 @@ pub fn build(
     // Java processes.
     properties.insert(
         "nifi.python.framework.source.directory".to_string(),
-        "/stackable/nifi/python/framework/".to_string(),
+        NIFI_PYTHON_FRAMEWORK_DIRECTORY.to_string(),
     );
 
     // The working directory where NiFi should store artifacts;
@@ -552,7 +561,7 @@ pub fn build(
     // (docs/modules/nifi/pages/usage_guide/custom-components.adoc), so do not change it!
     properties.insert(
         "nifi.python.extensions.source.directory.default".to_string(),
-        "/stackable/nifi/python/extensions/".to_string(),
+        NIFI_PYTHON_EXTENSIONS_DIRECTORY.to_string(),
     );
 
     for (i, git_folder) in git_sync_resources
