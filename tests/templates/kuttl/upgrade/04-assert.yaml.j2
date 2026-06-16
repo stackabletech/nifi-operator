@@ -4,6 +4,6 @@ kind: TestAssert
 timeout: 300
 commands:
   - script: kubectl exec -n $NAMESPACE test-nifi-0 -- python /tmp/test_nifi.py -u admin -p supersecretpassword -n $NAMESPACE -c 3
-  - script: kubectl exec -n $NAMESPACE test-nifi-0 -- sh -c "python /tmp/flow.py -e https://test-nifi-node-default-0.test-nifi-node-default-headless.$NAMESPACE.svc.cluster.local:8443 run template /tmp/generate-and-log-flowfiles.xml > /tmp/old_input"
+  - script: kubectl exec -n $NAMESPACE test-nifi-0 -- sh -c "python /tmp/flow.py > /tmp/old_input"
   # This tests if the output contains an Error or zero flow files are queued, which also indicates that something went wrong
   - script: kubectl exec -n $NAMESPACE test-nifi-0 -- sh -c "cat /tmp/old_input | grep -Eov 'Error|\b0\b'"
