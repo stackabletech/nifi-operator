@@ -9,7 +9,6 @@ use stackable_operator::v2::types::operator::RoleGroupName;
 
 use crate::{crd::storage::NifiRepository, security::oidc};
 
-pub mod config_map;
 pub mod git_sync;
 pub mod graceful_shutdown;
 pub mod jvm;

@@ -2,6 +2,7 @@
 //!
 //! [`ValidatedCluster`]: crate::controller::ValidatedCluster
 
+pub mod config_map;
 pub mod listener;
 pub mod pdb;
 pub mod reporting_task;

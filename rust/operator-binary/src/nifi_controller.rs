@@ -91,7 +91,7 @@ pub enum Error {
 
     #[snafu(display("failed to build rolegroup ConfigMap for {}", rolegroup))]
     BuildRoleGroupConfigMap {
-        source: build::config_map::Error,
+        source: build::resource::config_map::Error,
         rolegroup: RoleGroupName,
     },
 
@@ -293,7 +293,7 @@ pub async fn reconcile_nifi(
 
             let role = nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?;
 
-            let rg_configmap = build::config_map::build_rolegroup_config_map(
+            let rg_configmap = build::resource::config_map::build_rolegroup_config_map(
                 &validated_cluster,
                 rg,
                 &client.kubernetes_cluster_info,
