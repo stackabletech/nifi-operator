@@ -21,7 +21,7 @@ use stackable_operator::{
         role_group_utils::ResourceNames,
         role_utils::JavaCommonConfig,
         types::{
-            kubernetes::{NamespaceName, Uid},
+            kubernetes::{ListenerClassName, NamespaceName, Uid},
             operator::{
                 ClusterName, ControllerName, OperatorName, ProductName, ProductVersion,
                 RoleGroupName, RoleName,
@@ -103,6 +103,9 @@ pub struct ValidatedCluster {
     /// The product version as a type-safe label value, used for the `app.kubernetes.io/version`
     /// label on built resources.
     pub product_version: ProductVersion,
+    /// Per-role configuration (PodDisruptionBudget and listener class). The `nodes` role is
+    /// mandatory, so this is always present.
+    pub role_config: ValidatedRoleConfig,
     /// Cluster wide settings.
     pub cluster_config: ValidatedClusterConfig,
     /// Collected configuration per rolegroup.
@@ -131,6 +134,13 @@ pub struct ValidatedClusterConfig {
     pub reporting_task_pod_overrides: PodTemplateSpec,
 }
 
+/// Per-role configuration extracted during validation.
+#[derive(Clone, Debug)]
+pub struct ValidatedRoleConfig {
+    pub pdb: stackable_operator::commons::pdb::PdbConfig,
+    pub listener_class: ListenerClassName,
+}
+
 impl ValidatedCluster {
     /// Builds a [`ValidatedCluster`], deriving the synthetic [`ObjectMeta`] from name, namespace
     /// and uid so the struct can implement [`Resource`].
@@ -141,6 +151,7 @@ impl ValidatedCluster {
         uid: Uid,
         image: ResolvedProductImage,
         product_version: ProductVersion,
+        role_config: ValidatedRoleConfig,
         role_group_configs: BTreeMap<NifiRole, BTreeMap<RoleGroupName, ValidatedRoleGroupConfig>>,
         cluster_config: ValidatedClusterConfig,
     ) -> Self {
@@ -158,6 +169,7 @@ impl ValidatedCluster {
             uid,
             image,
             product_version,
+            role_config,
             role_group_configs,
             cluster_config,
         }

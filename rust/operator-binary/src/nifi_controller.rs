@@ -15,7 +15,6 @@ use stackable_operator::{
         runtime::controller::Action,
     },
     logging::controller::ReconcilerError,
-    role_utils::GenericRoleConfig,
     shared::time::Duration,
     status::condition::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
@@ -44,7 +43,7 @@ use crate::{
         upgrade::{self, ClusterVersionUpdateState},
         validate,
     },
-    crd::{APP_NAME, NifiNodeRoleConfig, NifiRole, NifiStatus, v1alpha1},
+    crd::{APP_NAME, NifiRole, NifiStatus, v1alpha1},
     security::{
         authentication::NifiAuthenticationConfig, check_or_generate_oidc_admin_password,
         check_or_generate_sensitive_key,
@@ -359,32 +358,24 @@ pub async fn reconcile_nifi(
         .await?
     }
 
-    let role_config = nifi.role_config(&nifi_role);
-    if let Some(NifiNodeRoleConfig {
-        common: GenericRoleConfig {
-            pod_disruption_budget: pdb,
-        },
-        listener_class,
-    }) = role_config
-    {
-        if let Some(pdb) = build_pdb(pdb, &validated_cluster, &nifi_role) {
-            cluster_resources
-                .add(client, pdb)
-                .await
-                .context(ApplyPdbSnafu)?;
-        }
-
-        let role_group_listener = build_group_listener(
-            &validated_cluster,
-            listener_class.to_owned(),
-            group_listener_name(&validated_cluster, &nifi_role.to_string()),
-        );
-
+    let role_config = &validated_cluster.role_config;
+    if let Some(pdb) = build_pdb(&role_config.pdb, &validated_cluster, &nifi_role) {
         cluster_resources
-            .add(client, role_group_listener)
+            .add(client, pdb)
             .await
-            .context(ApplyGroupListenerSnafu)?;
+            .context(ApplyPdbSnafu)?;
     }
+
+    let role_group_listener = build_group_listener(
+        &validated_cluster,
+        role_config.listener_class.clone(),
+        group_listener_name(&validated_cluster, &nifi_role.to_string()),
+    );
+
+    cluster_resources
+        .add(client, role_group_listener)
+        .await
+        .context(ApplyGroupListenerSnafu)?;
 
     // Only add the reporting task in case it is enabled.
     if nifi.spec.cluster_config.create_reporting_task_job.enabled {

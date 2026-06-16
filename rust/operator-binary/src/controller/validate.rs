@@ -27,7 +27,9 @@ use stackable_operator::{
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-use super::{ValidatedCluster, ValidatedClusterConfig, ValidatedRoleGroupConfig};
+use super::{
+    ValidatedCluster, ValidatedClusterConfig, ValidatedRoleConfig, ValidatedRoleGroupConfig,
+};
 use crate::{
     controller::{build::git_sync::build_git_sync_resources, dereference::DereferencedObjects},
     crd::{Container, NifiConfig, NifiRole, sensitive_properties, v1alpha1},
@@ -144,6 +146,17 @@ pub fn validate(
     let role_group_configs =
         build_role_group_configs(nifi, &image, &vector_aggregator_config_map_name)?;
 
+    // Per-role config (PDB + listener class), extracted here so downstream builders source it from
+    // the `ValidatedCluster` rather than the raw `NifiCluster`. The `nodes` role is mandatory
+    // (already enforced by `build_role_group_configs` above), so this is always present.
+    let role_config = nifi
+        .role_config(&NifiRole::Node)
+        .map(|role_config| ValidatedRoleConfig {
+            pdb: role_config.common.pod_disruption_budget.clone(),
+            listener_class: role_config.listener_class.clone(),
+        })
+        .context(NoNodesDefinedSnafu)?;
+
     let name = get_cluster_name(nifi).context(GetClusterNameSnafu)?;
     let namespace = dereferenced_objects.namespace.clone();
     let uid = get_uid(nifi).context(GetUidSnafu)?;
@@ -159,6 +172,7 @@ pub fn validate(
         uid,
         image,
         product_version,
+        role_config,
         role_group_configs,
         ValidatedClusterConfig {
             authentication: authentication_config,
