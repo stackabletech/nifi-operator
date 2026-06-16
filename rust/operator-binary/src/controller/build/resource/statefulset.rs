@@ -38,10 +38,7 @@ use stackable_operator::{
     },
     utils::{COMMON_BASH_TRAP_FUNCTIONS, cluster_info::KubernetesClusterInfo},
     v2::{
-        builder::{
-            meta::ownerreference_from_resource,
-            pod::container::{EnvVarSet, new_container_builder},
-        },
+        builder::pod::container::{EnvVarSet, new_container_builder},
         product_logging::framework::{STACKABLE_LOG_DIR, vector_container},
         types::kubernetes::{ContainerName, VolumeName},
     },
@@ -556,7 +553,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
         .context(AddAuthVolumesSnafu)?;
 
     let metadata = ObjectMetaBuilder::new()
-        .with_labels(recommended_object_labels.clone())
+        .with_labels(recommended_object_labels)
         .build();
 
     let requested_secret_lifetime = merged_config
@@ -655,11 +652,8 @@ pub(crate) async fn build_node_rolegroup_statefulset(
     pod_template.merge_from(rg.pod_overrides.clone());
 
     Ok(StatefulSet {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(cluster)
-            .name(resource_names.stateful_set_name().to_string())
-            .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
-            .with_labels(recommended_object_labels)
+        metadata: cluster
+            .object_meta(resource_names.stateful_set_name().to_string(), &rg.name)
             .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
             .build(),
         spec: Some(StatefulSetSpec {

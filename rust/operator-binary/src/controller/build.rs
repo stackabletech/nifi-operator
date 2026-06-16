@@ -2,7 +2,10 @@
 //!
 //! [`ValidatedCluster`]: crate::controller::ValidatedCluster
 
+use std::str::FromStr;
+
 use snafu::Snafu;
+use stackable_operator::v2::types::operator::RoleGroupName;
 
 use crate::{crd::storage::NifiRepository, security::oidc};
 
@@ -13,6 +16,10 @@ pub mod jvm;
 pub mod properties;
 pub mod proxy_hosts;
 pub mod resource;
+
+// Placeholder role-group name for role-level resources (e.g. the per-role `Listener`), which have
+// no associated role group. Preserves the historical `app.kubernetes.io/role-group: none` label.
+stackable_operator::constant!(pub(crate) PLACEHOLDER_LISTENER_ROLE_GROUP: RoleGroupName = "none");
 
 /// Errors that can occur while building the NiFi product configuration files.
 #[derive(Snafu, Debug)]

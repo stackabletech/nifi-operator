@@ -1,21 +1,19 @@
 use std::str::FromStr;
 
 use stackable_operator::{
-    builder::meta::ObjectMetaBuilder,
     crd::listener::v1alpha1::{Listener, ListenerPort, ListenerSpec},
     k8s_openapi::api::core::v1::PersistentVolumeClaim,
     kvp::Labels,
     v2::{
-        builder::{
-            meta::ownerreference_from_resource,
-            pod::volume::{ListenerReference, listener_operator_volume_source_builder_build_pvc},
+        builder::pod::volume::{
+            ListenerReference, listener_operator_volume_source_builder_build_pvc,
         },
         types::kubernetes::{ListenerClassName, ListenerName, PersistentVolumeClaimName},
     },
 };
 
 use crate::{
-    controller::ValidatedCluster,
+    controller::{ValidatedCluster, build::PLACEHOLDER_LISTENER_ROLE_GROUP},
     crd::{HTTPS_PORT, HTTPS_PORT_NAME},
 };
 
@@ -28,11 +26,11 @@ pub fn build_group_listener(
     listener_group_name: ListenerName,
 ) -> Listener {
     Listener {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(cluster)
-            .name(listener_group_name.to_string())
-            .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
-            .with_labels(cluster.recommended_labels_role_level())
+        metadata: cluster
+            .object_meta(
+                listener_group_name.to_string(),
+                &PLACEHOLDER_LISTENER_ROLE_GROUP,
+            )
             .build(),
         spec: ListenerSpec {
             class_name: Some(listener_class.to_string()),

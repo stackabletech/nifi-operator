@@ -192,11 +192,11 @@ fn build_reporting_task_service(cluster: &ValidatedCluster) -> Result<Service> {
     );
 
     Ok(Service {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(cluster)
-            .name(build_reporting_task_service_name(&nifi_cluster_name))
-            .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
-            .with_labels(cluster.recommended_labels(&reporting_task_role_group()))
+        metadata: cluster
+            .object_meta(
+                build_reporting_task_service_name(&nifi_cluster_name),
+                &reporting_task_role_group(),
+            )
             .build(),
         spec: Some(ServiceSpec {
             ports: Some(vec![ServicePort {
@@ -327,11 +327,8 @@ fn build_reporting_task_job(
     pod_template.merge_from(cluster.cluster_config.reporting_task_pod_overrides.clone());
 
     let job = Job {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(cluster)
-            .name(job_name)
-            .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
-            .with_labels(cluster.recommended_labels(&reporting_task_role_group()))
+        metadata: cluster
+            .object_meta(job_name, &reporting_task_role_group())
             .build(),
         spec: Some(JobSpec {
             backoff_limit: Some(100),

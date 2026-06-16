@@ -2,11 +2,9 @@
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
-    k8s_openapi::api::core::v1::ConfigMap,
-    product_logging::framework::VECTOR_CONFIG_FILE,
-    utils::cluster_info::KubernetesClusterInfo,
-    v2::{builder::meta::ownerreference_from_resource, types::operator::RoleGroupName},
+    builder::configmap::ConfigMapBuilder, k8s_openapi::api::core::v1::ConfigMap,
+    product_logging::framework::VECTOR_CONFIG_FILE, utils::cluster_info::KubernetesClusterInfo,
+    v2::types::operator::RoleGroupName,
 };
 
 use crate::controller::{
@@ -72,16 +70,14 @@ pub fn build_rolegroup_config_map(
 
     cm_builder
         .metadata(
-            ObjectMetaBuilder::new()
-                .name_and_namespace(cluster)
-                .name(
+            cluster
+                .object_meta(
                     cluster
                         .resource_names(&rg.name)
                         .role_group_config_map()
                         .to_string(),
+                    &rg.name,
                 )
-                .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
-                .with_labels(cluster.recommended_labels(&rg.name))
                 .build(),
         )
         .add_data(
