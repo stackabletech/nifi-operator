@@ -6,9 +6,10 @@ use stackable_operator::{
         self,
         spec::{ContainerLogConfig, ContainerLogConfigChoice, Logging},
     },
+    v2::product_logging::framework::STACKABLE_LOG_DIR,
 };
 
-use crate::crd::{Container, MAX_NIFI_LOG_FILES_SIZE, STACKABLE_LOG_DIR};
+use crate::crd::{Container, MAX_NIFI_LOG_FILES_SIZE};
 
 pub const NIFI_LOG_FILE: &str = "nifi.log4j.xml";
 

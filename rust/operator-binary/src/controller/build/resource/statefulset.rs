@@ -42,7 +42,7 @@ use stackable_operator::{
             meta::ownerreference_from_resource,
             pod::container::{EnvVarSet, new_container_builder},
         },
-        product_logging::framework::vector_container,
+        product_logging::framework::{STACKABLE_LOG_DIR, vector_container},
         types::kubernetes::{ContainerName, VolumeName},
     },
 };
@@ -65,7 +65,7 @@ use crate::{
     crd::{
         BALANCE_PORT, BALANCE_PORT_NAME, Container, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT,
         METRICS_PORT_NAME, NifiRole, NifiRoleType, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
-        STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
+        STACKABLE_LOG_CONFIG_DIR,
         authorization::NifiAccessPolicyProvider,
         constants::{NIFI_CONFIG_DIRECTORY, NIFI_PYTHON_WORKING_DIRECTORY},
         storage::{NifiRepository, PERSISTENT_REPOSITORIES},
