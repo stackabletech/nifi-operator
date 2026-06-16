@@ -54,7 +54,7 @@ dimensions:
       - 1.16.2
   - name: hdfs-l
     values:
-      - 3.4.2
+      - 3.5.0
   - name: hive-l
     values:
       - 4.2.0
