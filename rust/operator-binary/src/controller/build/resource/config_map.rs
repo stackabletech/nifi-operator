@@ -113,11 +113,12 @@ pub fn build_rolegroup_config_map(
             })?,
         );
 
-    if let Some(logback_config) = product_logging::build_logback_config(&rg.config.logging) {
+    if let Some(logback_config) = product_logging::build_logback_config(&rg.logging.nifi_container)
+    {
         cm_builder.add_data(ConfigFileName::Logback.to_string(), logback_config);
     }
 
-    if rg.config.logging.enable_vector_agent {
+    if rg.logging.enable_vector_agent {
         cm_builder.add_data(
             VECTOR_CONFIG_FILE,
             product_logging::vector_config_file_content(),

@@ -17,7 +17,7 @@ use stackable_operator::{
         HasName, HasUid, NameIsValidLabelValue,
         builder::pod::container::EnvVarSet,
         kvp::label::{recommended_labels, role_group_selector, role_selector},
-        product_logging::framework::VectorContainerLogConfig,
+        product_logging::framework::{ValidatedContainerLogConfigChoice, VectorContainerLogConfig},
         role_group_utils::ResourceNames,
         role_utils::JavaCommonConfig,
         types::{
@@ -74,15 +74,31 @@ pub struct ValidatedRoleGroupConfig {
     /// The merged (role <- role group) JVM argument overrides, applied on top of the
     /// operator-generated JVM arguments when building `bootstrap.conf`.
     pub product_specific_common_config: JavaCommonConfig,
-    /// The validated Vector container logging config (log config choice + aggregator discovery
-    /// ConfigMap name), validated up-front in the [`validate`] step. `None` when the Vector agent
-    /// is disabled for this role group.
-    pub vector_container: Option<VectorContainerLogConfig>,
+    /// The validated logging configuration (NiFi and optional Vector container), validated up-front
+    /// in the [`validate`] step (mirroring hive/opensearch).
+    pub logging: ValidatedLogging,
     /// The git-sync resources (containers, volumes, mounts) for this role group, resolved from the
     /// cluster's `customComponentsGitSync` specs up-front in the [`validate`] step. The env vars and
     /// logging config differ per role group, so these are computed per role group. Consumed by both
     /// the StatefulSet builder and the `nifi.properties` builder.
     pub git_sync_resources: git_sync::v1alpha2::GitSyncResources,
+}
+
+/// Validated logging configuration for the NiFi and (optional) Vector container.
+///
+/// Produced up-front by the [`validate`] step (mirroring hive/opensearch) so that an invalid custom
+/// log ConfigMap name, or a missing Vector aggregator discovery ConfigMap name, fails reconciliation
+/// during validation rather than at resource-build time.
+#[derive(Clone, Debug)]
+pub struct ValidatedLogging {
+    /// The NiFi container log config choice (automatic logging vs a custom log ConfigMap). Consumed
+    /// by the `logback.xml` builder and the StatefulSet's `log-config` volume.
+    pub nifi_container: ValidatedContainerLogConfigChoice,
+    /// The Vector container log config (log config choice + aggregator discovery ConfigMap name).
+    /// `None` when the Vector agent is disabled for this role group.
+    pub vector_container: Option<VectorContainerLogConfig>,
+    /// Whether the Vector log agent is enabled for this role group.
+    pub enable_vector_agent: bool,
 }
 
 /// The validated NifiCluster: everything `reconcile_nifi` needs after dereferencing,

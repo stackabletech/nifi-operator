@@ -31,15 +31,14 @@ use stackable_operator::{
     product_logging::{
         self,
         framework::{create_vector_shutdown_file_command, remove_vector_shutdown_file_command},
-        spec::{
-            ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
-            CustomContainerLogConfig,
-        },
+        spec::{ContainerLogConfig, ContainerLogConfigChoice},
     },
     utils::{COMMON_BASH_TRAP_FUNCTIONS, cluster_info::KubernetesClusterInfo},
     v2::{
         builder::pod::container::{EnvVarSet, new_container_builder},
-        product_logging::framework::{STACKABLE_LOG_DIR, vector_container},
+        product_logging::framework::{
+            STACKABLE_LOG_DIR, ValidatedContainerLogConfigChoice, vector_container,
+        },
         types::kubernetes::{ContainerName, VolumeName},
     },
 };
@@ -502,41 +501,30 @@ pub(crate) async fn build_node_rolegroup_statefulset(
         .add_volumes(git_sync_resources.git_ca_cert_volumes.to_owned())
         .context(AddVolumeSnafu)?;
 
-    if let Some(ContainerLogConfig {
-        choice:
-            Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
-                custom: ConfigMapLogConfig { config_map },
-            })),
-    }) = merged_config.logging.containers.get(&Container::Nifi)
-    {
-        pod_builder
-            .add_volume(Volume {
-                name: LOG_CONFIG_VOLUME_NAME.to_string(),
-                config_map: Some(ConfigMapVolumeSource {
-                    name: config_map.clone(),
-                    ..ConfigMapVolumeSource::default()
-                }),
-                ..Volume::default()
-            })
-            .context(AddVolumeSnafu)?;
-    } else {
-        pod_builder
-            .add_volume(Volume {
-                name: LOG_CONFIG_VOLUME_NAME.to_string(),
-                config_map: Some(ConfigMapVolumeSource {
-                    name: resource_names.role_group_config_map().to_string(),
-                    ..ConfigMapVolumeSource::default()
-                }),
-                ..Volume::default()
-            })
-            .context(AddVolumeSnafu)?;
-    }
+    // The NiFi `log-config` volume sources from the custom log ConfigMap when one is configured,
+    // otherwise from this rolegroup's ConfigMap (which carries the operator-generated `logback.xml`).
+    let log_config_map_name = match &rg.logging.nifi_container {
+        ValidatedContainerLogConfigChoice::Custom(config_map) => config_map.to_string(),
+        ValidatedContainerLogConfigChoice::Automatic(_) => {
+            resource_names.role_group_config_map().to_string()
+        }
+    };
+    pod_builder
+        .add_volume(Volume {
+            name: LOG_CONFIG_VOLUME_NAME.to_string(),
+            config_map: Some(ConfigMapVolumeSource {
+                name: log_config_map_name,
+                ..ConfigMapVolumeSource::default()
+            }),
+            ..Volume::default()
+        })
+        .context(AddVolumeSnafu)?;
 
     // The Vector logging config was validated up-front in the `validate` step. The static
     // `vector.yaml` is shipped in the rolegroup `ConfigMap`; the per-rolegroup values (namespace,
     // cluster/role/role-group, aggregator address, log levels) are injected as environment
     // variables here and substituted by Vector at runtime.
-    if let Some(vector_log_config) = &rg.vector_container {
+    if let Some(vector_log_config) = &rg.logging.vector_container {
         pod_builder.add_container(vector_container(
             &VECTOR_CONTAINER_NAME,
             resolved_product_image,

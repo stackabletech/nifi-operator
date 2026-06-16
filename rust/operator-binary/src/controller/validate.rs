@@ -11,6 +11,7 @@ use stackable_operator::{
     commons::product_image_selection,
     config::fragment,
     kube::ResourceExt as _,
+    product_logging::spec::Logging,
     role_utils::CommonConfiguration,
     v2::{
         builder::pod::container::{self, EnvVarName, EnvVarSet},
@@ -28,7 +29,8 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use super::{
-    ValidatedCluster, ValidatedClusterConfig, ValidatedRoleConfig, ValidatedRoleGroupConfig,
+    ValidatedCluster, ValidatedClusterConfig, ValidatedLogging, ValidatedRoleConfig,
+    ValidatedRoleGroupConfig,
 };
 use crate::{
     controller::{build::git_sync::build_git_sync_resources, dereference::DereferencedObjects},
@@ -236,24 +238,11 @@ pub(crate) fn build_role_group_configs(
             );
         }
 
-        // Validate the Vector container logging config up-front (mirroring the opensearch- and
-        // hive-operators) so an invalid log ConfigMap name, or a missing aggregator discovery
-        // ConfigMap name, fails before any resources are built.
-        let vector_container = if config.logging.enable_vector_agent {
-            let vector_aggregator_config_map_name = vector_aggregator_config_map_name
-                .clone()
-                .context(MissingVectorAggregatorConfigMapNameSnafu)?;
-            Some(VectorContainerLogConfig {
-                log_config: validate_logging_configuration_for_container(
-                    &config.logging,
-                    &Container::Vector,
-                )
-                .context(ValidateLoggingConfigSnafu)?,
-                vector_aggregator_config_map_name,
-            })
-        } else {
-            None
-        };
+        // Validate the logging config (NiFi + optional Vector container) up-front (mirroring the
+        // opensearch- and hive-operators) so an invalid custom log ConfigMap name, or a missing
+        // Vector aggregator discovery ConfigMap name, fails during validation rather than at
+        // resource-build time.
+        let logging = validate_logging(&config.logging, vector_aggregator_config_map_name)?;
 
         // The git-sync resources depend on this role group's env-var overrides and logging config,
         // so they are resolved (and validated) per role group up-front rather than at build time.
@@ -275,7 +264,7 @@ pub(crate) fn build_role_group_configs(
                 env_overrides: env_overrides_set,
                 pod_overrides,
                 product_specific_common_config,
-                vector_container,
+                logging,
                 git_sync_resources,
             },
         );
@@ -284,6 +273,37 @@ pub(crate) fn build_role_group_configs(
     let mut role_group_configs = BTreeMap::new();
     role_group_configs.insert(NifiRole::Node, groups);
     Ok(role_group_configs)
+}
+
+/// Validates the logging configuration for the NiFi (and optional Vector) container.
+///
+/// `vector_aggregator_config_map_name` is the discovery ConfigMap name of the Vector aggregator;
+/// it is required (and validated) only when the Vector agent is enabled.
+fn validate_logging(
+    logging: &Logging<Container>,
+    vector_aggregator_config_map_name: &Option<ConfigMapName>,
+) -> Result<ValidatedLogging> {
+    let nifi_container = validate_logging_configuration_for_container(logging, &Container::Nifi)
+        .context(ValidateLoggingConfigSnafu)?;
+
+    let vector_container = if logging.enable_vector_agent {
+        let vector_aggregator_config_map_name = vector_aggregator_config_map_name
+            .clone()
+            .context(MissingVectorAggregatorConfigMapNameSnafu)?;
+        Some(VectorContainerLogConfig {
+            log_config: validate_logging_configuration_for_container(logging, &Container::Vector)
+                .context(ValidateLoggingConfigSnafu)?,
+            vector_aggregator_config_map_name,
+        })
+    } else {
+        None
+    };
+
+    Ok(ValidatedLogging {
+        nifi_container,
+        vector_container,
+        enable_vector_agent: logging.enable_vector_agent,
+    })
 }
 
 /// A minimal resolved product image (NiFi 2.9.0) for tests that need to build role-group configs.
@@ -370,6 +390,7 @@ mod tests {
             .expect("role group configs should validate");
 
         let vector = default_rg(&configs)
+            .logging
             .vector_container
             .as_ref()
             .expect("the Vector container config should be present when the agent is enabled");
@@ -402,6 +423,6 @@ mod tests {
         let configs = build_role_group_configs(&nifi, &test_resolved_product_image(), &None)
             .expect("role group configs should validate");
 
-        assert!(default_rg(&configs).vector_container.is_none());
+        assert!(default_rg(&configs).logging.vector_container.is_none());
     }
 }

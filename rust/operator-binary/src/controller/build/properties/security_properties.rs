@@ -30,7 +30,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        controller::ValidatedRoleGroupConfig,
+        controller::{ValidatedLogging, ValidatedRoleGroupConfig},
         crd::{NifiConfig, v1alpha1::NifiConfigOverrides},
     };
 
@@ -38,6 +38,7 @@ mod tests {
         use std::str::FromStr as _;
 
         use stackable_operator::v2::{
+            product_logging::framework::ValidatedContainerLogConfigChoice,
             role_utils::JavaCommonConfig, types::operator::RoleGroupName,
         };
         ValidatedRoleGroupConfig {
@@ -53,7 +54,11 @@ mod tests {
             env_overrides: EnvVarSet::new(),
             pod_overrides: Default::default(),
             product_specific_common_config: JavaCommonConfig::default(),
-            vector_container: None,
+            logging: ValidatedLogging {
+                nifi_container: ValidatedContainerLogConfigChoice::Automatic(Default::default()),
+                vector_container: None,
+                enable_vector_agent: false,
+            },
             git_sync_resources: Default::default(),
         }
     }

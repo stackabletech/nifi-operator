@@ -2,11 +2,8 @@
 
 use stackable_operator::{
     memory::BinaryMultiple,
-    product_logging::{
-        self,
-        spec::{ContainerLogConfig, ContainerLogConfigChoice, Logging},
-    },
-    v2::product_logging::framework::STACKABLE_LOG_DIR,
+    product_logging,
+    v2::product_logging::framework::{STACKABLE_LOG_DIR, ValidatedContainerLogConfigChoice},
 };
 
 use crate::crd::{Container, MAX_NIFI_LOG_FILES_SIZE};
@@ -49,12 +46,10 @@ const ADDITIONAL_LOGBACK_CONFIG: &str = r#"  <appender name="PASSTHROUGH" class=
 ///
 /// Returns `None` when the container uses a custom log ConfigMap instead of the operator's
 /// automatic logging configuration.
-pub fn build_logback_config(logging: &Logging<Container>) -> Option<String> {
-    let ContainerLogConfig {
-        choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-    } = logging.containers.get(&Container::Nifi)?
-    else {
-        return None;
+pub fn build_logback_config(nifi_container: &ValidatedContainerLogConfigChoice) -> Option<String> {
+    let log_config = match nifi_container {
+        ValidatedContainerLogConfigChoice::Automatic(log_config) => log_config,
+        ValidatedContainerLogConfigChoice::Custom(_) => return None,
     };
 
     Some(product_logging::framework::create_logback_config(
