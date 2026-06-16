@@ -115,8 +115,10 @@ pub fn validate(
         )
         .context(ResolveProductImageSnafu)?;
 
+    let name = get_cluster_name(nifi).context(GetClusterNameSnafu)?;
+
     let authentication_config =
-        NifiAuthenticationConfig::validate(nifi, &dereferenced_objects.authentication_classes)
+        NifiAuthenticationConfig::validate(&name, &dereferenced_objects.authentication_classes)
             .context(InvalidAuthenticationConfigSnafu)?;
 
     let authorization_config = ResolvedNifiAuthorizationConfig::validate(
@@ -157,7 +159,6 @@ pub fn validate(
         })
         .context(NoNodesDefinedSnafu)?;
 
-    let name = get_cluster_name(nifi).context(GetClusterNameSnafu)?;
     let namespace = dereferenced_objects.namespace.clone();
     let uid = get_uid(nifi).context(GetUidSnafu)?;
 

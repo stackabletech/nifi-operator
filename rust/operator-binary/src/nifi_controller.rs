@@ -204,9 +204,13 @@ pub async fn reconcile_nifi(
     let authentication_config = &validated_cluster.cluster_config.authentication;
 
     tracing::info!("Checking for sensitive key configuration");
-    check_or_generate_sensitive_key(client, nifi, &validated_cluster.namespace)
-        .await
-        .context(SecuritySnafu)?;
+    check_or_generate_sensitive_key(
+        client,
+        &nifi.spec.cluster_config.sensitive_properties,
+        &validated_cluster.namespace,
+    )
+    .await
+    .context(SecuritySnafu)?;
 
     // If rolling upgrade is supported, kubernetes takes care of the cluster scaling automatically
     // otherwise the operator handles it
@@ -244,9 +248,13 @@ pub async fn reconcile_nifi(
     );
 
     if let NifiAuthenticationConfig::Oidc { .. } = authentication_config {
-        check_or_generate_oidc_admin_password(client, nifi, &validated_cluster.namespace)
-            .await
-            .context(SecuritySnafu)?;
+        check_or_generate_oidc_admin_password(
+            client,
+            &validated_cluster.name,
+            &validated_cluster.namespace,
+        )
+        .await
+        .context(SecuritySnafu)?;
     }
 
     let (rbac_sa, rbac_rolebinding) = build_rbac_resources(

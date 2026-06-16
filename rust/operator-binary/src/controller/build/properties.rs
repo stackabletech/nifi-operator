@@ -83,8 +83,8 @@ pub(crate) mod test_support {
 
     use crate::{
         controller::{
-            ValidatedCluster, ValidatedClusterConfig, ValidatedRoleGroupConfig,
-            validate::build_role_group_configs,
+            ValidatedCluster, ValidatedClusterConfig, ValidatedRoleConfig,
+            ValidatedRoleGroupConfig, validate::build_role_group_configs,
         },
         crd::{NifiRole, v1alpha1},
         security::{
@@ -141,6 +141,14 @@ pub(crate) mod test_support {
         let role_group_configs = build_role_group_configs(&nifi, &image, &None)
             .expect("role group configs should merge for minimal fixture");
 
+        let role_config = nifi
+            .role_config(&NifiRole::Node)
+            .map(|role_config| ValidatedRoleConfig {
+                pdb: role_config.common.pod_disruption_budget.clone(),
+                listener_class: role_config.listener_class.clone(),
+            })
+            .expect("the minimal fixture defines the nodes role");
+
         let name = ClusterName::from_str("simple-nifi").expect("valid cluster name");
         let namespace = NamespaceName::from_str("default").expect("valid namespace");
         let uid = Uid::from_str("e6ac237d-a6d4-43a1-8135-f36506110912").expect("valid uid");
@@ -153,6 +161,7 @@ pub(crate) mod test_support {
             uid,
             image,
             product_version,
+            role_config,
             role_group_configs,
             ValidatedClusterConfig {
                 authentication: NifiAuthenticationConfig::SingleUser {

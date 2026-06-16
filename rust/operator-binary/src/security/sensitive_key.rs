@@ -7,7 +7,7 @@ use stackable_operator::{
     v2::types::kubernetes::NamespaceName,
 };
 
-use crate::crd::v1alpha1;
+use crate::crd::sensitive_properties::NifiSensitivePropertiesConfig;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -28,11 +28,9 @@ pub enum Error {
 
 pub(crate) async fn check_or_generate_sensitive_key(
     client: &Client,
-    nifi: &v1alpha1::NifiCluster,
+    sensitive_config: &NifiSensitivePropertiesConfig,
     namespace: &NamespaceName,
 ) -> Result<bool, Error> {
-    let sensitive_config = &nifi.spec.cluster_config.sensitive_properties;
-
     match client
         .get_opt::<Secret>(sensitive_config.key_secret.as_ref(), namespace.as_ref())
         .await

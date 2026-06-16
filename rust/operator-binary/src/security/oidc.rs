@@ -8,11 +8,11 @@ use stackable_operator::{
     commons::tls_verification::{CaCert, TlsServerVerification, TlsVerification},
     crd::authentication::oidc,
     k8s_openapi::api::core::v1::Secret,
-    kube::{ResourceExt, runtime::reflector::ObjectRef},
-    v2::types::kubernetes::NamespaceName,
+    kube::runtime::reflector::ObjectRef,
+    v2::types::{kubernetes::NamespaceName, operator::ClusterName},
 };
 
-use crate::{crd::v1alpha1, security::authentication::STACKABLE_ADMIN_USERNAME};
+use crate::security::authentication::STACKABLE_ADMIN_USERNAME;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -42,13 +42,13 @@ pub enum Error {
 /// This admin user is the same as for SingleUser authentication.
 pub(crate) async fn check_or_generate_oidc_admin_password(
     client: &Client,
-    nifi: &v1alpha1::NifiCluster,
+    cluster_name: &ClusterName,
     namespace: &NamespaceName,
 ) -> Result<bool, Error> {
     tracing::debug!("Checking for OIDC admin password configuration");
     match client
         .get_opt::<Secret>(
-            &build_oidc_admin_password_secret_name(nifi),
+            &build_oidc_admin_password_secret_name(cluster_name),
             namespace.as_ref(),
         )
         .await
@@ -84,7 +84,7 @@ pub(crate) async fn check_or_generate_oidc_admin_password(
             let new_secret = Secret {
                 metadata: ObjectMetaBuilder::new()
                     .namespace(namespace)
-                    .name(build_oidc_admin_password_secret_name(nifi))
+                    .name(build_oidc_admin_password_secret_name(cluster_name))
                     .build(),
                 string_data: Some(secret_data),
                 ..Secret::default()
@@ -98,8 +98,8 @@ pub(crate) async fn check_or_generate_oidc_admin_password(
     }
 }
 
-pub fn build_oidc_admin_password_secret_name(nifi: &v1alpha1::NifiCluster) -> String {
-    format!("{}-oidc-admin-password", nifi.name_any())
+pub fn build_oidc_admin_password_secret_name(cluster_name: &ClusterName) -> String {
+    format!("{cluster_name}-oidc-admin-password")
 }
 
 /// Adds all the required configuration properties to enable OIDC authentication.

@@ -1,10 +1,13 @@
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::pod::volume::SecretFormat, client::Client, k8s_openapi::api::core::v1::Volume,
-    shared::time::Duration, v2::types::kubernetes::NamespaceName,
+    builder::pod::volume::SecretFormat,
+    client::Client,
+    k8s_openapi::api::core::v1::Volume,
+    shared::time::Duration,
+    v2::types::{kubernetes::NamespaceName, operator::ClusterName},
 };
 
-use crate::crd::v1alpha1;
+use crate::crd::sensitive_properties::NifiSensitivePropertiesConfig;
 
 pub mod authentication;
 pub mod authorization;
@@ -28,20 +31,20 @@ pub enum Error {
 
 pub async fn check_or_generate_sensitive_key(
     client: &Client,
-    nifi: &v1alpha1::NifiCluster,
+    sensitive_config: &NifiSensitivePropertiesConfig,
     namespace: &NamespaceName,
 ) -> Result<bool> {
-    sensitive_key::check_or_generate_sensitive_key(client, nifi, namespace)
+    sensitive_key::check_or_generate_sensitive_key(client, sensitive_config, namespace)
         .await
         .context(SensitiveKeySnafu)
 }
 
 pub async fn check_or_generate_oidc_admin_password(
     client: &Client,
-    nifi: &v1alpha1::NifiCluster,
+    cluster_name: &ClusterName,
     namespace: &NamespaceName,
 ) -> Result<bool> {
-    oidc::check_or_generate_oidc_admin_password(client, nifi, namespace)
+    oidc::check_or_generate_oidc_admin_password(client, cluster_name, namespace)
         .await
         .context(OidcAdminPasswordSnafu)
 }

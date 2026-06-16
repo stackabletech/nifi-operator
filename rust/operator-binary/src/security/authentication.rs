@@ -9,6 +9,7 @@ use stackable_operator::{
     crd::authentication::{core as auth_core, ldap, oidc, r#static},
     k8s_openapi::api::core::v1::{KeyToPath, SecretVolumeSource, Volume},
     kube::{ResourceExt, runtime::reflector::ObjectRef},
+    v2::types::operator::ClusterName,
 };
 
 use crate::{crd::v1alpha1, security::oidc::build_oidc_admin_password_secret_name};
@@ -115,7 +116,6 @@ impl DereferencedAuthenticationClasses {
     }
 }
 
-#[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 pub enum NifiAuthenticationConfig {
     SingleUser {
@@ -127,7 +127,7 @@ pub enum NifiAuthenticationConfig {
     Oidc {
         provider: oidc::v1alpha1::AuthenticationProvider,
         oidc: oidc::v1alpha1::ClientAuthenticationOptions,
-        nifi: v1alpha1::NifiCluster,
+        cluster_name: ClusterName,
     },
 }
 
@@ -243,11 +243,15 @@ impl NifiAuthenticationConfig {
                     .add_volumes_and_mounts(pod_builder, container_builders)
                     .context(AddLdapVolumesSnafu)?;
             }
-            Self::Oidc { provider, nifi, .. } => {
+            Self::Oidc {
+                provider,
+                cluster_name,
+                ..
+            } => {
                 let admin_volume = Volume {
                     name: STACKABLE_ADMIN_USERNAME.to_string(),
                     secret: Some(SecretVolumeSource {
-                        secret_name: Some(build_oidc_admin_password_secret_name(nifi)),
+                        secret_name: Some(build_oidc_admin_password_secret_name(cluster_name)),
                         optional: Some(false),
                         items: Some(vec![KeyToPath {
                             key: STACKABLE_ADMIN_USERNAME.to_string(),
@@ -285,7 +289,7 @@ impl NifiAuthenticationConfig {
     /// * LDAP TLS verification is enabled if TLS is used
     /// * an OIDC client spec is present when the provider is OIDC
     pub fn validate(
-        nifi: &v1alpha1::NifiCluster,
+        cluster_name: &ClusterName,
         dereferenced: &DereferencedAuthenticationClasses,
     ) -> Result<Self> {
         let (entry, auth_class) = match dereferenced.entries.as_slice() {
@@ -321,7 +325,7 @@ impl NifiAuthenticationConfig {
                     .oidc_or_error(&auth_class_name)
                     .context(OidcConfigurationInvalidSnafu)?
                     .clone(),
-                nifi: nifi.clone(),
+                cluster_name: cluster_name.clone(),
             }),
             _ => AuthenticationClassProviderNotSupportedSnafu {
                 authentication_class_provider: auth_class.spec.provider.to_string(),
