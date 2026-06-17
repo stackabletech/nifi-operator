@@ -258,7 +258,7 @@ pub(crate) fn build_role_group_configs(
             role_group_name.clone(),
             ValidatedRoleGroupConfig {
                 name: role_group_name,
-                replicas: validated.replicas.unwrap_or(1),
+                replicas: validated.replicas,
                 config,
                 config_overrides,
                 env_overrides: env_overrides_set,

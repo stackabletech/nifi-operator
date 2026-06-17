@@ -302,12 +302,13 @@ pub async fn reconcile_nifi(
                 rolegroup: role_group_name.clone(),
             })?;
 
-            let role_group = role.role_groups.get(role_group_name.as_ref());
             let replicas =
                 if cluster_version_update_state == ClusterVersionUpdateState::UpdateRequested {
                     Some(0)
                 } else {
-                    role_group.and_then(|rg| rg.replicas).map(i32::from)
+                    // `None` (HPA-managed role group) is passed straight through to the StatefulSet
+                    // so the Horizontal Pod Autoscaler owns the replica count.
+                    rg.replicas.map(i32::from)
                 };
 
             let rg_statefulset = build_node_rolegroup_statefulset(

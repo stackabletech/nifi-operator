@@ -149,9 +149,6 @@ pub fn build_reporting_task_fqdn_service_name(
 /// If no role group has replicas set (e.g. HPA, see <https://docs.stackable.tech/home/stable/concepts/operations/#_performance>)
 /// return the first rolegroup just in case.
 /// This is required to only select a single node in the Reporting Task Service.
-///
-/// Note: the validated replicas default to `1` (see [`ValidatedRoleGroupConfig`]), so an
-/// HPA-managed role group (raw `replicas: null`) is treated as having a single replica here.
 fn get_reporting_task_service_selector_pod(cluster: &ValidatedCluster) -> Result<String> {
     let node_name = NifiRole::Node.to_string();
 
@@ -169,7 +166,7 @@ fn get_reporting_task_service_selector_pod(cluster: &ValidatedCluster) -> Result
             selector_role_group = Some(role_group_name);
         }
 
-        if role_group.replicas > 0 {
+        if role_group.replicas.unwrap_or(1) > 0 {
             selector_role_group = Some(role_group_name);
             break;
         }

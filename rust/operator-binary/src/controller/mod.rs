@@ -57,12 +57,9 @@ pub struct ValidatedRoleGroupConfig {
     /// [`ValidatedCluster::role_group_configs`]). Carried here so builders that consume the config
     /// don't also need the name threaded through as a separate parameter.
     pub name: RoleGroupName,
-    /// The desired number of replicas (defaulted to 1 during validation).
-    ///
-    /// The StatefulSet replica count is sourced from the raw role-group spec in `nifi_controller`
-    /// (to keep `replicas: null` semantics during version updates); this validated value is used to
-    /// pick the single node targeted by the (NiFi 1.x-only) reporting-task Service.
-    pub replicas: u16,
+    /// The desired number of replicas, or `None` when the role group is managed by a Horizontal
+    /// Pod Autoscaler (raw `replicas: null`).
+    pub replicas: Option<u16>,
     /// The merged and validated rolegroup config.
     pub config: NifiConfig,
     /// The merged (role <- role group) config-file overrides.

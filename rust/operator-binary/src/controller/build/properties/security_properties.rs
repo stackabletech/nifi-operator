@@ -43,7 +43,7 @@ mod tests {
         };
         ValidatedRoleGroupConfig {
             name: RoleGroupName::from_str("default").expect("valid role-group name"),
-            replicas: 1,
+            replicas: Some(1),
             config: NifiConfig::default(),
             config_overrides: NifiConfigOverrides {
                 security_properties: KeyValueConfigOverrides {
