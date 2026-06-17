@@ -20,6 +20,9 @@ use crate::controller::{
 pub const LISTENER_VOLUME_NAME: &str = "listener";
 pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
 
+// The listener volume is provisioned as a PVC by the listener-operator; this is its typed name.
+stackable_operator::constant!(LISTENER_PVC_NAME: PersistentVolumeClaimName = "listener");
+
 pub fn build_group_listener(
     cluster: &ValidatedCluster,
     listener_class: ListenerClassName,
@@ -52,8 +55,7 @@ pub fn build_group_listener_pvc(
     listener_operator_volume_source_builder_build_pvc(
         &ListenerReference::Listener(group_listener_name.clone()),
         unversioned_recommended_labels,
-        &PersistentVolumeClaimName::from_str(LISTENER_VOLUME_NAME)
-            .expect("'listener' is a valid PersistentVolumeClaim name"),
+        &LISTENER_PVC_NAME,
     )
 }
 

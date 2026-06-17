@@ -46,7 +46,7 @@ use stackable_operator::{
     v2::{
         builder::{meta::ownerreference_from_resource, pod::container::new_container_builder},
         types::{
-            kubernetes::{ContainerName, NamespaceName},
+            kubernetes::{ContainerName, NamespaceName, VolumeName},
             operator::RoleGroupName,
         },
     },
@@ -61,7 +61,7 @@ use crate::{
     security::{authentication::STACKABLE_ADMIN_USERNAME, build_tls_volume},
 };
 
-const REPORTING_TASK_CERT_VOLUME_NAME: &str = "tls";
+stackable_operator::constant!(REPORTING_TASK_CERT_VOLUME_NAME: VolumeName = "tls");
 const REPORTING_TASK_CERT_VOLUME_MOUNT: &str = "/stackable/cert";
 /// Path (inside the image) of the script that registers the NiFi 1.x reporting task.
 const REPORTING_TASK_SCRIPT_PATH: &str = "/stackable/python/create_nifi_reporting_task.py";
@@ -271,7 +271,7 @@ fn build_reporting_task_job(
         .args(vec![args.join(" ")])
         // The VolumeMount for the secret operator key store certificates
         .add_volume_mount(
-            REPORTING_TASK_CERT_VOLUME_NAME,
+            REPORTING_TASK_CERT_VOLUME_NAME.to_string(),
             REPORTING_TASK_CERT_VOLUME_MOUNT,
         )
         .context(AddVolumeMountSnafu)?
@@ -311,7 +311,7 @@ fn build_reporting_task_job(
         .add_volume(
             build_tls_volume(
                 &cluster.cluster_config.server_tls_secret_class,
-                REPORTING_TASK_CERT_VOLUME_NAME,
+                &REPORTING_TASK_CERT_VOLUME_NAME.to_string(),
                 Vec::<String>::new(),
                 SecretFormat::TlsPem,
                 // The certificate is only used for the REST API call, so a short lifetime is sufficient.

@@ -3,7 +3,8 @@
 use stackable_operator::k8s_openapi::api::core::v1::VolumeMount;
 use strum::{Display, EnumIter};
 
-use crate::crd::constants::NIFI_PVC_STORAGE_DIRECTORY;
+/// Mount path of the persistent data volume that backs the NiFi repositories.
+pub const NIFI_PVC_STORAGE_DIRECTORY: &str = "/stackable/data";
 
 #[derive(Debug, Display, EnumIter)]
 pub enum NifiRepository {

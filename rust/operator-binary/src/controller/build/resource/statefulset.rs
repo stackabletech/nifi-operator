@@ -50,7 +50,8 @@ use crate::{
         NifiRoleGroupConfig, ValidatedCluster,
         build::{
             BALANCE_PORT, BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT,
-            METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
+            METRICS_PORT_NAME, NIFI_CONFIG_DIRECTORY, NIFI_PYTHON_WORKING_DIRECTORY, PROTOCOL_PORT,
+            PROTOCOL_PORT_NAME,
             graceful_shutdown::add_graceful_shutdown_config,
             properties::ConfigFileName,
             resource::{
@@ -63,9 +64,8 @@ use crate::{
         },
     },
     crd::{
-        NifiRole, NifiRoleType, STACKABLE_LOG_CONFIG_DIR,
+        NifiRole, NifiRoleType,
         authorization::NifiAccessPolicyProvider,
-        constants::{NIFI_CONFIG_DIRECTORY, NIFI_PYTHON_WORKING_DIRECTORY},
         storage::{NifiRepository, PERSISTENT_REPOSITORIES},
         v1alpha1,
     },
@@ -115,29 +115,32 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 
 const USERDATA_MOUNTPOINT: &str = "/stackable/userdata";
 
-/// Volume providing the rendered NiFi config (the `conf` ConfigMap), mounted into the prepare
-/// container which templates it into [`ACTIVE_CONFIG_VOLUME_NAME`].
-const CONFIG_VOLUME_NAME: &str = "conf";
+// Volume providing the rendered NiFi config (the `conf` ConfigMap), mounted into the prepare
+// container which templates it into `ACTIVE_CONFIG_VOLUME_NAME`.
+stackable_operator::constant!(CONFIG_VOLUME_NAME: VolumeName = "conf");
 const CONFIG_VOLUME_MOUNT: &str = "/conf";
 
-/// `emptyDir` holding the live config templated by the prepare container and shared with the NiFi
-/// container.
-const ACTIVE_CONFIG_VOLUME_NAME: &str = "activeconf";
+// `emptyDir` holding the live config templated by the prepare container and shared with the NiFi
+// container.
+stackable_operator::constant!(ACTIVE_CONFIG_VOLUME_NAME: VolumeName = "activeconf");
 
-/// Volume holding the generated sensitive-properties key.
-const SENSITIVE_PROPERTY_VOLUME_NAME: &str = "sensitiveproperty";
+// Volume holding the generated sensitive-properties key.
+stackable_operator::constant!(SENSITIVE_PROPERTY_VOLUME_NAME: VolumeName = "sensitiveproperty");
 const SENSITIVE_PROPERTY_VOLUME_MOUNT: &str = "/stackable/sensitiveproperty";
 
-/// Volume providing the log config (logback/log4j) ConfigMap.
-const LOG_CONFIG_VOLUME_NAME: &str = "log-config";
+// Volume providing the log config (logback/log4j) ConfigMap.
+stackable_operator::constant!(LOG_CONFIG_VOLUME_NAME: VolumeName = "log-config");
 
-/// Volume the NiFi logs are written to and shared with the Vector sidecar (also used by the
-/// git-sync container, see [`crate::controller::build::git_sync`]).
-pub(crate) const LOG_VOLUME_NAME: &str = "log";
+/// Directory the `log-config` ConfigMap volume is mounted at.
+const STACKABLE_LOG_CONFIG_DIR: &str = "/stackable/log_config";
 
-/// `emptyDir` for the Python working directory, mounted into the NiFi container at
-/// [`NIFI_PYTHON_WORKING_DIRECTORY`].
-const PYTHON_WORKING_DIR_VOLUME_NAME: &str = "nifi-python-working-directory";
+// Volume the NiFi logs are written to and shared with the Vector sidecar (also used by the
+// git-sync container, see [`crate::controller::build::git_sync`]).
+stackable_operator::constant!(pub(crate) LOG_VOLUME_NAME: VolumeName = "log");
+
+// `emptyDir` for the Python working directory, mounted into the NiFi container at
+// `NIFI_PYTHON_WORKING_DIRECTORY`.
+stackable_operator::constant!(PYTHON_WORKING_DIR_VOLUME_NAME: VolumeName = "nifi-python-working-directory");
 
 // Container names. These must match the corresponding (kebab-cased) `crate::crd::Container`
 // variants, which key the per-container logging config.
@@ -345,20 +348,23 @@ pub(crate) async fn build_node_rolegroup_statefulset(
                 .map(NifiRepository::volume_mount),
         )
         .context(AddVolumeMountSnafu)?
-        .add_volume_mount(CONFIG_VOLUME_NAME, CONFIG_VOLUME_MOUNT)
-        .context(AddVolumeMountSnafu)?
-        .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_NIFI_CONTAINER_MOUNT)
-        .context(AddVolumeMountSnafu)?
-        .add_volume_mount(ACTIVE_CONFIG_VOLUME_NAME, NIFI_CONFIG_DIRECTORY)
+        .add_volume_mount(CONFIG_VOLUME_NAME.to_string(), CONFIG_VOLUME_MOUNT)
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(
-            SENSITIVE_PROPERTY_VOLUME_NAME,
+            KEYSTORE_VOLUME_NAME.to_string(),
+            KEYSTORE_NIFI_CONTAINER_MOUNT,
+        )
+        .context(AddVolumeMountSnafu)?
+        .add_volume_mount(ACTIVE_CONFIG_VOLUME_NAME.to_string(), NIFI_CONFIG_DIRECTORY)
+        .context(AddVolumeMountSnafu)?
+        .add_volume_mount(
+            SENSITIVE_PROPERTY_VOLUME_NAME.to_string(),
             SENSITIVE_PROPERTY_VOLUME_MOUNT,
         )
         .context(AddVolumeMountSnafu)?
-        .add_volume_mount(LOG_VOLUME_NAME, STACKABLE_LOG_DIR)
+        .add_volume_mount(LOG_VOLUME_NAME.to_string(), STACKABLE_LOG_DIR)
         .context(AddVolumeMountSnafu)?
-        .add_volume_mount(TRUSTSTORE_VOLUME_NAME, STACKABLE_SERVER_TLS_DIR)
+        .add_volume_mount(TRUSTSTORE_VOLUME_NAME.to_string(), STACKABLE_SERVER_TLS_DIR)
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)
         .context(AddVolumeMountSnafu)?
@@ -401,7 +407,10 @@ pub(crate) async fn build_node_rolegroup_statefulset(
         ])
         .args(nifi_args)
         .add_env_vars(env_vars)
-        .add_volume_mount(KEYSTORE_VOLUME_NAME, KEYSTORE_NIFI_CONTAINER_MOUNT)
+        .add_volume_mount(
+            KEYSTORE_VOLUME_NAME.to_string(),
+            KEYSTORE_NIFI_CONTAINER_MOUNT,
+        )
         .context(AddVolumeMountSnafu)?
         .add_volume_mounts(
             PERSISTENT_REPOSITORIES
@@ -409,13 +418,13 @@ pub(crate) async fn build_node_rolegroup_statefulset(
                 .map(NifiRepository::volume_mount),
         )
         .context(AddVolumeMountSnafu)?
-        .add_volume_mount(ACTIVE_CONFIG_VOLUME_NAME, NIFI_CONFIG_DIRECTORY)
+        .add_volume_mount(ACTIVE_CONFIG_VOLUME_NAME.to_string(), NIFI_CONFIG_DIRECTORY)
         .context(AddVolumeMountSnafu)?
-        .add_volume_mount(LOG_CONFIG_VOLUME_NAME, STACKABLE_LOG_CONFIG_DIR)
+        .add_volume_mount(LOG_CONFIG_VOLUME_NAME.to_string(), STACKABLE_LOG_CONFIG_DIR)
         .context(AddVolumeMountSnafu)?
-        .add_volume_mount(LOG_VOLUME_NAME, STACKABLE_LOG_DIR)
+        .add_volume_mount(LOG_VOLUME_NAME.to_string(), STACKABLE_LOG_DIR)
         .context(AddVolumeMountSnafu)?
-        .add_volume_mount(TRUSTSTORE_VOLUME_NAME, STACKABLE_SERVER_TLS_DIR)
+        .add_volume_mount(TRUSTSTORE_VOLUME_NAME.to_string(), STACKABLE_SERVER_TLS_DIR)
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)
         .context(AddVolumeMountSnafu)?
@@ -478,11 +487,11 @@ pub(crate) async fn build_node_rolegroup_statefulset(
     }
 
     pod_builder
-        .add_empty_dir_volume(PYTHON_WORKING_DIR_VOLUME_NAME, None)
+        .add_empty_dir_volume(PYTHON_WORKING_DIR_VOLUME_NAME.to_string(), None)
         .context(AddVolumeSnafu)?;
     container_nifi
         .add_volume_mount(
-            PYTHON_WORKING_DIR_VOLUME_NAME,
+            PYTHON_WORKING_DIR_VOLUME_NAME.to_string(),
             NIFI_PYTHON_WORKING_DIRECTORY,
         )
         .context(AddVolumeMountSnafu)?;
@@ -582,7 +591,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
         })
         .context(AddVolumeSnafu)?
         .add_empty_dir_volume(
-            LOG_VOLUME_NAME,
+            LOG_VOLUME_NAME.to_string(),
             // Set volume size to higher than theoretically necessary to avoid running out of disk space as log rotation triggers are only checked by Logback every 5s.
             Some(
                 MemoryQuantity {
@@ -597,7 +606,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
         .add_volume(
             build_tls_volume(
                 &cluster.cluster_config.server_tls_secret_class,
-                KEYSTORE_VOLUME_NAME,
+                &KEYSTORE_VOLUME_NAME.to_string(),
                 [
                     cluster
                         .resource_names(role_group_name)
@@ -612,7 +621,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
             .context(SecuritySnafu)?,
         )
         .context(AddVolumeSnafu)?
-        .add_empty_dir_volume(TRUSTSTORE_VOLUME_NAME, None)
+        .add_empty_dir_volume(TRUSTSTORE_VOLUME_NAME.to_string(), None)
         .context(AddVolumeSnafu)?
         .add_volumes(
             authorization_config

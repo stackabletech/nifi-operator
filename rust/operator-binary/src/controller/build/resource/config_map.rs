@@ -21,15 +21,12 @@ use crate::controller::{
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("failed to build bootstrap.conf"))]
-    BootstrapConfig {
-        #[snafu(source(from(crate::controller::build::Error, Box::new)))]
-        source: Box<crate::controller::build::Error>,
-    },
+    BootstrapConfig { source: bootstrap_conf::Error },
 
     #[snafu(display("failed to prepare NiFi configuration for rolegroup {rolegroup}"))]
     BuildNifiProperties {
-        #[snafu(source(from(crate::controller::build::Error, Box::new)))]
-        source: Box<crate::controller::build::Error>,
+        #[snafu(source(from(nifi_properties::Error, Box::new)))]
+        source: Box<nifi_properties::Error>,
         rolegroup: RoleGroupName,
     },
 

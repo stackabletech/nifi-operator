@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use indoc::{formatdoc, indoc};
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
@@ -7,15 +9,15 @@ use stackable_operator::{
     k8s_openapi::api::core::v1::{
         ConfigMap, ConfigMapKeySelector, EnvVar, EnvVarSource, Volume, VolumeMount,
     },
+    v2::types::kubernetes::VolumeName,
 };
 
 use crate::crd::{
     authorization::{NifiAccessPolicyProvider, NifiAuthorization, NifiOpaConfig},
-    constants::NIFI_PVC_STORAGE_DIRECTORY,
-    storage::NifiRepository,
+    storage::{NIFI_PVC_STORAGE_DIRECTORY, NifiRepository},
 };
 
-const OPA_TLS_VOLUME_NAME: &str = "opa-tls";
+stackable_operator::constant!(OPA_TLS_VOLUME_NAME: VolumeName = "opa-tls");
 pub const OPA_TLS_MOUNT_PATH: &str = "/stackable/opa_tls";
 
 const FILE_BASED_MOUNT_DIRECTORY: &str = "filebased";
@@ -226,7 +228,7 @@ impl ResolvedNifiAuthorizationConfig {
                 secret_class: Some(_),
                 ..
             } => volume_mounts.push(VolumeMount {
-                name: OPA_TLS_VOLUME_NAME.into(),
+                name: OPA_TLS_VOLUME_NAME.to_string(),
                 mount_path: OPA_TLS_MOUNT_PATH.into(),
                 ..VolumeMount::default()
             }),
@@ -261,7 +263,7 @@ impl ResolvedNifiAuthorizationConfig {
         } = self
         {
             volumes.push(
-                VolumeBuilder::new(OPA_TLS_VOLUME_NAME)
+                VolumeBuilder::new(OPA_TLS_VOLUME_NAME.to_string())
                     .ephemeral(
                         SecretOperatorVolumeSourceBuilder::new(
                             secret_class,

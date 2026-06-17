@@ -2,26 +2,16 @@
 
 use std::collections::BTreeMap;
 
-use snafu::{ResultExt, ensure};
+use snafu::{ResultExt, Snafu, ensure};
 use stackable_operator::memory::MemoryQuantity;
 
 use super::{ConfigFileName, format_properties};
 use crate::{
     controller::{
         NifiRoleGroupConfig, ValidatedCluster,
-        build::{
-            CalculateStorageQuotaSnafu, Error, GenerateOidcConfigSnafu, HTTPS_PORT,
-            Nifi1RequiresZookeeperSnafu, PROTOCOL_PORT,
-        },
+        build::{HTTPS_PORT, NIFI_CONFIG_DIRECTORY, NIFI_PYTHON_WORKING_DIRECTORY, PROTOCOL_PORT},
     },
-    crd::{
-        constants::{
-            NIFI_CONFIG_DIRECTORY, NIFI_PYTHON_EXTENSIONS_DIRECTORY,
-            NIFI_PYTHON_FRAMEWORK_DIRECTORY, NIFI_PYTHON_WORKING_DIRECTORY,
-        },
-        storage::NifiRepository,
-        v1alpha1,
-    },
+    crd::{storage::NifiRepository, v1alpha1},
     security::{
         authentication::{
             NifiAuthenticationConfig, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
@@ -29,6 +19,31 @@ use crate::{
         oidc::add_oidc_config_to_properties,
     },
 };
+
+/// Errors that can occur while building `nifi.properties`.
+#[derive(Snafu, Debug)]
+#[snafu(visibility(pub(crate)))]
+pub enum Error {
+    #[snafu(display("failed to calculate storage quota for {repo} repository"))]
+    CalculateStorageQuota {
+        source: stackable_operator::memory::Error,
+        repo: NifiRepository,
+    },
+
+    #[snafu(display("failed to generate OIDC config"))]
+    GenerateOidcConfig {
+        source: crate::security::oidc::Error,
+    },
+
+    #[snafu(display(
+        "NiFi 1.x requires ZooKeeper (hint: upgrade to NiFi 2.x or set .spec.clusterConfig.zookeeperConfigMapName)"
+    ))]
+    Nifi1RequiresZookeeper,
+}
+
+/// NiFi Python (`nipy`) extension directories, mounted only by the `nifi.properties` builder.
+const NIFI_PYTHON_FRAMEWORK_DIRECTORY: &str = "/stackable/nifi/python/framework/";
+const NIFI_PYTHON_EXTENSIONS_DIRECTORY: &str = "/stackable/nifi/python/extensions/";
 
 const STORAGE_PROVENANCE_UTILIZATION_FACTOR: f32 = 0.9;
 const STORAGE_FLOW_ARCHIVE_UTILIZATION_FACTOR: f32 = 0.9;

@@ -4,10 +4,7 @@
 
 use std::str::FromStr;
 
-use snafu::Snafu;
 use stackable_operator::v2::types::{common::Port, operator::RoleGroupName};
-
-use crate::{crd::storage::NifiRepository, security::oidc};
 
 pub mod git_sync;
 pub mod graceful_shutdown;
@@ -29,24 +26,6 @@ pub const BALANCE_PORT: Port = Port(6243);
 pub const METRICS_PORT_NAME: &str = "metrics";
 pub const METRICS_PORT: Port = Port(8081);
 
-/// Errors that can occur while building the NiFi product configuration files.
-#[derive(Snafu, Debug)]
-#[snafu(visibility(pub(crate)))]
-pub enum Error {
-    #[snafu(display("invalid JVM config"))]
-    InvalidJVMConfig { source: jvm::Error },
-
-    #[snafu(display("failed to calculate storage quota for {repo} repository"))]
-    CalculateStorageQuota {
-        source: stackable_operator::memory::Error,
-        repo: NifiRepository,
-    },
-
-    #[snafu(display("failed to generate OIDC config"))]
-    GenerateOidcConfig { source: oidc::Error },
-
-    #[snafu(display(
-        "NiFi 1.x requires ZooKeeper (hint: upgrade to NiFi 2.x or set .spec.clusterConfig.zookeeperConfigMapName)"
-    ))]
-    Nifi1RequiresZookeeper,
-}
+// Filesystem paths shared by multiple builders. Single-consumer paths live in their builder.
+pub const NIFI_CONFIG_DIRECTORY: &str = "/stackable/nifi/conf";
+pub const NIFI_PYTHON_WORKING_DIRECTORY: &str = "/nifi-python-working-directory";

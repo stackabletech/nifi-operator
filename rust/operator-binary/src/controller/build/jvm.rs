@@ -7,8 +7,10 @@ use stackable_operator::{
 };
 
 use crate::{
-    controller::ValidatedNifiConfig,
-    crd::constants::{JVM_SECURITY_PROPERTIES_FILE, NIFI_CONFIG_DIRECTORY},
+    controller::{
+        ValidatedNifiConfig,
+        build::{NIFI_CONFIG_DIRECTORY, properties::ConfigFileName},
+    },
     security::{
         authentication::{STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD},
         authorization::ResolvedNifiAuthorizationConfig,
@@ -83,7 +85,8 @@ pub fn build_merged_jvm_config(
         "-Dzookeeper.admin.enableServer=false".to_owned(),
         // JVM security properties include especially TTL values for the positive and negative DNS caches.
         format!(
-            "-Djava.security.properties={NIFI_CONFIG_DIRECTORY}/{JVM_SECURITY_PROPERTIES_FILE}"
+            "-Djava.security.properties={NIFI_CONFIG_DIRECTORY}/{}",
+            ConfigFileName::SecurityProperties
         ),
     ];
 

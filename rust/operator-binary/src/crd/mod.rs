@@ -1,6 +1,5 @@
 pub mod affinity;
 pub mod authorization;
-pub mod constants;
 pub mod sensitive_properties;
 pub mod storage;
 pub mod tls;
@@ -29,7 +28,6 @@ use stackable_operator::{
         apimachinery::pkg::api::resource::Quantity,
     },
     kube::CustomResource,
-    memory::MemoryQuantity,
     product_logging::{self, spec::Logging},
     role_utils::{GenericRoleConfig, Role},
     schemars::{self, JsonSchema},
@@ -49,10 +47,6 @@ use stackable_operator::{
 use tls::NifiTls;
 
 pub const APP_NAME: &str = "nifi";
-
-pub const STACKABLE_LOG_CONFIG_DIR: &str = "/stackable/log_config";
-
-pub const MAX_NIFI_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity::from_mebi(10.0);
 
 const DEFAULT_NODE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_minutes_unchecked(5);
 

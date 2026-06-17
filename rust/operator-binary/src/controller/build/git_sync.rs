@@ -34,7 +34,7 @@ pub fn build_git_sync_resources(
         image,
         &env_vars,
         &[],
-        LOG_VOLUME_NAME,
+        &LOG_VOLUME_NAME.to_string(),
         &config.logging.for_container(&Container::GitSync),
     )
     .context(InvalidGitSyncSpecSnafu)

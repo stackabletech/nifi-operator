@@ -2,18 +2,27 @@
 
 use std::collections::BTreeMap;
 
-use snafu::ResultExt;
+use snafu::{ResultExt, Snafu};
 
 use crate::{
     controller::{
         NifiRoleGroupConfig,
         build::{
-            Error, InvalidJVMConfigSnafu, graceful_shutdown::graceful_shutdown_config_properties,
-            jvm::build_merged_jvm_config,
+            graceful_shutdown::graceful_shutdown_config_properties, jvm::build_merged_jvm_config,
         },
     },
     security::authorization::ResolvedNifiAuthorizationConfig,
 };
+
+/// Errors that can occur while building `bootstrap.conf`.
+#[derive(Snafu, Debug)]
+#[snafu(visibility(pub(crate)))]
+pub enum Error {
+    #[snafu(display("invalid JVM config"))]
+    InvalidJVMConfig {
+        source: crate::controller::build::jvm::Error,
+    },
+}
 
 pub fn build(
     rg: &NifiRoleGroupConfig,

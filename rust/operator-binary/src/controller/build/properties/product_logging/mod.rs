@@ -1,14 +1,17 @@
 //! Builds the logback and Vector logging configuration for the rolegroup `ConfigMap`.
 
 use stackable_operator::{
-    memory::BinaryMultiple,
+    memory::{BinaryMultiple, MemoryQuantity},
     product_logging,
     v2::product_logging::framework::{STACKABLE_LOG_DIR, ValidatedContainerLogConfigChoice},
 };
 
-use crate::crd::{Container, MAX_NIFI_LOG_FILES_SIZE};
+use crate::crd::Container;
 
 pub const NIFI_LOG_FILE: &str = "nifi.log4j.xml";
+
+/// Maximum total size of the NiFi log files retained on disk (per container).
+const MAX_NIFI_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity::from_mebi(10.0);
 
 /// The Vector agent configuration (`vector.yaml`).
 ///
