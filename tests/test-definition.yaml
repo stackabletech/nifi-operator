@@ -45,21 +45,22 @@ dimensions:
   - name: zookeeper
     values:
       - 3.9.4
+      - 3.9.5
   - name: zookeeper-latest
     values:
-      - 3.9.4
+      - 3.9.5
   - name: opa-l
     values:
       - 1.16.2
   - name: hdfs-l
     values:
-      - 3.4.2
+      - 3.5.0
   - name: hive-l
     values:
       - 4.2.0
   - name: trino-l
     values:
-      - "477"
+      - "481"
   - name: krb5
     values:
       - 1.21.1
