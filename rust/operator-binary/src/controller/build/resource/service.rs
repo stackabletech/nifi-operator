@@ -131,7 +131,6 @@ mod tests {
 
     use pretty_assertions::assert_eq;
     use rstest::rstest;
-
     use stackable_operator::v2::types::common::Port;
 
     use super::*;
