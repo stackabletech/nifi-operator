@@ -4,9 +4,9 @@ use stackable_operator::{
     v2::types::operator::RoleGroupName,
 };
 
-use crate::{
-    controller::ValidatedCluster,
-    crd::{HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME},
+use crate::controller::{
+    ValidatedCluster,
+    build::{HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME},
 };
 
 /// The rolegroup headless [`Service`] is a service that allows direct access to the instances of a certain rolegroup
@@ -132,6 +132,8 @@ mod tests {
     use pretty_assertions::assert_eq;
     use rstest::rstest;
 
+    use stackable_operator::v2::types::common::Port;
+
     use super::*;
     use crate::controller::build::properties::test_support::minimal_validated_cluster;
 
@@ -143,7 +145,7 @@ mod tests {
     fn metrics_service_port_depends_on_version(
         #[case] product_version: &str,
         #[case] expected_name: &str,
-        #[case] expected_port: u16,
+        #[case] expected_port: Port,
     ) {
         let port = metrics_service_port(product_version);
         assert_eq!(Some(expected_name.to_string()), port.name);

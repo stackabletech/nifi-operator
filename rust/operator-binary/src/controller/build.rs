@@ -5,7 +5,7 @@
 use std::str::FromStr;
 
 use snafu::Snafu;
-use stackable_operator::v2::types::operator::RoleGroupName;
+use stackable_operator::v2::types::{common::Port, operator::RoleGroupName};
 
 use crate::{crd::storage::NifiRepository, security::oidc};
 
@@ -19,6 +19,15 @@ pub mod resource;
 // Placeholder role-group name for role-level resources (e.g. the per-role `Listener`), which have
 // no associated role group. Preserves the historical `app.kubernetes.io/role-group: none` label.
 stackable_operator::constant!(pub(crate) PLACEHOLDER_LISTENER_ROLE_GROUP: RoleGroupName = "none");
+
+pub const HTTPS_PORT_NAME: &str = "https";
+pub const HTTPS_PORT: Port = Port(8443);
+pub const PROTOCOL_PORT_NAME: &str = "protocol";
+pub const PROTOCOL_PORT: Port = Port(9088);
+pub const BALANCE_PORT_NAME: &str = "balance";
+pub const BALANCE_PORT: Port = Port(6243);
+pub const METRICS_PORT_NAME: &str = "metrics";
+pub const METRICS_PORT: Port = Port(8081);
 
 /// Errors that can occur while building the NiFi product configuration files.
 #[derive(Snafu, Debug)]

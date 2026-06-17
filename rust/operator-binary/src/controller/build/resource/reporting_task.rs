@@ -53,8 +53,11 @@ use stackable_operator::{
 };
 
 use crate::{
-    controller::ValidatedCluster,
-    crd::{HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, NifiRole},
+    controller::{
+        ValidatedCluster,
+        build::{HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT},
+    },
+    crd::NifiRole,
     security::{authentication::STACKABLE_ADMIN_USERNAME, build_tls_volume},
 };
 

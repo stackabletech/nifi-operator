@@ -49,6 +49,8 @@ use crate::{
     controller::{
         NifiRoleGroupConfig, ValidatedCluster,
         build::{
+            BALANCE_PORT, BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT,
+            METRICS_PORT_NAME, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
             graceful_shutdown::add_graceful_shutdown_config,
             properties::ConfigFileName,
             resource::{
@@ -61,9 +63,7 @@ use crate::{
         },
     },
     crd::{
-        BALANCE_PORT, BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT,
-        METRICS_PORT_NAME, NifiRole, NifiRoleType, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
-        STACKABLE_LOG_CONFIG_DIR,
+        NifiRole, NifiRoleType, STACKABLE_LOG_CONFIG_DIR,
         authorization::NifiAccessPolicyProvider,
         constants::{NIFI_CONFIG_DIRECTORY, NIFI_PYTHON_WORKING_DIRECTORY},
         storage::{NifiRepository, PERSISTENT_REPOSITORIES},

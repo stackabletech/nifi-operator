@@ -10,11 +10,11 @@ use crate::{
     controller::{
         NifiRoleGroupConfig, ValidatedCluster,
         build::{
-            CalculateStorageQuotaSnafu, Error, GenerateOidcConfigSnafu, Nifi1RequiresZookeeperSnafu,
+            CalculateStorageQuotaSnafu, Error, GenerateOidcConfigSnafu, HTTPS_PORT,
+            Nifi1RequiresZookeeperSnafu, PROTOCOL_PORT,
         },
     },
     crd::{
-        HTTPS_PORT,
         constants::{
             NIFI_CONFIG_DIRECTORY, NIFI_PYTHON_EXTENSIONS_DIRECTORY,
             NIFI_PYTHON_FRAMEWORK_DIRECTORY, NIFI_PYTHON_WORKING_DIRECTORY,
@@ -488,7 +488,7 @@ pub fn build(
     );
     properties.insert(
         "nifi.cluster.node.protocol.port".to_string(),
-        crate::crd::PROTOCOL_PORT.to_string(),
+        PROTOCOL_PORT.to_string(),
     );
     properties.insert(
         "nifi.cluster.flow.election.max.candidates".to_string(),
@@ -598,9 +598,9 @@ fn storage_quantity_to_nifi(quantity: MemoryQuantity) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        controller::build::properties::test_support::{default_rg, minimal_validated_cluster},
-        crd::HTTPS_PORT,
+    use crate::controller::build::{
+        HTTPS_PORT,
+        properties::test_support::{default_rg, minimal_validated_cluster},
     };
 
     /// Verify that core stable keys are present in the rendered nifi.properties with their

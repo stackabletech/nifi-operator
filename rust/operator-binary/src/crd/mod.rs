@@ -50,15 +50,6 @@ use tls::NifiTls;
 
 pub const APP_NAME: &str = "nifi";
 
-pub const HTTPS_PORT_NAME: &str = "https";
-pub const HTTPS_PORT: u16 = 8443;
-pub const PROTOCOL_PORT_NAME: &str = "protocol";
-pub const PROTOCOL_PORT: u16 = 9088;
-pub const BALANCE_PORT_NAME: &str = "balance";
-pub const BALANCE_PORT: u16 = 6243;
-pub const METRICS_PORT_NAME: &str = "metrics";
-pub const METRICS_PORT: u16 = 8081;
-
 pub const STACKABLE_LOG_CONFIG_DIR: &str = "/stackable/log_config";
 
 pub const MAX_NIFI_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity::from_mebi(10.0);

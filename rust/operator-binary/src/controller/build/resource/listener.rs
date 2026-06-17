@@ -12,9 +12,9 @@ use stackable_operator::{
     },
 };
 
-use crate::{
-    controller::{ValidatedCluster, build::PLACEHOLDER_LISTENER_ROLE_GROUP},
-    crd::{HTTPS_PORT, HTTPS_PORT_NAME},
+use crate::controller::{
+    ValidatedCluster,
+    build::{HTTPS_PORT, HTTPS_PORT_NAME, PLACEHOLDER_LISTENER_ROLE_GROUP},
 };
 
 pub const LISTENER_VOLUME_NAME: &str = "listener";
