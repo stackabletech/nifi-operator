@@ -6,7 +6,7 @@ use snafu::ResultExt;
 
 use crate::{
     controller::{
-        ValidatedRoleGroupConfig,
+        NifiRoleGroupConfig,
         build::{
             Error, InvalidJVMConfigSnafu, graceful_shutdown::graceful_shutdown_config_properties,
             jvm::build_merged_jvm_config,
@@ -16,7 +16,7 @@ use crate::{
 };
 
 pub fn build(
-    rg: &ValidatedRoleGroupConfig,
+    rg: &NifiRoleGroupConfig,
     authorization_config: Option<&ResolvedNifiAuthorizationConfig>,
 ) -> Result<String, Error> {
     let mut bootstrap = BTreeMap::new();

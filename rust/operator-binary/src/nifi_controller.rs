@@ -295,6 +295,7 @@ pub async fn reconcile_nifi(
 
             let rg_configmap = build::resource::config_map::build_rolegroup_config_map(
                 &validated_cluster,
+                role_group_name,
                 rg,
                 &client.kubernetes_cluster_info,
             )
@@ -315,6 +316,7 @@ pub async fn reconcile_nifi(
                 &validated_cluster,
                 &client.kubernetes_cluster_info,
                 role,
+                role_group_name,
                 rg,
                 rolling_upgrade_supported,
                 replicas,

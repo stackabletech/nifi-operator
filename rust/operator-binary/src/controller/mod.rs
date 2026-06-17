@@ -5,7 +5,11 @@
 use std::{collections::BTreeMap, str::FromStr as _};
 
 use stackable_operator::{
-    commons::product_image_selection::ResolvedProductImage,
+    commons::{
+        affinity::StackableAffinity,
+        product_image_selection::ResolvedProductImage,
+        resources::{NoRuntimeLimits, Resources},
+    },
     crd::git_sync,
     k8s_openapi::{
         api::core::v1::{PodTemplateSpec, Volume},
@@ -13,13 +17,13 @@ use stackable_operator::{
     },
     kube::Resource,
     kvp::Labels,
+    shared::time::Duration,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
-        builder::pod::container::EnvVarSet,
         kvp::label::{recommended_labels, role_group_selector, role_selector},
         product_logging::framework::{ValidatedContainerLogConfigChoice, VectorContainerLogConfig},
         role_group_utils::ResourceNames,
-        role_utils::JavaCommonConfig,
+        role_utils::{JavaCommonConfig, RoleGroupConfig},
         types::{
             kubernetes::{ListenerClassName, NamespaceName, Uid},
             operator::{
@@ -33,7 +37,7 @@ use stackable_operator::{
 use crate::{
     OPERATOR_NAME,
     crd::{
-        APP_NAME, HostHeaderCheckConfig, NifiConfig, NifiRole,
+        APP_NAME, HostHeaderCheckConfig, NifiConfig, NifiRole, NifiStorageConfig,
         sensitive_properties::NifiSensitiveKeyAlgorithm, v1alpha1,
     },
     nifi_controller::NIFI_CONTROLLER_NAME,
@@ -48,29 +52,19 @@ pub(crate) mod upgrade;
 pub(crate) mod validate;
 
 /// A validated, merged (default <- role <- role-group) NiFi rolegroup config.
-///
-/// Produced from the result of
-/// [`with_validated_config`](stackable_operator::v2::role_utils::with_validated_config) in the
-/// [`validate`] step; downstream builders consume this rather than the raw `NifiCluster`.
-pub struct ValidatedRoleGroupConfig {
-    /// The role-group name (the key under which this config is stored in
-    /// [`ValidatedCluster::role_group_configs`]). Carried here so builders that consume the config
-    /// don't also need the name threaded through as a separate parameter.
-    pub name: RoleGroupName,
-    /// The desired number of replicas, or `None` when the role group is managed by a Horizontal
-    /// Pod Autoscaler (raw `replicas: null`).
-    pub replicas: Option<u16>,
-    /// The merged and validated rolegroup config.
-    pub config: NifiConfig,
-    /// The merged (role <- role group) config-file overrides.
-    pub config_overrides: v1alpha1::NifiConfigOverrides,
-    /// The merged (role <- role group) environment variable overrides.
-    pub env_overrides: EnvVarSet,
-    /// The merged (role <- role group) pod template overrides.
-    pub pod_overrides: PodTemplateSpec,
-    /// The merged (role <- role group) JVM argument overrides, applied on top of the
-    /// operator-generated JVM arguments when building `bootstrap.conf`.
-    pub product_specific_common_config: JavaCommonConfig,
+pub type NifiRoleGroupConfig =
+    RoleGroupConfig<ValidatedNifiConfig, JavaCommonConfig, v1alpha1::NifiConfigOverrides>;
+
+/// A validated NiFi [`NifiConfig`].
+pub struct ValidatedNifiConfig {
+    /// Resource requests/limits (CPU, memory and disk storage).
+    pub resources: Resources<NifiStorageConfig, NoRuntimeLimits>,
+    /// Pod (anti-)affinity for the role group.
+    pub affinity: StackableAffinity,
+    /// Time period Pods have to gracefully shut down.
+    pub graceful_shutdown_timeout: Option<Duration>,
+    /// Requested lifetime of the auto-TLS secret.
+    pub requested_secret_lifetime: Option<Duration>,
     /// The validated logging configuration (NiFi and optional Vector container), validated up-front
     /// in the [`validate`] step (mirroring hive/opensearch).
     pub logging: ValidatedLogging,
@@ -79,6 +73,43 @@ pub struct ValidatedRoleGroupConfig {
     /// logging config differ per role group, so these are computed per role group. Consumed by both
     /// the StatefulSet builder and the `nifi.properties` builder.
     pub git_sync_resources: git_sync::v1alpha2::GitSyncResources,
+}
+
+impl ValidatedNifiConfig {
+    pub(crate) fn from_merged(
+        merged: NifiConfig,
+        logging: ValidatedLogging,
+        git_sync_resources: git_sync::v1alpha2::GitSyncResources,
+    ) -> Self {
+        Self {
+            resources: merged.resources,
+            affinity: merged.affinity,
+            graceful_shutdown_timeout: merged.graceful_shutdown_timeout,
+            requested_secret_lifetime: merged.requested_secret_lifetime,
+            logging,
+            git_sync_resources,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_merged_for_test(merged: NifiConfig) -> Self {
+        use stackable_operator::product_logging::spec::AutomaticContainerLogConfig;
+
+        Self::from_merged(
+            merged,
+            ValidatedLogging {
+                nifi_container: ValidatedContainerLogConfigChoice::Automatic(
+                    AutomaticContainerLogConfig::default(),
+                ),
+                prepare_container: ValidatedContainerLogConfigChoice::Automatic(
+                    AutomaticContainerLogConfig::default(),
+                ),
+                vector_container: None,
+                enable_vector_agent: false,
+            },
+            git_sync::v1alpha2::GitSyncResources::default(),
+        )
+    }
 }
 
 /// Validated logging configuration for the NiFi and (optional) Vector container.
@@ -91,6 +122,10 @@ pub struct ValidatedLogging {
     /// The NiFi container log config choice (automatic logging vs a custom log ConfigMap). Consumed
     /// by the `logback.xml` builder and the StatefulSet's `log-config` volume.
     pub nifi_container: ValidatedContainerLogConfigChoice,
+    /// The `prepare` init-container log config choice. Consumed by the StatefulSet builder to
+    /// capture the init container's shell output into the log directory (only for the `Automatic`
+    /// choice).
+    pub prepare_container: ValidatedContainerLogConfigChoice,
     /// The Vector container log config (log config choice + aggregator discovery ConfigMap name).
     /// `None` when the Vector agent is disabled for this role group.
     pub vector_container: Option<VectorContainerLogConfig>,
@@ -122,7 +157,7 @@ pub struct ValidatedCluster {
     /// Cluster wide settings.
     pub cluster_config: ValidatedClusterConfig,
     /// Collected configuration per rolegroup.
-    pub role_group_configs: BTreeMap<NifiRole, BTreeMap<RoleGroupName, ValidatedRoleGroupConfig>>,
+    pub role_group_configs: BTreeMap<NifiRole, BTreeMap<RoleGroupName, NifiRoleGroupConfig>>,
 }
 
 /// The resolved `spec.clusterConfig`.
@@ -165,7 +200,7 @@ impl ValidatedCluster {
         image: ResolvedProductImage,
         product_version: ProductVersion,
         role_config: ValidatedRoleConfig,
-        role_group_configs: BTreeMap<NifiRole, BTreeMap<RoleGroupName, ValidatedRoleGroupConfig>>,
+        role_group_configs: BTreeMap<NifiRole, BTreeMap<RoleGroupName, NifiRoleGroupConfig>>,
         cluster_config: ValidatedClusterConfig,
     ) -> Self {
         let metadata = ObjectMeta {

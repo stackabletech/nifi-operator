@@ -31,7 +31,6 @@ use stackable_operator::{
     product_logging::{
         self,
         framework::{create_vector_shutdown_file_command, remove_vector_shutdown_file_command},
-        spec::{ContainerLogConfig, ContainerLogConfigChoice},
     },
     utils::{COMMON_BASH_TRAP_FUNCTIONS, cluster_info::KubernetesClusterInfo},
     v2::{
@@ -39,13 +38,16 @@ use stackable_operator::{
         product_logging::framework::{
             STACKABLE_LOG_DIR, ValidatedContainerLogConfigChoice, vector_container,
         },
-        types::kubernetes::{ContainerName, VolumeName},
+        types::{
+            kubernetes::{ContainerName, VolumeName},
+            operator::RoleGroupName,
+        },
     },
 };
 
 use crate::{
     controller::{
-        ValidatedCluster, ValidatedRoleGroupConfig,
+        NifiRoleGroupConfig, ValidatedCluster,
         build::{
             graceful_shutdown::add_graceful_shutdown_config,
             properties::ConfigFileName,
@@ -59,7 +61,7 @@ use crate::{
         },
     },
     crd::{
-        BALANCE_PORT, BALANCE_PORT_NAME, Container, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT,
+        BALANCE_PORT, BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT,
         METRICS_PORT_NAME, NifiRole, NifiRoleType, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
         STACKABLE_LOG_CONFIG_DIR,
         authorization::NifiAccessPolicyProvider,
@@ -158,7 +160,8 @@ pub(crate) async fn build_node_rolegroup_statefulset(
     cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
     role: &NifiRoleType,
-    rg: &ValidatedRoleGroupConfig,
+    role_group_name: &RoleGroupName,
+    rg: &NifiRoleGroupConfig,
     rolling_update_supported: bool,
     replicas: Option<i32>,
     service_account_name: &str,
@@ -170,10 +173,10 @@ pub(crate) async fn build_node_rolegroup_statefulset(
     let resolved_product_image = &cluster.image;
     let authentication_config = &cluster.cluster_config.authentication;
     let authorization_config = &cluster.cluster_config.authorization;
-    let git_sync_resources = &rg.git_sync_resources;
+    let git_sync_resources = &rg.config.git_sync_resources;
 
     // Type-safe names for this role group's resources (StatefulSet, ConfigMap, headless Service).
-    let resource_names = cluster.resource_names(&rg.name);
+    let resource_names = cluster.resource_names(role_group_name);
 
     // The validated, merged `NifiConfig` is the single source of truth; the ConfigMap builder
     // sources the same `rg.config`.
@@ -249,9 +252,8 @@ pub(crate) async fn build_node_rolegroup_statefulset(
     let prepare_container_name = PREPARE_CONTAINER_NAME.to_string();
     let mut prepare_args = vec![];
 
-    if let Some(ContainerLogConfig {
-        choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-    }) = merged_config.logging.containers.get(&Container::Prepare)
+    if let ValidatedContainerLogConfigChoice::Automatic(log_config) =
+        &rg.config.logging.prepare_container
     {
         prepare_args.push(product_logging::framework::capture_shell_output(
             STACKABLE_LOG_DIR,
@@ -450,7 +452,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
 
     let mut pod_builder = PodBuilder::new();
 
-    let recommended_object_labels = cluster.recommended_labels(&rg.name);
+    let recommended_object_labels = cluster.recommended_labels(role_group_name);
 
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
 
@@ -509,7 +511,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
 
     // The NiFi `log-config` volume sources from the custom log ConfigMap when one is configured,
     // otherwise from this rolegroup's ConfigMap (which carries the operator-generated `logback.xml`).
-    let log_config_map_name = match &rg.logging.nifi_container {
+    let log_config_map_name = match &rg.config.logging.nifi_container {
         ValidatedContainerLogConfigChoice::Custom(config_map) => config_map.to_string(),
         ValidatedContainerLogConfigChoice::Automatic(_) => {
             resource_names.role_group_config_map().to_string()
@@ -530,7 +532,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
     // `vector.yaml` is shipped in the rolegroup `ConfigMap`; the per-rolegroup values (namespace,
     // cluster/role/role-group, aggregator address, log levels) are injected as environment
     // variables here and substituted by Vector at runtime.
-    if let Some(vector_log_config) = &rg.logging.vector_container {
+    if let Some(vector_log_config) = &rg.config.logging.vector_container {
         pod_builder.add_container(vector_container(
             &VECTOR_CONTAINER_NAME,
             resolved_product_image,
@@ -598,7 +600,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
                 KEYSTORE_VOLUME_NAME,
                 [
                     cluster
-                        .resource_names(&rg.name)
+                        .resource_names(role_group_name)
                         .metrics_service_name()
                         .to_string(),
                     build_reporting_task_service_name(&nifi_cluster_name),
@@ -647,14 +649,17 @@ pub(crate) async fn build_node_rolegroup_statefulset(
 
     Ok(StatefulSet {
         metadata: cluster
-            .object_meta(resource_names.stateful_set_name().to_string(), &rg.name)
+            .object_meta(
+                resource_names.stateful_set_name().to_string(),
+                role_group_name,
+            )
             .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
             .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("Parallel".to_string()),
             replicas,
             selector: LabelSelector {
-                match_labels: Some(cluster.role_group_selector(&rg.name).into()),
+                match_labels: Some(cluster.role_group_selector(role_group_name).into()),
                 ..LabelSelector::default()
             },
             service_name: Some(resource_names.headless_service_name().to_string()),
@@ -667,7 +672,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
                 },
                 ..StatefulSetUpdateStrategy::default()
             }),
-            volume_claim_templates: Some(get_volume_claim_templates(cluster, rg)?),
+            volume_claim_templates: Some(get_volume_claim_templates(cluster, role_group_name, rg)?),
             ..StatefulSetSpec::default()
         }),
         status: None,
@@ -676,7 +681,8 @@ pub(crate) async fn build_node_rolegroup_statefulset(
 
 fn get_volume_claim_templates(
     cluster: &ValidatedCluster,
-    rg: &ValidatedRoleGroupConfig,
+    role_group_name: &RoleGroupName,
+    rg: &NifiRoleGroupConfig,
 ) -> Result<Vec<PersistentVolumeClaim>> {
     let merged_config = &rg.config;
     let authorization_config = &cluster.cluster_config.authorization;
@@ -705,7 +711,7 @@ fn get_volume_claim_templates(
 
     // Used for PVC templates that cannot be modified once they are deployed, so the version label
     // is set to the placeholder `none` to keep the labels stable across version upgrades.
-    let unversioned_recommended_labels = cluster.recommended_labels_unversioned(&rg.name);
+    let unversioned_recommended_labels = cluster.recommended_labels_unversioned(role_group_name);
 
     // listener endpoints will use persistent volumes
     // so that load balancers can hard-code the target addresses and

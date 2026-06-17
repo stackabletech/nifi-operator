@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use snafu::{ResultExt, Snafu};
 use stackable_operator::builder::pod::PodBuilder;
 
-use crate::crd::NifiConfig;
+use crate::controller::ValidatedNifiConfig;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -13,7 +13,9 @@ pub enum Error {
     },
 }
 
-pub fn graceful_shutdown_config_properties(config: &NifiConfig) -> BTreeMap<String, String> {
+pub fn graceful_shutdown_config_properties(
+    config: &ValidatedNifiConfig,
+) -> BTreeMap<String, String> {
     let mut graceful_shutdown_properties = BTreeMap::new();
     if let Some(graceful_shutdown_timeout) = config.graceful_shutdown_timeout {
         graceful_shutdown_properties.insert(
@@ -25,7 +27,7 @@ pub fn graceful_shutdown_config_properties(config: &NifiConfig) -> BTreeMap<Stri
 }
 
 pub fn add_graceful_shutdown_config(
-    merged_config: &NifiConfig,
+    merged_config: &ValidatedNifiConfig,
     pod_builder: &mut PodBuilder,
 ) -> Result<(), Error> {
     // This must be always set by the merge mechanism, as we provide a default value,

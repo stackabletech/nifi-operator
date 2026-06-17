@@ -8,7 +8,7 @@ use stackable_operator::{
 };
 
 use crate::controller::{
-    ValidatedCluster, ValidatedRoleGroupConfig,
+    NifiRoleGroupConfig, ValidatedCluster,
     build::{
         properties::{
             ConfigFileName, authorizers, bootstrap_conf, login_identity_providers, nifi_properties,
@@ -59,7 +59,8 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// All NiFi configuration is sourced from `cluster`.
 pub fn build_rolegroup_config_map(
     cluster: &ValidatedCluster,
-    rg: &ValidatedRoleGroupConfig,
+    role_group_name: &RoleGroupName,
+    rg: &NifiRoleGroupConfig,
     cluster_info: &KubernetesClusterInfo,
 ) -> Result<ConfigMap> {
     tracing::debug!("building rolegroup ConfigMap");
@@ -73,10 +74,10 @@ pub fn build_rolegroup_config_map(
             cluster
                 .object_meta(
                     cluster
-                        .resource_names(&rg.name)
+                        .resource_names(role_group_name)
                         .role_group_config_map()
                         .to_string(),
-                    &rg.name,
+                    role_group_name,
                 )
                 .build(),
         )
@@ -89,7 +90,7 @@ pub fn build_rolegroup_config_map(
             ConfigFileName::NifiProperties.to_string(),
             nifi_properties::build(cluster, rg, &proxy_hosts).with_context(|_| {
                 BuildNifiPropertiesSnafu {
-                    rolegroup: rg.name.clone(),
+                    rolegroup: role_group_name.clone(),
                 }
             })?,
         )
@@ -109,16 +110,17 @@ pub fn build_rolegroup_config_map(
         .add_data(
             ConfigFileName::SecurityProperties.to_string(),
             security_properties::build(rg).with_context(|_| JvmSecurityPropertiesSnafu {
-                rolegroup: rg.name.clone(),
+                rolegroup: role_group_name.clone(),
             })?,
         );
 
-    if let Some(logback_config) = product_logging::build_logback_config(&rg.logging.nifi_container)
+    if let Some(logback_config) =
+        product_logging::build_logback_config(&rg.config.logging.nifi_container)
     {
         cm_builder.add_data(ConfigFileName::Logback.to_string(), logback_config);
     }
 
-    if rg.logging.enable_vector_agent {
+    if rg.config.logging.enable_vector_agent {
         cm_builder.add_data(
             VECTOR_CONFIG_FILE,
             product_logging::vector_config_file_content(),
@@ -128,6 +130,6 @@ pub fn build_rolegroup_config_map(
     cm_builder
         .build()
         .with_context(|_| BuildRoleGroupConfigSnafu {
-            rolegroup: rg.name.clone(),
+            rolegroup: role_group_name.clone(),
         })
 }

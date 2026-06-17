@@ -6,9 +6,9 @@ use stackable_operator::v2::config_file_writer::{
     PropertiesWriterError, to_java_properties_string,
 };
 
-use crate::controller::ValidatedRoleGroupConfig;
+use crate::controller::NifiRoleGroupConfig;
 
-pub fn build(rg: &ValidatedRoleGroupConfig) -> Result<String, PropertiesWriterError> {
+pub fn build(rg: &NifiRoleGroupConfig) -> Result<String, PropertiesWriterError> {
     let mut props: BTreeMap<String, String> = BTreeMap::new();
     // Defaults previously injected by deploy/config-spec/properties.yaml:
     props.insert("networkaddress.cache.ttl".to_string(), "30".to_string());
@@ -30,21 +30,16 @@ mod tests {
 
     use super::*;
     use crate::{
-        controller::{ValidatedLogging, ValidatedRoleGroupConfig},
+        controller::ValidatedNifiConfig,
         crd::{NifiConfig, v1alpha1::NifiConfigOverrides},
     };
 
-    fn make_rg(overrides: Option<BTreeMap<String, String>>) -> ValidatedRoleGroupConfig {
-        use std::str::FromStr as _;
+    fn make_rg(overrides: Option<BTreeMap<String, String>>) -> NifiRoleGroupConfig {
+        use stackable_operator::v2::role_utils::JavaCommonConfig;
 
-        use stackable_operator::v2::{
-            product_logging::framework::ValidatedContainerLogConfigChoice,
-            role_utils::JavaCommonConfig, types::operator::RoleGroupName,
-        };
-        ValidatedRoleGroupConfig {
-            name: RoleGroupName::from_str("default").expect("valid role-group name"),
+        NifiRoleGroupConfig {
             replicas: Some(1),
-            config: NifiConfig::default(),
+            config: ValidatedNifiConfig::from_merged_for_test(NifiConfig::default()),
             config_overrides: NifiConfigOverrides {
                 security_properties: KeyValueConfigOverrides {
                     overrides: overrides.unwrap_or_default(),
@@ -52,14 +47,9 @@ mod tests {
                 ..Default::default()
             },
             env_overrides: EnvVarSet::new(),
+            cli_overrides: Default::default(),
             pod_overrides: Default::default(),
             product_specific_common_config: JavaCommonConfig::default(),
-            logging: ValidatedLogging {
-                nifi_container: ValidatedContainerLogConfigChoice::Automatic(Default::default()),
-                vector_container: None,
-                enable_vector_agent: false,
-            },
-            git_sync_resources: Default::default(),
         }
     }
 

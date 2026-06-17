@@ -22,10 +22,6 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// Builds the [`git_sync::v1alpha2::GitSyncResources`] for a single Node rolegroup. The env vars
 /// and logging configuration differ per rolegroup, so the resources are computed per rolegroup
 /// rather than once for the whole cluster.
-///
-/// Called from the [`validate`](crate::controller::validate) step; the result is stored on the
-/// [`ValidatedRoleGroupConfig`](crate::controller::ValidatedRoleGroupConfig) and consumed by the
-/// downstream builders.
 pub fn build_git_sync_resources(
     custom_components_git_sync: &[git_sync::v1alpha2::GitSync],
     image: &ResolvedProductImage,

@@ -83,8 +83,8 @@ pub(crate) mod test_support {
 
     use crate::{
         controller::{
-            ValidatedCluster, ValidatedClusterConfig, ValidatedRoleConfig,
-            ValidatedRoleGroupConfig, validate::build_role_group_configs,
+            NifiRoleGroupConfig, ValidatedCluster, ValidatedClusterConfig, ValidatedRoleConfig,
+            validate::build_role_group_configs,
         },
         crd::{NifiRole, v1alpha1},
         security::{
@@ -194,7 +194,7 @@ pub(crate) mod test_support {
     }
 
     /// Return the "default" role-group config from a [`ValidatedCluster`].
-    pub fn default_rg(cluster: &ValidatedCluster) -> &ValidatedRoleGroupConfig {
+    pub fn default_rg(cluster: &ValidatedCluster) -> &NifiRoleGroupConfig {
         cluster
             .role_group_configs
             .get(&NifiRole::Node)

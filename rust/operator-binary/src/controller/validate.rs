@@ -29,8 +29,8 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use super::{
-    ValidatedCluster, ValidatedClusterConfig, ValidatedLogging, ValidatedRoleConfig,
-    ValidatedRoleGroupConfig,
+    NifiRoleGroupConfig, ValidatedCluster, ValidatedClusterConfig, ValidatedLogging,
+    ValidatedNifiConfig, ValidatedRoleConfig,
 };
 use crate::{
     controller::{build::git_sync::build_git_sync_resources, dereference::DereferencedObjects},
@@ -205,11 +205,11 @@ pub(crate) fn build_role_group_configs(
     nifi: &v1alpha1::NifiCluster,
     image: &product_image_selection::ResolvedProductImage,
     vector_aggregator_config_map_name: &Option<ConfigMapName>,
-) -> Result<BTreeMap<NifiRole, BTreeMap<RoleGroupName, ValidatedRoleGroupConfig>>> {
+) -> Result<BTreeMap<NifiRole, BTreeMap<RoleGroupName, NifiRoleGroupConfig>>> {
     let role = nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?;
     let default_config = NifiConfig::default_config(&nifi.name_any(), &NifiRole::Node);
 
-    let mut groups: BTreeMap<RoleGroupName, ValidatedRoleGroupConfig> = BTreeMap::new();
+    let mut groups: BTreeMap<RoleGroupName, NifiRoleGroupConfig> = BTreeMap::new();
     for (rg_name, rg) in &role.role_groups {
         let role_group_name =
             RoleGroupName::from_str(rg_name).with_context(|_| ParseRoleGroupNameSnafu {
@@ -222,7 +222,7 @@ pub(crate) fn build_role_group_configs(
             config,
             config_overrides,
             env_overrides,
-            cli_overrides: _,
+            cli_overrides,
             pod_overrides,
             product_specific_common_config,
         } = validated.config;
@@ -255,17 +255,15 @@ pub(crate) fn build_role_group_configs(
         .context(BuildGitSyncResourcesSnafu)?;
 
         groups.insert(
-            role_group_name.clone(),
-            ValidatedRoleGroupConfig {
-                name: role_group_name,
+            role_group_name,
+            NifiRoleGroupConfig {
                 replicas: validated.replicas,
-                config,
+                config: ValidatedNifiConfig::from_merged(config, logging, git_sync_resources),
                 config_overrides,
                 env_overrides: env_overrides_set,
+                cli_overrides,
                 pod_overrides,
                 product_specific_common_config,
-                logging,
-                git_sync_resources,
             },
         );
     }
@@ -286,6 +284,10 @@ fn validate_logging(
     let nifi_container = validate_logging_configuration_for_container(logging, &Container::Nifi)
         .context(ValidateLoggingConfigSnafu)?;
 
+    let prepare_container =
+        validate_logging_configuration_for_container(logging, &Container::Prepare)
+            .context(ValidateLoggingConfigSnafu)?;
+
     let vector_container = if logging.enable_vector_agent {
         let vector_aggregator_config_map_name = vector_aggregator_config_map_name
             .clone()
@@ -301,6 +303,7 @@ fn validate_logging(
 
     Ok(ValidatedLogging {
         nifi_container,
+        prepare_container,
         vector_container,
         enable_vector_agent: logging.enable_vector_agent,
     })
@@ -373,8 +376,8 @@ mod tests {
     "#;
 
     fn default_rg(
-        configs: &BTreeMap<NifiRole, BTreeMap<RoleGroupName, ValidatedRoleGroupConfig>>,
-    ) -> &ValidatedRoleGroupConfig {
+        configs: &BTreeMap<NifiRole, BTreeMap<RoleGroupName, NifiRoleGroupConfig>>,
+    ) -> &NifiRoleGroupConfig {
         configs[&NifiRole::Node]
             .get(&RoleGroupName::from_str("default").expect("valid role-group name"))
             .expect("the 'default' role group must exist")
@@ -390,6 +393,7 @@ mod tests {
             .expect("role group configs should validate");
 
         let vector = default_rg(&configs)
+            .config
             .logging
             .vector_container
             .as_ref()
@@ -405,8 +409,9 @@ mod tests {
         let nifi: v1alpha1::NifiCluster =
             serde_yaml::from_str(NIFI_VECTOR_ENABLED_YAML).expect("invalid test YAML");
 
-        // `ValidatedRoleGroupConfig` is not `Debug`, so match on the result rather than using
-        // `expect_err` (which would require the `Ok` value to be `Debug`).
+        // `NifiRoleGroupConfig` is not `Debug` (its `config` holds non-`Debug` git-sync resources),
+        // so match on the result rather than using `expect_err` (which would require `Ok` to be
+        // `Debug`).
         let result = build_role_group_configs(&nifi, &test_resolved_product_image(), &None);
         assert!(matches!(
             result,
@@ -423,6 +428,12 @@ mod tests {
         let configs = build_role_group_configs(&nifi, &test_resolved_product_image(), &None)
             .expect("role group configs should validate");
 
-        assert!(default_rg(&configs).logging.vector_container.is_none());
+        assert!(
+            default_rg(&configs)
+                .config
+                .logging
+                .vector_container
+                .is_none()
+        );
     }
 }

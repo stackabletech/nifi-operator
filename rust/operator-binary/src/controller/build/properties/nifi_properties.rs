@@ -8,7 +8,7 @@ use stackable_operator::memory::MemoryQuantity;
 use super::{ConfigFileName, format_properties};
 use crate::{
     controller::{
-        ValidatedCluster, ValidatedRoleGroupConfig,
+        NifiRoleGroupConfig, ValidatedCluster,
         build::{
             CalculateStorageQuotaSnafu, Error, GenerateOidcConfigSnafu, Nifi1RequiresZookeeperSnafu,
         },
@@ -36,10 +36,10 @@ const STORAGE_CONTENT_ARCHIVE_UTILIZATION_FACTOR: f32 = 0.5;
 
 pub fn build(
     cluster: &ValidatedCluster,
-    rg: &ValidatedRoleGroupConfig,
+    rg: &NifiRoleGroupConfig,
     proxy_hosts: &str,
 ) -> Result<String, Error> {
-    let git_sync_resources = &rg.git_sync_resources;
+    let git_sync_resources = &rg.config.git_sync_resources;
     let product_version = &cluster.image.product_version;
     let auth_config = &cluster.cluster_config.authentication;
     let resource_config = &rg.config.resources;
@@ -690,8 +690,6 @@ mod tests {
             .and_then(|groups| groups.remove(&default_rg_name))
             .expect("default role group must exist");
 
-        // Build a cluster with this rg substituted in, then borrow it back for the build call
-        // (`ValidatedRoleGroupConfig` is not `Clone`).
         let mut cluster = minimal_validated_cluster();
         cluster
             .role_group_configs

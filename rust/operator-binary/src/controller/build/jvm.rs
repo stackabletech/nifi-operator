@@ -7,10 +7,8 @@ use stackable_operator::{
 };
 
 use crate::{
-    crd::{
-        NifiConfig,
-        constants::{JVM_SECURITY_PROPERTIES_FILE, NIFI_CONFIG_DIRECTORY},
-    },
+    controller::ValidatedNifiConfig,
+    crd::constants::{JVM_SECURITY_PROPERTIES_FILE, NIFI_CONFIG_DIRECTORY},
     security::{
         authentication::{STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD},
         authorization::ResolvedNifiAuthorizationConfig,
@@ -38,7 +36,7 @@ pub enum Error {
 /// [`with_validated_config`](stackable_operator::v2::role_utils::with_validated_config)) are
 /// applied on top of.
 pub fn build_merged_jvm_config(
-    merged_config: &NifiConfig,
+    merged_config: &ValidatedNifiConfig,
     merged_jvm_argument_overrides: &JvmArgumentOverrides,
     authorization_config: Option<&ResolvedNifiAuthorizationConfig>,
 ) -> Result<Vec<String>, Error> {
