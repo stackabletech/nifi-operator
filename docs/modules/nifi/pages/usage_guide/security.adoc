@@ -110,6 +110,9 @@ spec:
 
 You can follow the xref:tutorials:authentication_with_openldap.adoc[] tutorial to learn how to set up an AuthenticationClass for an LDAP server, as well as consulting the {crd-docs}/authentication.stackable.tech/authenticationclass/v1alpha1/[AuthenticationClass reference {external-link-icon}^].
 
+If your LDAP server uses TLS, the AuthenticationClass also needs to know how to verify the server's certificate.
+See xref:concepts:tls-server-verification.adoc[] for how to provide the LDAP server's CA certificate via a SecretClass.
+
 [#authentication-oidc]
 === OIDC
 
