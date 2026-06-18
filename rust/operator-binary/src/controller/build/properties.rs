@@ -1,8 +1,7 @@
 //! Per-file builders for the NiFi rolegroup ConfigMap.
 //!
-//! Each `<file>` module produces the rendered content for one NiFi config file.
-//! The shared [`stackable_operator::v2::config_file_writer`] module serializes `.properties`/`.conf`
-//! key/value maps to the Java-properties on-wire format.
+//! Each `<file>` module produces the rendered content for one NiFi config file, serializing
+//! `.properties`/`.conf` key/value maps to the Java-properties on-wire format.
 
 use std::{collections::BTreeMap, fmt::Write};
 
@@ -54,7 +53,7 @@ pub enum ConfigFileName {
 /// `DereferencedAuthenticationClasses` value populated with real `AuthenticationClass` objects
 /// fetched from the Kubernetes API.  Fabricating those objects in unit tests would require
 /// pulling in serialized CRD YAML for operator-rs types that are not part of the nifi-operator
-/// crate and would be fragile to upstream changes.
+/// crate and would be brittle to maintain.
 ///
 /// Instead, we construct [`ValidatedCluster`] directly from its public fields.  The
 /// `NifiAuthenticationConfig::SingleUser` variant contains only an

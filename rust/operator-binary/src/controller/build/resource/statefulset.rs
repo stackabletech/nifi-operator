@@ -653,7 +653,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
         .security_context(PodSecurityContextBuilder::new().fs_group(1000).build());
 
     let mut pod_template = pod_builder.build_template();
-    // `rg.pod_overrides` is already the role <- rolegroup merge produced by the framework.
+    // `rg.pod_overrides` is already the merged role <- rolegroup overrides.
     pod_template.merge_from(rg.pod_overrides.clone());
 
     Ok(StatefulSet {

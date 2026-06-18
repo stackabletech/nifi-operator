@@ -17,9 +17,7 @@ const MAX_NIFI_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity::from_mebi(10.0);
 ///
 /// Embedded statically and shipped in the rolegroup `ConfigMap`; the per-rolegroup values
 /// (namespace, cluster/role/role-group, aggregator address, log levels) are injected as
-/// environment variables by the Vector container (see
-/// [`stackable_operator::v2::product_logging::framework::vector_container`]) and substituted by
-/// Vector at runtime.
+/// environment variables by the Vector container and substituted by Vector at runtime.
 const VECTOR_CONFIG: &str = include_str!("vector.yaml");
 
 /// Returns the Vector agent config (`vector.yaml`) content.

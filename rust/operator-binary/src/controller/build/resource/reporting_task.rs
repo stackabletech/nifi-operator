@@ -69,9 +69,6 @@ stackable_operator::constant!(REPORTING_TASK_CONTAINER_NAME: ContainerName = "re
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("object defines no name"))]
-    ObjectHasNoName,
-
     #[snafu(display("failed to add Authentication Volumes and VolumeMounts"))]
     AddAuthVolumes {
         source: crate::security::authentication::Error,

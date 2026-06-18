@@ -78,9 +78,10 @@ fn headless_service_ports() -> Vec<ServicePort> {
     }]
 }
 
-/// Returns the metrics port based on the NiFi version
-/// V1: Uses extra port via JMX exporter
-/// V2: Uses NiFi HTTP(S) port for metrics
+/// Returns the metrics port based on the NiFi version.
+///
+/// NiFi 1.x exposes a dedicated metrics port via the JMX exporter; NiFi 2.x serves metrics on the
+/// NiFi HTTP(S) port.
 pub fn metrics_service_port(product_version: &str) -> ServicePort {
     if product_version.starts_with("1.") {
         ServicePort {

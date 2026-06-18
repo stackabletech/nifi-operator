@@ -56,11 +56,11 @@ pub struct NifiSensitivePropertiesConfig {
 )]
 #[serde(rename_all = "camelCase")]
 pub enum NifiSensitiveKeyAlgorithm {
-    // supported in v2
+    // Supported in NiFi 2.x
     #[strum(serialize = "NIFI_PBKDF2_AES_GCM_256")]
     NifiPbkdf2AesGcm256,
 
-    // supported in v2
+    // Supported in NiFi 2.x
     #[default]
     #[strum(serialize = "NIFI_ARGON2_AES_GCM_256")]
     NifiArgon2AesGcm256,

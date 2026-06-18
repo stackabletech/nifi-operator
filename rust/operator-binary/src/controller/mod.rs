@@ -66,7 +66,7 @@ pub struct ValidatedNifiConfig {
     /// Requested lifetime of the auto-TLS secret.
     pub requested_secret_lifetime: Option<Duration>,
     /// The validated logging configuration (NiFi and optional Vector container), validated up-front
-    /// in the [`validate`] step (mirroring hive/opensearch).
+    /// in the [`validate`] step.
     pub logging: ValidatedLogging,
     /// The git-sync resources (containers, volumes, mounts) for this role group, resolved from the
     /// cluster's `customComponentsGitSync` specs up-front in the [`validate`] step. The env vars and
@@ -114,7 +114,7 @@ impl ValidatedNifiConfig {
 
 /// Validated logging configuration for the NiFi and (optional) Vector container.
 ///
-/// Produced up-front by the [`validate`] step (mirroring hive/opensearch) so that an invalid custom
+/// Produced up-front by the [`validate`] step so that an invalid custom
 /// log ConfigMap name, or a missing Vector aggregator discovery ConfigMap name, fails reconciliation
 /// during validation rather than at resource-build time.
 #[derive(Clone, Debug)]

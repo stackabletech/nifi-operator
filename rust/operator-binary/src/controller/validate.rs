@@ -238,10 +238,9 @@ pub(crate) fn build_role_group_configs(
             );
         }
 
-        // Validate the logging config (NiFi + optional Vector container) up-front (mirroring the
-        // opensearch- and hive-operators) so an invalid custom log ConfigMap name, or a missing
-        // Vector aggregator discovery ConfigMap name, fails during validation rather than at
-        // resource-build time.
+        // Validate the logging config (NiFi + optional Vector container) up-front so an invalid
+        // custom log ConfigMap name, or a missing Vector aggregator discovery ConfigMap name, fails
+        // during validation rather than at resource-build time.
         let logging = validate_logging(&config.logging, vector_aggregator_config_map_name)?;
 
         // The git-sync resources depend on this role group's env-var overrides and logging config,

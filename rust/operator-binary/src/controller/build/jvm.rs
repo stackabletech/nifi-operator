@@ -34,9 +34,7 @@ pub enum Error {
 /// Build the effective JVM arguments for the NiFi bootstrap.conf.
 ///
 /// The operator-generated arguments below form the base that the role <- role-group merged
-/// user overrides (`merged_jvm_argument_overrides`, produced by
-/// [`with_validated_config`](stackable_operator::v2::role_utils::with_validated_config)) are
-/// applied on top of.
+/// user overrides (`merged_jvm_argument_overrides`) are applied on top of.
 pub fn build_merged_jvm_config(
     merged_config: &ValidatedNifiConfig,
     merged_jvm_argument_overrides: &JvmArgumentOverrides,
