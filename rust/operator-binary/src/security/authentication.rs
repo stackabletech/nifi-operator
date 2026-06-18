@@ -478,4 +478,59 @@ mod tests {
             NifiAuthenticationConfig::SingleUser { .. }
         ));
     }
+
+    /// An LDAP provider that uses TLS but disables certificate verification.
+    fn ldap_auth_class_without_tls_verification() -> auth_core::v1alpha1::AuthenticationClass {
+        serde_yaml::from_str(indoc! {r#"
+            metadata:
+              name: nifi-ldap
+            spec:
+              provider: !ldap
+                hostname: my-ldap
+                tls:
+                  verification:
+                    none: {}
+        "#})
+        .expect("valid LDAP AuthenticationClass")
+    }
+
+    fn oidc_auth_class() -> auth_core::v1alpha1::AuthenticationClass {
+        serde_yaml::from_str(indoc! {r#"
+            metadata:
+              name: nifi-oidc
+            spec:
+              provider: !oidc
+                hostname: my-oidc
+                principalClaim: preferred_username
+                scopes:
+                  - openid
+        "#})
+        .expect("valid OIDC AuthenticationClass")
+    }
+
+    #[test]
+    fn ldap_without_tls_verification_is_rejected() {
+        let dereferenced = DereferencedAuthenticationClasses {
+            entries: vec![(auth_details(), ldap_auth_class_without_tls_verification())],
+        };
+        let result = NifiAuthenticationConfig::validate(&cluster_name(), &dereferenced);
+        assert!(matches!(
+            result,
+            Err(Error::NoLdapTlsVerificationNotSupported { .. })
+        ));
+    }
+
+    /// OIDC requires per-cluster client options on the spec entry; without them validation fails.
+    #[test]
+    fn oidc_without_client_options_is_rejected() {
+        let dereferenced = DereferencedAuthenticationClasses {
+            // `auth_details()` carries no OIDC client options.
+            entries: vec![(auth_details(), oidc_auth_class())],
+        };
+        let result = NifiAuthenticationConfig::validate(&cluster_name(), &dereferenced);
+        assert!(matches!(
+            result,
+            Err(Error::OidcConfigurationInvalid { .. })
+        ));
+    }
 }
