@@ -154,6 +154,16 @@ stackable_operator::constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
 stackable_operator::constant!(VECTOR_LOG_CONFIG_VOLUME_NAME: VolumeName = "config");
 stackable_operator::constant!(VECTOR_LOG_VOLUME_NAME: VolumeName = "log");
 
+// Names of the environment variables injected into the NiFi container here (or exported by the
+// prepare init-container) and referenced as `${env:...}` placeholders by the config-file builders
+// (`nifi.properties`, `state-management.xml`, proxy hosts). The two sides must agree.
+pub(crate) const STACKLET_NAME_ENV: &str = "STACKLET_NAME";
+pub(crate) const NODE_ADDRESS_ENV: &str = "NODE_ADDRESS";
+pub(crate) const ZOOKEEPER_HOSTS_ENV: &str = "ZOOKEEPER_HOSTS";
+pub(crate) const ZOOKEEPER_CHROOT_ENV: &str = "ZOOKEEPER_CHROOT";
+pub(crate) const LISTENER_DEFAULT_ADDRESS_ENV: &str = "LISTENER_DEFAULT_ADDRESS";
+pub(crate) const LISTENER_DEFAULT_PORT_HTTPS_ENV: &str = "LISTENER_DEFAULT_PORT_HTTPS";
+
 /// The rolegroup [`StatefulSet`] runs the rolegroup, as configured by the administrator.
 ///
 /// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the
@@ -207,7 +217,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
     });
 
     env_vars.push(EnvVar {
-        name: "STACKLET_NAME".to_string(),
+        name: STACKLET_NAME_ENV.to_string(),
         value: Some(cluster.name.to_string()),
         ..Default::default()
     });
@@ -228,8 +238,8 @@ pub(crate) async fn build_node_rolegroup_statefulset(
                 }),
                 ..EnvVar::default()
             };
-            env_vars.push(zookeeper_env_var("ZOOKEEPER_HOSTS"));
-            env_vars.push(zookeeper_env_var("ZOOKEEPER_CHROOT"));
+            env_vars.push(zookeeper_env_var(ZOOKEEPER_HOSTS_ENV));
+            env_vars.push(zookeeper_env_var(ZOOKEEPER_CHROOT_ENV));
         }
         v1alpha1::NifiClusteringBackend::Kubernetes {} => {}
     }
@@ -289,7 +299,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
             "test -L {NIFI_CONFIG_DIRECTORY}/{logback} || ln -sf {STACKABLE_LOG_CONFIG_DIR}/{logback} {NIFI_CONFIG_DIRECTORY}/{logback}",
             logback = ConfigFileName::Logback
         ),
-        format!(r#"export NODE_ADDRESS="{node_address}""#),
+        format!(r#"export {NODE_ADDRESS_ENV}="{node_address}""#),
     ]);
 
     // This commands needs to go first, as they might set env variables needed by the templating
@@ -308,10 +318,10 @@ pub(crate) async fn build_node_rolegroup_statefulset(
     }
 
     prepare_args.push(format!(
-        "export LISTENER_DEFAULT_ADDRESS=$(cat {LISTENER_VOLUME_DIR}/default-address/address)"
+        "export {LISTENER_DEFAULT_ADDRESS_ENV}=$(cat {LISTENER_VOLUME_DIR}/default-address/address)"
     ));
     prepare_args.push(format!(
-        "export LISTENER_DEFAULT_PORT_HTTPS=$(cat {LISTENER_VOLUME_DIR}/default-address/ports/https)"
+        "export {LISTENER_DEFAULT_PORT_HTTPS_ENV}=$(cat {LISTENER_VOLUME_DIR}/default-address/ports/https)"
     ));
 
     // Template the config files that contain `${env:...}`/`${file:...}` placeholders, in a fixed

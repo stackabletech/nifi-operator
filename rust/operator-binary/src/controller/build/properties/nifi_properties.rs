@@ -14,7 +14,12 @@ use super::{
 use crate::{
     controller::{
         NifiRoleGroupConfig, ValidatedCluster,
-        build::{HTTPS_PORT, NIFI_CONFIG_DIRECTORY, NIFI_PYTHON_WORKING_DIRECTORY, PROTOCOL_PORT},
+        build::{
+            HTTPS_PORT, NIFI_CONFIG_DIRECTORY, NIFI_PYTHON_WORKING_DIRECTORY, PROTOCOL_PORT,
+            resource::statefulset::{
+                NODE_ADDRESS_ENV, STACKLET_NAME_ENV, ZOOKEEPER_CHROOT_ENV, ZOOKEEPER_HOSTS_ENV,
+            },
+        },
     },
     crd::{storage::NifiRepository, v1alpha1},
     security::{
@@ -405,7 +410,7 @@ pub fn build(
     //#############################################
     properties.insert(
         "nifi.web.https.host".to_string(),
-        env_reference("NODE_ADDRESS"),
+        env_reference(NODE_ADDRESS_ENV),
     );
     properties.insert("nifi.web.https.port".to_string(), HTTPS_PORT.to_string());
     properties.insert(
@@ -515,7 +520,7 @@ pub fn build(
     properties.insert("nifi.cluster.is.node".to_string(), "true".to_string());
     properties.insert(
         "nifi.cluster.node.address".to_string(),
-        env_reference("NODE_ADDRESS"),
+        env_reference(NODE_ADDRESS_ENV),
     );
     properties.insert(
         "nifi.cluster.node.protocol.port".to_string(),
@@ -536,13 +541,13 @@ pub fn build(
             // this will be replaced via a container command script
             properties.insert(
                 "nifi.zookeeper.connect.string".to_string(),
-                env_reference("ZOOKEEPER_HOSTS"),
+                env_reference(ZOOKEEPER_HOSTS_ENV),
             );
 
             // this will be replaced via a container command script
             properties.insert(
                 "nifi.zookeeper.root.node".to_string(),
-                env_reference("ZOOKEEPER_CHROOT"),
+                env_reference(ZOOKEEPER_CHROOT_ENV),
             );
         }
 
@@ -557,7 +562,7 @@ pub fn build(
             // this will be replaced via a container command script
             properties.insert(
                 "nifi.cluster.leader.election.kubernetes.lease.prefix".to_string(),
-                env_reference("STACKLET_NAME"),
+                env_reference(STACKLET_NAME_ENV),
             );
         }
     }

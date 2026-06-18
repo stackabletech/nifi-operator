@@ -52,14 +52,17 @@ mod tests {
 
     use stackable_operator::v2::types::kubernetes::ConfigMapName;
 
-    use super::*;
+    use super::{super::env_reference, *};
+    use crate::controller::build::resource::statefulset::{
+        STACKLET_NAME_ENV, ZOOKEEPER_CHROOT_ENV, ZOOKEEPER_HOSTS_ENV,
+    };
 
     #[test]
     fn test_build_state_management_xml_kubernetes() {
         let xml = build(&NifiClusteringBackend::Kubernetes {});
         assert!(xml.contains(KUBERNETES_STATE_PROVIDER_ID));
         assert!(xml.contains("KubernetesConfigMapStateProvider"));
-        assert!(xml.contains("${env:STACKLET_NAME}"));
+        assert!(xml.contains(&env_reference(STACKLET_NAME_ENV)));
         assert!(!xml.contains(ZOOKEEPER_STATE_PROVIDER_ID));
     }
 
@@ -71,8 +74,8 @@ mod tests {
         });
         assert!(xml.contains(ZOOKEEPER_STATE_PROVIDER_ID));
         assert!(xml.contains("ZooKeeperStateProvider"));
-        assert!(xml.contains("${env:ZOOKEEPER_HOSTS}"));
-        assert!(xml.contains("${env:ZOOKEEPER_CHROOT}"));
+        assert!(xml.contains(&env_reference(ZOOKEEPER_HOSTS_ENV)));
+        assert!(xml.contains(&env_reference(ZOOKEEPER_CHROOT_ENV)));
         assert!(!xml.contains(KUBERNETES_STATE_PROVIDER_ID));
     }
 }
