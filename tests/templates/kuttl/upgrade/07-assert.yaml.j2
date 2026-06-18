@@ -5,6 +5,7 @@ metadata:
   name: test-nifi-updated
 timeout: 300
 commands:
+  # - script: kubectl wait -n $NAMESPACE --for='jsonpath={.status.readyReplicas}=3' sts/test-nifi-node-default --timeout=60s
   - script: kubectl exec -n $NAMESPACE test-nifi-0 -- python /tmp/test_nifi.py -u admin -p supersecretpassword -n $NAMESPACE -c 3
   - script: kubectl exec -n $NAMESPACE test-nifi-0 -- sh -c "python /tmp/flow.py -e https://test-nifi-node-default-0.test-nifi-node-default-headless.$NAMESPACE.svc.cluster.local:8443 query > /tmp/new_input"
   # This tests if the output contains an Error or zero flow files are queued, which also indicates that something went wrong
