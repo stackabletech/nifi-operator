@@ -110,7 +110,7 @@ spec:
         # Quicker startup, and we only have a single node
         "nifi.cluster.flow.election.max.wait.time": "10 secs"
     roleGroups:
-      automatic-log:
+      automatic-log-config:
         replicas: 1
         config:
           logging:
@@ -151,7 +151,7 @@ spec:
               - name: prepared-logs
                 configMap:
                   name: prepared-logs
-      custom-log:
+      custom-log-config:
         replicas: 1
         config:
           logging:

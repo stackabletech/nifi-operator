@@ -73,9 +73,9 @@ spec:
         # Quicker startup, and we only have a single node
         "nifi.cluster.flow.election.max.wait.time": "10 secs"
     roleGroups:
-      from-role:
+      resources-from-role:
         replicas: 1
-      from-role-group:
+      resources-from-role-group:
         config:
           resources:
             cpu:
@@ -84,7 +84,7 @@ spec:
             memory:
               limit: 3Gi
         replicas: 1
-      pod-overrides:
+      resources-from-pod-overrides:
         podOverrides:
           spec:
             containers:
