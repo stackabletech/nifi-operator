@@ -94,8 +94,8 @@ pub(crate) mod test_support {
 
     use crate::{
         controller::{
-            NifiRoleGroupConfig, ValidatedCluster, ValidatedClusterConfig, ValidatedRoleConfig,
-            validate::build_role_group_configs,
+            NifiRoleGroupConfig, ValidatedCluster, ValidatedClusterConfig, ValidatedReportingTask,
+            ValidatedRoleConfig, ValidatedSensitiveProperties, validate::build_role_group_configs,
         },
         crd::{NifiRole, v1alpha1},
         security::{
@@ -184,21 +184,27 @@ pub(crate) mod test_support {
                 },
                 authorization: ResolvedNifiAuthorizationConfig::SingleUser,
                 clustering_backend: v1alpha1::NifiClusteringBackend::Kubernetes {},
-                sensitive_properties_algorithm: Default::default(), // NifiArgon2AesGcm256
-                sensitive_key_secret: nifi
-                    .spec
-                    .cluster_config
-                    .sensitive_properties
-                    .key_secret
-                    .clone(),
+                sensitive_properties: ValidatedSensitiveProperties {
+                    algorithm: Default::default(), // NifiArgon2AesGcm256
+                    key_secret: nifi
+                        .spec
+                        .cluster_config
+                        .sensitive_properties
+                        .key_secret
+                        .clone(),
+                    auto_generate: nifi.spec.cluster_config.sensitive_properties.auto_generate,
+                },
                 server_tls_secret_class: nifi.server_tls_secret_class().clone(),
                 extra_volumes: nifi.spec.cluster_config.extra_volumes.clone(),
-                reporting_task_pod_overrides: nifi
-                    .spec
-                    .cluster_config
-                    .create_reporting_task_job
-                    .pod_overrides
-                    .clone(),
+                reporting_task: ValidatedReportingTask {
+                    enabled: nifi.spec.cluster_config.create_reporting_task_job.enabled,
+                    pod_overrides: nifi
+                        .spec
+                        .cluster_config
+                        .create_reporting_task_job
+                        .pod_overrides
+                        .clone(),
+                },
                 host_header_check: nifi.spec.cluster_config.host_header_check.clone(),
             },
         )

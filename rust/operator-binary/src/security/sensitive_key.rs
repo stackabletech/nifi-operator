@@ -7,7 +7,7 @@ use stackable_operator::{
     v2::types::kubernetes::NamespaceName,
 };
 
-use crate::crd::sensitive_properties::NifiSensitivePropertiesConfig;
+use crate::controller::ValidatedSensitiveProperties;
 
 /// The key under which the generated sensitive-properties key is stored in the Secret. The
 /// `nifi.properties` builder references the mounted file by this same name, so the two must agree.
@@ -33,19 +33,20 @@ pub enum Error {
 
 pub(crate) async fn check_or_generate_sensitive_key(
     client: &Client,
-    sensitive_config: &NifiSensitivePropertiesConfig,
+    sensitive_properties: &ValidatedSensitiveProperties,
     namespace: &NamespaceName,
 ) -> Result<bool, Error> {
+    let key_secret = &sensitive_properties.key_secret;
     match client
-        .get_opt::<Secret>(sensitive_config.key_secret.as_ref(), namespace.as_ref())
+        .get_opt::<Secret>(key_secret.as_ref(), namespace.as_ref())
         .await
         .context(SensitiveKeySecretSnafu)?
     {
         Some(_) => Ok(false),
         None => {
-            if !sensitive_config.auto_generate {
+            if !sensitive_properties.auto_generate {
                 return Err(Error::SensitiveKeySecretMissing {
-                    name: sensitive_config.key_secret.to_string(),
+                    name: key_secret.to_string(),
                     namespace: namespace.to_string(),
                 });
             }
@@ -62,7 +63,7 @@ pub(crate) async fn check_or_generate_sensitive_key(
             let new_secret = Secret {
                 metadata: ObjectMetaBuilder::new()
                     .namespace(namespace)
-                    .name(sensitive_config.key_secret.to_string())
+                    .name(key_secret.to_string())
                     .build(),
                 string_data: Some(secret_data),
                 ..Secret::default()

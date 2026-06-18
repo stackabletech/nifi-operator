@@ -206,7 +206,7 @@ pub async fn reconcile_nifi(
     tracing::info!("Checking for sensitive key configuration");
     check_or_generate_sensitive_key(
         client,
-        &nifi.spec.cluster_config.sensitive_properties,
+        &validated_cluster.cluster_config.sensitive_properties,
         &validated_cluster.namespace,
     )
     .await
@@ -291,8 +291,6 @@ pub async fn reconcile_nifi(
             let rg_headless_service =
                 build_rolegroup_headless_service(&validated_cluster, role_group_name);
 
-            let role = nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?;
-
             let rg_configmap = build::resource::config_map::build_rolegroup_config_map(
                 &validated_cluster,
                 role_group_name,
@@ -315,7 +313,6 @@ pub async fn reconcile_nifi(
             let rg_statefulset = build_node_rolegroup_statefulset(
                 &validated_cluster,
                 &client.kubernetes_cluster_info,
-                role,
                 role_group_name,
                 rg,
                 rolling_upgrade_supported,
@@ -389,7 +386,7 @@ pub async fn reconcile_nifi(
         .context(ApplyGroupListenerSnafu)?;
 
     // Only add the reporting task in case it is enabled.
-    if nifi.spec.cluster_config.create_reporting_task_job.enabled {
+    if validated_cluster.cluster_config.reporting_task.enabled {
         if let Some((reporting_task_job, reporting_task_service)) = build_maybe_reporting_task(
             &validated_cluster,
             &client.kubernetes_cluster_info,

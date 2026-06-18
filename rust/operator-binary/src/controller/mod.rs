@@ -170,16 +170,32 @@ pub struct ValidatedClusterConfig {
     pub clustering_backend: v1alpha1::NifiClusteringBackend,
     /// The host-header-check config, resolved into the proxy hosts allow-list at build time.
     pub host_header_check: HostHeaderCheckConfig,
-    /// The validated sensitive properties algorithm.
-    pub sensitive_properties_algorithm: NifiSensitiveKeyAlgorithm,
-    /// The name of the Secret holding the sensitive-properties key, mounted into the NiFi Pods.
-    pub sensitive_key_secret: SecretName,
+    /// The resolved sensitive-properties configuration.
+    pub sensitive_properties: ValidatedSensitiveProperties,
     /// The SecretClass providing the server TLS certificates.
     pub server_tls_secret_class: SecretClassName,
     /// User-provided extra volumes, mounted into every container under `/stackable/userdata/`.
     pub extra_volumes: Vec<Volume>,
-    /// Pod overrides for the (NiFi 1.x-only) create-reporting-task Job.
-    pub reporting_task_pod_overrides: PodTemplateSpec,
+    /// The resolved (NiFi 1.x-only) create-reporting-task Job configuration.
+    pub reporting_task: ValidatedReportingTask,
+}
+
+/// The resolved `spec.clusterConfig.sensitiveProperties`.
+pub struct ValidatedSensitiveProperties {
+    /// The validated sensitive-properties encryption algorithm.
+    pub algorithm: NifiSensitiveKeyAlgorithm,
+    /// The name of the Secret holding the sensitive-properties key, mounted into the NiFi Pods.
+    pub key_secret: SecretName,
+    /// Whether to generate the key Secret if it is missing.
+    pub auto_generate: bool,
+}
+
+/// The resolved `spec.clusterConfig.createReportingTaskJob` (NiFi 1.x only).
+pub struct ValidatedReportingTask {
+    /// Whether the reporting-task Job should be created.
+    pub enabled: bool,
+    /// Pod overrides for the reporting-task Job.
+    pub pod_overrides: PodTemplateSpec,
 }
 
 /// Per-role configuration extracted during validation.

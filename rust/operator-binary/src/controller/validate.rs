@@ -30,7 +30,7 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 
 use super::{
     NifiRoleGroupConfig, ValidatedCluster, ValidatedClusterConfig, ValidatedLogging,
-    ValidatedNifiConfig, ValidatedRoleConfig,
+    ValidatedNifiConfig, ValidatedReportingTask, ValidatedRoleConfig, ValidatedSensitiveProperties,
 };
 use crate::{
     controller::{build::git_sync::build_git_sync_resources, dereference::DereferencedObjects},
@@ -181,21 +181,27 @@ pub fn validate(
             authentication: authentication_config,
             authorization: authorization_config,
             clustering_backend: nifi.spec.cluster_config.clustering_backend.clone(),
-            sensitive_properties_algorithm,
-            sensitive_key_secret: nifi
-                .spec
-                .cluster_config
-                .sensitive_properties
-                .key_secret
-                .clone(),
+            sensitive_properties: ValidatedSensitiveProperties {
+                algorithm: sensitive_properties_algorithm,
+                key_secret: nifi
+                    .spec
+                    .cluster_config
+                    .sensitive_properties
+                    .key_secret
+                    .clone(),
+                auto_generate: nifi.spec.cluster_config.sensitive_properties.auto_generate,
+            },
             server_tls_secret_class: nifi.server_tls_secret_class().clone(),
             extra_volumes: nifi.spec.cluster_config.extra_volumes.clone(),
-            reporting_task_pod_overrides: nifi
-                .spec
-                .cluster_config
-                .create_reporting_task_job
-                .pod_overrides
-                .clone(),
+            reporting_task: ValidatedReportingTask {
+                enabled: nifi.spec.cluster_config.create_reporting_task_job.enabled,
+                pod_overrides: nifi
+                    .spec
+                    .cluster_config
+                    .create_reporting_task_job
+                    .pod_overrides
+                    .clone(),
+            },
             host_header_check: nifi.spec.cluster_config.host_header_check.clone(),
         },
     ))

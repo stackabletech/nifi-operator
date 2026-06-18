@@ -10,7 +10,7 @@ use stackable_operator::{
     },
 };
 
-use crate::crd::sensitive_properties::NifiSensitivePropertiesConfig;
+use crate::controller::ValidatedSensitiveProperties;
 
 pub mod authentication;
 pub mod authorization;
@@ -34,10 +34,10 @@ pub enum Error {
 
 pub async fn check_or_generate_sensitive_key(
     client: &Client,
-    sensitive_config: &NifiSensitivePropertiesConfig,
+    sensitive_properties: &ValidatedSensitiveProperties,
     namespace: &NamespaceName,
 ) -> Result<bool> {
-    sensitive_key::check_or_generate_sensitive_key(client, sensitive_config, namespace)
+    sensitive_key::check_or_generate_sensitive_key(client, sensitive_properties, namespace)
         .await
         .context(SensitiveKeySnafu)
 }

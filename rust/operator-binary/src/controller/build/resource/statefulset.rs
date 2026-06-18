@@ -64,7 +64,7 @@ use crate::{
         },
     },
     crd::{
-        NifiRole, NifiRoleType,
+        NifiRole,
         authorization::NifiAccessPolicyProvider,
         storage::{NifiRepository, PERSISTENT_REPOSITORIES},
         v1alpha1,
@@ -162,7 +162,6 @@ stackable_operator::constant!(VECTOR_LOG_VOLUME_NAME: VolumeName = "log");
 pub(crate) async fn build_node_rolegroup_statefulset(
     cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
-    role: &NifiRoleType,
     role_group_name: &RoleGroupName,
     rg: &NifiRoleGroupConfig,
     rolling_update_supported: bool,
@@ -250,7 +249,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
         cluster_domain = cluster_info.cluster_domain,
     );
 
-    let sensitive_key_secret = &cluster.cluster_config.sensitive_key_secret;
+    let sensitive_key_secret = &cluster.cluster_config.sensitive_properties.key_secret;
 
     let prepare_container_name = PREPARE_CONTAINER_NAME.to_string();
     let mut prepare_args = vec![];
@@ -475,7 +474,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
         tracing::info!(
             ?volume_name,
             ?mount_point,
-            ?role,
+            role = %NifiRole::Node,
             "Adding user specified extra volume",
         );
         pod_builder

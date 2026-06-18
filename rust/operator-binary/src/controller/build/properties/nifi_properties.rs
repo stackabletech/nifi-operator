@@ -451,7 +451,8 @@ pub fn build(
         "nifi.sensitive.props.algorithm".to_string(),
         cluster
             .cluster_config
-            .sensitive_properties_algorithm
+            .sensitive_properties
+            .algorithm
             .to_string(),
     );
 

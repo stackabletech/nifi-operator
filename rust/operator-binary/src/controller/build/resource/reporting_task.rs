@@ -323,7 +323,7 @@ fn build_reporting_task_job(
         .context(AddVolumeSnafu)?
         .build_template();
 
-    pod_template.merge_from(cluster.cluster_config.reporting_task_pod_overrides.clone());
+    pod_template.merge_from(cluster.cluster_config.reporting_task.pod_overrides.clone());
 
     let job = Job {
         metadata: cluster
