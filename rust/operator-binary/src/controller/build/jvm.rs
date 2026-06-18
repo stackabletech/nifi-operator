@@ -111,3 +111,81 @@ pub fn build_merged_jvm_config(
 
     Ok(merged_jvm_argument_overrides.apply_to(operator_generated))
 }
+
+#[cfg(test)]
+mod tests {
+    use stackable_operator::{
+        commons::opa::OpaConfig, v2::jvm_argument_overrides::JvmArgumentOverrides,
+    };
+
+    use super::build_merged_jvm_config;
+    use crate::{
+        controller::build::properties::test_support::{default_rg, minimal_validated_cluster},
+        security::authorization::ResolvedNifiAuthorizationConfig,
+    };
+
+    fn opa_with_tls() -> ResolvedNifiAuthorizationConfig {
+        ResolvedNifiAuthorizationConfig::Opa {
+            config: OpaConfig {
+                config_map_name: "simple-opa".to_string(),
+                package: Some("nifi".to_string()),
+            },
+            cache_entry_time_to_live_secs: 0,
+            cache_max_entries: 0,
+            secret_class: Some("tls".to_string()),
+        }
+    }
+
+    /// The heap is sized from the memory limit and `-Xmx` must equal `-Xms`.
+    #[test]
+    fn heap_is_set_and_min_equals_max() {
+        let cluster = minimal_validated_cluster();
+        let args = build_merged_jvm_config(
+            &default_rg(&cluster).config,
+            &JvmArgumentOverrides::default(),
+            None,
+        )
+        .expect("jvm config should build");
+
+        let xmx = args.iter().find(|a| a.starts_with("-Xmx")).expect("-Xmx");
+        let xms = args.iter().find(|a| a.starts_with("-Xms")).expect("-Xms");
+        assert_eq!(xmx[4..], xms[4..], "min and max heap should be equal");
+    }
+
+    /// OPA with a TLS secret class adds the JVM truststore properties.
+    #[test]
+    fn opa_tls_adds_truststore_properties() {
+        let cluster = minimal_validated_cluster();
+        let args = build_merged_jvm_config(
+            &default_rg(&cluster).config,
+            &JvmArgumentOverrides::default(),
+            Some(&opa_with_tls()),
+        )
+        .expect("jvm config should build");
+
+        assert!(
+            args.iter()
+                .any(|a| a.starts_with("-Djavax.net.ssl.trustStore=")),
+            "expected truststore property when OPA TLS is enabled"
+        );
+    }
+
+    /// Without OPA TLS, no truststore properties are emitted.
+    #[test]
+    fn without_opa_tls_no_truststore_properties() {
+        let cluster = minimal_validated_cluster();
+        let args = build_merged_jvm_config(
+            &default_rg(&cluster).config,
+            &JvmArgumentOverrides::default(),
+            Some(&ResolvedNifiAuthorizationConfig::SingleUser),
+        )
+        .expect("jvm config should build");
+
+        assert!(
+            !args
+                .iter()
+                .any(|a| a.starts_with("-Djavax.net.ssl.trustStore=")),
+            "did not expect truststore properties without OPA TLS"
+        );
+    }
+}

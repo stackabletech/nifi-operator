@@ -40,3 +40,19 @@ pub fn add_graceful_shutdown_config(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::graceful_shutdown_config_properties;
+    use crate::controller::build::properties::test_support::{
+        default_rg, minimal_validated_cluster,
+    };
+
+    /// The merge mechanism always provides a graceful-shutdown timeout, so the property is set.
+    #[test]
+    fn default_config_sets_graceful_shutdown_seconds() {
+        let cluster = minimal_validated_cluster();
+        let properties = graceful_shutdown_config_properties(&default_rg(&cluster).config);
+        assert!(properties.contains_key("graceful.shutdown.seconds"));
+    }
+}

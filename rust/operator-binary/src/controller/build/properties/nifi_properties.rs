@@ -806,4 +806,37 @@ mod tests {
 
         assert!(build(&cluster, rg, "*").is_ok());
     }
+
+    /// NiFi 2.x configures only the JSON flow file; NiFi 1.x configures both the XML and JSON files.
+    #[test]
+    fn flow_configuration_files_differ_between_nifi_versions() {
+        let cluster_2 = minimal_validated_cluster(); // NiFi 2.x
+        let props_2 = build(&cluster_2, default_rg(&cluster_2), "*").expect("build should succeed");
+        assert!(props_2.contains("nifi.flow.configuration.file="));
+        assert!(props_2.contains("flow.json.gz"));
+        assert!(!props_2.contains("flow.xml.gz"));
+        assert!(!props_2.contains("nifi.flow.configuration.json.file="));
+
+        let mut cluster_1 = minimal_validated_cluster();
+        cluster_1.image.product_version = "1.27.0".to_string();
+        // NiFi 1.x must use the ZooKeeper backend.
+        cluster_1.cluster_config.clustering_backend = v1alpha1::NifiClusteringBackend::ZooKeeper {
+            zookeeper_config_map_name: "my-zk".parse().expect("valid ConfigMap name"),
+        };
+        let props_1 = build(&cluster_1, default_rg(&cluster_1), "*").expect("build should succeed");
+        assert!(props_1.contains("flow.xml.gz"));
+        assert!(props_1.contains("nifi.flow.configuration.json.file="));
+    }
+
+    /// The flow archive max storage is the flowfile-repo capacity scaled by the 0.9 utilization
+    /// factor (default capacity 1024Mi -> ~921 MB).
+    #[test]
+    fn flow_archive_max_storage_applies_utilization_factor() {
+        let cluster = minimal_validated_cluster();
+        let props = build(&cluster, default_rg(&cluster), "*").expect("build should succeed");
+        assert!(
+            props.contains("nifi.flow.configuration.archive.max.storage=921"),
+            "expected archive max storage ~921MB (1024Mi * 0.9) in:\n{props}"
+        );
+    }
 }

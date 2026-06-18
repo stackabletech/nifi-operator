@@ -413,3 +413,69 @@ fn get_ldap_login_identity_provider(
         keystore_path = STACKABLE_SERVER_TLS_DIR,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use indoc::indoc;
+    use stackable_operator::{
+        crd::authentication::core as auth_core, v2::types::operator::ClusterName,
+    };
+
+    use super::{DereferencedAuthenticationClasses, Error, NifiAuthenticationConfig};
+
+    fn cluster_name() -> ClusterName {
+        "simple-nifi".parse().expect("valid cluster name")
+    }
+
+    fn static_auth_class() -> auth_core::v1alpha1::AuthenticationClass {
+        serde_yaml::from_str(indoc! {r#"
+            metadata:
+              name: nifi-admin
+            spec:
+              provider: !static
+                userCredentialsSecret:
+                  name: nifi-admin-credentials
+        "#})
+        .expect("valid static AuthenticationClass")
+    }
+
+    fn auth_details() -> auth_core::v1alpha1::ClientAuthenticationDetails {
+        serde_yaml::from_str("authenticationClass: nifi-admin").expect("valid auth details")
+    }
+
+    #[test]
+    fn no_authentication_class_is_rejected() {
+        let dereferenced = DereferencedAuthenticationClasses { entries: vec![] };
+        // `NifiAuthenticationConfig` is not `Debug`, so match on the `Result` rather than `expect_err`.
+        let result = NifiAuthenticationConfig::validate(&cluster_name(), &dereferenced);
+        assert!(matches!(result, Err(Error::NoAuthenticationNotSupported)));
+    }
+
+    #[test]
+    fn multiple_authentication_classes_are_rejected() {
+        let dereferenced = DereferencedAuthenticationClasses {
+            entries: vec![
+                (auth_details(), static_auth_class()),
+                (auth_details(), static_auth_class()),
+            ],
+        };
+        let result = NifiAuthenticationConfig::validate(&cluster_name(), &dereferenced);
+        assert!(matches!(
+            result,
+            Err(Error::MultipleAuthenticationClassesNotSupported)
+        ));
+    }
+
+    #[test]
+    fn static_provider_resolves_to_single_user() {
+        let dereferenced = DereferencedAuthenticationClasses {
+            entries: vec![(auth_details(), static_auth_class())],
+        };
+        let resolved = NifiAuthenticationConfig::validate(&cluster_name(), &dereferenced)
+            .expect("a static provider should resolve to single-user auth");
+        assert!(matches!(
+            resolved,
+            NifiAuthenticationConfig::SingleUser { .. }
+        ));
+    }
+}
