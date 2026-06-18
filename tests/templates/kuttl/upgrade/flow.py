@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# This script is used to create a process group, run it for a couple of seconds, stop it and then
+# query the number of queued flow files.
 
 import nipyapi
 from nipyapi.canvas import (
