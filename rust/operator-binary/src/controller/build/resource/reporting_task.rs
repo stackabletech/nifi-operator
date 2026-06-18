@@ -308,7 +308,7 @@ fn build_reporting_task_job(
         .add_volume(
             build_tls_volume(
                 &cluster.cluster_config.server_tls_secret_class,
-                &REPORTING_TASK_CERT_VOLUME_NAME.to_string(),
+                &REPORTING_TASK_CERT_VOLUME_NAME,
                 Vec::<String>::new(),
                 SecretFormat::TlsPem,
                 // The certificate is only used for the REST API call, so a short lifetime is sufficient.

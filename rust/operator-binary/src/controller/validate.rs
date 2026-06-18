@@ -187,8 +187,8 @@ pub fn validate(
                 .cluster_config
                 .sensitive_properties
                 .key_secret
-                .to_string(),
-            server_tls_secret_class: nifi.server_tls_secret_class().to_string(),
+                .clone(),
+            server_tls_secret_class: nifi.server_tls_secret_class().clone(),
             extra_volumes: nifi.spec.cluster_config.extra_volumes.clone(),
             reporting_task_pod_overrides: nifi
                 .spec

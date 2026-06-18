@@ -4,7 +4,10 @@ use stackable_operator::{
     client::Client,
     k8s_openapi::api::core::v1::Volume,
     shared::time::Duration,
-    v2::types::{kubernetes::NamespaceName, operator::ClusterName},
+    v2::types::{
+        kubernetes::{NamespaceName, SecretClassName, VolumeName},
+        operator::ClusterName,
+    },
 };
 
 use crate::crd::sensitive_properties::NifiSensitivePropertiesConfig;
@@ -50,8 +53,8 @@ pub async fn check_or_generate_oidc_admin_password(
 }
 
 pub fn build_tls_volume(
-    server_tls_secret_class: &str,
-    volume_name: &str,
+    server_tls_secret_class: &SecretClassName,
+    volume_name: &VolumeName,
     service_scopes: impl IntoIterator<Item = impl AsRef<str>>,
     secret_format: SecretFormat,
     requested_secret_lifetime: &Duration,

@@ -606,7 +606,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
         .add_volume(
             build_tls_volume(
                 &cluster.cluster_config.server_tls_secret_class,
-                &KEYSTORE_VOLUME_NAME.to_string(),
+                &KEYSTORE_VOLUME_NAME,
                 [
                     cluster
                         .resource_names(role_group_name)

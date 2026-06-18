@@ -6,7 +6,7 @@ use stackable_operator::{
     commons::secret_class::SecretClassVolumeProvisionParts,
     k8s_openapi::api::core::v1::Volume,
     shared::time::Duration,
-    v2::types::kubernetes::VolumeName,
+    v2::types::kubernetes::{SecretClassName, VolumeName},
 };
 
 use crate::security::authentication::STACKABLE_TLS_STORE_PASSWORD;
@@ -26,8 +26,8 @@ pub enum Error {
 }
 
 pub(crate) fn build_tls_volume(
-    server_tls_secret_class: &str,
-    volume_name: &str,
+    server_tls_secret_class: &SecretClassName,
+    volume_name: &VolumeName,
     service_scopes: impl IntoIterator<Item = impl AsRef<str>>,
     secret_format: SecretFormat,
     requested_secret_lifetime: &Duration,
