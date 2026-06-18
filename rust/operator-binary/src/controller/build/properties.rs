@@ -215,3 +215,21 @@ pub(crate) mod test_support {
             .expect("minimal_validated_cluster must contain a 'default' role group")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{env_reference, file_reference};
+
+    #[test]
+    fn env_reference_uses_nifi_env_syntax() {
+        assert_eq!(env_reference("NODE_ADDRESS"), "${env:NODE_ADDRESS}");
+    }
+
+    #[test]
+    fn file_reference_uses_nifi_utf8_file_syntax() {
+        assert_eq!(
+            file_reference("/stackable/sensitiveproperty/nifiSensitivePropsKey"),
+            "${file:UTF-8:/stackable/sensitiveproperty/nifiSensitivePropsKey}"
+        );
+    }
+}

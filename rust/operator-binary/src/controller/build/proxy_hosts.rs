@@ -56,3 +56,77 @@ pub fn compute_proxy_hosts(
 
     proxy_hosts.join(",")
 }
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use stackable_operator::{
+        commons::networking::DomainName, utils::cluster_info::KubernetesClusterInfo,
+    };
+
+    use super::compute_proxy_hosts;
+    use crate::controller::build::properties::test_support::minimal_validated_cluster;
+
+    fn cluster_info() -> KubernetesClusterInfo {
+        KubernetesClusterInfo {
+            cluster_domain: DomainName::from_str("cluster.local").expect("valid cluster domain"),
+        }
+    }
+
+    /// `allow_all` short-circuits to `*` and ignores any additional allowed hosts.
+    #[test]
+    fn allow_all_returns_wildcard_and_ignores_additional_hosts() {
+        let mut cluster = minimal_validated_cluster();
+        cluster.cluster_config.host_header_check.allow_all = true;
+        cluster
+            .cluster_config
+            .host_header_check
+            .additional_allowed_hosts = vec!["ignored.example.com".to_string()];
+
+        assert_eq!(compute_proxy_hosts(&cluster, &cluster_info()), "*");
+    }
+
+    /// Without `allow_all`, the listener placeholder is always present and user-provided hosts are
+    /// merged in, sorted and comma-joined. On NiFi 2.x no reporting-task FQDN is added.
+    #[test]
+    fn explicit_hosts_include_listener_placeholder_on_nifi_2() {
+        let mut cluster = minimal_validated_cluster();
+        cluster.cluster_config.host_header_check.allow_all = false;
+        cluster
+            .cluster_config
+            .host_header_check
+            .additional_allowed_hosts = vec!["extra.example.com".to_string()];
+
+        let hosts = compute_proxy_hosts(&cluster, &cluster_info());
+
+        assert!(
+            hosts.contains("${env:LISTENER_DEFAULT_ADDRESS}:${env:LISTENER_DEFAULT_PORT_HTTPS}"),
+            "expected the listener placeholder in {hosts}"
+        );
+        assert!(
+            hosts.contains("extra.example.com"),
+            "expected the additional host in {hosts}"
+        );
+        // No reporting-task FQDN on NiFi 2.x.
+        assert!(
+            !hosts.contains("cluster.local"),
+            "did not expect a reporting-task FQDN on NiFi 2.x in {hosts}"
+        );
+    }
+
+    /// On NiFi 1.x the reporting-task FQDN (which embeds the cluster domain) is added.
+    #[test]
+    fn nifi_1_adds_reporting_task_fqdn() {
+        let mut cluster = minimal_validated_cluster();
+        cluster.cluster_config.host_header_check.allow_all = false;
+        cluster.image.product_version = "1.27.0".to_string();
+
+        let hosts = compute_proxy_hosts(&cluster, &cluster_info());
+
+        assert!(
+            hosts.contains("cluster.local"),
+            "expected the reporting-task FQDN on NiFi 1.x in {hosts}"
+        );
+    }
+}

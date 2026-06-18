@@ -294,3 +294,100 @@ impl ResolvedNifiAuthorizationConfig {
         format!("{NIFI_PVC_STORAGE_DIRECTORY}/{FILE_BASED_MOUNT_DIRECTORY}")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::*;
+
+    fn opa_authorization() -> NifiAuthorization {
+        NifiAuthorization::Opa {
+            opa: NifiOpaConfig {
+                opa: OpaConfig {
+                    config_map_name: "simple-opa".to_string(),
+                    package: Some("nifi".to_string()),
+                },
+                cache: Default::default(),
+            },
+        }
+    }
+
+    fn config_map_with(data: BTreeMap<String, String>) -> ConfigMap {
+        ConfigMap {
+            data: Some(data),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn single_user_resolves_to_single_user() {
+        let resolved = ResolvedNifiAuthorizationConfig::validate(
+            &NifiAuthorization::SingleUser {},
+            &DereferencedAuthorization {
+                opa_config_map: None,
+            },
+        );
+        assert!(matches!(
+            resolved,
+            ResolvedNifiAuthorizationConfig::SingleUser
+        ));
+    }
+
+    #[test]
+    fn standard_resolves_to_standard_with_provider() {
+        let auth = NifiAuthorization::Standard {
+            access_policy_provider: NifiAccessPolicyProvider::FileBased {
+                initial_admin_user: "admin".to_string(),
+            },
+        };
+        let resolved = ResolvedNifiAuthorizationConfig::validate(
+            &auth,
+            &DereferencedAuthorization {
+                opa_config_map: None,
+            },
+        );
+        assert!(matches!(
+            resolved,
+            ResolvedNifiAuthorizationConfig::Standard { .. }
+        ));
+    }
+
+    /// OPA: the `OPA_SECRET_CLASS` key in the discovery ConfigMap is surfaced as `secret_class`.
+    #[test]
+    fn opa_extracts_secret_class_from_config_map() {
+        let config_map = config_map_with(BTreeMap::from([(
+            "OPA_SECRET_CLASS".to_string(),
+            "tls".to_string(),
+        )]));
+        let resolved = ResolvedNifiAuthorizationConfig::validate(
+            &opa_authorization(),
+            &DereferencedAuthorization {
+                opa_config_map: Some(config_map),
+            },
+        );
+        match resolved {
+            ResolvedNifiAuthorizationConfig::Opa { secret_class, .. } => {
+                assert_eq!(secret_class, Some("tls".to_string()));
+            }
+            _ => panic!("expected the Opa variant"),
+        }
+    }
+
+    /// OPA: a ConfigMap without `OPA_SECRET_CLASS` yields `secret_class = None`.
+    #[test]
+    fn opa_without_secret_class_resolves_to_none() {
+        let resolved = ResolvedNifiAuthorizationConfig::validate(
+            &opa_authorization(),
+            &DereferencedAuthorization {
+                opa_config_map: Some(config_map_with(BTreeMap::new())),
+            },
+        );
+        match resolved {
+            ResolvedNifiAuthorizationConfig::Opa { secret_class, .. } => {
+                assert_eq!(secret_class, None);
+            }
+            _ => panic!("expected the Opa variant"),
+        }
+    }
+}

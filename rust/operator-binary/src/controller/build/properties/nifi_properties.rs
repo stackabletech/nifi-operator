@@ -741,4 +741,69 @@ mod tests {
         // The HTTPS port should still be present
         assert!(props.contains(&format!("nifi.web.https.port={HTTPS_PORT}")));
     }
+
+    /// The ZooKeeper clustering backend selects the Curator leader election and wires the
+    /// ZooKeeper connect-string/root-node from environment placeholders.
+    #[test]
+    fn zookeeper_backend_uses_curator_leader_election() {
+        let mut cluster = minimal_validated_cluster();
+        cluster.cluster_config.clustering_backend = v1alpha1::NifiClusteringBackend::ZooKeeper {
+            zookeeper_config_map_name: "my-zk".parse().expect("valid ConfigMap name"),
+        };
+        let rg = default_rg(&cluster);
+
+        let props = build(&cluster, rg, "*").expect("build should succeed");
+
+        assert!(
+            props.contains(
+                "nifi.cluster.leader.election.implementation=CuratorLeaderElectionManager"
+            )
+        );
+        assert!(props.contains("nifi.zookeeper.connect.string=${env:ZOOKEEPER_HOSTS}"));
+        assert!(props.contains("nifi.zookeeper.root.node=${env:ZOOKEEPER_CHROOT}"));
+    }
+
+    /// The Kubernetes clustering backend selects the Kubernetes leader election.
+    #[test]
+    fn kubernetes_backend_uses_kubernetes_leader_election() {
+        let cluster = minimal_validated_cluster(); // Kubernetes backend by default
+        let rg = default_rg(&cluster);
+
+        let props = build(&cluster, rg, "*").expect("build should succeed");
+
+        assert!(props.contains(
+            "nifi.cluster.leader.election.implementation=KubernetesLeaderElectionManager"
+        ));
+        assert!(
+            props.contains(
+                "nifi.cluster.leader.election.kubernetes.lease.prefix=${env:STACKLET_NAME}"
+            )
+        );
+    }
+
+    /// NiFi 1.x cannot use the Kubernetes clustering backend, so building must fail.
+    #[test]
+    fn kubernetes_backend_is_rejected_on_nifi_1() {
+        let mut cluster = minimal_validated_cluster();
+        cluster.image.product_version = "1.27.0".to_string();
+        let rg = default_rg(&cluster);
+
+        let error = build(&cluster, rg, "*")
+            .expect_err("NiFi 1.x with the Kubernetes backend must be rejected");
+
+        assert!(matches!(error, Error::Nifi1RequiresZookeeper));
+    }
+
+    /// NiFi 1.x with the ZooKeeper backend is valid.
+    #[test]
+    fn zookeeper_backend_is_allowed_on_nifi_1() {
+        let mut cluster = minimal_validated_cluster();
+        cluster.image.product_version = "1.27.0".to_string();
+        cluster.cluster_config.clustering_backend = v1alpha1::NifiClusteringBackend::ZooKeeper {
+            zookeeper_config_map_name: "my-zk".parse().expect("valid ConfigMap name"),
+        };
+        let rg = default_rg(&cluster);
+
+        assert!(build(&cluster, rg, "*").is_ok());
+    }
 }
