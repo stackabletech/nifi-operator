@@ -9,6 +9,13 @@ use stackable_operator::{
 
 use crate::crd::sensitive_properties::NifiSensitivePropertiesConfig;
 
+/// The key under which the generated sensitive-properties key is stored in the Secret. The
+/// `nifi.properties` builder references the mounted file by this same name, so the two must agree.
+pub const SENSITIVE_PROPERTY_KEY_NAME: &str = "nifiSensitivePropsKey";
+
+/// Mount path of the sensitive-properties key Secret
+pub const SENSITIVE_PROPERTY_VOLUME_MOUNT: &str = "/stackable/sensitiveproperty";
+
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Snafu, Debug)]
@@ -19,9 +26,7 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "sensitive key secret [{}/{}] is missing, but auto generation is disabled",
-        name,
-        namespace
+        "sensitive key secret [{namespace}/{name}] is missing, but auto generation is disabled",
     ))]
     SensitiveKeySecretMissing { name: String, namespace: String },
 }
@@ -52,7 +57,7 @@ pub(crate) async fn check_or_generate_sensitive_key(
                 .collect();
 
             let mut secret_data = BTreeMap::new();
-            secret_data.insert("nifiSensitivePropsKey".to_string(), password);
+            secret_data.insert(SENSITIVE_PROPERTY_KEY_NAME.to_string(), password);
 
             let new_secret = Secret {
                 metadata: ObjectMetaBuilder::new()

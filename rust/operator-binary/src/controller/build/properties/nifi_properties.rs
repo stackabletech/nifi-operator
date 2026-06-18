@@ -5,7 +5,12 @@ use std::collections::BTreeMap;
 use snafu::{ResultExt, Snafu, ensure};
 use stackable_operator::memory::MemoryQuantity;
 
-use super::{ConfigFileName, format_properties};
+use super::{
+    ConfigFileName, env_reference, file_reference, format_properties,
+    state_management_xml::{
+        KUBERNETES_STATE_PROVIDER_ID, LOCAL_STATE_PROVIDER_ID, ZOOKEEPER_STATE_PROVIDER_ID,
+    },
+};
 use crate::{
     controller::{
         NifiRoleGroupConfig, ValidatedCluster,
@@ -17,8 +22,12 @@ use crate::{
             NifiAuthenticationConfig, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
         },
         oidc::add_oidc_config_to_properties,
+        sensitive_key::{SENSITIVE_PROPERTY_KEY_NAME, SENSITIVE_PROPERTY_VOLUME_MOUNT},
     },
 };
+
+/// PKCS#12 keystore/truststore type, used for both the NiFi keystore and truststore.
+const STORE_TYPE_PKCS12: &str = "PKCS12";
 
 /// Errors that can occur while building `nifi.properties`.
 #[derive(Snafu, Debug)]
@@ -176,14 +185,18 @@ pub fn build(
     // The ID of the local state provider
     properties.insert(
         "nifi.state.management.provider.local".to_string(),
-        "local-provider".to_string(),
+        LOCAL_STATE_PROVIDER_ID.to_string(),
     );
     // The ID of the cluster-wide state provider. This will be ignored if NiFi is not clustered but must be populated if running in a cluster.
     properties.insert(
         "nifi.state.management.provider.cluster".to_string(),
         match cluster.cluster_config.clustering_backend {
-            v1alpha1::NifiClusteringBackend::ZooKeeper { .. } => "zk-provider".to_string(),
-            v1alpha1::NifiClusteringBackend::Kubernetes { .. } => "kubernetes-provider".to_string(),
+            v1alpha1::NifiClusteringBackend::ZooKeeper { .. } => {
+                ZOOKEEPER_STATE_PROVIDER_ID.to_string()
+            }
+            v1alpha1::NifiClusteringBackend::Kubernetes { .. } => {
+                KUBERNETES_STATE_PROVIDER_ID.to_string()
+            }
         },
     );
     // Specifies whether or not this instance of NiFi should run an embedded ZooKeeper server
@@ -392,7 +405,7 @@ pub fn build(
     //#############################################
     properties.insert(
         "nifi.web.https.host".to_string(),
-        "${env:NODE_ADDRESS}".to_string(),
+        env_reference("NODE_ADDRESS"),
     );
     properties.insert("nifi.web.https.port".to_string(), HTTPS_PORT.to_string());
     properties.insert(
@@ -424,7 +437,9 @@ pub fn build(
 
     properties.insert(
         "nifi.sensitive.props.key".to_string(),
-        "${file:UTF-8:/stackable/sensitiveproperty/nifiSensitivePropsKey}".to_string(),
+        file_reference(&format!(
+            "{SENSITIVE_PROPERTY_VOLUME_MOUNT}/{SENSITIVE_PROPERTY_KEY_NAME}"
+        )),
     );
     properties.insert(
         "nifi.sensitive.props.key.protected".to_string(),
@@ -452,7 +467,7 @@ pub fn build(
     );
     properties.insert(
         "nifi.security.keystoreType".to_string(),
-        "PKCS12".to_string(),
+        STORE_TYPE_PKCS12.to_string(),
     );
     properties.insert(
         "nifi.security.keystorePasswd".to_string(),
@@ -467,7 +482,7 @@ pub fn build(
     );
     properties.insert(
         "nifi.security.truststoreType".to_string(),
-        "PKCS12".to_string(),
+        STORE_TYPE_PKCS12.to_string(),
     );
     properties.insert(
         "nifi.security.truststorePasswd".to_string(),
@@ -499,7 +514,7 @@ pub fn build(
     properties.insert("nifi.cluster.is.node".to_string(), "true".to_string());
     properties.insert(
         "nifi.cluster.node.address".to_string(),
-        "${env:NODE_ADDRESS}".to_string(),
+        env_reference("NODE_ADDRESS"),
     );
     properties.insert(
         "nifi.cluster.node.protocol.port".to_string(),
@@ -520,13 +535,13 @@ pub fn build(
             // this will be replaced via a container command script
             properties.insert(
                 "nifi.zookeeper.connect.string".to_string(),
-                "${env:ZOOKEEPER_HOSTS}".to_string(),
+                env_reference("ZOOKEEPER_HOSTS"),
             );
 
             // this will be replaced via a container command script
             properties.insert(
                 "nifi.zookeeper.root.node".to_string(),
-                "${env:ZOOKEEPER_CHROOT}".to_string(),
+                env_reference("ZOOKEEPER_CHROOT"),
             );
         }
 
@@ -541,7 +556,7 @@ pub fn build(
             // this will be replaced via a container command script
             properties.insert(
                 "nifi.cluster.leader.election.kubernetes.lease.prefix".to_string(),
-                "${env:STACKLET_NAME}".to_string(),
+                env_reference("STACKLET_NAME"),
             );
         }
     }

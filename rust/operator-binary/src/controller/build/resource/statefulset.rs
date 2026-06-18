@@ -75,6 +75,7 @@ use crate::{
         },
         authorization::{self, OPA_TLS_MOUNT_PATH, ResolvedNifiAuthorizationConfig},
         build_tls_volume,
+        sensitive_key::SENSITIVE_PROPERTY_VOLUME_MOUNT,
         tls::{KEYSTORE_NIFI_CONTAINER_MOUNT, KEYSTORE_VOLUME_NAME, TRUSTSTORE_VOLUME_NAME},
     },
 };
@@ -126,7 +127,6 @@ stackable_operator::constant!(ACTIVE_CONFIG_VOLUME_NAME: VolumeName = "activecon
 
 // Volume holding the generated sensitive-properties key.
 stackable_operator::constant!(SENSITIVE_PROPERTY_VOLUME_NAME: VolumeName = "sensitiveproperty");
-const SENSITIVE_PROPERTY_VOLUME_MOUNT: &str = "/stackable/sensitiveproperty";
 
 // Volume providing the log config (logback/log4j) ConfigMap.
 stackable_operator::constant!(LOG_CONFIG_VOLUME_NAME: VolumeName = "log-config");

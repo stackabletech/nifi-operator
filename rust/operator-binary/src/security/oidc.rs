@@ -79,7 +79,7 @@ pub(crate) async fn check_or_generate_oidc_admin_password(
                 .collect();
 
             let mut secret_data = BTreeMap::new();
-            secret_data.insert("admin".to_string(), password);
+            secret_data.insert(STACKABLE_ADMIN_USERNAME.to_string(), password);
 
             let new_secret = Secret {
                 metadata: ObjectMetaBuilder::new()

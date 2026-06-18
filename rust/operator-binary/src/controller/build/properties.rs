@@ -13,6 +13,18 @@ pub mod product_logging;
 pub mod security_properties;
 pub mod state_management_xml;
 
+/// Returns a NiFi property value that references the environment variable `name`, resolved by NiFi
+/// at runtime (the `${env:...}` reference syntax).
+pub(crate) fn env_reference(name: &str) -> String {
+    format!("${{env:{name}}}")
+}
+
+/// Returns a NiFi property value that references the UTF-8 contents of the file at `path`, resolved
+/// by NiFi at runtime (the `${file:...}` reference syntax).
+pub(crate) fn file_reference(path: &str) -> String {
+    format!("${{file:UTF-8:{path}}}")
+}
+
 // TODO: Use crate like https://crates.io/crates/java-properties (currently does not work for Nifi
 // because of escapes), to have save handling of escapes etc.
 pub(crate) fn format_properties(properties: BTreeMap<String, String>) -> String {

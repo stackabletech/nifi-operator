@@ -6,7 +6,7 @@ use stackable_operator::utils::cluster_info::KubernetesClusterInfo;
 
 use crate::controller::{
     ValidatedCluster,
-    build::{HTTPS_PORT, resource::reporting_task},
+    build::{HTTPS_PORT, properties::env_reference, resource::reporting_task},
 };
 
 /// Computes the comma-separated NiFi proxy hosts, or `"*"` if `hostHeaderCheck.allowAll` is set.
@@ -33,9 +33,11 @@ pub fn compute_proxy_hosts(
     }
 
     // Address and port are injected from the listener volume during the prepare container
-    let mut proxy_hosts = HashSet::from([
-        "${env:LISTENER_DEFAULT_ADDRESS}:${env:LISTENER_DEFAULT_PORT_HTTPS}".to_string(),
-    ]);
+    let mut proxy_hosts = HashSet::from([format!(
+        "{address}:{port}",
+        address = env_reference("LISTENER_DEFAULT_ADDRESS"),
+        port = env_reference("LISTENER_DEFAULT_PORT_HTTPS")
+    )]);
     proxy_hosts.extend(host_header_check.additional_allowed_hosts.iter().cloned());
 
     // Reporting task only exists for NiFi 1.x

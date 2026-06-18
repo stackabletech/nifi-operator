@@ -2,6 +2,11 @@
 
 use crate::crd::{storage::NifiRepository, v1alpha1::NifiClusteringBackend};
 
+/// State-provider IDs defined by the providers in `state-management.xml`.
+pub const LOCAL_STATE_PROVIDER_ID: &str = "local-provider";
+pub const ZOOKEEPER_STATE_PROVIDER_ID: &str = "zk-provider";
+pub const KUBERNETES_STATE_PROVIDER_ID: &str = "kubernetes-provider";
+
 pub fn build(clustering_backend: &NifiClusteringBackend) -> String {
     // Inert providers are ignored by NiFi itself, but templating still fails if they refer to invalid environment variables,
     // so only include the actually used provider.
@@ -52,10 +57,10 @@ mod tests {
     #[test]
     fn test_build_state_management_xml_kubernetes() {
         let xml = build(&NifiClusteringBackend::Kubernetes {});
-        assert!(xml.contains("kubernetes-provider"));
+        assert!(xml.contains(KUBERNETES_STATE_PROVIDER_ID));
         assert!(xml.contains("KubernetesConfigMapStateProvider"));
         assert!(xml.contains("${env:STACKLET_NAME}"));
-        assert!(!xml.contains("zk-provider"));
+        assert!(!xml.contains(ZOOKEEPER_STATE_PROVIDER_ID));
     }
 
     #[test]
@@ -64,10 +69,10 @@ mod tests {
             zookeeper_config_map_name: ConfigMapName::from_str("my-zk")
                 .expect("'my-zk' is a valid ConfigMap name"),
         });
-        assert!(xml.contains("zk-provider"));
+        assert!(xml.contains(ZOOKEEPER_STATE_PROVIDER_ID));
         assert!(xml.contains("ZooKeeperStateProvider"));
         assert!(xml.contains("${env:ZOOKEEPER_HOSTS}"));
         assert!(xml.contains("${env:ZOOKEEPER_CHROOT}"));
-        assert!(!xml.contains("kubernetes-provider"));
+        assert!(!xml.contains(KUBERNETES_STATE_PROVIDER_ID));
     }
 }
