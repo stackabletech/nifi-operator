@@ -1,7 +1,10 @@
 use stackable_operator::{
     k8s_openapi::api::core::v1::{Service, ServicePort, ServiceSpec},
-    kvp::{Annotations, Labels},
-    v2::types::operator::RoleGroupName,
+    kvp::Annotations,
+    v2::{
+        builder::service::{self, Scheme, Scraping},
+        types::operator::RoleGroupName,
+    },
 };
 
 use crate::controller::{
@@ -53,7 +56,7 @@ pub fn build_rolegroup_metrics_service(
                     .to_string(),
                 role_group_name,
             )
-            .with_labels(prometheus_labels())
+            .with_labels(service::prometheus_labels(&Scraping::Enabled))
             .with_annotations(prometheus_annotations(product_version))
             .build(),
         spec: Some(ServiceSpec {
@@ -100,30 +103,23 @@ pub fn metrics_service_port(product_version: &str) -> ServicePort {
     }
 }
 
-/// Common labels for Prometheus
-fn prometheus_labels() -> Labels {
-    Labels::try_from([("prometheus.io/scrape", "true")]).expect("should be a valid label")
-}
-
 /// Common annotations for Prometheus
 ///
 /// These annotations can be used in a ServiceMonitor.
-///
-/// see also <https://github.com/prometheus-community/helm-charts/blob/prometheus-27.32.0/charts/prometheus/values.yaml#L983-L1036>
 fn prometheus_annotations(product_version: &str) -> Annotations {
-    let (path, port, scheme) = if product_version.starts_with("1.") {
-        ("/metrics", METRICS_PORT, "http")
+    // NiFi 1.x exposes metrics via the JMX exporter over HTTP on a dedicated port; NiFi 2.x serves
+    // them over HTTPS on the NiFi API port.
+    let (scheme, path, port) = if product_version.starts_with("1.") {
+        (Scheme::Http, "/metrics", METRICS_PORT)
     } else {
-        ("/nifi-api/flow/metrics/prometheus", HTTPS_PORT, "https")
+        (
+            Scheme::Https,
+            "/nifi-api/flow/metrics/prometheus",
+            HTTPS_PORT,
+        )
     };
 
-    Annotations::try_from([
-        ("prometheus.io/path".to_owned(), path.to_owned()),
-        ("prometheus.io/port".to_owned(), port.to_string()),
-        ("prometheus.io/scheme".to_owned(), scheme.to_owned()),
-        ("prometheus.io/scrape".to_owned(), "true".to_owned()),
-    ])
-    .expect("should be valid annotations")
+    service::prometheus_annotations(&Scraping::Enabled, &scheme, path, &port)
 }
 
 #[cfg(test)]

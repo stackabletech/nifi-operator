@@ -14,7 +14,7 @@ use stackable_operator::{
     product_logging::spec::Logging,
     role_utils::CommonConfiguration,
     v2::{
-        builder::pod::container::{self, EnvVarName, EnvVarSet},
+        builder::pod::container::{EnvVarName, EnvVarSet},
         controller_utils::{self, get_cluster_name, get_uid},
         product_logging::framework::{
             VectorContainerLogConfig, validate_logging_configuration_for_container,
@@ -76,7 +76,7 @@ pub enum Error {
 
     #[snafu(display("environment variable name {name:?} is invalid"))]
     ParseEnvVarName {
-        source: container::Error,
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
         name: String,
     },
 
