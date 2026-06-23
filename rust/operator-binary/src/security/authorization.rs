@@ -16,7 +16,6 @@ use stackable_operator::{
 use crate::{
     config::{NIFI_PVC_STORAGE_DIRECTORY, NifiRepository},
     crd::{
-        NifiRole,
         authorization::{NifiAccessPolicyProvider, NifiAuthorization, NifiOpaConfig},
         v1alpha1,
     },
@@ -165,57 +164,25 @@ impl ResolvedNifiAuthorizationConfig {
             } => {
                 let file_based_mount_path = Self::file_based_mount_path();
 
-                let namespace = nifi_cluster.namespace().expect("");
+                let nifi_node_subject_dns = Self::nifi_node_subject_dns(nifi_cluster, cluster_info);
 
-                let mut dns = vec![];
-
-                for _role_name in [NifiRole::Node.to_string()] {
-                    let role_groups = nifi_cluster
-                        .spec
-                        .nodes
-                        .iter()
-                        .flat_map(|role| &role.role_groups)
-                        .collect::<BTreeMap<_, _>>();
-
-                    for (role_group_name, role_group) in role_groups {
-                        let headless_service_name = nifi_cluster
-                            .node_rolegroup_ref(role_group_name)
-                            .rolegroup_headless_service_name();
-
-                        let stateful_set_name = nifi_cluster.name_any();
-
-                        for replica in 0..role_group.replicas.unwrap_or(1) {
-                            let cn = "cn=generated certificate for pod";
-                            let dc = cluster_info
-                                .cluster_domain
-                                .split('.')
-                                .rev()
-                                .chain([
-                                    "svc",
-                                    &namespace,
-                                    &headless_service_name,
-                                    &format!("{stateful_set_name}-{replica}",),
-                                ])
-                                .map(|component| format!("dc={component}"))
-                                .collect::<Vec<_>>();
-
-                            let mut dn = vec![cn.to_string()];
-                            dn.extend(dc);
-                            let dn = dn.join(",");
-
-                            dns.push(dn);
-                        }
-                    }
-                }
-
-                let user_group_povider_dns = dns.iter().enumerate().map(|(i, dn)| format!("    <property name=\"Initial User Identity other-nifi {i}\">{dn}</property>")).collect::<Vec<_>>().join("\n");
-
-                let access_policy_provider_dns = dns
+                let user_group_povider_dns = nifi_node_subject_dns
                     .iter()
                     .enumerate()
                     .map(|(i, dn)| {
                         format!(
-                            "    <property name=\"Node Identity other-nifi {i}\">{dn}</property>"
+                            "    <property name=\"Initial User Identity other-nifi-{i}\">{dn}</property>"
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+
+                let access_policy_provider_dns = nifi_node_subject_dns
+                    .iter()
+                    .enumerate()
+                    .map(|(i, dn)| {
+                        format!(
+                            "    <property name=\"Node Identity other-nifi-{i}\">{dn}</property>"
                         )
                     })
                     .collect::<Vec<_>>()
@@ -253,6 +220,57 @@ impl ResolvedNifiAuthorizationConfig {
         "#});
 
         authorizers_xml
+    }
+
+    fn nifi_node_subject_dns(
+        nifi_cluster: &v1alpha1::NifiCluster,
+        cluster_info: &KubernetesClusterInfo,
+    ) -> Vec<String> {
+        let namespace = nifi_cluster.namespace().expect("");
+
+        let mut dns = vec![];
+
+        let role_groups = nifi_cluster
+            .spec
+            .nodes
+            .iter()
+            .flat_map(|role| &role.role_groups)
+            .collect::<BTreeMap<_, _>>();
+
+        for (role_group_name, role_group) in role_groups {
+            let role_group_ref = nifi_cluster.node_rolegroup_ref(role_group_name);
+
+            let pod_generate_name = format!(
+                "{}-",
+                nifi_cluster
+                    .node_rolegroup_ref(role_group_name)
+                    .object_name()
+            );
+
+            for ordinal in 0..role_group.replicas.unwrap_or(1) {
+                let dc = cluster_info
+                    .cluster_domain
+                    .split('.')
+                    .rev()
+                    .chain([
+                        "svc",
+                        &namespace,
+                        &role_group_ref.rolegroup_headless_service_name(),
+                        &format!("{pod_generate_name}{ordinal}",),
+                    ])
+                    .map(|component| format!("DC={component}"))
+                    .collect::<Vec<_>>();
+                let cn = "CN=generated certificate for pod";
+
+                let mut dn = dc;
+                dn.push(cn.to_owned());
+                let dn = dn.join(", ");
+
+                dns.push(dn);
+            }
+        }
+
+        dns
     }
 
     pub fn get_env_vars(&self) -> Vec<EnvVar> {
