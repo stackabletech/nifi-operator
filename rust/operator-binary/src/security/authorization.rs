@@ -222,13 +222,16 @@ impl ResolvedNifiAuthorizationConfig {
         authorizers_xml
     }
 
+    /// Returns the expected subject DNs of the NiFi nodes
     fn nifi_node_subject_dns(
         nifi_cluster: &v1alpha1::NifiCluster,
         cluster_info: &KubernetesClusterInfo,
     ) -> Vec<String> {
-        let namespace = nifi_cluster.namespace().expect("");
+        let namespace = nifi_cluster
+            .namespace()
+            .expect("a NifiCluster must reside in a namespace");
 
-        let mut dns = vec![];
+        let mut distinguished_names = vec![];
 
         let role_groups = nifi_cluster
             .spec
@@ -240,15 +243,10 @@ impl ResolvedNifiAuthorizationConfig {
         for (role_group_name, role_group) in role_groups {
             let role_group_ref = nifi_cluster.node_rolegroup_ref(role_group_name);
 
-            let pod_generate_name = format!(
-                "{}-",
-                nifi_cluster
-                    .node_rolegroup_ref(role_group_name)
-                    .object_name()
-            );
+            let pod_generate_name = format!("{}-", role_group_ref.object_name());
 
             for ordinal in 0..role_group.replicas.unwrap_or(1) {
-                let dc = cluster_info
+                let domain_components = cluster_info
                     .cluster_domain
                     .split('.')
                     .rev()
@@ -260,17 +258,17 @@ impl ResolvedNifiAuthorizationConfig {
                     ])
                     .map(|component| format!("DC={component}"))
                     .collect::<Vec<_>>();
-                let cn = "CN=generated certificate for pod";
+                let common_name = "CN=generated certificate for pod";
 
-                let mut dn = dc;
-                dn.push(cn.to_owned());
-                let dn = dn.join(", ");
+                let mut distinguished_name = domain_components;
+                distinguished_name.push(common_name.to_owned());
+                let distinguished_name_string = distinguished_name.join(", ");
 
-                dns.push(dn);
+                distinguished_names.push(distinguished_name_string);
             }
         }
 
-        dns
+        distinguished_names
     }
 
     pub fn get_env_vars(&self) -> Vec<EnvVar> {
