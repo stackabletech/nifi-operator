@@ -1,0 +1,8 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  # Sleep for a little while to ensure the pod rotation of the NiFi cluster has started. Otherwise,
+  # the assertion in 06 will immediately succeed because it is run _before_ the pod rotation has
+  # started.
+  - script: sleep 15
