@@ -2,7 +2,6 @@
 dimensions:
   - name: nifi
     values:
-      - 1.28.1
       - 2.6.0
       - 2.7.2
       - 2.9.0
@@ -11,7 +10,7 @@ dimensions:
       # - 2.6.0,oci.stackable.tech/sandbox/nifi:2.6.0-stackable0.0.0-dev
   - name: nifi_old
     values:
-      - 1.28.1
+      - 2.6.0
   - name: nifi_new
     values:
       - 2.9.0
@@ -25,16 +24,6 @@ dimensions:
       - 2.6.0
   - name: nifi-iceberg-rest
     values:
-      - 2.7.2
-      - 2.9.0
-    # TODO: Can be removed once NiFi 1.x.x is removed - only for separate smoke tests
-  - name: nifi-v1
-    values:
-      - 1.28.1
-    # TODO: Can be removed once NiFi 1.x.x is removed - only for separate smoke tests
-  - name: nifi-v2
-    values:
-      - 2.6.0
       - 2.7.2
       - 2.9.0
     # Use Kubernetes manager if set to false
@@ -54,13 +43,13 @@ dimensions:
       - 1.16.2
   - name: hdfs-l
     values:
-      - 3.4.2
+      - 3.5.0
   - name: hive-l
     values:
       - 4.2.0
   - name: trino-l
     values:
-      - "477"
+      - "481"
   - name: krb5
     values:
       - 1.21.1
@@ -99,17 +88,9 @@ tests:
       - nifi
       - zookeeper-latest
       - openshift
-  # TODO: Can be removed once NiFi 1.x.x is removed - only for separate smoke tests
-  - name: smoke_v1
+  - name: smoke
     dimensions:
-      - nifi-v1
-      - zookeeper
-      - listener-class
-      - openshift
-  # TODO: Can be renamed to smoke once NiFi 1.x.x is removed - only for separate smoke tests
-  - name: smoke_v2
-    dimensions:
-      - nifi-v2
+      - nifi
       - zookeeper
       - use-zookeeper-manager
       - listener-class
@@ -136,7 +117,7 @@ tests:
       - openshift
   - name: cluster-sync-cs-bug
     dimensions:
-      - nifi-v2
+      - nifi
       - openshift
   - name: oidc-opa
     dimensions:
@@ -187,7 +168,7 @@ suites:
             expr: "true"
   - name: smoke-latest
     select:
-      - smoke_v2
+      - smoke
     patch:
       - dimensions:
           - expr: last
