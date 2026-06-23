@@ -301,12 +301,10 @@ pub async fn reconcile_nifi(
                 rolegroup: role_group_name.clone(),
             })?;
 
-            let replicas =
+            let effective_replicas =
                 if cluster_version_update_state == ClusterVersionUpdateState::UpdateRequested {
                     Some(0)
                 } else {
-                    // `None` (HPA-managed role group) is passed straight through to the StatefulSet
-                    // so the Horizontal Pod Autoscaler owns the replica count.
                     rg.replicas.map(i32::from)
                 };
 
@@ -316,7 +314,7 @@ pub async fn reconcile_nifi(
                 role_group_name,
                 rg,
                 rolling_upgrade_supported,
-                replicas,
+                effective_replicas,
                 &rbac_sa.name_any(),
             )
             .await

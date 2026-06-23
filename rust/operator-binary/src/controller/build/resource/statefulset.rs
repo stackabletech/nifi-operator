@@ -175,7 +175,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
     role_group_name: &RoleGroupName,
     rg: &NifiRoleGroupConfig,
     rolling_update_supported: bool,
-    replicas: Option<i32>,
+    effective_replicas: Option<i32>,
     service_account_name: &str,
 ) -> Result<StatefulSet> {
     tracing::debug!("Building statefulset");
@@ -675,7 +675,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
             .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("Parallel".to_string()),
-            replicas,
+            replicas: effective_replicas,
             selector: LabelSelector {
                 match_labels: Some(cluster.role_group_selector(role_group_name).into()),
                 ..LabelSelector::default()
