@@ -164,7 +164,7 @@ impl ResolvedNifiAuthorizationConfig {
             } => {
                 let file_based_mount_path = Self::file_based_mount_path();
 
-                let nifi_node_subject_dns = Self::nifi_node_subject_dns(nifi_cluster, cluster_info);
+                let nifi_node_subject_dns = nifi_node_subject_dns(nifi_cluster, cluster_info);
 
                 let user_group_povider_dns = nifi_node_subject_dns
                     .iter()
@@ -220,55 +220,6 @@ impl ResolvedNifiAuthorizationConfig {
         "#});
 
         authorizers_xml
-    }
-
-    /// Returns the expected subject DNs of the NiFi nodes
-    fn nifi_node_subject_dns(
-        nifi_cluster: &v1alpha1::NifiCluster,
-        cluster_info: &KubernetesClusterInfo,
-    ) -> Vec<String> {
-        let namespace = nifi_cluster
-            .namespace()
-            .expect("a NifiCluster must reside in a namespace");
-
-        let mut distinguished_names = vec![];
-
-        let role_groups = nifi_cluster
-            .spec
-            .nodes
-            .iter()
-            .flat_map(|role| &role.role_groups)
-            .collect::<BTreeMap<_, _>>();
-
-        for (role_group_name, role_group) in role_groups {
-            let role_group_ref = nifi_cluster.node_rolegroup_ref(role_group_name);
-
-            let pod_generate_name = format!("{}-", role_group_ref.object_name());
-
-            for ordinal in 0..role_group.replicas.unwrap_or(1) {
-                let domain_components = cluster_info
-                    .cluster_domain
-                    .split('.')
-                    .rev()
-                    .chain([
-                        "svc",
-                        &namespace,
-                        &role_group_ref.rolegroup_headless_service_name(),
-                        &format!("{pod_generate_name}{ordinal}",),
-                    ])
-                    .map(|component| format!("DC={component}"))
-                    .collect::<Vec<_>>();
-                let common_name = "CN=generated certificate for pod";
-
-                let mut distinguished_name = domain_components;
-                distinguished_name.push(common_name.to_owned());
-                let distinguished_name_string = distinguished_name.join(", ");
-
-                distinguished_names.push(distinguished_name_string);
-            }
-        }
-
-        distinguished_names
     }
 
     pub fn get_env_vars(&self) -> Vec<EnvVar> {
@@ -368,5 +319,121 @@ impl ResolvedNifiAuthorizationConfig {
 
     fn file_based_mount_path() -> String {
         format!("{NIFI_PVC_STORAGE_DIRECTORY}/{FILE_BASED_MOUNT_DIRECTORY}")
+    }
+}
+
+/// Returns the expected subject DNs of the NiFi nodes
+///
+/// The entry "CN=generated certificate for pod" is still added to avoid exceptions when
+/// upgrading from SDP 26.3 to 26.7.
+pub(crate) fn nifi_node_subject_dns(
+    nifi_cluster: &v1alpha1::NifiCluster,
+    cluster_info: &KubernetesClusterInfo,
+) -> Vec<String> {
+    let namespace = nifi_cluster
+        .namespace()
+        .expect("a NifiCluster must reside in a namespace");
+
+    let mut distinguished_names = vec![];
+
+    let role_groups = nifi_cluster
+        .spec
+        .nodes
+        .iter()
+        .flat_map(|role| &role.role_groups)
+        .collect::<BTreeMap<_, _>>();
+
+    for (role_group_name, role_group) in role_groups {
+        let role_group_ref = nifi_cluster.node_rolegroup_ref(role_group_name);
+
+        let pod_generate_name = format!("{}-", role_group_ref.object_name());
+
+        for ordinal in 0..role_group.replicas.unwrap_or(1) {
+            let domain_components = cluster_info
+                .cluster_domain
+                .split('.')
+                .rev()
+                .chain([
+                    "svc",
+                    &namespace,
+                    &role_group_ref.rolegroup_headless_service_name(),
+                    &format!("{pod_generate_name}{ordinal}",),
+                ])
+                .map(|component| format!("DC={component}"))
+                .collect::<Vec<_>>();
+            let common_name = "CN=generated certificate for pod";
+
+            let mut distinguished_name = domain_components;
+            distinguished_name.push(common_name.to_owned());
+            let distinguished_name_string = distinguished_name.join(", ");
+
+            distinguished_names.push(distinguished_name_string);
+        }
+    }
+
+    // TODO Remove "CN=generated certificate for pod" after the release of SDP 26.7 and adapt
+    // the comment of the function and the tests.
+    //
+    // tracked in https://github.com/stackabletech/nifi-operator/issues/?
+    distinguished_names.push("CN=generated certificate for pod".to_owned());
+
+    distinguished_names
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use stackable_operator::commons::networking::DomainName;
+
+    use super::*;
+    use crate::crd::v1alpha1;
+
+    #[test]
+    fn test_nifi_node_subject_dns() {
+        let kubernetes_cluster_info = KubernetesClusterInfo {
+            cluster_domain: DomainName::from_str("cluster.local")
+                .expect("should be a valid cluster domain"),
+        };
+
+        let spec = "
+        apiVersion: nifi.stackable.tech/v1alpha1
+        kind: NifiCluster
+        metadata:
+          name: test-nifi
+          namespace: test-namespace
+        spec:
+          image:
+            productVersion: 2.9.0
+          clusterConfig:
+            authentication:
+              - authenticationClass: nifi-credentials
+            sensitiveProperties:
+              keySecret: nifi-sensitive-property-key
+          nodes:
+            roleGroups:
+              first-role-group:
+                replicas: 3
+              second-role-group:
+                replicas: 0
+              third-role-group:
+                replicas: null
+        ";
+
+        let nifi_cluster: v1alpha1::NifiCluster =
+            serde_yaml::from_str(spec).expect("should be a valid NifiCluster spec");
+
+        let subject_dns = nifi_node_subject_dns(&nifi_cluster, &kubernetes_cluster_info);
+
+        assert_eq!(
+            vec![
+                "DC=local, DC=cluster, DC=svc, DC=test-namespace, DC=test-nifi-node-first-role-group-headless, DC=test-nifi-node-first-role-group-0, CN=generated certificate for pod",
+                "DC=local, DC=cluster, DC=svc, DC=test-namespace, DC=test-nifi-node-first-role-group-headless, DC=test-nifi-node-first-role-group-1, CN=generated certificate for pod",
+                "DC=local, DC=cluster, DC=svc, DC=test-namespace, DC=test-nifi-node-first-role-group-headless, DC=test-nifi-node-first-role-group-2, CN=generated certificate for pod",
+                "DC=local, DC=cluster, DC=svc, DC=test-namespace, DC=test-nifi-node-third-role-group-headless, DC=test-nifi-node-third-role-group-0, CN=generated certificate for pod",
+                "CN=generated certificate for pod"
+            ],
+            subject_dns
+        );
     }
 }
