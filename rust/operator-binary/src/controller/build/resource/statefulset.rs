@@ -167,7 +167,7 @@ pub(crate) const LISTENER_DEFAULT_PORT_HTTPS_ENV: &str = "LISTENER_DEFAULT_PORT_
 /// The rolegroup [`StatefulSet`] runs the rolegroup, as configured by the administrator.
 ///
 /// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the
-/// corresponding [`stackable_operator::k8s_openapi::api::core::v1::Service`] (from [`build_rolegroup_headless_service`]).
+/// corresponding [`stackable_operator::k8s_openapi::api::core::v1::Service`] (from `build_rolegroup_headless_service`).
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn build_node_rolegroup_statefulset(
     cluster: &ValidatedCluster,
