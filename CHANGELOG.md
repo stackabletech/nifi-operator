@@ -23,8 +23,7 @@ All notable changes to this project will be documented in this file.
 
 ### Removed
 
-- BREAKING: Clean up leftover NiFi 1.x code and configuration.
-  Support for NiFi 1.x was already officially dropped in SDP 26.3, but some now-dead code and CRD fields remained.
+- BREAKING: Remove support for NiFi 1.x.
   This removes the Prometheus reporting-task Job (and its `spec.clusterConfig.createReportingTaskJob` field), the pre-2.x non-rolling upgrade handling, the dedicated metrics port, and the sensitive-properties algorithms that were only supported on NiFi 1.x.
   `status.deployed_version` is retained even though it no longer drives the (now removed) non-rolling upgrade state machine, as we don't want a breaking change to the status just for this ([#954]).
 
