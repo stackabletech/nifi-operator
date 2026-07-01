@@ -19,7 +19,7 @@ All notable changes to this project will be documented in this file.
 - Internal operator refactoring: introduce dereference() and validate() steps in the reconciler ([#935]).
 - Default `nifi.cluster.flow.election.max.wait.time` to NiFi's upstream value (`5 mins`) instead of the operator's previous `1 mins`. The operator no longer sets this property explicitly; the previous shorter value was left over from a TODO marked as "for testing" and may have caused flow election to settle on incomplete vote sets in cold-start scenarios ([#936]).
 - In case the user specifies a fixed number of NiFi nodes (i.e. no auto-scaling), set `nifi.cluster.flow.election.max.candidates` to that number.
-  This results in much faster NiFi startups, as it doesn't need to wait for the 5 minutes of `nifi.cluster.flow.election.max.wait.time` ([#XXX]).
+  This results in much faster NiFi startups, as it doesn't need to wait for the 5 minutes of `nifi.cluster.flow.election.max.wait.time` ([#953]).
 - Set `nifi.content.repository.archive.max.retention.period` to `3 days` (previously empty, which NiFi interprets as `Long.MAX_VALUE` and effectively disables time-based archive purge). Without a time-based ceiling, the content archive can grow to half the content PVC and accumulate millions of files, which makes the synchronous startup directory scan in `FileSystemRepository.initializeRepository` very slow. Users requiring a longer content-replay window can extend via `configOverrides`. The provenance audit trail is independent of this setting and unaffected ([#936]).
 - test: Bump vector-aggregator to 0.55.0, replace /graphql call with gRPC call ([#940]).
 
@@ -36,7 +36,7 @@ All notable changes to this project will be documented in this file.
 [#935]: https://github.com/stackabletech/nifi-operator/pull/935
 [#936]: https://github.com/stackabletech/nifi-operator/pull/936
 [#940]: https://github.com/stackabletech/nifi-operator/pull/940
-[#XXX]: https://github.com/stackabletech/nifi-operator/pull/XXX
+[#953]: https://github.com/stackabletech/nifi-operator/pull/953
 
 ## [26.3.0] - 2026-03-16
 
