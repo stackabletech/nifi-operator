@@ -151,7 +151,7 @@ pub fn build_bootstrap_conf(
 
 /// Create the NiFi nifi.properties
 pub fn build_nifi_properties(
-    spec: &v1alpha1::NifiClusterSpec,
+    nifi: &v1alpha1::NifiCluster,
     resource_config: &Resources<NifiStorageConfig>,
     proxy_hosts: &str,
     auth_config: &NifiAuthenticationConfig,
@@ -159,6 +159,7 @@ pub fn build_nifi_properties(
     product_version: &str,
     git_sync_resources: &git_sync::v1alpha2::GitSyncResources,
 ) -> Result<String, Error> {
+    let cluster_config = &nifi.spec.cluster_config;
     // TODO: Remove once we dropped support for all NiFi 1.x versions
     let is_nifi_1 = product_version.starts_with("1.");
 
@@ -278,7 +279,7 @@ pub fn build_nifi_properties(
     // The ID of the cluster-wide state provider. This will be ignored if NiFi is not clustered but must be populated if running in a cluster.
     properties.insert(
         "nifi.state.management.provider.cluster".to_string(),
-        match spec.cluster_config.clustering_backend {
+        match cluster_config.clustering_backend {
             v1alpha1::NifiClusteringBackend::ZooKeeper { .. } => "zk-provider".to_string(),
             v1alpha1::NifiClusteringBackend::Kubernetes { .. } => "kubernetes-provider".to_string(),
         },
@@ -528,15 +529,14 @@ pub fn build_nifi_properties(
         "".to_string(),
     );
 
-    let sensitive_properties_algorithm = &spec
-        .cluster_config
+    let sensitive_properties_algorithm = cluster_config
         .sensitive_properties
         .algorithm
         .clone()
         .unwrap_or_default();
 
     sensitive_properties_algorithm
-        .check_for_nifi_version(spec.image.product_version())
+        .check_for_nifi_version(nifi.spec.image.product_version())
         .context(ConfigureSensitivePropertiesSnafu)?;
 
     properties.insert(
@@ -609,12 +609,21 @@ pub fn build_nifi_properties(
         "nifi.cluster.node.protocol.port".to_string(),
         PROTOCOL_PORT.to_string(),
     );
+
+    // In case the number of NiFi nodes is hard-coded to a fixed (no auto-scaling), we can tell
+    // this NiFi, so that startup is much quicker.
+    // Note: In case we don't know the replica count, we set it to "" as that's what we always did
+    // before.
+    let max_candidates = nifi
+        .maybe_fixed_node_count()
+        .map(|count| count.to_string())
+        .unwrap_or_default();
     properties.insert(
         "nifi.cluster.flow.election.max.candidates".to_string(),
-        "".to_string(),
+        max_candidates,
     );
 
-    match spec.cluster_config.clustering_backend {
+    match cluster_config.clustering_backend {
         v1alpha1::NifiClusteringBackend::ZooKeeper { .. } => {
             properties.insert(
                 "nifi.cluster.leader.election.implementation".to_string(),

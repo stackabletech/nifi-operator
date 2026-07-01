@@ -26,10 +26,6 @@ spec:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
     roleConfig:
       listenerClass: external-unstable
-    configOverrides:
-      nifi.properties:
-        # Quicker startup, and we only have a single node
-        nifi.cluster.flow.election.max.wait.time: 5 secs
     jvmArgumentOverrides:
       add:
         # Needed for NiFi to trust the minio cert
