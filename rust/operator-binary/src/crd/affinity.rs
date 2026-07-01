@@ -29,10 +29,14 @@ mod tests {
             api::core::v1::{PodAffinityTerm, PodAntiAffinity, WeightedPodAffinityTerm},
             apimachinery::pkg::apis::meta::v1::LabelSelector,
         },
+        v2::types::operator::RoleGroupName,
     };
 
     use super::*;
-    use crate::crd::v1alpha1;
+    use crate::{
+        controller::validate::{build_role_group_configs, test_resolved_product_image},
+        crd::v1alpha1,
+    };
 
     #[test]
     fn test_affinity_defaults() {
@@ -58,7 +62,20 @@ mod tests {
         let deserializer = serde_yaml::Deserializer::from_str(input);
         let nifi: v1alpha1::NifiCluster =
             serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
-        let merged_config = nifi.merged_config(&NifiRole::Node, "default").unwrap();
+
+        let role_group_configs =
+            build_role_group_configs(&nifi, &test_resolved_product_image(), &None).unwrap();
+        let merged_config = &role_group_configs
+            .get(&NifiRole::Node)
+            .and_then(|groups| {
+                groups.get(
+                    &"default"
+                        .parse::<RoleGroupName>()
+                        .expect("valid role-group name"),
+                )
+            })
+            .unwrap()
+            .config;
 
         assert_eq!(
             merged_config.affinity,

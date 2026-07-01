@@ -9,6 +9,7 @@ use stackable_operator::{
     crd::authentication::{core as auth_core, ldap, oidc, r#static},
     k8s_openapi::api::core::v1::{KeyToPath, SecretVolumeSource, Volume},
     kube::{ResourceExt, runtime::reflector::ObjectRef},
+    v2::types::operator::ClusterName,
 };
 
 use crate::{crd::v1alpha1, security::oidc::build_oidc_admin_password_secret_name};
@@ -16,9 +17,6 @@ use crate::{crd::v1alpha1, security::oidc::build_oidc_admin_password_secret_name
 pub const STACKABLE_ADMIN_USERNAME: &str = "admin";
 
 const STACKABLE_USER_VOLUME_MOUNT_PATH: &str = "/stackable/users";
-
-pub const LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME: &str = "login-identity-providers.xml";
-pub const AUTHORIZERS_XML_FILE_NAME: &str = "authorizers.xml";
 
 pub const STACKABLE_SERVER_TLS_DIR: &str = "/stackable/server_tls";
 pub const STACKABLE_TLS_STORE_PASSWORD: &str = "secret";
@@ -118,7 +116,7 @@ impl DereferencedAuthenticationClasses {
     }
 }
 
-#[allow(clippy::large_enum_variant)]
+#[derive(Clone)]
 pub enum NifiAuthenticationConfig {
     SingleUser {
         provider: r#static::v1alpha1::AuthenticationProvider,
@@ -129,7 +127,7 @@ pub enum NifiAuthenticationConfig {
     Oidc {
         provider: oidc::v1alpha1::AuthenticationProvider,
         oidc: oidc::v1alpha1::ClientAuthenticationOptions,
-        nifi: v1alpha1::NifiCluster,
+        cluster_name: ClusterName,
     },
 }
 
@@ -208,8 +206,8 @@ impl NifiAuthenticationConfig {
         commands
     }
 
-    /// Returns
-    /// - A list of extra commands for the init container
+    /// Adds the volumes and volume mounts required by the configured authentication
+    /// method to the pod and the given container builders.
     pub fn add_volumes_and_mounts(
         &self,
         pod_builder: &mut PodBuilder,
@@ -245,11 +243,15 @@ impl NifiAuthenticationConfig {
                     .add_volumes_and_mounts(pod_builder, container_builders)
                     .context(AddLdapVolumesSnafu)?;
             }
-            Self::Oidc { provider, nifi, .. } => {
+            Self::Oidc {
+                provider,
+                cluster_name,
+                ..
+            } => {
                 let admin_volume = Volume {
                     name: STACKABLE_ADMIN_USERNAME.to_string(),
                     secret: Some(SecretVolumeSource {
-                        secret_name: Some(build_oidc_admin_password_secret_name(nifi)),
+                        secret_name: Some(build_oidc_admin_password_secret_name(cluster_name)),
                         optional: Some(false),
                         items: Some(vec![KeyToPath {
                             key: STACKABLE_ADMIN_USERNAME.to_string(),
@@ -287,7 +289,7 @@ impl NifiAuthenticationConfig {
     /// * LDAP TLS verification is enabled if TLS is used
     /// * an OIDC client spec is present when the provider is OIDC
     pub fn validate(
-        nifi: &v1alpha1::NifiCluster,
+        cluster_name: &ClusterName,
         dereferenced: &DereferencedAuthenticationClasses,
     ) -> Result<Self> {
         let (entry, auth_class) = match dereferenced.entries.as_slice() {
@@ -323,7 +325,7 @@ impl NifiAuthenticationConfig {
                     .oidc_or_error(&auth_class_name)
                     .context(OidcConfigurationInvalidSnafu)?
                     .clone(),
-                nifi: nifi.clone(),
+                cluster_name: cluster_name.clone(),
             }),
             _ => AuthenticationClassProviderNotSupportedSnafu {
                 authentication_class_provider: auth_class.spec.provider.to_string(),
@@ -410,4 +412,125 @@ fn get_ldap_login_identity_provider(
         search_base = ldap.search_base,
         keystore_path = STACKABLE_SERVER_TLS_DIR,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use indoc::indoc;
+    use stackable_operator::{
+        crd::authentication::core as auth_core, v2::types::operator::ClusterName,
+    };
+
+    use super::{DereferencedAuthenticationClasses, Error, NifiAuthenticationConfig};
+
+    fn cluster_name() -> ClusterName {
+        "simple-nifi".parse().expect("valid cluster name")
+    }
+
+    fn static_auth_class() -> auth_core::v1alpha1::AuthenticationClass {
+        serde_yaml::from_str(indoc! {r#"
+            metadata:
+              name: nifi-admin
+            spec:
+              provider: !static
+                userCredentialsSecret:
+                  name: nifi-admin-credentials
+        "#})
+        .expect("valid static AuthenticationClass")
+    }
+
+    fn auth_details() -> auth_core::v1alpha1::ClientAuthenticationDetails {
+        serde_yaml::from_str("authenticationClass: nifi-admin").expect("valid auth details")
+    }
+
+    #[test]
+    fn no_authentication_class_is_rejected() {
+        let dereferenced = DereferencedAuthenticationClasses { entries: vec![] };
+        // `NifiAuthenticationConfig` is not `Debug`, so match on the `Result` rather than `expect_err`.
+        let result = NifiAuthenticationConfig::validate(&cluster_name(), &dereferenced);
+        assert!(matches!(result, Err(Error::NoAuthenticationNotSupported)));
+    }
+
+    #[test]
+    fn multiple_authentication_classes_are_rejected() {
+        let dereferenced = DereferencedAuthenticationClasses {
+            entries: vec![
+                (auth_details(), static_auth_class()),
+                (auth_details(), static_auth_class()),
+            ],
+        };
+        let result = NifiAuthenticationConfig::validate(&cluster_name(), &dereferenced);
+        assert!(matches!(
+            result,
+            Err(Error::MultipleAuthenticationClassesNotSupported)
+        ));
+    }
+
+    #[test]
+    fn static_provider_resolves_to_single_user() {
+        let dereferenced = DereferencedAuthenticationClasses {
+            entries: vec![(auth_details(), static_auth_class())],
+        };
+        let resolved = NifiAuthenticationConfig::validate(&cluster_name(), &dereferenced)
+            .expect("a static provider should resolve to single-user auth");
+        assert!(matches!(
+            resolved,
+            NifiAuthenticationConfig::SingleUser { .. }
+        ));
+    }
+
+    /// An LDAP provider that uses TLS but disables certificate verification.
+    fn ldap_auth_class_without_tls_verification() -> auth_core::v1alpha1::AuthenticationClass {
+        serde_yaml::from_str(indoc! {r#"
+            metadata:
+              name: nifi-ldap
+            spec:
+              provider: !ldap
+                hostname: my-ldap
+                tls:
+                  verification:
+                    none: {}
+        "#})
+        .expect("valid LDAP AuthenticationClass")
+    }
+
+    fn oidc_auth_class() -> auth_core::v1alpha1::AuthenticationClass {
+        serde_yaml::from_str(indoc! {r#"
+            metadata:
+              name: nifi-oidc
+            spec:
+              provider: !oidc
+                hostname: my-oidc
+                principalClaim: preferred_username
+                scopes:
+                  - openid
+        "#})
+        .expect("valid OIDC AuthenticationClass")
+    }
+
+    #[test]
+    fn ldap_without_tls_verification_is_rejected() {
+        let dereferenced = DereferencedAuthenticationClasses {
+            entries: vec![(auth_details(), ldap_auth_class_without_tls_verification())],
+        };
+        let result = NifiAuthenticationConfig::validate(&cluster_name(), &dereferenced);
+        assert!(matches!(
+            result,
+            Err(Error::NoLdapTlsVerificationNotSupported { .. })
+        ));
+    }
+
+    /// OIDC requires per-cluster client options on the spec entry; without them validation fails.
+    #[test]
+    fn oidc_without_client_options_is_rejected() {
+        let dereferenced = DereferencedAuthenticationClasses {
+            // `auth_details()` carries no OIDC client options.
+            entries: vec![(auth_details(), oidc_auth_class())],
+        };
+        let result = NifiAuthenticationConfig::validate(&cluster_name(), &dereferenced);
+        assert!(matches!(
+            result,
+            Err(Error::OidcConfigurationInvalid { .. })
+        ));
+    }
 }

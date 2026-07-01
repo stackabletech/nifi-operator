@@ -1,51 +1,52 @@
 use std::collections::BTreeMap;
 
 use rand::{RngExt, distr::Alphanumeric};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder, client::Client, k8s_openapi::api::core::v1::Secret,
-    kube::ResourceExt,
+    v2::types::kubernetes::NamespaceName,
 };
 
-use crate::crd::v1alpha1;
+use crate::controller::ValidatedSensitiveProperties;
+
+/// The key under which the generated sensitive-properties key is stored in the Secret. The
+/// `nifi.properties` builder references the mounted file by this same name, so the two must agree.
+pub const SENSITIVE_PROPERTY_KEY_NAME: &str = "nifiSensitivePropsKey";
+
+/// Mount path of the sensitive-properties key Secret
+pub const SENSITIVE_PROPERTY_VOLUME_MOUNT: &str = "/stackable/sensitiveproperty";
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("object defines no namespace"))]
-    ObjectHasNoNamespace,
-
     #[snafu(display("failed to check sensitive property key secret"))]
     SensitiveKeySecret {
         source: stackable_operator::client::Error,
     },
 
     #[snafu(display(
-        "sensitive key secret [{}/{}] is missing, but auto generation is disabled",
-        name,
-        namespace
+        "sensitive key secret [{namespace}/{name}] is missing, but auto generation is disabled",
     ))]
     SensitiveKeySecretMissing { name: String, namespace: String },
 }
 
 pub(crate) async fn check_or_generate_sensitive_key(
     client: &Client,
-    nifi: &v1alpha1::NifiCluster,
+    sensitive_properties: &ValidatedSensitiveProperties,
+    namespace: &NamespaceName,
 ) -> Result<bool, Error> {
-    let sensitive_config = &nifi.spec.cluster_config.sensitive_properties;
-    let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
-
+    let key_secret = &sensitive_properties.key_secret;
     match client
-        .get_opt::<Secret>(&sensitive_config.key_secret, namespace)
+        .get_opt::<Secret>(key_secret.as_ref(), namespace.as_ref())
         .await
         .context(SensitiveKeySecretSnafu)?
     {
         Some(_) => Ok(false),
         None => {
-            if !sensitive_config.auto_generate {
+            if !sensitive_properties.auto_generate {
                 return Err(Error::SensitiveKeySecretMissing {
-                    name: sensitive_config.key_secret.clone(),
+                    name: key_secret.to_string(),
                     namespace: namespace.to_string(),
                 });
             }
@@ -57,12 +58,12 @@ pub(crate) async fn check_or_generate_sensitive_key(
                 .collect();
 
             let mut secret_data = BTreeMap::new();
-            secret_data.insert("nifiSensitivePropsKey".to_string(), password);
+            secret_data.insert(SENSITIVE_PROPERTY_KEY_NAME.to_string(), password);
 
             let new_secret = Secret {
                 metadata: ObjectMetaBuilder::new()
                     .namespace(namespace)
-                    .name(sensitive_config.key_secret.to_string())
+                    .name(key_secret.to_string())
                     .build(),
                 string_data: Some(secret_data),
                 ..Secret::default()

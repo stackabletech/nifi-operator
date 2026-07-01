@@ -33,20 +33,15 @@ use stackable_operator::{
 };
 
 use crate::{
-    controller::NIFI_FULL_CONTROLLER_NAME,
     crd::{NifiCluster, NifiClusterVersion, authorization::NifiOpaConfig, v1alpha1},
+    nifi_controller::NIFI_FULL_CONTROLLER_NAME,
     webhooks::conversion::create_webhook_server,
 };
 
-mod config;
 mod controller;
 mod crd;
-mod listener;
-mod operations;
-mod product_logging;
-mod reporting_task;
+mod nifi_controller;
 mod security;
-mod service;
 mod webhooks;
 
 mod built_info {
@@ -72,7 +67,7 @@ async fn main() -> anyhow::Result<()> {
         Command::Run(RunArguments {
             operator_environment,
             watch_namespace,
-            product_config,
+            product_config: _,
             maintenance,
             common,
         }) => {
@@ -118,11 +113,6 @@ async fn main() -> anyhow::Result<()> {
             let webhook_server = webhook_server
                 .run(sigterm_watcher.handle())
                 .map_err(|err| anyhow!(err).context("failed to run webhook server"));
-
-            let product_config = product_config.load(&[
-                "deploy/config-spec/properties.yaml",
-                "/etc/stackable/nifi-operator/config-spec/properties.yaml",
-            ])?;
 
             let event_recorder = Arc::new(Recorder::new(
                 client.as_kube_client(),
@@ -177,12 +167,11 @@ async fn main() -> anyhow::Result<()> {
                 )
                 .graceful_shutdown_on(sigterm_watcher.handle())
                 .run(
-                    controller::reconcile_nifi,
-                    controller::error_policy,
-                    Arc::new(controller::Ctx {
+                    nifi_controller::reconcile_nifi,
+                    nifi_controller::error_policy,
+                    Arc::new(nifi_controller::Ctx {
                         client: client.clone(),
                         operator_environment,
-                        product_config,
                     }),
                 )
                 // We can let the reporting happen in the background
@@ -227,7 +216,7 @@ fn references_config_map(
     let references_zookeeper_config_map = match &nifi.spec.cluster_config.clustering_backend {
         NifiClusteringBackend::ZooKeeper {
             zookeeper_config_map_name,
-        } => *zookeeper_config_map_name == config_map.name_any(),
+        } => zookeeper_config_map_name.to_string() == config_map.name_any(),
         NifiClusteringBackend::Kubernetes {} => false,
     };
     let references_authorization_config_map = references_authorization_config_map(nifi, config_map);

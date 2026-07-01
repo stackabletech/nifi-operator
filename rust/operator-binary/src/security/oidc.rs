@@ -1,25 +1,23 @@
 use std::collections::BTreeMap;
 
 use rand::{RngExt, distr::Alphanumeric};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     client::Client,
     commons::tls_verification::{CaCert, TlsServerVerification, TlsVerification},
     crd::authentication::oidc,
     k8s_openapi::api::core::v1::Secret,
-    kube::{ResourceExt, runtime::reflector::ObjectRef},
+    kube::runtime::reflector::ObjectRef,
+    v2::types::{kubernetes::NamespaceName, operator::ClusterName},
 };
 
-use crate::{crd::v1alpha1, security::authentication::STACKABLE_ADMIN_USERNAME};
+use crate::security::authentication::STACKABLE_ADMIN_USERNAME;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("the NiFi object defines no namespace"))]
-    ObjectHasNoNamespace,
-
     #[snafu(display("failed to fetch or create OIDC admin password secret"))]
     OidcAdminPasswordSecret {
         source: stackable_operator::client::Error,
@@ -44,12 +42,15 @@ pub enum Error {
 /// This admin user is the same as for SingleUser authentication.
 pub(crate) async fn check_or_generate_oidc_admin_password(
     client: &Client,
-    nifi: &v1alpha1::NifiCluster,
+    cluster_name: &ClusterName,
+    namespace: &NamespaceName,
 ) -> Result<bool, Error> {
-    let namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
     tracing::debug!("Checking for OIDC admin password configuration");
     match client
-        .get_opt::<Secret>(&build_oidc_admin_password_secret_name(nifi), namespace)
+        .get_opt::<Secret>(
+            &build_oidc_admin_password_secret_name(cluster_name),
+            namespace.as_ref(),
+        )
         .await
         .context(OidcAdminPasswordSecretSnafu)?
     {
@@ -78,12 +79,12 @@ pub(crate) async fn check_or_generate_oidc_admin_password(
                 .collect();
 
             let mut secret_data = BTreeMap::new();
-            secret_data.insert("admin".to_string(), password);
+            secret_data.insert(STACKABLE_ADMIN_USERNAME.to_string(), password);
 
             let new_secret = Secret {
                 metadata: ObjectMetaBuilder::new()
                     .namespace(namespace)
-                    .name(build_oidc_admin_password_secret_name(nifi))
+                    .name(build_oidc_admin_password_secret_name(cluster_name))
                     .build(),
                 string_data: Some(secret_data),
                 ..Secret::default()
@@ -97,8 +98,8 @@ pub(crate) async fn check_or_generate_oidc_admin_password(
     }
 }
 
-pub fn build_oidc_admin_password_secret_name(nifi: &v1alpha1::NifiCluster) -> String {
-    format!("{}-oidc-admin-password", nifi.name_any())
+pub fn build_oidc_admin_password_secret_name(cluster_name: &ClusterName) -> String {
+    format!("{cluster_name}-oidc-admin-password")
 }
 
 /// Adds all the required configuration properties to enable OIDC authentication.

@@ -1,16 +1,19 @@
+use std::str::FromStr;
+
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::pod::volume::{SecretFormat, SecretOperatorVolumeSourceBuilder, VolumeBuilder},
     commons::secret_class::SecretClassVolumeProvisionParts,
     k8s_openapi::api::core::v1::Volume,
     shared::time::Duration,
+    v2::types::kubernetes::{SecretClassName, VolumeName},
 };
 
-use crate::{crd::v1alpha1, security::authentication::STACKABLE_TLS_STORE_PASSWORD};
+use crate::security::authentication::STACKABLE_TLS_STORE_PASSWORD;
 
-pub const KEYSTORE_VOLUME_NAME: &str = "keystore";
+stackable_operator::constant!(pub KEYSTORE_VOLUME_NAME: VolumeName = "keystore");
 pub const KEYSTORE_NIFI_CONTAINER_MOUNT: &str = "/stackable/keystore";
-pub const TRUSTSTORE_VOLUME_NAME: &str = "truststore";
+stackable_operator::constant!(pub TRUSTSTORE_VOLUME_NAME: VolumeName = "truststore");
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -23,15 +26,15 @@ pub enum Error {
 }
 
 pub(crate) fn build_tls_volume(
-    nifi: &v1alpha1::NifiCluster,
-    volume_name: &str,
+    server_tls_secret_class: &SecretClassName,
+    volume_name: &VolumeName,
     service_scopes: impl IntoIterator<Item = impl AsRef<str>>,
     secret_format: SecretFormat,
     requested_secret_lifetime: &Duration,
     listener_scope: Option<&str>,
 ) -> Result<Volume> {
     let mut secret_volume_source_builder = SecretOperatorVolumeSourceBuilder::new(
-        nifi.server_tls_secret_class(),
+        server_tls_secret_class,
         // NiFi serves its own TLS endpoints, so the Pod needs both the public
         // certificate and the private key.
         SecretClassVolumeProvisionParts::PublicPrivate,

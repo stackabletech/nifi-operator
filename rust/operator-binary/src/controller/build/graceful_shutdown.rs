@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use snafu::{ResultExt, Snafu};
 use stackable_operator::builder::pod::PodBuilder;
 
-use crate::crd::NifiConfig;
+use crate::controller::ValidatedNifiConfig;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -13,7 +13,9 @@ pub enum Error {
     },
 }
 
-pub fn graceful_shutdown_config_properties(config: &NifiConfig) -> BTreeMap<String, String> {
+pub fn graceful_shutdown_config_properties(
+    config: &ValidatedNifiConfig,
+) -> BTreeMap<String, String> {
     let mut graceful_shutdown_properties = BTreeMap::new();
     if let Some(graceful_shutdown_timeout) = config.graceful_shutdown_timeout {
         graceful_shutdown_properties.insert(
@@ -25,7 +27,7 @@ pub fn graceful_shutdown_config_properties(config: &NifiConfig) -> BTreeMap<Stri
 }
 
 pub fn add_graceful_shutdown_config(
-    merged_config: &NifiConfig,
+    merged_config: &ValidatedNifiConfig,
     pod_builder: &mut PodBuilder,
 ) -> Result<(), Error> {
     // This must be always set by the merge mechanism, as we provide a default value,
@@ -37,4 +39,20 @@ pub fn add_graceful_shutdown_config(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::graceful_shutdown_config_properties;
+    use crate::controller::build::properties::test_support::{
+        default_rg, minimal_validated_cluster,
+    };
+
+    /// The merge mechanism always provides a graceful-shutdown timeout, so the property is set.
+    #[test]
+    fn default_config_sets_graceful_shutdown_seconds() {
+        let cluster = minimal_validated_cluster();
+        let properties = graceful_shutdown_config_properties(&default_rg(&cluster).config);
+        assert!(properties.contains_key("graceful.shutdown.seconds"));
+    }
 }

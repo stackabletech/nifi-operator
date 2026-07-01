@@ -22,7 +22,7 @@
 //! Therefore, since the support of NiFi 1.25.0, an additional service for the Reporting Task Job containing a
 //! random but deterministic NiFi node to ensure the communication with a single node.
 //!
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, str::FromStr as _};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -30,11 +30,10 @@ use stackable_operator::{
         self,
         meta::ObjectMetaBuilder,
         pod::{
-            PodBuilder, container::ContainerBuilder, resources::ResourceRequirementsBuilder,
+            PodBuilder, resources::ResourceRequirementsBuilder,
             security::PodSecurityContextBuilder, volume::SecretFormat,
         },
     },
-    commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
         DeepMerge,
         api::{
@@ -42,57 +41,37 @@ use stackable_operator::{
             core::v1::{Service, ServicePort, ServiceSpec},
         },
     },
-    kube::ResourceExt,
-    kvp::Labels,
     shared::time::Duration,
     utils::cluster_info::KubernetesClusterInfo,
+    v2::{
+        builder::{meta::ownerreference_from_resource, pod::container::new_container_builder},
+        types::{
+            kubernetes::{ContainerName, NamespaceName, VolumeName},
+            operator::RoleGroupName,
+        },
+    },
 };
 
 use crate::{
-    controller::build_recommended_labels,
-    crd::{APP_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, NifiRole, v1alpha1},
-    security::{
-        authentication::{NifiAuthenticationConfig, STACKABLE_ADMIN_USERNAME},
-        build_tls_volume,
+    controller::{
+        ValidatedCluster,
+        build::{HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT},
     },
+    crd::NifiRole,
+    security::{authentication::STACKABLE_ADMIN_USERNAME, build_tls_volume},
 };
 
-const REPORTING_TASK_CERT_VOLUME_NAME: &str = "tls";
+stackable_operator::constant!(REPORTING_TASK_CERT_VOLUME_NAME: VolumeName = "tls");
 const REPORTING_TASK_CERT_VOLUME_MOUNT: &str = "/stackable/cert";
-const REPORTING_TASK_CONTAINER_NAME: &str = "reporting-task";
+/// Path (inside the image) of the script that registers the NiFi 1.x reporting task.
+const REPORTING_TASK_SCRIPT_PATH: &str = "/stackable/python/create_nifi_reporting_task.py";
+stackable_operator::constant!(REPORTING_TASK_CONTAINER_NAME: ContainerName = "reporting-task");
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("object defines no name"))]
-    ObjectHasNoName,
-
-    #[snafu(display("object defines no namespace"))]
-    ObjectHasNoNamespace,
-
-    #[snafu(display("failed to build metadata"))]
-    MetadataBuild {
-        source: stackable_operator::builder::meta::Error,
-    },
-
-    #[snafu(display("illegal container name: [{container_name}]"))]
-    IllegalContainerName {
-        source: stackable_operator::builder::pod::container::Error,
-        container_name: String,
-    },
-
-    #[snafu(display("object is missing metadata to build owner reference"))]
-    ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::builder::meta::Error,
-    },
-
     #[snafu(display("failed to add Authentication Volumes and VolumeMounts"))]
     AddAuthVolumes {
         source: crate::security::authentication::Error,
-    },
-
-    #[snafu(display("failed to build labels"))]
-    LabelBuild {
-        source: stackable_operator::kvp::LabelError,
     },
 
     #[snafu(display("failed to build secret volume"))]
@@ -127,114 +106,96 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// NiFi 2.x and above automatically server Prometheus metrics via the API, but as of 2024-11-08
 /// requires authentication.
 pub fn build_maybe_reporting_task(
-    nifi: &v1alpha1::NifiCluster,
-    resolved_product_image: &ResolvedProductImage,
+    cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
-    authentication_config: &NifiAuthenticationConfig,
     sa_name: &str,
 ) -> Result<Option<(Job, Service)>> {
-    if resolved_product_image.product_version.starts_with("1.") {
+    if cluster.image.product_version.starts_with("1.") {
         Ok(Some((
-            build_reporting_task_job(
-                nifi,
-                resolved_product_image,
-                cluster_info,
-                authentication_config,
-                sa_name,
-            )?,
-            build_reporting_task_service(nifi, resolved_product_image)?,
+            build_reporting_task_job(cluster, cluster_info, sa_name)?,
+            build_reporting_task_service(cluster)?,
         )))
     } else {
         Ok(None)
     }
 }
 
-/// Return the name of the reporting task.
+/// The placeholder role-group name (`global`) used for the labels of the cluster-global reporting
+/// task resources, which are not tied to a specific role group.
+fn reporting_task_role_group() -> RoleGroupName {
+    RoleGroupName::from_str("global").expect("'global' is a valid role-group name")
+}
+
+/// Return the name of the reporting task Service.
 pub fn build_reporting_task_service_name(nifi_cluster_name: &str) -> String {
-    format!("{nifi_cluster_name}-{REPORTING_TASK_CONTAINER_NAME}")
+    format!(
+        "{nifi_cluster_name}-{container}",
+        container = &*REPORTING_TASK_CONTAINER_NAME
+    )
 }
 
 /// Return the FQDN (with namespace, domain) of the reporting task.
 pub fn build_reporting_task_fqdn_service_name(
-    nifi: &v1alpha1::NifiCluster,
+    cluster_name: &str,
+    namespace: &NamespaceName,
     cluster_info: &KubernetesClusterInfo,
-) -> Result<String> {
-    let nifi_cluster_name = nifi.name_any();
-    let nifi_namespace: &str = &nifi.namespace().context(ObjectHasNoNamespaceSnafu)?;
-    let reporting_task_service_name = build_reporting_task_service_name(&nifi_cluster_name);
+) -> String {
+    let reporting_task_service_name = build_reporting_task_service_name(cluster_name);
     let cluster_domain = &cluster_info.cluster_domain;
-    Ok(format!(
-        "{reporting_task_service_name}.{nifi_namespace}.svc.{cluster_domain}"
-    ))
+    format!("{reporting_task_service_name}.{namespace}.svc.{cluster_domain}")
 }
 
 /// Return the name of the first pod belonging to the first role group that contains more than 0 replicas.
-/// If no replicas are set in any rolegroup (e.g. HPA, see <https://docs.stackable.tech/home/stable/concepts/operations/#_performance>)
+/// If no role group has replicas set (e.g. HPA, see <https://docs.stackable.tech/home/stable/concepts/operations/#_performance>)
 /// return the first rolegroup just in case.
 /// This is required to only select a single node in the Reporting Task Service.
-fn get_reporting_task_service_selector_pod(nifi: &v1alpha1::NifiCluster) -> Result<String> {
-    let cluster_name = nifi.name_any();
+fn get_reporting_task_service_selector_pod(cluster: &ValidatedCluster) -> Result<String> {
     let node_name = NifiRole::Node.to_string();
 
-    // sort the rolegroups to avoid random sorting and therefore unnecessary reconciles
-    let sorted_role_groups = nifi
-        .spec
-        .nodes
-        .iter()
-        .flat_map(|role| &role.role_groups)
-        .collect::<BTreeMap<_, _>>();
+    // The role groups are already sorted by name (`BTreeMap`), avoiding random ordering and
+    // therefore unnecessary reconciles.
+    let role_groups = cluster
+        .role_group_configs
+        .get(&NifiRole::Node)
+        .context(FailedBuildReportingTaskServiceSnafu)?;
 
     let mut selector_role_group = None;
-    for (role_group_name, role_group) in sorted_role_groups {
-        // just pick the first rolegroup in case no replicas are set
+    for (role_group_name, role_group) in role_groups {
+        // just pick the first rolegroup in case none has replicas set
         if selector_role_group.is_none() {
             selector_role_group = Some(role_group_name);
         }
 
-        if let Some(replicas) = role_group.replicas {
-            if replicas > 0 {
-                selector_role_group = Some(role_group_name);
-                break;
-            }
+        if role_group.replicas.unwrap_or(1) > 0 {
+            selector_role_group = Some(role_group_name);
+            break;
         }
     }
 
     Ok(format!(
         "{cluster_name}-{node_name}-{role_group_name}-0",
+        cluster_name = cluster.name,
         role_group_name = selector_role_group.context(FailedBuildReportingTaskServiceSnafu)?
     ))
 }
 
 /// Build the internal Reporting Task Service in order to communicate with a single NiFi node.
-fn build_reporting_task_service(
-    nifi: &v1alpha1::NifiCluster,
-    resolved_product_image: &ResolvedProductImage,
-) -> Result<Service> {
-    let nifi_cluster_name = nifi.name_any();
-    let role_name = NifiRole::Node.to_string();
-    let mut selector: BTreeMap<String, String> = Labels::role_selector(nifi, APP_NAME, &role_name)
-        .context(LabelBuildSnafu)?
-        .into();
+fn build_reporting_task_service(cluster: &ValidatedCluster) -> Result<Service> {
+    let nifi_cluster_name = cluster.name.to_string();
+    let mut selector: BTreeMap<String, String> = cluster.role_selector().into();
 
-    let service_selector_pod = get_reporting_task_service_selector_pod(nifi)?;
+    let service_selector_pod = get_reporting_task_service_selector_pod(cluster)?;
     selector.insert(
         "statefulset.kubernetes.io/pod-name".to_string(),
         service_selector_pod,
     );
 
     Ok(Service {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(nifi)
-            .name(build_reporting_task_service_name(&nifi_cluster_name))
-            .ownerreference_from_resource(nifi, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(&build_recommended_labels(
-                nifi,
-                &resolved_product_image.app_version_label_value,
-                &role_name,
-                "global",
-            ))
-            .context(MetadataBuildSnafu)?
+        metadata: cluster
+            .object_meta(
+                build_reporting_task_service_name(&nifi_cluster_name),
+                &reporting_task_role_group(),
+            )
             .build(),
         spec: Some(ServiceSpec {
             ports: Some(vec![ServicePort {
@@ -265,14 +226,17 @@ fn build_reporting_task_service(
 /// [`secret-operator`](https://github.com/stackabletech/secret-operator)
 ///
 fn build_reporting_task_job(
-    nifi: &v1alpha1::NifiCluster,
-    resolved_product_image: &ResolvedProductImage,
+    cluster: &ValidatedCluster,
     cluster_info: &KubernetesClusterInfo,
-    nifi_auth_config: &NifiAuthenticationConfig,
     sa_name: &str,
 ) -> Result<Job> {
-    let reporting_task_fqdn_service_name =
-        build_reporting_task_fqdn_service_name(nifi, cluster_info)?;
+    let resolved_product_image = &cluster.image;
+    let nifi_auth_config = &cluster.cluster_config.authentication;
+    let reporting_task_fqdn_service_name = build_reporting_task_fqdn_service_name(
+        cluster.name.as_ref(),
+        &cluster.namespace,
+        cluster_info,
+    );
     let product_version = &resolved_product_image.product_version;
     let nifi_connect_url =
         format!("https://{reporting_task_fqdn_service_name}:{HTTPS_PORT}/nifi-api",);
@@ -291,24 +255,20 @@ fn build_reporting_task_job(
     };
 
     let args = [
-        "/stackable/python/create_nifi_reporting_task.py".to_string(),
+        REPORTING_TASK_SCRIPT_PATH.to_string(),
         format!("-n {nifi_connect_url}"),
         user_name_command,
         format!("-p \"$(cat {admin_password_file})\""),
         format!("-m {METRICS_PORT}"),
         format!("-c {REPORTING_TASK_CERT_VOLUME_MOUNT}/ca.crt"),
     ];
-    let mut cb = ContainerBuilder::new(REPORTING_TASK_CONTAINER_NAME).with_context(|_| {
-        IllegalContainerNameSnafu {
-            container_name: REPORTING_TASK_CONTAINER_NAME.to_string(),
-        }
-    })?;
+    let mut cb = new_container_builder(&REPORTING_TASK_CONTAINER_NAME);
     cb.image_from_product_image(resolved_product_image)
         .command(vec!["sh".to_string(), "-c".to_string()])
         .args(vec![args.join(" ")])
         // The VolumeMount for the secret operator key store certificates
         .add_volume_mount(
-            REPORTING_TASK_CERT_VOLUME_NAME,
+            REPORTING_TASK_CERT_VOLUME_NAME.to_string(),
             REPORTING_TASK_CERT_VOLUME_MOUNT,
         )
         .context(AddVolumeMountSnafu)?
@@ -323,7 +283,7 @@ fn build_reporting_task_job(
 
     let job_name = format!(
         "{}-create-reporting-task-{}",
-        nifi.name_any(),
+        cluster.name,
         product_version.replace('.', "-").to_ascii_lowercase()
     );
 
@@ -335,10 +295,9 @@ fn build_reporting_task_job(
     let mut pod_template = pb
         .metadata(
             ObjectMetaBuilder::new()
-                .name_and_namespace(nifi)
+                .name_and_namespace(cluster)
                 .name(job_name.clone())
-                .ownerreference_from_resource(nifi, None, Some(true))
-                .context(ObjectMissingMetadataForOwnerRefSnafu)?
+                .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
                 .build(),
         )
         .image_pull_secrets_from_product_image(resolved_product_image)
@@ -348,8 +307,8 @@ fn build_reporting_task_job(
         .add_container(cb.build())
         .add_volume(
             build_tls_volume(
-                nifi,
-                REPORTING_TASK_CERT_VOLUME_NAME,
+                &cluster.cluster_config.server_tls_secret_class,
+                &REPORTING_TASK_CERT_VOLUME_NAME,
                 Vec::<String>::new(),
                 SecretFormat::TlsPem,
                 // The certificate is only used for the REST API call, so a short lifetime is sufficient.
@@ -364,27 +323,11 @@ fn build_reporting_task_job(
         .context(AddVolumeSnafu)?
         .build_template();
 
-    pod_template.merge_from(
-        nifi.spec
-            .cluster_config
-            .create_reporting_task_job
-            .pod_overrides
-            .clone(),
-    );
+    pod_template.merge_from(cluster.cluster_config.reporting_task.pod_overrides.clone());
 
     let job = Job {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(nifi)
-            .name(job_name)
-            .ownerreference_from_resource(nifi, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(&build_recommended_labels(
-                nifi,
-                &resolved_product_image.app_version_label_value,
-                "global",
-                "global",
-            ))
-            .context(MetadataBuildSnafu)?
+        metadata: cluster
+            .object_meta(job_name, &reporting_task_role_group())
             .build(),
         spec: Some(JobSpec {
             backoff_limit: Some(100),

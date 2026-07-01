@@ -1,0 +1,161 @@
+# Run tests with `./test-vector.sh`
+#
+# A downside of these test cases is that they compare the whole event and that the message can
+# contain source code positions in vector.yaml, e.g. "function call error for \"parse_xml\" at
+# (584:643)". Please adapt the tests if you change VRL code in vector.yaml.
+---
+tests:
+  - name: Test stdout log entry
+    inputs:
+      - type: log
+        insert_at: processed_files_stdout
+        log_fields:
+          file: /stackable/log/nifi/nifi.stdout.log
+          message: Starting Apache NiFi
+          pod: nifi-node-default-0
+          source_type: file
+          timestamp: 2025-10-02T09:27:28.582Z
+    outputs:
+      - extract_from: extended_logs
+        conditions:
+          - type: vrl
+            source: |
+              expected_log_event = {
+                "cluster": "nifi",
+                "container": "nifi",
+                "file": "nifi.stdout.log",
+                "level": "INFO",
+                "logger": "ROOT",
+                "message": "Starting Apache NiFi",
+                "namespace": "default",
+                "pod": "nifi-node-default-0",
+                "role": "node",
+                "roleGroup": "default",
+                "timestamp": "2025-10-02T09:27:28.582Z"
+              }
+
+              assert_eq!(expected_log_event, .)
+  - name: Test stderr log entry
+    inputs:
+      - type: log
+        insert_at: processed_files_stderr
+        log_fields:
+          file: /stackable/log/nifi/nifi.stderr.log
+          message: "Exception in thread \"main\""
+          pod: nifi-node-default-0
+          source_type: file
+          timestamp: 2025-10-02T09:27:28.582Z
+    outputs:
+      - extract_from: extended_logs
+        conditions:
+          - type: vrl
+            source: |
+              expected_log_event = {
+                "cluster": "nifi",
+                "container": "nifi",
+                "file": "nifi.stderr.log",
+                "level": "ERROR",
+                "logger": "ROOT",
+                "message": "Exception in thread \"main\"",
+                "namespace": "default",
+                "pod": "nifi-node-default-0",
+                "role": "node",
+                "roleGroup": "default",
+                "timestamp": "2025-10-02T09:27:28.582Z"
+              }
+
+              assert_eq!(expected_log_event, .)
+  - name: Test log4j XML log entry without throwable
+    inputs:
+      - type: log
+        insert_at: processed_files_log4j
+        log_fields:
+          file: /stackable/log/nifi/nifi.log4j.xml
+          message: >
+            <log4j:event logger="org.apache.nifi.web.server.JettyServer"
+            timestamp="1704067200000" level="INFO"
+            thread="main"><log4j:message>NiFi has
+            started</log4j:message></log4j:event>
+          pod: nifi-node-default-0
+          source_type: file
+          timestamp: 2025-10-02T09:27:29.473487331Z
+    outputs:
+      - extract_from: extended_logs
+        conditions:
+          - type: vrl
+            source: |
+              expected_log_event = {
+                "cluster": "nifi",
+                "container": "nifi",
+                "file": "nifi.log4j.xml",
+                "level": "INFO",
+                "logger": "org.apache.nifi.web.server.JettyServer",
+                "message": "NiFi has started",
+                "namespace": "default",
+                "pod": "nifi-node-default-0",
+                "role": "node",
+                "roleGroup": "default",
+                "timestamp": t'2024-01-01T00:00:00Z'
+              }
+
+              assert_eq!(expected_log_event, .)
+  - name: Test Vector internal logs
+    inputs:
+      - type: log
+        insert_at: filtered_logs_vector
+        log_fields:
+          arch: x86_64
+          message: Vector has started.
+          metadata:
+            kind: event
+            level: INFO
+            module_path: vector::internal_events::process
+            target: vector
+          pid: 14
+          pod: nifi-node-default-0
+          source_type: internal_logs
+          timestamp: 2025-10-02T09:46:14.479381097Z
+          version: 0.49.0
+    outputs:
+      - extract_from: extended_logs
+        conditions:
+          - type: vrl
+            source: |
+              expected_log_event = {
+                "arch": "x86_64",
+                "cluster": "nifi",
+                "container": "vector",
+                "level": "INFO",
+                "logger": "vector::internal_events::process",
+                "message": "Vector has started.",
+                "namespace": "default",
+                "pod": "nifi-node-default-0",
+                "role": "node",
+                "roleGroup": "default",
+                "timestamp": "2025-10-02T09:46:14.479381097Z",
+                "version": "0.49.0"
+              }
+
+              assert_eq!(expected_log_event, .)
+  - name: Test Vector internal log level filtering - INFO passes
+    inputs:
+      - type: log
+        insert_at: filtered_logs_vector
+        log_fields:
+          metadata:
+            level: INFO
+    outputs:
+      - extract_from: filtered_logs_vector
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!("INFO", .metadata.level)
+  - name: Test Vector internal log level filtering - DEBUG dropped
+    inputs:
+      - type: log
+        insert_at: filtered_logs_vector
+        log_fields:
+          metadata:
+            level: DEBUG
+    no_outputs_from:
+      - filtered_logs_vector

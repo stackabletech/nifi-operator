@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 use snafu::Snafu;
-use stackable_operator::schemars::{self, JsonSchema};
+use stackable_operator::{
+    schemars::{self, JsonSchema},
+    v2::types::kubernetes::SecretName,
+};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -14,13 +17,13 @@ pub enum Error {
 /// NiFi supports encrypting sensitive properties in processors as they are written to disk.
 /// You can configure the encryption algorithm and the key to use.
 /// You can also let the operator generate an encryption key for you.
-#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiSensitivePropertiesConfig {
     /// A reference to a Secret. The Secret needs to contain a key `nifiSensitivePropsKey`.
     /// If `autoGenerate` is false and this object is missing, the Operator will raise an error.
     /// The encryption key needs to be at least 12 characters long.
-    pub key_secret: String,
+    pub key_secret: SecretName,
 
     /// Whether to generate the `keySecret` if it is missing.
     /// Defaults to `false`.
@@ -53,11 +56,11 @@ pub struct NifiSensitivePropertiesConfig {
 )]
 #[serde(rename_all = "camelCase")]
 pub enum NifiSensitiveKeyAlgorithm {
-    // supported in v2
+    // Supported in NiFi 2.x
     #[strum(serialize = "NIFI_PBKDF2_AES_GCM_256")]
     NifiPbkdf2AesGcm256,
 
-    // supported in v2
+    // Supported in NiFi 2.x
     #[default]
     #[strum(serialize = "NIFI_ARGON2_AES_GCM_256")]
     NifiArgon2AesGcm256,
@@ -113,5 +116,44 @@ impl NifiSensitiveKeyAlgorithm {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Error, NifiSensitiveKeyAlgorithm};
+
+    #[test]
+    fn supported_algorithms_are_accepted_on_nifi_2() {
+        for algorithm in [
+            NifiSensitiveKeyAlgorithm::NifiPbkdf2AesGcm256,
+            NifiSensitiveKeyAlgorithm::NifiArgon2AesGcm256,
+        ] {
+            assert!(
+                algorithm.check_for_nifi_version("2.9.0").is_ok(),
+                "{algorithm} must be supported on NiFi 2.x"
+            );
+        }
+    }
+
+    #[test]
+    fn deprecated_algorithm_is_allowed_with_a_warning_on_nifi_1() {
+        // Deprecated algorithms only warn (do not error) on NiFi 1.x.
+        assert!(
+            NifiSensitiveKeyAlgorithm::NifiArgon2AesGcm128
+                .check_for_nifi_version("1.27.0")
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn deprecated_algorithm_is_rejected_on_nifi_2() {
+        let error = NifiSensitiveKeyAlgorithm::NifiScryptAesGcm256
+            .check_for_nifi_version("2.9.0")
+            .expect_err("a deprecated algorithm must be rejected on NiFi 2.x");
+        assert!(matches!(
+            error,
+            Error::UnsupportedSensitivePropertiesAlgorithm { .. }
+        ));
     }
 }
