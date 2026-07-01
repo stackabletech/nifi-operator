@@ -191,11 +191,11 @@ fn get_reporting_task_service_selector_pod(nifi: &v1alpha1::NifiCluster) -> Resu
             selector_role_group = Some(role_group_name);
         }
 
-        if let Some(replicas) = role_group.replicas {
-            if replicas > 0 {
-                selector_role_group = Some(role_group_name);
-                break;
-            }
+        if let Some(replicas) = role_group.replicas
+            && replicas > 0
+        {
+            selector_role_group = Some(role_group_name);
+            break;
         }
     }
 
