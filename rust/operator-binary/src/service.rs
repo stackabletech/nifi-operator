@@ -8,7 +8,7 @@ use stackable_operator::{
     role_utils::RoleGroupRef,
 };
 
-use crate::crd::{HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT, METRICS_PORT_NAME, v1alpha1};
+use crate::crd::{HTTPS_PORT, HTTPS_PORT_NAME, v1alpha1};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -44,7 +44,7 @@ pub fn build_rolegroup_headless_service(
             // Internal communication does not need to be exposed
             type_: Some("ClusterIP".to_string()),
             cluster_ip: Some("None".to_string()),
-            ports: Some(headless_service_ports()),
+            ports: Some(vec![headless_service_port()]),
             selector: Some(selector),
             publish_not_ready_addresses: Some(true),
             ..ServiceSpec::default()
@@ -59,7 +59,6 @@ pub fn build_rolegroup_metrics_service(
     role_group_ref: &RoleGroupRef<v1alpha1::NifiCluster>,
     object_labels: ObjectLabels<v1alpha1::NifiCluster>,
     selector: BTreeMap<String, String>,
-    product_version: &str,
 ) -> Result<Service, Error> {
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
@@ -70,13 +69,13 @@ pub fn build_rolegroup_metrics_service(
             .with_recommended_labels(&object_labels)
             .context(MetadataBuildSnafu)?
             .with_labels(prometheus_labels())
-            .with_annotations(prometheus_annotations(product_version))
+            .with_annotations(prometheus_annotations())
             .build(),
         spec: Some(ServiceSpec {
             // Internal communication does not need to be exposed
             type_: Some("ClusterIP".to_string()),
             cluster_ip: Some("None".to_string()),
-            ports: Some(vec![metrics_service_port(product_version)]),
+            ports: Some(vec![metrics_service_port()]),
             selector: Some(selector),
             publish_not_ready_addresses: Some(true),
             ..ServiceSpec::default()
@@ -85,33 +84,22 @@ pub fn build_rolegroup_metrics_service(
     })
 }
 
-fn headless_service_ports() -> Vec<ServicePort> {
-    vec![ServicePort {
+fn headless_service_port() -> ServicePort {
+    ServicePort {
         name: Some(HTTPS_PORT_NAME.into()),
         port: HTTPS_PORT.into(),
         protocol: Some("TCP".to_string()),
         ..ServicePort::default()
-    }]
+    }
 }
 
-/// Returns the metrics port based on the NiFi version
-/// V1: Uses extra port via JMX exporter
-/// V2: Uses NiFi HTTP(S) port for metrics
-pub fn metrics_service_port(product_version: &str) -> ServicePort {
-    if product_version.starts_with("1.") {
-        ServicePort {
-            name: Some(METRICS_PORT_NAME.to_string()),
-            port: METRICS_PORT.into(),
-            protocol: Some("TCP".to_string()),
-            ..ServicePort::default()
-        }
-    } else {
-        ServicePort {
-            name: Some(HTTPS_PORT_NAME.into()),
-            port: HTTPS_PORT.into(),
-            protocol: Some("TCP".to_string()),
-            ..ServicePort::default()
-        }
+/// Returns the metrics port, which is the NiFi HTTP(S) port.
+pub fn metrics_service_port() -> ServicePort {
+    ServicePort {
+        name: Some(HTTPS_PORT_NAME.into()),
+        port: HTTPS_PORT.into(),
+        protocol: Some("TCP".to_string()),
+        ..ServicePort::default()
     }
 }
 
@@ -125,17 +113,14 @@ fn prometheus_labels() -> Labels {
 /// These annotations can be used in a ServiceMonitor.
 ///
 /// see also <https://github.com/prometheus-community/helm-charts/blob/prometheus-27.32.0/charts/prometheus/values.yaml#L983-L1036>
-fn prometheus_annotations(product_version: &str) -> Annotations {
-    let (path, port, scheme) = if product_version.starts_with("1.") {
-        ("/metrics", METRICS_PORT, "http")
-    } else {
-        ("/nifi-api/flow/metrics/prometheus", HTTPS_PORT, "https")
-    };
-
+fn prometheus_annotations() -> Annotations {
     Annotations::try_from([
-        ("prometheus.io/path".to_owned(), path.to_owned()),
-        ("prometheus.io/port".to_owned(), port.to_string()),
-        ("prometheus.io/scheme".to_owned(), scheme.to_owned()),
+        (
+            "prometheus.io/path".to_owned(),
+            "/nifi-api/flow/metrics/prometheus".to_owned(),
+        ),
+        ("prometheus.io/port".to_owned(), HTTPS_PORT.to_string()),
+        ("prometheus.io/scheme".to_owned(), "https".to_owned()),
         ("prometheus.io/scrape".to_owned(), "true".to_owned()),
     ])
     .expect("should be valid annotations")

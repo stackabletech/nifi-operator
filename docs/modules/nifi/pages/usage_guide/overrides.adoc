@@ -96,25 +96,6 @@ Pod overrides allow you to configure any attributes that can be configured on a 
 
 Read the xref:concepts:overrides.adoc#pod-overrides[Pod overrides concepts page] to learn more.
 
-=== Pod overrides on create-reporting-task Job
-
-In addition to podOverrides on the created StatefulSet we also support podOverrides on the created Kubernetes Job, which enables the export of Prometheus metrics within NiFi.
-
-[source,yaml]
-----
-spec:
-  clusterConfig:
-    createReportingTaskJob:
-      # enabled: false # You can also turn off the Job entirely
-      podOverrides: # podOverrides as usual
-        spec:
-          tolerations:
-            - key: "key1"
-              operator: "Equal"
-              value: "value1"
-              effect: "NoSchedule"
-----
-
 == JVM argument overrides
 
 Stackable operators automatically determine the set of needed JVM arguments, such as memory settings or trust- and keystores.

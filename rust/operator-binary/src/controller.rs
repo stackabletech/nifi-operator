@@ -84,21 +84,16 @@ use crate::{
     },
     crd::{
         APP_NAME, BALANCE_PORT, BALANCE_PORT_NAME, Container, HTTPS_PORT, HTTPS_PORT_NAME,
-        METRICS_PORT, METRICS_PORT_NAME, NifiConfig, NifiNodeRoleConfig, NifiRole, NifiRoleType,
-        NifiStatus, PROTOCOL_PORT, PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
+        NifiConfig, NifiNodeRoleConfig, NifiRole, NifiRoleType, NifiStatus, PROTOCOL_PORT,
+        PROTOCOL_PORT_NAME, STACKABLE_LOG_CONFIG_DIR, STACKABLE_LOG_DIR,
         authorization::NifiAccessPolicyProvider, v1alpha1,
     },
     listener::{
         LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_group_listener, build_group_listener_pvc,
         group_listener_name,
     },
-    operations::{
-        graceful_shutdown::add_graceful_shutdown_config,
-        pdb::add_pdbs,
-        upgrade::{self, ClusterVersionUpdateState},
-    },
+    operations::{graceful_shutdown::add_graceful_shutdown_config, pdb::add_pdbs},
     product_logging::extend_role_group_config_map,
-    reporting_task::{build_maybe_reporting_task, build_reporting_task_service_name},
     security::{
         authentication::{
             AUTHORIZERS_XML_FILE_NAME, LOGIN_IDENTITY_PROVIDERS_XML_FILE_NAME,
@@ -187,16 +182,6 @@ pub enum Error {
     ApplyRoleGroupStatefulSet {
         source: stackable_operator::cluster_resources::Error,
         rolegroup: RoleGroupRef<v1alpha1::NifiCluster>,
-    },
-
-    #[snafu(display("failed to apply create ReportingTask service"))]
-    ApplyCreateReportingTaskService {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to apply create ReportingTask job"))]
-    ApplyCreateReportingTaskJob {
-        source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("object is missing metadata to build owner reference"))]
@@ -309,11 +294,6 @@ pub enum Error {
     #[snafu(display("security failure"))]
     Security { source: crate::security::Error },
 
-    #[snafu(display("reporting task failure"))]
-    ReportingTask {
-        source: crate::reporting_task::Error,
-    },
-
     #[snafu(display("failed to configure logging"))]
     ConfigureLogging { source: LoggingError },
 
@@ -324,9 +304,6 @@ pub enum Error {
     AddVolumeMount {
         source: builder::pod::container::Error,
     },
-
-    #[snafu(display("Failed to determine the state of the version upgrade procedure"))]
-    ClusterVersionUpdateState { source: upgrade::Error },
 
     #[snafu(display("failed to apply group listener"))]
     ApplyGroupListener {
@@ -375,7 +352,6 @@ pub async fn reconcile_nifi(
         &dereferenced_objects,
         &ctx.operator_environment,
         &ctx.product_config,
-        &client.kubernetes_cluster_info,
     )
     .context(ValidateClusterSnafu)?;
 
@@ -389,34 +365,6 @@ pub async fn reconcile_nifi(
     check_or_generate_sensitive_key(client, nifi)
         .await
         .context(SecuritySnafu)?;
-
-    // If rolling upgrade is supported, kubernetes takes care of the cluster scaling automatically
-    // otherwise the operator handles it
-    // manage our own flow for upgrade from 1.x.x to 1.x.x/2.x.x
-    // TODO: this can be removed once 1.x.x is longer supported
-    let mut cluster_version_update_state = ClusterVersionUpdateState::NoVersionChange;
-    let deployed_version = nifi
-        .status
-        .as_ref()
-        .and_then(|status| status.deployed_version.as_ref());
-    let rolling_upgrade_supported = resolved_product_image.product_version.starts_with("2.")
-        && deployed_version.is_some_and(|v| v.starts_with("2."));
-
-    if !rolling_upgrade_supported {
-        cluster_version_update_state = upgrade::cluster_version_update_state(
-            nifi,
-            client,
-            &resolved_product_image.product_version,
-            deployed_version,
-        )
-        .await
-        .context(ClusterVersionUpdateStateSnafu)?;
-
-        if cluster_version_update_state == ClusterVersionUpdateState::UpdateInProgress {
-            return Ok(Action::await_change());
-        }
-    }
-    // end todo
 
     let mut cluster_resources = ClusterResources::new(
         APP_NAME,
@@ -521,12 +469,7 @@ pub async fn reconcile_nifi(
             .await?;
 
             let role_group = role.role_groups.get(&rolegroup.role_group);
-            let replicas =
-                if cluster_version_update_state == ClusterVersionUpdateState::UpdateRequested {
-                    Some(0)
-                } else {
-                    role_group.and_then(|rg| rg.replicas).map(i32::from)
-                };
+            let replicas = role_group.and_then(|rg| rg.replicas).map(i32::from);
 
             let rg_statefulset = build_node_rolegroup_statefulset(
                 nifi,
@@ -538,7 +481,6 @@ pub async fn reconcile_nifi(
                 &merged_config,
                 &authentication_config,
                 &authorization_config,
-                rolling_upgrade_supported,
                 replicas,
                 &rbac_sa.name_any(),
                 &git_sync_resources,
@@ -550,7 +492,6 @@ pub async fn reconcile_nifi(
                 &rolegroup,
                 role_group_service_recommended_labels,
                 role_group_service_selector.into(),
-                &resolved_product_image.product_version,
             )
             .context(ServiceConfigurationSnafu)?;
 
@@ -624,29 +565,6 @@ pub async fn reconcile_nifi(
             .context(ApplyGroupListenerSnafu)?;
     }
 
-    // Only add the reporting task in case it is enabled.
-    if nifi.spec.cluster_config.create_reporting_task_job.enabled {
-        if let Some((reporting_task_job, reporting_task_service)) = build_maybe_reporting_task(
-            nifi,
-            &resolved_product_image,
-            &client.kubernetes_cluster_info,
-            &authentication_config,
-            &rbac_sa.name_any(),
-        )
-        .context(ReportingTaskSnafu)?
-        {
-            cluster_resources
-                .add(client, reporting_task_service)
-                .await
-                .context(ApplyCreateReportingTaskServiceSnafu)?;
-
-            cluster_resources
-                .add(client, reporting_task_job)
-                .await
-                .context(ApplyCreateReportingTaskJobSnafu)?;
-        }
-    }
-
     // Remove any orphaned resources that still exist in k8s, but have not been added to
     // the cluster resources during the reconciliation
     // TODO: this doesn't cater for a graceful cluster shrink, for that we'd need to predict
@@ -664,19 +582,9 @@ pub async fn reconcile_nifi(
 
     // Update the deployed product version in the status after everything has been deployed, unless
     // we are still in the process of updating
-    let status = if cluster_version_update_state != ClusterVersionUpdateState::UpdateRequested {
-        NifiStatus {
-            deployed_version: Some(resolved_product_image.product_version),
-            conditions,
-        }
-    } else {
-        NifiStatus {
-            deployed_version: nifi
-                .status
-                .as_ref()
-                .and_then(|status| status.deployed_version.clone()),
-            conditions,
-        }
+    let status = NifiStatus {
+        deployed_version: Some(resolved_product_image.product_version),
+        conditions,
     };
 
     client
@@ -766,7 +674,6 @@ async fn build_node_rolegroup_config_map(
                         kind: NIFI_PROPERTIES.to_string(),
                     })?
                     .clone(),
-                resolved_product_image.product_version.as_ref(),
                 git_sync_resources,
             )
             .with_context(|_| BuildProductConfigSnafu {
@@ -821,7 +728,6 @@ async fn build_node_rolegroup_statefulset(
     merged_config: &NifiConfig,
     authentication_config: &NifiAuthenticationConfig,
     authorization_config: &ResolvedNifiAuthorizationConfig,
-    rolling_update_supported: bool,
     replicas: Option<i32>,
     service_account_name: &str,
     git_sync_resources: &git_sync::v1alpha2::GitSyncResources,
@@ -1148,11 +1054,6 @@ async fn build_node_rolegroup_statefulset(
         })
         .resources(merged_config.resources.clone().into());
 
-    // NiFi 2.x.x offers nifi-api/flow/metrics/prometheus at the HTTPS_PORT, therefore METRICS_PORT is only required for NiFi 1.x.x.
-    if resolved_product_image.product_version.starts_with("1.") {
-        container_nifi.add_container_port(METRICS_PORT_NAME, METRICS_PORT.into());
-    }
-
     let mut pod_builder = PodBuilder::new();
 
     let recommended_object_labels = build_recommended_labels(
@@ -1288,7 +1189,6 @@ async fn build_node_rolegroup_statefulset(
     let requested_secret_lifetime = merged_config
         .requested_secret_lifetime
         .context(MissingSecretLifetimeSnafu)?;
-    let nifi_cluster_name = nifi.name_any();
     pod_builder
         .metadata(metadata)
         .image_pull_secrets_from_product_image(resolved_product_image)
@@ -1331,10 +1231,7 @@ async fn build_node_rolegroup_statefulset(
             build_tls_volume(
                 nifi,
                 KEYSTORE_VOLUME_NAME,
-                [
-                    rolegroup_ref.rolegroup_metrics_service_name(),
-                    build_reporting_task_service_name(&nifi_cluster_name),
-                ],
+                [rolegroup_ref.rolegroup_metrics_service_name()],
                 SecretFormat::TlsPkcs12,
                 &requested_secret_lifetime,
                 Some(LISTENER_VOLUME_NAME),
@@ -1418,11 +1315,7 @@ async fn build_node_rolegroup_statefulset(
             service_name: Some(rolegroup_ref.rolegroup_headless_service_name()),
             template: pod_template,
             update_strategy: Some(StatefulSetUpdateStrategy {
-                type_: if rolling_update_supported {
-                    Some("RollingUpdate".to_string())
-                } else {
-                    Some("OnDelete".to_string())
-                },
+                type_: Some("RollingUpdate".to_string()),
                 ..StatefulSetUpdateStrategy::default()
             }),
             volume_claim_templates: Some(get_volume_claim_templates(

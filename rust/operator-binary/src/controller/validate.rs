@@ -11,15 +11,13 @@ use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     commons::product_image_selection::{self, ResolvedProductImage},
     product_config_utils::ValidatedRoleConfigByPropertyKind,
-    utils::cluster_info::KubernetesClusterInfo,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
     config::{self, validated_product_config},
     controller::dereference::DereferencedObjects,
-    crd::{HTTPS_PORT, v1alpha1},
-    reporting_task,
+    crd::v1alpha1,
     security::{
         authentication::{self, NifiAuthenticationConfig},
         authorization::ResolvedNifiAuthorizationConfig,
@@ -46,11 +44,6 @@ pub enum Error {
         #[snafu(source(from(config::Error, Box::new)))]
         source: Box<config::Error>,
     },
-
-    #[snafu(display("failed to build reporting task service name"))]
-    ReportingTask {
-        source: crate::reporting_task::Error,
-    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -71,7 +64,6 @@ pub fn validate(
     dereferenced_objects: &DereferencedObjects,
     operator_environment: &OperatorEnvironmentOptions,
     product_config: &ProductConfigManager,
-    cluster_info: &KubernetesClusterInfo,
 ) -> Result<ValidatedInputs> {
     let image = nifi
         .spec
@@ -100,7 +92,7 @@ pub fn validate(
     )
     .context(ProductConfigLoadFailedSnafu)?;
 
-    let proxy_hosts = compute_proxy_hosts(nifi, cluster_info)?;
+    let proxy_hosts = compute_proxy_hosts(nifi)?;
 
     Ok(ValidatedInputs {
         image,
@@ -111,10 +103,7 @@ pub fn validate(
     })
 }
 
-fn compute_proxy_hosts(
-    nifi: &v1alpha1::NifiCluster,
-    cluster_info: &KubernetesClusterInfo,
-) -> Result<String> {
+fn compute_proxy_hosts(nifi: &v1alpha1::NifiCluster) -> Result<String> {
     let host_header_check = &nifi.spec.cluster_config.host_header_check;
 
     if host_header_check.allow_all {
@@ -134,15 +123,6 @@ fn compute_proxy_hosts(
         "${env:LISTENER_DEFAULT_ADDRESS}:${env:LISTENER_DEFAULT_PORT_HTTPS}".to_string(),
     ]);
     proxy_hosts.extend(host_header_check.additional_allowed_hosts.iter().cloned());
-
-    // Reporting task only exists for NiFi 1.x
-    if nifi.spec.image.product_version().starts_with("1.") {
-        let reporting_task_service_name =
-            reporting_task::build_reporting_task_fqdn_service_name(nifi, cluster_info)
-                .context(ReportingTaskSnafu)?;
-
-        proxy_hosts.insert(format!("{reporting_task_service_name}:{HTTPS_PORT}"));
-    }
 
     let mut proxy_hosts = Vec::from_iter(proxy_hosts);
     proxy_hosts.sort();

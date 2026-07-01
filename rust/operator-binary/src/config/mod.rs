@@ -5,7 +5,7 @@ use std::{
 
 use jvm::build_merged_jvm_config;
 use product_config::{ProductConfigManager, types::PropertyNameKind};
-use snafu::{ResultExt, Snafu, ensure};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     commons::resources::Resources,
     crd::git_sync,
@@ -20,7 +20,6 @@ use strum::{Display, EnumIter};
 use crate::{
     crd::{
         HTTPS_PORT, NifiConfig, NifiRole, NifiRoleType, NifiStorageConfig, PROTOCOL_PORT,
-        sensitive_properties,
         v1alpha1::{self, NifiClusteringBackend},
     },
     operations::graceful_shutdown::graceful_shutdown_config_properties,
@@ -101,14 +100,6 @@ pub enum Error {
 
     #[snafu(display("failed to generate OIDC config"))]
     GenerateOidcConfig { source: oidc::Error },
-
-    #[snafu(display(
-        "NiFi 1.x requires ZooKeeper (hint: upgrade to NiFi 2.x or set .spec.clusterConfig.zookeeperConfigMapName)"
-    ))]
-    Nifi1RequiresZookeeper,
-
-    #[snafu(display("failed to configure sensitive properties"))]
-    ConfigureSensitiveProperties { source: sensitive_properties::Error },
 }
 
 /// Create the NiFi bootstrap.conf
@@ -156,35 +147,14 @@ pub fn build_nifi_properties(
     proxy_hosts: &str,
     auth_config: &NifiAuthenticationConfig,
     overrides: BTreeMap<String, String>,
-    product_version: &str,
     git_sync_resources: &git_sync::v1alpha2::GitSyncResources,
 ) -> Result<String, Error> {
-    // TODO: Remove once we dropped support for all NiFi 1.x versions
-    let is_nifi_1 = product_version.starts_with("1.");
-
     let mut properties = BTreeMap::new();
     // Core Properties
-    // According to https://cwiki.apache.org/confluence/display/NIFI/Migration+Guidance#MigrationGuidance-Migratingto2.0.0-M1
-    // The nifi.flow.configuration.file property in nifi.properties must be changed to reference
-    // "flow.json.gz" instead of "flow.xml.gz"
-    // TODO: Remove once we dropped support for all 1.x.x versions
-    // TODO(malte): In order to use CLI tools like: ./bin/nifi.sh set-sensitive-properties-algorithm NIFI_PBKDF2_AES_GCM_256
-    // we have to set both "nifi.flow.configuration.file" and "nifi.flow.configuration.json.file" in NiFi 1.x.x.
-    if is_nifi_1 {
-        properties.insert(
-            "nifi.flow.configuration.file".to_string(),
-            NifiRepository::Database.mount_path() + "/flow.xml.gz",
-        );
-        properties.insert(
-            "nifi.flow.configuration.json.file".to_string(),
-            NifiRepository::Database.mount_path() + "/flow.json.gz",
-        );
-    } else {
-        properties.insert(
-            "nifi.flow.configuration.file".to_string(),
-            NifiRepository::Database.mount_path() + "/flow.json.gz",
-        );
-    }
+    properties.insert(
+        "nifi.flow.configuration.file".to_string(),
+        NifiRepository::Database.mount_path() + "/flow.json.gz",
+    );
 
     properties.insert(
         "nifi.flow.configuration.archive.enabled".to_string(),
@@ -535,10 +505,6 @@ pub fn build_nifi_properties(
         .clone()
         .unwrap_or_default();
 
-    sensitive_properties_algorithm
-        .check_for_nifi_version(spec.image.product_version())
-        .context(ConfigureSensitivePropertiesSnafu)?;
-
     properties.insert(
         "nifi.sensitive.props.algorithm".to_string(),
         sensitive_properties_algorithm.to_string(),
@@ -635,8 +601,6 @@ pub fn build_nifi_properties(
         }
 
         v1alpha1::NifiClusteringBackend::Kubernetes {} => {
-            ensure!(!is_nifi_1, Nifi1RequiresZookeeperSnafu);
-
             properties.insert(
                 "nifi.cluster.leader.election.implementation".to_string(),
                 "KubernetesLeaderElectionManager".to_string(),
@@ -653,9 +617,6 @@ pub fn build_nifi_properties(
     //####################
     // Custom components #
     //####################
-    // NiFi 1.x does not support Python components and the Python configuration below is just
-    // ignored.
-
     // The command used to launch Python.
     // This property must be set to enable Python-based processors.
     properties.insert("nifi.python.command".to_string(), "python3".to_string());
