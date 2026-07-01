@@ -56,9 +56,6 @@ spec:
 {% if test_scenario['values']['iceberg-use-kerberos'] == 'true' %}
         nifi.kerberos.krb5.file: /stackable/userdata/kerberos/krb5.conf
 {% endif %}
-
-        # Quicker startup, and we only have a single node
-        nifi.cluster.flow.election.max.wait.time: 5 secs
     jvmArgumentOverrides:
       add:
         # Needed for NiFi to trust the minio cert

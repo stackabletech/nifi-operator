@@ -289,6 +289,21 @@ impl v1alpha1::NifiCluster {
         tracing::debug!("Merged config: {:?}", conf_rolegroup);
         fragment::validate(conf_rolegroup).context(FragmentValidationFailureSnafu)
     }
+
+    /// Returns [`Some<u32>`] in case the number of nodes is hard-coded to a certain value.
+    ///
+    /// This is the case when all `replicas` are set to [`Some<u16>`], in which case they are simply
+    /// summed.
+    pub fn maybe_fixed_node_count(&self) -> Option<u32> {
+        self.spec
+            .nodes
+            .as_ref()?
+            .role_groups
+            .values()
+            .map(|rg| rg.replicas.map(u32::from))
+            // As the individual replicas are [`u16`]s, this has plenty space
+            .sum()
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]

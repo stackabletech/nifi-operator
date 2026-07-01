@@ -71,7 +71,6 @@ For example per role group:
 nodes:
   roleGroups:
     default:
-      config: {}
       replicas: 1
       envOverrides:
         MY_ENV_VAR: "MY_VALUE"
@@ -86,7 +85,6 @@ nodes:
     MY_ENV_VAR: "MY_VALUE"
   roleGroups:
     default:
-      config: {}
       replicas: 1
 ----
 

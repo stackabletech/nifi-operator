@@ -756,7 +756,7 @@ async fn build_node_rolegroup_config_map(
         .add_data(
             NIFI_PROPERTIES,
             build_nifi_properties(
-                &nifi.spec,
+                nifi,
                 &merged_config.resources,
                 proxy_hosts,
                 authentication_config,
