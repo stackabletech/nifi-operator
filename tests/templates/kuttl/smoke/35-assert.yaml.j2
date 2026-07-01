@@ -122,8 +122,7 @@ commands:
       nifi.properties: |
         nifi.administrative.yield.duration=30 sec
         nifi.authorizer.configuration.file=/stackable/nifi/conf/authorizers.xml
-        nifi.cluster.flow.election.max.candidates=
-        nifi.cluster.flow.election.max.wait.time=10 secs
+        nifi.cluster.flow.election.max.candidates=2
         nifi.cluster.is.node=true
 {% if test_scenario['values']['use-zookeeper-manager'] == 'true' %}
         nifi.cluster.leader.election.implementation=CuratorLeaderElectionManager
