@@ -21,6 +21,12 @@ All notable changes to this project will be documented in this file.
 - Set `nifi.content.repository.archive.max.retention.period` to `3 days` (previously empty, which NiFi interprets as `Long.MAX_VALUE` and effectively disables time-based archive purge). Without a time-based ceiling, the content archive can grow to half the content PVC and accumulate millions of files, which makes the synchronous startup directory scan in `FileSystemRepository.initializeRepository` very slow. Users requiring a longer content-replay window can extend via `configOverrides`. The provenance audit trail is independent of this setting and unaffected ([#936]).
 - test: Bump vector-aggregator to 0.55.0, replace /graphql call with gRPC call ([#940]).
 
+### Removed
+
+- BREAKING: Remove support for NiFi 1.x.
+  This removes the Prometheus reporting-task Job (and its `spec.clusterConfig.createReportingTaskJob` field), the pre-2.x non-rolling upgrade handling, the dedicated metrics port, and the sensitive-properties algorithms that were only supported on NiFi 1.x.
+  `status.deployed_version` is retained even though it no longer drives the (now removed) non-rolling upgrade state machine, as we don't want a breaking change to the status just for this ([#954]).
+
 ### Fixed
 
 - Fix broken link to the NiFi authorization usage guide in the `spec.clusterConfig.authorization` CRD doc (`usage-guide` -> `usage_guide`) ([#924]).
@@ -34,6 +40,7 @@ All notable changes to this project will be documented in this file.
 [#935]: https://github.com/stackabletech/nifi-operator/pull/935
 [#936]: https://github.com/stackabletech/nifi-operator/pull/936
 [#940]: https://github.com/stackabletech/nifi-operator/pull/940
+[#954]: https://github.com/stackabletech/nifi-operator/pull/954
 
 ## [26.3.0] - 2026-03-16
 

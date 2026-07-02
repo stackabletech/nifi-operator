@@ -81,17 +81,6 @@ rules:
       - list
       - patch
       - watch
-  # Optional reporting-task Job (NiFi 1.x only). Applied via SSA and tracked for orphan cleanup.
-  - apiGroups:
-      - batch
-    resources:
-      - jobs
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
   # PodDisruptionBudget created per role. Applied via SSA and tracked for orphan cleanup.
   - apiGroups:
       - policy

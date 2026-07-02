@@ -44,7 +44,6 @@ mod crd;
 mod listener;
 mod operations;
 mod product_logging;
-mod reporting_task;
 mod security;
 mod service;
 mod webhooks;

@@ -139,33 +139,6 @@ spec:
                         - accessPolicyProvider
                         type: object
                     type: object
-                  createReportingTaskJob:
-                    default:
-                      enabled: true
-                      podOverrides: {}
-                    description: |-
-                      This section creates a `create-reporting-task` Kubernetes Job, which enables the export of
-                      Prometheus metrics within NiFi.
-                    properties:
-                      enabled:
-                        default: true
-                        description: |-
-                          Whether the Kubernetes Job should be created, defaults to true. It can be helpful to disable
-                          the Job, e.g. when you configOverride an authentication mechanism, which the Job currently
-                          can't use to authenticate against NiFi.
-                        type: boolean
-                      podOverrides:
-                        default: {}
-                        description: |-
-                          Here you can define a
-                          [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core)
-                          to override any property that can be set on the Pod of the create-reporting-task Kubernetes Job.
-                          Read the
-                          [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides)
-                          for more information.
-                        type: object
-                        x-kubernetes-preserve-unknown-fields: true
-                    type: object
                   customComponentsGitSync:
                     default: []
                     description: |-
@@ -347,26 +320,11 @@ spec:
                           `nifiPbkdf2AesGcm256` (the default value),
                           `nifiArgon2AesGcm256`,
 
-                          The following algorithms are deprecated and will be removed in future versions:
-
-                          `nifiArgon2AesGcm128`,
-                          `nifiBcryptAesGcm128`,
-                          `nifiBcryptAesGcm256`,
-                          `nifiPbkdf2AesGcm128`,
-                          `nifiScryptAesGcm128`,
-                          `nifiScryptAesGcm256`.
-
                           Learn more about the specifics of the algorithm parameters in the
                           [NiFi documentation](https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#property-encryption-algorithms).
                         enum:
                         - nifiPbkdf2AesGcm256
                         - nifiArgon2AesGcm256
-                        - nifiBcryptAesGcm128
-                        - nifiBcryptAesGcm256
-                        - nifiPbkdf2AesGcm128
-                        - nifiArgon2AesGcm128
-                        - nifiScryptAesGcm128
-                        - nifiScryptAesGcm256
                         - null
                         nullable: true
                         type: string
@@ -413,8 +371,7 @@ spec:
                       When using the [Stackable operator for Apache ZooKeeper](https://docs.stackable.tech/home/nightly/zookeeper/)
                       to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
 
-                      The Kubernetes provider will be used if this field is unset. Kubernetes is only supported for NiFi 2.x and newer,
-                      NiFi 1.x requires ZooKeeper.
+                      The Kubernetes provider will be used if this field is unset.
                     type: string
                 required:
                 - authentication
