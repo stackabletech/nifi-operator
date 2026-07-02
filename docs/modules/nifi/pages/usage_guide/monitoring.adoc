@@ -2,7 +2,7 @@
 :description: The Stackable Operator for Apache NiFi automatically configures NiFi to export Prometheus metrics.
 :prometheus-operator: https://prometheus-operator.dev/
 
-== Configure metrics in NiFi `2.x.x`
+== Configure metrics
 
 The Prometheus Reporting Task was removed in NiFi `2.x.x` in https://issues.apache.org/jira/browse/NIFI-13507[NIFI-13507,window=_blank].
 Metrics are now always exposed and can be scraped using the NiFi `metrics` Service and the HTTP path `/nifi-api/flow/metrics/prometheus`.
