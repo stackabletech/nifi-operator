@@ -1,98 +1,43 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    fmt::Write,
-};
+//! Builder for `nifi.properties`.
 
-use jvm::build_merged_jvm_config;
-use product_config::{ProductConfigManager, types::PropertyNameKind};
+use std::collections::BTreeMap;
+
 use snafu::{ResultExt, Snafu, ensure};
-use stackable_operator::{
-    commons::resources::Resources,
-    crd::git_sync,
-    memory::MemoryQuantity,
-    product_config_utils::{
-        ValidatedRoleConfigByPropertyKind, transform_all_roles_to_config,
-        validate_all_roles_and_groups_config,
+use stackable_operator::memory::MemoryQuantity;
+
+use super::{
+    ConfigFileName, env_reference, file_reference, format_properties,
+    state_management_xml::{
+        KUBERNETES_STATE_PROVIDER_ID, LOCAL_STATE_PROVIDER_ID, ZOOKEEPER_STATE_PROVIDER_ID,
     },
 };
-use strum::{Display, EnumIter};
-
 use crate::{
-    crd::{
-        HTTPS_PORT, NifiConfig, NifiRole, NifiRoleType, NifiStorageConfig, PROTOCOL_PORT,
-        sensitive_properties,
-        v1alpha1::{self, NifiClusteringBackend},
+    controller::{
+        NifiRoleGroupConfig, ValidatedCluster,
+        build::{
+            HTTPS_PORT, NIFI_CONFIG_DIRECTORY, NIFI_PYTHON_WORKING_DIRECTORY, PROTOCOL_PORT,
+            resource::statefulset::{
+                NODE_ADDRESS_ENV, STACKLET_NAME_ENV, ZOOKEEPER_CHROOT_ENV, ZOOKEEPER_HOSTS_ENV,
+            },
+        },
     },
-    operations::graceful_shutdown::graceful_shutdown_config_properties,
+    crd::{storage::NifiRepository, v1alpha1},
     security::{
         authentication::{
             NifiAuthenticationConfig, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
         },
-        oidc::{self, add_oidc_config_to_properties},
+        oidc::add_oidc_config_to_properties,
+        sensitive_key::{SENSITIVE_PROPERTY_KEY_NAME, SENSITIVE_PROPERTY_VOLUME_MOUNT},
     },
 };
 
-pub mod jvm;
+/// PKCS#12 keystore/truststore type, used for both the NiFi keystore and truststore.
+const STORE_TYPE_PKCS12: &str = "PKCS12";
 
-pub const NIFI_CONFIG_DIRECTORY: &str = "/stackable/nifi/conf";
-pub const NIFI_PYTHON_WORKING_DIRECTORY: &str = "/nifi-python-working-directory";
-pub const NIFI_PVC_STORAGE_DIRECTORY: &str = "/stackable/data";
-
-pub const NIFI_BOOTSTRAP_CONF: &str = "bootstrap.conf";
-pub const NIFI_PROPERTIES: &str = "nifi.properties";
-pub const NIFI_STATE_MANAGEMENT_XML: &str = "state-management.xml";
-pub const JVM_SECURITY_PROPERTIES_FILE: &str = "security.properties";
-
-// Keep some overhead for NiFi volumes, since cleanup is an asynchronous process that can stall active jobs
-const STORAGE_PROVENANCE_UTILIZATION_FACTOR: f32 = 0.9;
-const STORAGE_FLOW_ARCHIVE_UTILIZATION_FACTOR: f32 = 0.9;
-// Content archive only counts _old_ data, so we want to allow some space for active data as well
-const STORAGE_CONTENT_ARCHIVE_UTILIZATION_FACTOR: f32 = 0.5;
-
-#[derive(Debug, Display, EnumIter)]
-pub enum NifiRepository {
-    #[strum(serialize = "filebased")]
-    Filebased,
-    #[strum(serialize = "flowfile")]
-    Flowfile,
-    #[strum(serialize = "database")]
-    Database,
-    #[strum(serialize = "content")]
-    Content,
-    #[strum(serialize = "provenance")]
-    Provenance,
-    #[strum(serialize = "state")]
-    State,
-}
-
-impl NifiRepository {
-    pub fn repository(&self) -> String {
-        format!("{}-repository", self)
-    }
-
-    pub fn mount_path(&self) -> String {
-        format!("{NIFI_PVC_STORAGE_DIRECTORY}/{}", self)
-    }
-}
-
+/// Errors that can occur while building `nifi.properties`.
 #[derive(Snafu, Debug)]
+#[snafu(visibility(pub(crate)))]
 pub enum Error {
-    #[snafu(display("invalid product config"))]
-    InvalidProductConfig {
-        source: stackable_operator::product_config_utils::Error,
-    },
-
-    #[snafu(display("invalid memory resource configuration - missing default or value in crd?"))]
-    MissingMemoryResourceConfig,
-
-    #[snafu(display("invalid JVM config"))]
-    InvalidJVMConfig { source: jvm::Error },
-
-    #[snafu(display("failed to transform product configs"))]
-    ProductConfigTransform {
-        source: stackable_operator::product_config_utils::Error,
-    },
-
     #[snafu(display("failed to calculate storage quota for {repo} repository"))]
     CalculateStorageQuota {
         source: stackable_operator::memory::Error,
@@ -100,65 +45,34 @@ pub enum Error {
     },
 
     #[snafu(display("failed to generate OIDC config"))]
-    GenerateOidcConfig { source: oidc::Error },
+    GenerateOidcConfig {
+        source: crate::security::oidc::Error,
+    },
 
     #[snafu(display(
         "NiFi 1.x requires ZooKeeper (hint: upgrade to NiFi 2.x or set .spec.clusterConfig.zookeeperConfigMapName)"
     ))]
     Nifi1RequiresZookeeper,
-
-    #[snafu(display("failed to configure sensitive properties"))]
-    ConfigureSensitiveProperties { source: sensitive_properties::Error },
 }
 
-/// Create the NiFi bootstrap.conf
-pub fn build_bootstrap_conf(
-    merged_config: &NifiConfig,
-    overrides: BTreeMap<String, String>,
-    role: &NifiRoleType,
-    role_group: &str,
-    authorization_config: Option<&crate::security::authorization::ResolvedNifiAuthorizationConfig>,
-) -> Result<String, Error> {
-    let mut bootstrap = BTreeMap::new();
-    // Java command to use when running NiFi
-    bootstrap.insert("java".to_string(), "java".to_string());
-    // Username to use when running NiFi. This value will be ignored on Windows.
-    bootstrap.insert("run.as".to_string(), "".to_string());
-    // Preserve shell environment while running as "run.as" user
-    bootstrap.insert("preserve.environment".to_string(), "false".to_string());
-    // Configure where NiFi's lib and conf directories live
-    bootstrap.insert("lib.dir".to_string(), "./lib".to_string());
-    bootstrap.insert("conf.dir".to_string(), "./conf".to_string());
-    bootstrap.extend(graceful_shutdown_config_properties(merged_config));
+/// NiFi Python (`nipy`) extension directories, mounted only by the `nifi.properties` builder.
+const NIFI_PYTHON_FRAMEWORK_DIRECTORY: &str = "/stackable/nifi/python/framework/";
+const NIFI_PYTHON_EXTENSIONS_DIRECTORY: &str = "/stackable/nifi/python/extensions/";
 
-    let merged_jvm_config =
-        build_merged_jvm_config(merged_config, role, role_group, authorization_config)
-            .context(InvalidJVMConfigSnafu)?;
+const STORAGE_PROVENANCE_UTILIZATION_FACTOR: f32 = 0.9;
+const STORAGE_FLOW_ARCHIVE_UTILIZATION_FACTOR: f32 = 0.9;
+const STORAGE_CONTENT_ARCHIVE_UTILIZATION_FACTOR: f32 = 0.5;
 
-    for (index, argument) in merged_jvm_config
-        .effective_jvm_config_after_merging()
-        .iter()
-        .enumerate()
-    {
-        bootstrap.insert(format!("java.arg.{}", index + 1), argument.clone());
-    }
-
-    // configOverrides come last
-    bootstrap.extend(overrides);
-
-    Ok(format_properties(bootstrap))
-}
-
-/// Create the NiFi nifi.properties
-pub fn build_nifi_properties(
-    spec: &v1alpha1::NifiClusterSpec,
-    resource_config: &Resources<NifiStorageConfig>,
+pub fn build(
+    cluster: &ValidatedCluster,
+    rg: &NifiRoleGroupConfig,
     proxy_hosts: &str,
-    auth_config: &NifiAuthenticationConfig,
-    overrides: BTreeMap<String, String>,
-    product_version: &str,
-    git_sync_resources: &git_sync::v1alpha2::GitSyncResources,
 ) -> Result<String, Error> {
+    let git_sync_resources = &rg.config.git_sync_resources;
+    let product_version = &cluster.image.product_version;
+    let auth_config = &cluster.cluster_config.authentication;
+    let resource_config = &rg.config.resources;
+
     // TODO: Remove once we dropped support for all NiFi 1.x versions
     let is_nifi_1 = product_version.starts_with("1.");
 
@@ -192,7 +106,7 @@ pub fn build_nifi_properties(
     );
     properties.insert(
         "nifi.flow.configuration.archive.dir".to_string(),
-        "/stackable/nifi/conf/archive/".to_string(),
+        format!("{NIFI_CONFIG_DIRECTORY}/archive/"),
     );
     properties.insert(
         "nifi.flow.configuration.archive.max.time".to_string(),
@@ -231,11 +145,14 @@ pub fn build_nifi_properties(
 
     properties.insert(
         "nifi.authorizer.configuration.file".to_string(),
-        "/stackable/nifi/conf/authorizers.xml".to_string(),
+        format!("{NIFI_CONFIG_DIRECTORY}/{}", ConfigFileName::Authorizers),
     );
     properties.insert(
         "nifi.login.identity.provider.configuration.file".to_string(),
-        "/stackable/nifi/conf/login-identity-providers.xml".to_string(),
+        format!(
+            "{NIFI_CONFIG_DIRECTORY}/{}",
+            ConfigFileName::LoginIdentityProviders
+        ),
     );
     properties.insert(
         "nifi.templates.directory".to_string(),
@@ -273,14 +190,18 @@ pub fn build_nifi_properties(
     // The ID of the local state provider
     properties.insert(
         "nifi.state.management.provider.local".to_string(),
-        "local-provider".to_string(),
+        LOCAL_STATE_PROVIDER_ID.to_string(),
     );
     // The ID of the cluster-wide state provider. This will be ignored if NiFi is not clustered but must be populated if running in a cluster.
     properties.insert(
         "nifi.state.management.provider.cluster".to_string(),
-        match spec.cluster_config.clustering_backend {
-            v1alpha1::NifiClusteringBackend::ZooKeeper { .. } => "zk-provider".to_string(),
-            v1alpha1::NifiClusteringBackend::Kubernetes { .. } => "kubernetes-provider".to_string(),
+        match cluster.cluster_config.clustering_backend {
+            v1alpha1::NifiClusteringBackend::ZooKeeper { .. } => {
+                ZOOKEEPER_STATE_PROVIDER_ID.to_string()
+            }
+            v1alpha1::NifiClusteringBackend::Kubernetes { .. } => {
+                KUBERNETES_STATE_PROVIDER_ID.to_string()
+            }
         },
     );
     // Specifies whether or not this instance of NiFi should run an embedded ZooKeeper server
@@ -489,7 +410,7 @@ pub fn build_nifi_properties(
     //#############################################
     properties.insert(
         "nifi.web.https.host".to_string(),
-        "${env:NODE_ADDRESS}".to_string(),
+        env_reference(NODE_ADDRESS_ENV),
     );
     properties.insert("nifi.web.https.port".to_string(), HTTPS_PORT.to_string());
     properties.insert(
@@ -521,27 +442,23 @@ pub fn build_nifi_properties(
 
     properties.insert(
         "nifi.sensitive.props.key".to_string(),
-        "${file:UTF-8:/stackable/sensitiveproperty/nifiSensitivePropsKey}".to_string(),
+        file_reference(&format!(
+            "{SENSITIVE_PROPERTY_VOLUME_MOUNT}/{SENSITIVE_PROPERTY_KEY_NAME}"
+        )),
     );
     properties.insert(
         "nifi.sensitive.props.key.protected".to_string(),
         "".to_string(),
     );
 
-    let sensitive_properties_algorithm = &spec
-        .cluster_config
-        .sensitive_properties
-        .algorithm
-        .clone()
-        .unwrap_or_default();
-
-    sensitive_properties_algorithm
-        .check_for_nifi_version(spec.image.product_version())
-        .context(ConfigureSensitivePropertiesSnafu)?;
-
+    // The algorithm has already been validated in the validate step (check_for_nifi_version).
     properties.insert(
         "nifi.sensitive.props.algorithm".to_string(),
-        sensitive_properties_algorithm.to_string(),
+        cluster
+            .cluster_config
+            .sensitive_properties
+            .algorithm
+            .to_string(),
     );
 
     // key and trust store
@@ -556,7 +473,7 @@ pub fn build_nifi_properties(
     );
     properties.insert(
         "nifi.security.keystoreType".to_string(),
-        "PKCS12".to_string(),
+        STORE_TYPE_PKCS12.to_string(),
     );
     properties.insert(
         "nifi.security.keystorePasswd".to_string(),
@@ -571,7 +488,7 @@ pub fn build_nifi_properties(
     );
     properties.insert(
         "nifi.security.truststoreType".to_string(),
-        "PKCS12".to_string(),
+        STORE_TYPE_PKCS12.to_string(),
     );
     properties.insert(
         "nifi.security.truststorePasswd".to_string(),
@@ -603,7 +520,7 @@ pub fn build_nifi_properties(
     properties.insert("nifi.cluster.is.node".to_string(), "true".to_string());
     properties.insert(
         "nifi.cluster.node.address".to_string(),
-        "${env:NODE_ADDRESS}".to_string(),
+        env_reference(NODE_ADDRESS_ENV),
     );
     properties.insert(
         "nifi.cluster.node.protocol.port".to_string(),
@@ -614,7 +531,7 @@ pub fn build_nifi_properties(
         "".to_string(),
     );
 
-    match spec.cluster_config.clustering_backend {
+    match cluster.cluster_config.clustering_backend {
         v1alpha1::NifiClusteringBackend::ZooKeeper { .. } => {
             properties.insert(
                 "nifi.cluster.leader.election.implementation".to_string(),
@@ -624,13 +541,13 @@ pub fn build_nifi_properties(
             // this will be replaced via a container command script
             properties.insert(
                 "nifi.zookeeper.connect.string".to_string(),
-                "${env:ZOOKEEPER_HOSTS}".to_string(),
+                env_reference(ZOOKEEPER_HOSTS_ENV),
             );
 
             // this will be replaced via a container command script
             properties.insert(
                 "nifi.zookeeper.root.node".to_string(),
-                "${env:ZOOKEEPER_CHROOT}".to_string(),
+                env_reference(ZOOKEEPER_CHROOT_ENV),
             );
         }
 
@@ -645,7 +562,7 @@ pub fn build_nifi_properties(
             // this will be replaced via a container command script
             properties.insert(
                 "nifi.cluster.leader.election.kubernetes.lease.prefix".to_string(),
-                "${env:STACKLET_NAME}".to_string(),
+                env_reference(STACKLET_NAME_ENV),
             );
         }
     }
@@ -664,7 +581,7 @@ pub fn build_nifi_properties(
     // Java processes.
     properties.insert(
         "nifi.python.framework.source.directory".to_string(),
-        "/stackable/nifi/python/framework/".to_string(),
+        NIFI_PYTHON_FRAMEWORK_DIRECTORY.to_string(),
     );
 
     // The working directory where NiFi should store artifacts;
@@ -680,7 +597,7 @@ pub fn build_nifi_properties(
     // (docs/modules/nifi/pages/usage_guide/custom-components.adoc), so do not change it!
     properties.insert(
         "nifi.python.extensions.source.directory.default".to_string(),
-        "/stackable/nifi/python/extensions/".to_string(),
+        NIFI_PYTHON_EXTENSIONS_DIRECTORY.to_string(),
     );
 
     for (i, git_folder) in git_sync_resources
@@ -700,101 +617,9 @@ pub fn build_nifi_properties(
     //##########################
 
     // override with config overrides
-    properties.extend(overrides);
+    properties.extend(rg.config_overrides.nifi_properties.overrides.clone());
 
     Ok(format_properties(properties))
-}
-
-pub fn build_state_management_xml(clustering_backend: &NifiClusteringBackend) -> String {
-    // Inert providers are ignored by NiFi itself, but templating still fails if they refer to invalid environment variables,
-    // so only include the actually used provider.
-    let cluster_provider = match clustering_backend {
-        NifiClusteringBackend::ZooKeeper { .. } => {
-            r#"<cluster-provider>
-              <id>zk-provider</id>
-              <class>org.apache.nifi.controller.state.providers.zookeeper.ZooKeeperStateProvider</class>
-              <property name="Connect String">${env:ZOOKEEPER_HOSTS}</property>
-              <property name="Root Node">${env:ZOOKEEPER_CHROOT}</property>
-              <property name="Session Timeout">10 seconds</property>
-              <property name="Access Control">Open</property>
-            </cluster-provider>"#
-        }
-        NifiClusteringBackend::Kubernetes {} => {
-            r#"<cluster-provider>
-              <id>kubernetes-provider</id>
-              <class>org.apache.nifi.kubernetes.state.provider.KubernetesConfigMapStateProvider</class>
-              <property name="ConfigMap Name Prefix">${env:STACKLET_NAME}</property>
-            </cluster-provider>"#
-        }
-    };
-    format!(
-        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <stateManagement>
-          <local-provider>
-            <id>local-provider</id>
-            <class>org.apache.nifi.controller.state.providers.local.WriteAheadLocalStateProvider</class>
-            <property name="Directory">{local_state_path}</property>
-            <property name="Always Sync">false</property>
-            <property name="Partitions">16</property>
-            <property name="Checkpoint Interval">2 mins</property>
-          </local-provider>
-          {cluster_provider}
-        </stateManagement>"#,
-        local_state_path = NifiRepository::State.mount_path(),
-    )
-}
-
-/// Defines all required roles and their required configuration. In this case we need three files:
-/// `bootstrap.conf`, `nifi.properties` and `state-management.xml`.
-///
-/// We do not require any env variables yet. We will however utilize them to change the
-/// configuration directory - check <https://github.com/apache/nifi/pull/2985> for more detail.
-///
-/// The roles and their configs are then validated and complemented by the product config.
-///
-/// # Arguments
-/// * `resource`        - The NifiCluster containing the role definitions.
-/// * `version`         - The NifiCluster version.
-/// * `product_config`  - The product config to validate and complement the user config.
-///
-pub fn validated_product_config(
-    resource: &v1alpha1::NifiCluster,
-    version: &str,
-    role: &NifiRoleType,
-    product_config: &ProductConfigManager,
-) -> Result<ValidatedRoleConfigByPropertyKind, Error> {
-    let mut roles = HashMap::new();
-    roles.insert(
-        NifiRole::Node.to_string(),
-        (
-            vec![
-                PropertyNameKind::File(NIFI_BOOTSTRAP_CONF.to_string()),
-                PropertyNameKind::File(NIFI_PROPERTIES.to_string()),
-                PropertyNameKind::File(NIFI_STATE_MANAGEMENT_XML.to_string()),
-                PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
-                PropertyNameKind::Env,
-            ],
-            role.clone(),
-        ),
-    );
-
-    let role_config =
-        transform_all_roles_to_config(resource, &roles).context(ProductConfigTransformSnafu)?;
-
-    validate_all_roles_and_groups_config(version, &role_config, product_config, false, false)
-        .context(InvalidProductConfigSnafu)
-}
-
-// TODO: Use crate like https://crates.io/crates/java-properties (currently does not work for Nifi
-// because of escapes), to have save handling of escapes etc.
-fn format_properties(properties: BTreeMap<String, String>) -> String {
-    let mut result = String::new();
-
-    for (key, value) in properties {
-        let _ = writeln!(result, "{}={}", key, value);
-    }
-
-    result
 }
 
 fn storage_quantity_to_nifi(quantity: MemoryQuantity) -> String {
@@ -808,136 +633,216 @@ fn storage_quantity_to_nifi(quantity: MemoryQuantity) -> String {
 
 #[cfg(test)]
 mod tests {
-    use indoc::indoc;
-
     use super::*;
-    use crate::{config::build_bootstrap_conf, crd::v1alpha1};
+    use crate::controller::build::{
+        HTTPS_PORT,
+        properties::test_support::{default_rg, minimal_validated_cluster},
+    };
 
+    /// Verify that core stable keys are present in the rendered nifi.properties with their
+    /// expected values.  Assertions are on substrings — they do NOT assert the full file.
     #[test]
-    fn test_build_bootstrap_conf_defaults() {
-        let input = r#"
-        apiVersion: nifi.stackable.tech/v1alpha1
-        kind: NifiCluster
-        metadata:
-          name: simple-nifi
-        spec:
-          image:
-            productVersion: 2.9.0
-          clusterConfig:
-            authentication:
-              - authenticationClass: nifi-admin-credentials-simple
-            sensitiveProperties:
-              keySecret: simple-nifi-sensitive-property-key
-              autoGenerate: true
-          nodes:
-            roleGroups:
-              default:
-                replicas: 1
-        "#;
-        let bootstrap_conf = construct_bootstrap_conf(input);
+    fn test_stable_keys_present() {
+        let cluster = minimal_validated_cluster();
+        let rg = default_rg(&cluster);
 
-        assert_eq!(
-            bootstrap_conf,
-            indoc! {"
-                conf.dir=./conf
-                graceful.shutdown.seconds=300
-                java=java
-                java.arg.1=-Xmx3276m
-                java.arg.10=-Djavax.security.auth.useSubjectCredsOnly=true
-                java.arg.11=-Dzookeeper.admin.enableServer=false
-                java.arg.12=-Djava.security.properties=/stackable/nifi/conf/security.properties
-                java.arg.2=-Xms3276m
-                java.arg.3=-XX:+UseG1GC
-                java.arg.4=-Djava.awt.headless=true
-                java.arg.5=-Dorg.apache.jasper.compiler.disablejsr199=true
-                java.arg.6=-Djava.net.preferIPv4Stack=true
-                java.arg.7=-Dsun.net.http.allowRestrictedHeaders=true
-                java.arg.8=-Djava.protocol.handler.pkgs=sun.net.www.protocol
-                java.arg.9=-Djava.security.egd=file:/dev/urandom
-                lib.dir=./lib
-                preserve.environment=false
-                run.as=
-            "}
+        let props = build(&cluster, rg, "*").expect("build should succeed");
+
+        // HTTPS port
+        assert!(
+            props.contains(&format!("nifi.web.https.port={HTTPS_PORT}")),
+            "expected nifi.web.https.port={HTTPS_PORT} in output, got:\n{props}"
+        );
+
+        // Clustering enabled
+        assert!(
+            props.contains("nifi.cluster.is.node=true"),
+            "expected nifi.cluster.is.node=true in output"
+        );
+
+        // Kubernetes clustering backend sets the Kubernetes election implementation
+        assert!(
+            props.contains(
+                "nifi.cluster.leader.election.implementation=KubernetesLeaderElectionManager"
+            ),
+            "expected KubernetesLeaderElectionManager in output"
+        );
+
+        // Sensitive-properties algorithm default (NifiArgon2AesGcm256)
+        assert!(
+            props.contains("nifi.sensitive.props.algorithm=NIFI_ARGON2_AES_GCM_256"),
+            "expected default algorithm NIFI_ARGON2_AES_GCM_256 in output"
+        );
+
+        // Proxy hosts wildcard from allow_all
+        assert!(
+            props.contains("nifi.web.proxy.host=*"),
+            "expected nifi.web.proxy.host=* in output"
         );
     }
 
+    /// Verify that a user configOverride for `nifi.properties` flows through to the output.
     #[test]
-    fn test_build_bootstrap_conf_jvm_argument_overrides() {
-        let input = r#"
-        apiVersion: nifi.stackable.tech/v1alpha1
-        kind: NifiCluster
-        metadata:
-          name: simple-nifi
-        spec:
-          image:
-            productVersion: 2.9.0
-          clusterConfig:
-            authentication:
-              - authenticationClass: nifi-admin-credentials-simple
-            sensitiveProperties:
-              keySecret: simple-nifi-sensitive-property-key
-              autoGenerate: true
-          nodes:
-            config:
-              resources:
-                memory:
-                  limit: 42Gi
-            jvmArgumentOverrides:
-              remove:
-                - -XX:+UseG1GC
-              add:
-                - -Dhttps.proxyHost=proxy.my.corp
-                - -Dhttps.proxyPort=8080
-                - -Djava.net.preferIPv4Stack=true
-            roleGroups:
-              default:
-                replicas: 1
-                jvmArgumentOverrides:
-                  # We need more memory!
-                  removeRegex:
-                    - -Xmx.*
-                    - -Dhttps.proxyPort=.*
-                  add:
-                    - -Xmx40000m
-                    - -Dhttps.proxyPort=1234
-        "#;
-        let bootstrap_conf = construct_bootstrap_conf(input);
+    fn test_config_override_wins() {
+        use stackable_operator::v2::types::operator::RoleGroupName;
 
-        assert_eq!(
-            bootstrap_conf,
-            indoc! {"
-                conf.dir=./conf
-                graceful.shutdown.seconds=300
-                java=java
-                java.arg.1=-Xms34406m
-                java.arg.10=-Djava.security.properties=/stackable/nifi/conf/security.properties
-                java.arg.11=-Dhttps.proxyHost=proxy.my.corp
-                java.arg.12=-Djava.net.preferIPv4Stack=true
-                java.arg.13=-Xmx40000m
-                java.arg.14=-Dhttps.proxyPort=1234
-                java.arg.2=-Djava.awt.headless=true
-                java.arg.3=-Dorg.apache.jasper.compiler.disablejsr199=true
-                java.arg.4=-Djava.net.preferIPv4Stack=true
-                java.arg.5=-Dsun.net.http.allowRestrictedHeaders=true
-                java.arg.6=-Djava.protocol.handler.pkgs=sun.net.www.protocol
-                java.arg.7=-Djava.security.egd=file:/dev/urandom
-                java.arg.8=-Djavax.security.auth.useSubjectCredsOnly=true
-                java.arg.9=-Dzookeeper.admin.enableServer=false
-                lib.dir=./lib
-                preserve.environment=false
-                run.as=
-            "}
+        use crate::{
+            controller::validate::{build_role_group_configs, test_resolved_product_image},
+            crd::{NifiRole, v1alpha1},
+        };
+
+        let yaml = r#"
+            apiVersion: nifi.stackable.tech/v1alpha1
+            kind: NifiCluster
+            metadata:
+              name: simple-nifi
+              namespace: default
+            spec:
+              image:
+                productVersion: 2.9.0
+              clusterConfig:
+                authentication:
+                  - authenticationClass: nifi-admin-credentials-simple
+                sensitiveProperties:
+                  keySecret: simple-nifi-sensitive-property-key
+                  autoGenerate: true
+              nodes:
+                roleGroups:
+                  default:
+                    replicas: 1
+                    configOverrides:
+                      nifi.properties:
+                        some.custom.key: some-custom-value
+        "#;
+        let nifi: v1alpha1::NifiCluster = serde_yaml::from_str(yaml).expect("invalid test YAML");
+        let mut role_group_configs =
+            build_role_group_configs(&nifi, &test_resolved_product_image(), &None)
+                .expect("failed to build role group configs");
+        let default_rg_name = "default"
+            .parse::<RoleGroupName>()
+            .expect("valid role-group name");
+        let rg = role_group_configs
+            .get_mut(&NifiRole::Node)
+            .and_then(|groups| groups.remove(&default_rg_name))
+            .expect("default role group must exist");
+
+        let mut cluster = minimal_validated_cluster();
+        cluster
+            .role_group_configs
+            .get_mut(&NifiRole::Node)
+            .unwrap()
+            .insert(default_rg_name.clone(), rg);
+        let rg = cluster
+            .role_group_configs
+            .get(&NifiRole::Node)
+            .and_then(|groups| groups.get(&default_rg_name))
+            .expect("default role group must exist");
+
+        let props = build(&cluster, rg, "*").expect("build with override should succeed");
+
+        assert!(
+            props.contains("some.custom.key=some-custom-value"),
+            "expected user override some.custom.key=some-custom-value to appear in output"
+        );
+        // The HTTPS port should still be present
+        assert!(props.contains(&format!("nifi.web.https.port={HTTPS_PORT}")));
+    }
+
+    /// The ZooKeeper clustering backend selects the Curator leader election and wires the
+    /// ZooKeeper connect-string/root-node from environment placeholders.
+    #[test]
+    fn zookeeper_backend_uses_curator_leader_election() {
+        let mut cluster = minimal_validated_cluster();
+        cluster.cluster_config.clustering_backend = v1alpha1::NifiClusteringBackend::ZooKeeper {
+            zookeeper_config_map_name: "my-zk".parse().expect("valid ConfigMap name"),
+        };
+        let rg = default_rg(&cluster);
+
+        let props = build(&cluster, rg, "*").expect("build should succeed");
+
+        assert!(
+            props.contains(
+                "nifi.cluster.leader.election.implementation=CuratorLeaderElectionManager"
+            )
+        );
+        assert!(props.contains("nifi.zookeeper.connect.string=${env:ZOOKEEPER_HOSTS}"));
+        assert!(props.contains("nifi.zookeeper.root.node=${env:ZOOKEEPER_CHROOT}"));
+    }
+
+    /// The Kubernetes clustering backend selects the Kubernetes leader election.
+    #[test]
+    fn kubernetes_backend_uses_kubernetes_leader_election() {
+        let cluster = minimal_validated_cluster(); // Kubernetes backend by default
+        let rg = default_rg(&cluster);
+
+        let props = build(&cluster, rg, "*").expect("build should succeed");
+
+        assert!(props.contains(
+            "nifi.cluster.leader.election.implementation=KubernetesLeaderElectionManager"
+        ));
+        assert!(
+            props.contains(
+                "nifi.cluster.leader.election.kubernetes.lease.prefix=${env:STACKLET_NAME}"
+            )
         );
     }
 
-    fn construct_bootstrap_conf(nifi_cluster: &str) -> String {
-        let nifi: v1alpha1::NifiCluster =
-            serde_yaml::from_str(nifi_cluster).expect("illegal test input");
+    /// NiFi 1.x cannot use the Kubernetes clustering backend, so building must fail.
+    #[test]
+    fn kubernetes_backend_is_rejected_on_nifi_1() {
+        let mut cluster = minimal_validated_cluster();
+        cluster.image.product_version = "1.27.0".to_string();
+        let rg = default_rg(&cluster);
 
-        let nifi_role = NifiRole::Node;
-        let role = nifi.spec.nodes.as_ref().unwrap();
-        let merged_config = nifi.merged_config(&nifi_role, "default").unwrap();
+        let error = build(&cluster, rg, "*")
+            .expect_err("NiFi 1.x with the Kubernetes backend must be rejected");
 
-        build_bootstrap_conf(&merged_config, BTreeMap::new(), role, "default", None).unwrap()
+        assert!(matches!(error, Error::Nifi1RequiresZookeeper));
+    }
+
+    /// NiFi 1.x with the ZooKeeper backend is valid.
+    #[test]
+    fn zookeeper_backend_is_allowed_on_nifi_1() {
+        let mut cluster = minimal_validated_cluster();
+        cluster.image.product_version = "1.27.0".to_string();
+        cluster.cluster_config.clustering_backend = v1alpha1::NifiClusteringBackend::ZooKeeper {
+            zookeeper_config_map_name: "my-zk".parse().expect("valid ConfigMap name"),
+        };
+        let rg = default_rg(&cluster);
+
+        assert!(build(&cluster, rg, "*").is_ok());
+    }
+
+    /// NiFi 2.x configures only the JSON flow file; NiFi 1.x configures both the XML and JSON files.
+    #[test]
+    fn flow_configuration_files_differ_between_nifi_versions() {
+        let cluster_2 = minimal_validated_cluster(); // NiFi 2.x
+        let props_2 = build(&cluster_2, default_rg(&cluster_2), "*").expect("build should succeed");
+        assert!(props_2.contains("nifi.flow.configuration.file="));
+        assert!(props_2.contains("flow.json.gz"));
+        assert!(!props_2.contains("flow.xml.gz"));
+        assert!(!props_2.contains("nifi.flow.configuration.json.file="));
+
+        let mut cluster_1 = minimal_validated_cluster();
+        cluster_1.image.product_version = "1.27.0".to_string();
+        // NiFi 1.x must use the ZooKeeper backend.
+        cluster_1.cluster_config.clustering_backend = v1alpha1::NifiClusteringBackend::ZooKeeper {
+            zookeeper_config_map_name: "my-zk".parse().expect("valid ConfigMap name"),
+        };
+        let props_1 = build(&cluster_1, default_rg(&cluster_1), "*").expect("build should succeed");
+        assert!(props_1.contains("flow.xml.gz"));
+        assert!(props_1.contains("nifi.flow.configuration.json.file="));
+    }
+
+    /// The flow archive max storage is the flowfile-repo capacity scaled by the 0.9 utilization
+    /// factor (default capacity 1024Mi -> ~921 MB).
+    #[test]
+    fn flow_archive_max_storage_applies_utilization_factor() {
+        let cluster = minimal_validated_cluster();
+        let props = build(&cluster, default_rg(&cluster), "*").expect("build should succeed");
+        assert!(
+            props.contains("nifi.flow.configuration.archive.max.storage=921"),
+            "expected archive max storage ~921MB (1024Mi * 0.9) in:\n{props}"
+        );
     }
 }

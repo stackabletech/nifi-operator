@@ -1,15 +1,15 @@
 pub mod affinity;
 pub mod authorization;
 pub mod sensitive_properties;
+pub mod storage;
 pub mod tls;
 
-use std::collections::BTreeMap;
+use std::str::FromStr;
 
 use affinity::get_affinity;
 use authorization::NifiAuthorization;
 use sensitive_properties::NifiSensitivePropertiesConfig;
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
@@ -20,61 +20,38 @@ use stackable_operator::{
             PvcConfig, PvcConfigFragment, Resources, ResourcesFragment,
         },
     },
-    config::{
-        fragment::{self, Fragment, ValidationError},
-        merge::Merge,
-    },
-    config_overrides::{KeyValueConfigOverrides, KeyValueOverridesProvider},
+    config::{fragment::Fragment, merge::Merge},
     crd::{authentication::core as auth_core, git_sync},
     deep_merger::ObjectOverrides,
     k8s_openapi::{
         api::core::v1::{PodTemplateSpec, Volume},
         apimachinery::pkg::api::resource::Quantity,
     },
-    kube::{CustomResource, ResourceExt, runtime::reflector::ObjectRef},
-    memory::MemoryQuantity,
-    product_config_utils::{self, Configuration},
+    kube::CustomResource,
     product_logging::{self, spec::Logging},
-    role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroupRef},
+    role_utils::{GenericRoleConfig, Role},
     schemars::{self, JsonSchema},
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
     utils::crds::{raw_object_list_schema, raw_object_schema},
+    v2::{
+        config_overrides::KeyValueConfigOverrides,
+        role_utils::JavaCommonConfig,
+        types::{
+            kubernetes::{ConfigMapName, ListenerClassName, SecretClassName},
+            operator::ProductVersion,
+        },
+    },
     versioned::versioned,
 };
 use tls::NifiTls;
 
-use crate::config::{JVM_SECURITY_PROPERTIES_FILE, NIFI_BOOTSTRAP_CONF, NIFI_PROPERTIES};
-
 pub const APP_NAME: &str = "nifi";
-
-pub const HTTPS_PORT_NAME: &str = "https";
-pub const HTTPS_PORT: u16 = 8443;
-pub const PROTOCOL_PORT_NAME: &str = "protocol";
-pub const PROTOCOL_PORT: u16 = 9088;
-pub const BALANCE_PORT_NAME: &str = "balance";
-pub const BALANCE_PORT: u16 = 6243;
-pub const METRICS_PORT_NAME: &str = "metrics";
-pub const METRICS_PORT: u16 = 8081;
-
-pub const STACKABLE_LOG_DIR: &str = "/stackable/log";
-pub const STACKABLE_LOG_CONFIG_DIR: &str = "/stackable/log_config";
-
-pub const MAX_NIFI_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity::from_mebi(10.0);
 
 const DEFAULT_NODE_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_minutes_unchecked(5);
 
 pub type NifiRoleType =
     Role<NifiConfigFragment, v1alpha1::NifiConfigOverrides, NifiNodeRoleConfig, JavaCommonConfig>;
-
-#[derive(Snafu, Debug)]
-pub enum Error {
-    #[snafu(display("the NiFi role [{role}] is missing from spec"))]
-    MissingNifiRole { role: String },
-
-    #[snafu(display("fragment validation failure"))]
-    FragmentValidationFailure { source: ValidationError },
-}
 
 #[versioned(
     version(name = "v1alpha1"),
@@ -149,7 +126,7 @@ pub mod versioned {
         /// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
         /// to learn how to configure log aggregation with Vector.
         #[serde(skip_serializing_if = "Option::is_none")]
-        pub vector_aggregator_config_map_name: Option<String>,
+        pub vector_aggregator_config_map_name: Option<ConfigMapName>,
 
         #[serde(flatten)]
         pub clustering_backend: NifiClusteringBackend,
@@ -187,45 +164,22 @@ pub mod versioned {
             ///
             /// The Kubernetes provider will be used if this field is unset. Kubernetes is only supported for NiFi 2.x and newer,
             /// NiFi 1.x requires ZooKeeper.
-            zookeeper_config_map_name: String,
+            zookeeper_config_map_name: ConfigMapName,
         },
         Kubernetes {},
     }
 
-    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, Merge, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct NifiConfigOverrides {
-        #[serde(rename = "bootstrap.conf", skip_serializing_if = "Option::is_none")]
-        pub bootstrap_conf: Option<KeyValueConfigOverrides>,
+        #[serde(rename = "bootstrap.conf", default)]
+        pub bootstrap_conf: KeyValueConfigOverrides,
 
-        #[serde(rename = "nifi.properties", skip_serializing_if = "Option::is_none")]
-        pub nifi_properties: Option<KeyValueConfigOverrides>,
+        #[serde(rename = "nifi.properties", default)]
+        pub nifi_properties: KeyValueConfigOverrides,
 
-        #[serde(
-            rename = "security.properties",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub security_properties: Option<KeyValueConfigOverrides>,
-    }
-}
-
-impl KeyValueOverridesProvider for v1alpha1::NifiConfigOverrides {
-    fn get_key_value_overrides(&self, file: &str) -> BTreeMap<String, Option<String>> {
-        let overrides = match file {
-            NIFI_BOOTSTRAP_CONF => &self.bootstrap_conf,
-            NIFI_PROPERTIES => &self.nifi_properties,
-            JVM_SECURITY_PROPERTIES_FILE => &self.security_properties,
-            _ => return BTreeMap::new(),
-        };
-        overrides
-            .as_ref()
-            .map(|o| {
-                o.overrides
-                    .iter()
-                    .map(|(k, v)| (k.clone(), Some(v.clone())))
-                    .collect()
-            })
-            .unwrap_or_default()
+        #[serde(rename = "security.properties", default)]
+        pub security_properties: KeyValueConfigOverrides,
     }
 }
 
@@ -239,15 +193,6 @@ impl HasStatusCondition for v1alpha1::NifiCluster {
 }
 
 impl v1alpha1::NifiCluster {
-    /// Metadata about a metastore rolegroup
-    pub fn node_rolegroup_ref(&self, group_name: impl Into<String>) -> RoleGroupRef<Self> {
-        RoleGroupRef {
-            cluster: ObjectRef::from_obj(self),
-            role: NifiRole::Node.to_string(),
-            role_group: group_name.into(),
-        }
-    }
-
     pub fn role_config(&self, role: &NifiRole) -> Option<&NifiNodeRoleConfig> {
         match role {
             NifiRole::Node => self.spec.nodes.as_ref().map(|n| &n.role_config),
@@ -255,39 +200,8 @@ impl v1alpha1::NifiCluster {
     }
 
     /// Return user provided server TLS settings
-    pub fn server_tls_secret_class(&self) -> &str {
+    pub fn server_tls_secret_class(&self) -> &SecretClassName {
         &self.spec.cluster_config.tls.server_secret_class
-    }
-
-    /// Retrieve and merge resource configs for role and role groups
-    pub fn merged_config(&self, role: &NifiRole, role_group: &str) -> Result<NifiConfig, Error> {
-        // Initialize the result with all default values as baseline
-        let conf_defaults = NifiConfig::default_config(&self.name_any(), role);
-
-        let role = self.spec.nodes.as_ref().context(MissingNifiRoleSnafu {
-            role: role.to_string(),
-        })?;
-
-        // Retrieve role resource config
-        let mut conf_role = role.config.config.to_owned();
-
-        // Retrieve rolegroup specific resource config
-        let mut conf_rolegroup = role
-            .role_groups
-            .get(role_group)
-            .map(|rg| rg.config.config.clone())
-            .unwrap_or_default();
-
-        // Merge more specific configs into default config
-        // Hierarchy is:
-        // 1. RoleGroup
-        // 2. Role
-        // 3. Default
-        conf_role.merge(&conf_defaults);
-        conf_rolegroup.merge(&conf_role);
-
-        tracing::debug!("Merged config: {:?}", conf_rolegroup);
-        fragment::validate(conf_rolegroup).context(FragmentValidationFailureSnafu)
     }
 }
 
@@ -353,7 +267,10 @@ impl CreateReportingTaskJob {
     }
 }
 
-#[derive(strum::Display)]
+#[derive(
+    Clone, Debug, Deserialize, Eq, JsonSchema, Ord, PartialEq, PartialOrd, Serialize, strum::Display,
+)]
+#[serde(rename_all = "camelCase")]
 #[strum(serialize_all = "camelCase")]
 pub enum NifiRole {
     #[strum(serialize = "node")]
@@ -362,7 +279,7 @@ pub enum NifiRole {
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, Serialize)]
 pub struct NifiStatus {
-    pub deployed_version: Option<String>,
+    pub deployed_version: Option<ProductVersion>,
     #[serde(default)]
     pub conditions: Vec<ClusterCondition>,
 }
@@ -482,35 +399,6 @@ impl NifiConfig {
     }
 }
 
-impl Configuration for NifiConfigFragment {
-    type Configurable = v1alpha1::NifiCluster;
-
-    fn compute_env(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, product_config_utils::Error> {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_cli(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, product_config_utils::Error> {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_files(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-        _file: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, product_config_utils::Error> {
-        Ok(BTreeMap::new())
-    }
-}
-
 #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
 #[fragment_attrs(
     derive(
@@ -570,7 +458,7 @@ pub struct NifiNodeRoleConfig {
     pub common: GenericRoleConfig,
 
     #[serde(default = "node_default_listener_class")]
-    pub listener_class: String,
+    pub listener_class: ListenerClassName,
 }
 
 impl Default for NifiNodeRoleConfig {
@@ -582,8 +470,108 @@ impl Default for NifiNodeRoleConfig {
     }
 }
 
-fn node_default_listener_class() -> String {
-    "cluster-internal".to_string()
+fn node_default_listener_class() -> ListenerClassName {
+    ListenerClassName::from_str("cluster-internal")
+        .expect("'cluster-internal' is a valid listener class name")
+}
+
+#[cfg(test)]
+mod merge_tests {
+    use std::collections::BTreeMap;
+
+    use stackable_operator::{
+        config::merge::Merge as _, v2::config_overrides::KeyValueConfigOverrides,
+    };
+
+    use super::v1alpha1::NifiConfigOverrides;
+
+    fn kv(pairs: &[(&str, &str)]) -> KeyValueConfigOverrides {
+        KeyValueConfigOverrides {
+            overrides: pairs
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect::<BTreeMap<_, _>>(),
+        }
+    }
+
+    fn overrides(
+        bootstrap: KeyValueConfigOverrides,
+        nifi: KeyValueConfigOverrides,
+        security: KeyValueConfigOverrides,
+    ) -> NifiConfigOverrides {
+        NifiConfigOverrides {
+            bootstrap_conf: bootstrap,
+            nifi_properties: nifi,
+            security_properties: security,
+        }
+    }
+
+    #[test]
+    fn rolegroup_key_wins_over_role_key() {
+        let mut rg = overrides(
+            kv(&[("nifi.bootstrap.key", "rg-value")]),
+            Default::default(),
+            Default::default(),
+        );
+        let role = overrides(
+            kv(&[("nifi.bootstrap.key", "role-value")]),
+            Default::default(),
+            Default::default(),
+        );
+        rg.merge(&role);
+        assert_eq!(
+            rg.bootstrap_conf.overrides["nifi.bootstrap.key"],
+            "rg-value"
+        );
+    }
+
+    #[test]
+    fn role_key_fills_gap_absent_from_rolegroup() {
+        let mut rg = overrides(
+            kv(&[("rg.only.key", "rg-value")]),
+            Default::default(),
+            Default::default(),
+        );
+        let role = overrides(
+            kv(&[
+                ("rg.only.key", "role-value"),
+                ("role.only.key", "role-default"),
+            ]),
+            Default::default(),
+            Default::default(),
+        );
+        rg.merge(&role);
+        assert_eq!(rg.bootstrap_conf.overrides["rg.only.key"], "rg-value");
+        assert_eq!(rg.bootstrap_conf.overrides["role.only.key"], "role-default");
+    }
+
+    #[test]
+    fn empty_field_adopts_role_values() {
+        let mut rg = overrides(
+            Default::default(),
+            kv(&[("nifi.some.prop", "rg-val")]),
+            Default::default(),
+        );
+        let role = overrides(
+            kv(&[("nifi.bootstrap.key", "role-default")]),
+            kv(&[
+                ("nifi.some.prop", "role-val"),
+                ("nifi.other.prop", "role-other"),
+            ]),
+            Default::default(),
+        );
+        rg.merge(&role);
+        assert_eq!(
+            rg.bootstrap_conf.overrides["nifi.bootstrap.key"],
+            "role-default"
+        );
+        assert_eq!(rg.nifi_properties.overrides["nifi.some.prop"], "rg-val");
+        assert_eq!(
+            rg.nifi_properties.overrides["nifi.other.prop"],
+            "role-other"
+        );
+        assert!(rg.security_properties.overrides.is_empty());
+    }
 }
 
 #[cfg(test)]

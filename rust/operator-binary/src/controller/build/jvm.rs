@@ -1,12 +1,16 @@
+//! Builder for the NiFi JVM arguments used in `bootstrap.conf`.
+
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     memory::{BinaryMultiple, MemoryQuantity},
-    role_utils::{self, JvmArgumentOverrides},
+    v2::jvm_argument_overrides::JvmArgumentOverrides,
 };
 
 use crate::{
-    config::{JVM_SECURITY_PROPERTIES_FILE, NIFI_CONFIG_DIRECTORY},
-    crd::{NifiConfig, NifiRoleType},
+    controller::{
+        ValidatedNifiConfig,
+        build::{NIFI_CONFIG_DIRECTORY, properties::ConfigFileName},
+    },
     security::{
         authentication::{STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD},
         authorization::ResolvedNifiAuthorizationConfig,
@@ -25,18 +29,17 @@ pub enum Error {
     InvalidMemoryConfig {
         source: stackable_operator::memory::Error,
     },
-
-    #[snafu(display("failed to merge jvm argument overrides"))]
-    MergeJvmArgumentOverrides { source: role_utils::Error },
 }
 
-/// Create the NiFi bootstrap.conf
+/// Build the effective JVM arguments for the NiFi bootstrap.conf.
+///
+/// The operator-generated arguments below form the base that the role <- role-group merged
+/// user overrides (`merged_jvm_argument_overrides`) are applied on top of.
 pub fn build_merged_jvm_config(
-    merged_config: &NifiConfig,
-    role: &NifiRoleType,
-    role_group: &str,
+    merged_config: &ValidatedNifiConfig,
+    merged_jvm_argument_overrides: &JvmArgumentOverrides,
     authorization_config: Option<&ResolvedNifiAuthorizationConfig>,
-) -> Result<JvmArgumentOverrides, Error> {
+) -> Result<Vec<String>, Error> {
     let heap_size = MemoryQuantity::try_from(
         merged_config
             .resources
@@ -52,7 +55,7 @@ pub fn build_merged_jvm_config(
         .format_for_java()
         .context(InvalidMemoryConfigSnafu)?;
 
-    let mut jvm_args = vec![
+    let mut operator_generated = vec![
         // Heap settings
         format!("-Xmx{java_heap}"),
         format!("-Xms{java_heap}"),
@@ -80,7 +83,8 @@ pub fn build_merged_jvm_config(
         "-Dzookeeper.admin.enableServer=false".to_owned(),
         // JVM security properties include especially TTL values for the positive and negative DNS caches.
         format!(
-            "-Djava.security.properties={NIFI_CONFIG_DIRECTORY}/{JVM_SECURITY_PROPERTIES_FILE}"
+            "-Djava.security.properties={NIFI_CONFIG_DIRECTORY}/{}",
+            ConfigFileName::SecurityProperties
         ),
     ];
 
@@ -95,17 +99,93 @@ pub fn build_merged_jvm_config(
     // OPA Java SDK.
     if let Some(authz_config) = authorization_config {
         if authz_config.has_opa_tls() {
-            jvm_args.push(format!(
+            operator_generated.push(format!(
                 "-Djavax.net.ssl.trustStore={STACKABLE_SERVER_TLS_DIR}/truststore.p12"
             ));
-            jvm_args.push(format!(
+            operator_generated.push(format!(
                 "-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"
             ));
-            jvm_args.push("-Djavax.net.ssl.trustStoreType=pkcs12".to_owned());
+            operator_generated.push("-Djavax.net.ssl.trustStoreType=pkcs12".to_owned());
         }
     }
 
-    let operator_generated = JvmArgumentOverrides::new_with_only_additions(jvm_args);
-    role.get_merged_jvm_argument_overrides(role_group, &operator_generated)
-        .context(MergeJvmArgumentOverridesSnafu)
+    Ok(merged_jvm_argument_overrides.apply_to(operator_generated))
+}
+
+#[cfg(test)]
+mod tests {
+    use stackable_operator::{
+        commons::opa::OpaConfig, v2::jvm_argument_overrides::JvmArgumentOverrides,
+    };
+
+    use super::build_merged_jvm_config;
+    use crate::{
+        controller::build::properties::test_support::{default_rg, minimal_validated_cluster},
+        security::authorization::ResolvedNifiAuthorizationConfig,
+    };
+
+    fn opa_with_tls() -> ResolvedNifiAuthorizationConfig {
+        ResolvedNifiAuthorizationConfig::Opa {
+            config: OpaConfig {
+                config_map_name: "simple-opa".to_string(),
+                package: Some("nifi".to_string()),
+            },
+            cache_entry_time_to_live_secs: 0,
+            cache_max_entries: 0,
+            secret_class: Some("tls".to_string()),
+        }
+    }
+
+    /// The heap is sized from the memory limit and `-Xmx` must equal `-Xms`.
+    #[test]
+    fn heap_is_set_and_min_equals_max() {
+        let cluster = minimal_validated_cluster();
+        let args = build_merged_jvm_config(
+            &default_rg(&cluster).config,
+            &JvmArgumentOverrides::default(),
+            None,
+        )
+        .expect("jvm config should build");
+
+        let xmx = args.iter().find(|a| a.starts_with("-Xmx")).expect("-Xmx");
+        let xms = args.iter().find(|a| a.starts_with("-Xms")).expect("-Xms");
+        assert_eq!(xmx[4..], xms[4..], "min and max heap should be equal");
+    }
+
+    /// OPA with a TLS secret class adds the JVM truststore properties.
+    #[test]
+    fn opa_tls_adds_truststore_properties() {
+        let cluster = minimal_validated_cluster();
+        let args = build_merged_jvm_config(
+            &default_rg(&cluster).config,
+            &JvmArgumentOverrides::default(),
+            Some(&opa_with_tls()),
+        )
+        .expect("jvm config should build");
+
+        assert!(
+            args.iter()
+                .any(|a| a.starts_with("-Djavax.net.ssl.trustStore=")),
+            "expected truststore property when OPA TLS is enabled"
+        );
+    }
+
+    /// Without OPA TLS, no truststore properties are emitted.
+    #[test]
+    fn without_opa_tls_no_truststore_properties() {
+        let cluster = minimal_validated_cluster();
+        let args = build_merged_jvm_config(
+            &default_rg(&cluster).config,
+            &JvmArgumentOverrides::default(),
+            Some(&ResolvedNifiAuthorizationConfig::SingleUser),
+        )
+        .expect("jvm config should build");
+
+        assert!(
+            !args
+                .iter()
+                .any(|a| a.starts_with("-Djavax.net.ssl.trustStore=")),
+            "did not expect truststore properties without OPA TLS"
+        );
+    }
 }
