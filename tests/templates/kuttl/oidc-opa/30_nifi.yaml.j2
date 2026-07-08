@@ -44,10 +44,6 @@ spec:
       gracefulShutdownTimeout: 1s # let the tests run faster
     roleConfig:
       listenerClass: external-unstable
-    configOverrides:
-      nifi.properties:
-        # speed up tests
-        nifi.cluster.flow.election.max.wait.time: 10 secs
     podOverrides:
       spec:
         initContainers:
@@ -71,5 +67,4 @@ spec:
           name: nifi-flow-json
     roleGroups:
       default:
-        config: {}
         replicas: 1

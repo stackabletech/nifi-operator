@@ -23,6 +23,8 @@ All notable changes to this project will be documented in this file.
 - test: Bump vector-aggregator to 0.55.0, replace /graphql call with gRPC call ([#940]).
 - BREAKING: Removed product-config machinery. This is a breaking change in terms of configuration.
   Users relying on the product-config `properties.yaml` file have to set these properties via the CRD ([#945]).
+- In case the user specifies a fixed number of NiFi nodes (i.e. no auto-scaling), set `nifi.cluster.flow.election.max.candidates` to that number.
+  This results in much faster NiFi startups, as it doesn't need to wait for the 5 minutes of `nifi.cluster.flow.election.max.wait.time` ([#953]).
 
 ### Fixed
 
@@ -38,6 +40,7 @@ All notable changes to this project will be documented in this file.
 [#936]: https://github.com/stackabletech/nifi-operator/pull/936
 [#940]: https://github.com/stackabletech/nifi-operator/pull/940
 [#945]: https://github.com/stackabletech/nifi-operator/pull/945
+[#953]: https://github.com/stackabletech/nifi-operator/pull/953
 [#959]: https://github.com/stackabletech/nifi-operator/pull/959
 
 ## [26.3.0] - 2026-03-16

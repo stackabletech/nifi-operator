@@ -3,7 +3,10 @@
 use std::collections::BTreeMap;
 
 use snafu::{ResultExt, Snafu, ensure};
-use stackable_operator::memory::MemoryQuantity;
+use stackable_operator::{
+    memory::MemoryQuantity,
+    role_utils::{ZeroReplicasCounting, fixed_replica_count},
+};
 
 use super::{
     ConfigFileName, env_reference, file_reference, format_properties,
@@ -21,7 +24,7 @@ use crate::{
             },
         },
     },
-    crd::{storage::NifiRepository, v1alpha1},
+    crd::{NifiRole, storage::NifiRepository, v1alpha1},
     security::{
         authentication::{
             NifiAuthenticationConfig, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
@@ -526,9 +529,26 @@ pub fn build(
         "nifi.cluster.node.protocol.port".to_string(),
         PROTOCOL_PORT.to_string(),
     );
+
+    // In case the number of NiFi nodes is hard-coded to a fixed number (no auto-scaling), we can
+    // tell this NiFi, so that startup is much quicker.
+    let fixed_replica_count = fixed_replica_count(
+        cluster
+            .role_group_configs
+            .get(&NifiRole::Node)
+            .iter()
+            .flat_map(|nodes| nodes.values())
+            .map(|rg| rg.replicas),
+        // We rather treat explicit 0 values as [`None`], so that we don't end up with too few nodes
+        ZeroReplicasCounting::TreatAsZero,
+    );
+    let max_election_candidates = fixed_replica_count
+        .map(|count| count.to_string())
+        // In case we don't know the replica count, we set it to "" as that's what we always did
+        .unwrap_or_default();
     properties.insert(
         "nifi.cluster.flow.election.max.candidates".to_string(),
-        "".to_string(),
+        max_election_candidates,
     );
 
     match cluster.cluster_config.clustering_backend {
