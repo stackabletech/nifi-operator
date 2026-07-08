@@ -8,10 +8,11 @@ All notable changes to this project will be documented in this file.
 
 - BREAKING: Add required CLI argument and env var to set the image repository used to construct final product image names: `IMAGE_REPOSITORY` (`--image-repository`), eg. `oci.example.org/my/namespace` ([#928]).
 - Support for passing CAs to GitSync ([#903]).
-- Added support for NiFi `2.9.0` ([#922]).
+- Add support for NiFi `2.9.0` ([#922]).
 
 ### Changed
 
+- Bump stackable-operator to 0.113.3 ([#959])
 - Document Helm deployed RBAC permissions and remove unnecessary permissions ([#916]).
 - BREAKING: `configOverrides` now only accepts `bootstrap.conf`, `nifi.properties` and `security.properties`.
   Previously, arbitrary keys were silently accepted but ignored ([#921]).
@@ -37,6 +38,7 @@ All notable changes to this project will be documented in this file.
 [#936]: https://github.com/stackabletech/nifi-operator/pull/936
 [#940]: https://github.com/stackabletech/nifi-operator/pull/940
 [#945]: https://github.com/stackabletech/nifi-operator/pull/945
+[#959]: https://github.com/stackabletech/nifi-operator/pull/959
 
 ## [26.3.0] - 2026-03-16
 
