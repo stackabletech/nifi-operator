@@ -1,0 +1,304 @@
+---
+# Snapshot of every NifiCluster-owned resource. Mirrors the trino
+# smoke/13-assert.yaml pattern: kuttl only checks fields explicitly listed
+# here, so unspecified fields (UIDs, image digests, listener-UID selectors,
+# transient status) are ignored. Any change to operator-controlled fields
+# (labels, ownerRefs, container shape, service ports, listener class, etc.)
+# fails this step.
+#
+# Replicas are asserted at 2 because this step runs before the scale-up in
+# 40-scale-up-nifi.yaml.j2.
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 60
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nifi-node-default
+  labels:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: nifi
+    app.kubernetes.io/managed-by: nifi.stackable.tech_nificluster
+    app.kubernetes.io/name: nifi
+    app.kubernetes.io/role-group: default
+    restarter.stackable.tech/enabled: "true"
+    stackable.tech/vendor: Stackable
+  ownerReferences:
+    - apiVersion: nifi.stackable.tech/v1alpha1
+      controller: true
+      kind: NifiCluster
+      name: nifi
+spec:
+  podManagementPolicy: Parallel
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: node
+      app.kubernetes.io/instance: nifi
+      app.kubernetes.io/name: nifi
+      app.kubernetes.io/role-group: default
+  serviceName: nifi-node-default-headless
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: node
+        app.kubernetes.io/instance: nifi
+        app.kubernetes.io/managed-by: nifi.stackable.tech_nificluster
+        app.kubernetes.io/name: nifi
+        app.kubernetes.io/role-group: default
+        stackable.tech/vendor: Stackable
+    spec:
+      containers:
+        - name: nifi
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+        # The Vector sidecar is configured via environment variables injected by the v2
+        # `vector_container` helper; `vector.yaml` references these and they are substituted by
+        # Vector at runtime.
+        - name: vector
+          env:
+            - name: CLUSTER_NAME
+              value: nifi
+            - name: DATA_DIR
+              value: /stackable/log/_vector-state
+            - name: LOG_DIR
+              value: /stackable/log
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: ROLE_GROUP_NAME
+              value: default
+            - name: ROLE_NAME
+              value: node
+            - name: VECTOR_AGGREGATOR_ADDRESS
+              valueFrom:
+                configMapKeyRef:
+                  key: ADDRESS
+                  name: vector-aggregator-discovery
+            - name: VECTOR_CONFIG_YAML
+              value: /stackable/config/vector.yaml
+            - name: VECTOR_FILE_LOG_LEVEL
+              value: info
+            - name: VECTOR_LOG
+              value: info
+          resources:
+            limits:
+              cpu: 500m
+              memory: 128Mi
+            requests:
+              cpu: 250m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /stackable/config/vector.yaml
+              name: config
+              readOnly: true
+              subPath: vector.yaml
+            - mountPath: /stackable/log
+              name: log
+{% endif %}
+      serviceAccount: nifi-serviceaccount
+      serviceAccountName: nifi-serviceaccount
+      terminationGracePeriodSeconds: 300
+status:
+  readyReplicas: 2
+  replicas: 2
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nifi-node-default
+  labels:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: nifi
+    app.kubernetes.io/managed-by: nifi.stackable.tech_nificluster
+    app.kubernetes.io/name: nifi
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
+  ownerReferences:
+    - apiVersion: nifi.stackable.tech/v1alpha1
+      controller: true
+      kind: NifiCluster
+      name: nifi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nifi-node-default-headless
+  labels:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: nifi
+    app.kubernetes.io/managed-by: nifi.stackable.tech_nificluster
+    app.kubernetes.io/name: nifi
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
+  ownerReferences:
+    - apiVersion: nifi.stackable.tech/v1alpha1
+      controller: true
+      kind: NifiCluster
+      name: nifi
+spec:
+  clusterIP: None
+  ports:
+    - name: https
+      port: 8443
+      protocol: TCP
+      targetPort: 8443
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: nifi
+    app.kubernetes.io/name: nifi
+    app.kubernetes.io/role-group: default
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nifi-node-default-metrics
+  annotations:
+    prometheus.io/path: /nifi-api/flow/metrics/prometheus
+    prometheus.io/port: "8443"
+    prometheus.io/scheme: https
+    prometheus.io/scrape: "true"
+  labels:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: nifi
+    app.kubernetes.io/managed-by: nifi.stackable.tech_nificluster
+    app.kubernetes.io/name: nifi
+    app.kubernetes.io/role-group: default
+    prometheus.io/scrape: "true"
+    stackable.tech/vendor: Stackable
+  ownerReferences:
+    - apiVersion: nifi.stackable.tech/v1alpha1
+      controller: true
+      kind: NifiCluster
+      name: nifi
+spec:
+  clusterIP: None
+  ports:
+    - name: https
+      port: 8443
+      protocol: TCP
+      targetPort: 8443
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: nifi
+    app.kubernetes.io/name: nifi
+    app.kubernetes.io/role-group: default
+  type: ClusterIP
+---
+# Service is owned by the Listener (which is in turn owned by NifiCluster).
+# Service type depends on the listener class.
+apiVersion: v1
+kind: Service
+metadata:
+  name: nifi-node
+  labels:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: nifi-node
+    app.kubernetes.io/managed-by: listeners.stackable.tech_listener
+    app.kubernetes.io/name: listener
+    app.kubernetes.io/role-group: none
+    stackable.tech/vendor: Stackable
+  ownerReferences:
+    - apiVersion: listeners.stackable.tech/v1alpha1
+      controller: true
+      kind: Listener
+      name: nifi-node
+spec:
+  ports:
+    - name: https
+      port: 8443
+      protocol: TCP
+      targetPort: 8443
+{% if test_scenario['values']['listener-class'] == 'external-unstable' %}
+  type: NodePort
+{% else %}
+  type: ClusterIP
+{% endif %}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nifi-serviceaccount
+  labels:
+    app.kubernetes.io/instance: nifi
+    app.kubernetes.io/managed-by: nifi.stackable.tech_nificluster
+    app.kubernetes.io/name: nifi
+  ownerReferences:
+    - apiVersion: nifi.stackable.tech/v1alpha1
+      controller: true
+      kind: NifiCluster
+      name: nifi
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nifi-rolebinding
+  labels:
+    app.kubernetes.io/instance: nifi
+    app.kubernetes.io/managed-by: nifi.stackable.tech_nificluster
+    app.kubernetes.io/name: nifi
+  ownerReferences:
+    - apiVersion: nifi.stackable.tech/v1alpha1
+      controller: true
+      kind: NifiCluster
+      name: nifi
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: nifi-clusterrole
+subjects:
+  - kind: ServiceAccount
+    name: nifi-serviceaccount
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: nifi-node
+  labels:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: nifi
+    app.kubernetes.io/managed-by: nifi.stackable.tech_nificluster
+    app.kubernetes.io/name: nifi
+  ownerReferences:
+    - apiVersion: nifi.stackable.tech/v1alpha1
+      controller: true
+      kind: NifiCluster
+      name: nifi
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: node
+      app.kubernetes.io/instance: nifi
+      app.kubernetes.io/name: nifi
+status:
+  currentHealthy: 2
+  disruptionsAllowed: 1
+  expectedPods: 2
+---
+apiVersion: listeners.stackable.tech/v1alpha1
+kind: Listener
+metadata:
+  name: nifi-node
+  labels:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: nifi
+    app.kubernetes.io/managed-by: nifi.stackable.tech_nificluster
+    app.kubernetes.io/name: nifi
+    app.kubernetes.io/role-group: none
+    stackable.tech/vendor: Stackable
+  ownerReferences:
+    - apiVersion: nifi.stackable.tech/v1alpha1
+      controller: true
+      kind: NifiCluster
+      name: nifi
+spec:
+  className: {{ test_scenario['values']['listener-class'] }}
+  ports:
+    - name: https
+      port: 8443
+      protocol: TCP

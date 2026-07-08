@@ -68,7 +68,7 @@ spec:
               number: 8042
 ----
 
-=== 3. Route 
+=== 3. Route
 
 The next step is to handle different kind of messages coming in, based on the HTTP path.
 

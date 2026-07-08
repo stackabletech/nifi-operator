@@ -1,5 +1,10 @@
+use std::str::FromStr;
+
 use serde::{Deserialize, Serialize};
-use stackable_operator::schemars::{self, JsonSchema};
+use stackable_operator::{
+    schemars::{self, JsonSchema},
+    v2::types::kubernetes::SecretClassName,
+};
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -8,7 +13,7 @@ pub struct NifiTls {
     /// control which certificate the servers should use to
     /// authenticate themselves against the client.
     #[serde(default = "NifiTls::default_server_secret_class")]
-    pub server_secret_class: String,
+    pub server_secret_class: SecretClassName,
 }
 
 impl Default for NifiTls {
@@ -20,7 +25,7 @@ impl Default for NifiTls {
 }
 
 impl NifiTls {
-    fn default_server_secret_class() -> String {
-        "tls".to_owned()
+    fn default_server_secret_class() -> SecretClassName {
+        SecretClassName::from_str("tls").expect("'tls' is a valid secret class name")
     }
 }

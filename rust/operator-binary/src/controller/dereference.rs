@@ -3,8 +3,14 @@
 //! Fetches all Kubernetes objects referenced by the NifiCluster spec and returns
 //! them in [`DereferencedObjects`].
 
-use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::client::Client;
+use snafu::{ResultExt, Snafu};
+use stackable_operator::{
+    client::Client,
+    v2::{
+        controller_utils::{self, get_namespace},
+        types::kubernetes::NamespaceName,
+    },
+};
 
 use crate::{
     crd::v1alpha1,
@@ -16,8 +22,8 @@ use crate::{
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("object defines no namespace"))]
-    ObjectHasNoNamespace,
+    #[snafu(display("failed to get the namespace"))]
+    GetNamespace { source: controller_utils::Error },
 
     #[snafu(display("failed to dereference NiFi authentication classes"))]
     DereferenceAuthenticationClasses { source: authentication::Error },
@@ -30,6 +36,8 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Kubernetes objects referenced from the [`v1alpha1::NifiCluster`] spec, already fetched.
 pub struct DereferencedObjects {
+    /// The namespace of the [`v1alpha1::NifiCluster`], parsed once here and reused everywhere.
+    pub namespace: NamespaceName,
     pub authentication_classes: DereferencedAuthenticationClasses,
     pub authorization: DereferencedAuthorization,
 }
@@ -39,11 +47,7 @@ pub async fn dereference(
     client: &Client,
     nifi: &v1alpha1::NifiCluster,
 ) -> Result<DereferencedObjects> {
-    let namespace = nifi
-        .metadata
-        .namespace
-        .as_deref()
-        .context(ObjectHasNoNamespaceSnafu)?;
+    let namespace = get_namespace(nifi).context(GetNamespaceSnafu)?;
 
     let authentication_classes = DereferencedAuthenticationClasses::dereference(nifi, client)
         .await
@@ -52,12 +56,13 @@ pub async fn dereference(
     let authorization = DereferencedAuthorization::dereference(
         &nifi.spec.cluster_config.authorization,
         client,
-        namespace,
+        namespace.as_ref(),
     )
     .await
     .context(DereferenceAuthorizationSnafu)?;
 
     Ok(DereferencedObjects {
+        namespace,
         authentication_classes,
         authorization,
     })

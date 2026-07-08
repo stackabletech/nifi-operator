@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use indoc::{formatdoc, indoc};
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
@@ -7,18 +9,15 @@ use stackable_operator::{
     k8s_openapi::api::core::v1::{
         ConfigMap, ConfigMapKeySelector, EnvVar, EnvVarSource, Volume, VolumeMount,
     },
-    kube::ResourceExt,
+    v2::types::kubernetes::VolumeName,
 };
 
-use crate::{
-    config::{NIFI_PVC_STORAGE_DIRECTORY, NifiRepository},
-    crd::{
-        authorization::{NifiAccessPolicyProvider, NifiAuthorization, NifiOpaConfig},
-        v1alpha1,
-    },
+use crate::crd::{
+    authorization::{NifiAccessPolicyProvider, NifiAuthorization, NifiOpaConfig},
+    storage::{NIFI_PVC_STORAGE_DIRECTORY, NifiRepository},
 };
 
-const OPA_TLS_VOLUME_NAME: &str = "opa-tls";
+stackable_operator::constant!(OPA_TLS_VOLUME_NAME: VolumeName = "opa-tls");
 pub const OPA_TLS_MOUNT_PATH: &str = "/stackable/opa_tls";
 
 const FILE_BASED_MOUNT_DIRECTORY: &str = "filebased";
@@ -37,6 +36,7 @@ pub enum Error {
     },
 }
 
+#[derive(Clone)]
 pub enum ResolvedNifiAuthorizationConfig {
     Opa {
         config: OpaConfig,
@@ -117,7 +117,7 @@ impl ResolvedNifiAuthorizationConfig {
         }
     }
 
-    pub fn get_authorizers_config(&self, nifi_cluster: &v1alpha1::NifiCluster) -> String {
+    pub fn get_authorizers_config(&self, cluster_name: &str) -> String {
         let mut authorizers_xml = indoc! {r#"
             <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
             <authorizers>
@@ -132,7 +132,7 @@ impl ResolvedNifiAuthorizationConfig {
                 ..
             } => {
                 // According to [`OpaConfig::document_url`] we default the stacklet name
-                let package = package.clone().unwrap_or_else(|| nifi_cluster.name_any());
+                let package = package.clone().unwrap_or_else(|| cluster_name.to_owned());
                 authorizers_xml.push_str(&formatdoc! {r#"
                     <authorizer>
                         <identifier>authorizer</identifier>
@@ -228,7 +228,7 @@ impl ResolvedNifiAuthorizationConfig {
                 secret_class: Some(_),
                 ..
             } => volume_mounts.push(VolumeMount {
-                name: OPA_TLS_VOLUME_NAME.into(),
+                name: OPA_TLS_VOLUME_NAME.to_string(),
                 mount_path: OPA_TLS_MOUNT_PATH.into(),
                 ..VolumeMount::default()
             }),
@@ -263,7 +263,7 @@ impl ResolvedNifiAuthorizationConfig {
         } = self
         {
             volumes.push(
-                VolumeBuilder::new(OPA_TLS_VOLUME_NAME)
+                VolumeBuilder::new(OPA_TLS_VOLUME_NAME.to_string())
                     .ephemeral(
                         SecretOperatorVolumeSourceBuilder::new(
                             secret_class,
@@ -292,5 +292,102 @@ impl ResolvedNifiAuthorizationConfig {
 
     fn file_based_mount_path() -> String {
         format!("{NIFI_PVC_STORAGE_DIRECTORY}/{FILE_BASED_MOUNT_DIRECTORY}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::*;
+
+    fn opa_authorization() -> NifiAuthorization {
+        NifiAuthorization::Opa {
+            opa: NifiOpaConfig {
+                opa: OpaConfig {
+                    config_map_name: "simple-opa".to_string(),
+                    package: Some("nifi".to_string()),
+                },
+                cache: Default::default(),
+            },
+        }
+    }
+
+    fn config_map_with(data: BTreeMap<String, String>) -> ConfigMap {
+        ConfigMap {
+            data: Some(data),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn single_user_resolves_to_single_user() {
+        let resolved = ResolvedNifiAuthorizationConfig::validate(
+            &NifiAuthorization::SingleUser {},
+            &DereferencedAuthorization {
+                opa_config_map: None,
+            },
+        );
+        assert!(matches!(
+            resolved,
+            ResolvedNifiAuthorizationConfig::SingleUser
+        ));
+    }
+
+    #[test]
+    fn standard_resolves_to_standard_with_provider() {
+        let auth = NifiAuthorization::Standard {
+            access_policy_provider: NifiAccessPolicyProvider::FileBased {
+                initial_admin_user: "admin".to_string(),
+            },
+        };
+        let resolved = ResolvedNifiAuthorizationConfig::validate(
+            &auth,
+            &DereferencedAuthorization {
+                opa_config_map: None,
+            },
+        );
+        assert!(matches!(
+            resolved,
+            ResolvedNifiAuthorizationConfig::Standard { .. }
+        ));
+    }
+
+    /// OPA: the `OPA_SECRET_CLASS` key in the discovery ConfigMap is surfaced as `secret_class`.
+    #[test]
+    fn opa_extracts_secret_class_from_config_map() {
+        let config_map = config_map_with(BTreeMap::from([(
+            "OPA_SECRET_CLASS".to_string(),
+            "tls".to_string(),
+        )]));
+        let resolved = ResolvedNifiAuthorizationConfig::validate(
+            &opa_authorization(),
+            &DereferencedAuthorization {
+                opa_config_map: Some(config_map),
+            },
+        );
+        match resolved {
+            ResolvedNifiAuthorizationConfig::Opa { secret_class, .. } => {
+                assert_eq!(secret_class, Some("tls".to_string()));
+            }
+            _ => panic!("expected the Opa variant"),
+        }
+    }
+
+    /// OPA: a ConfigMap without `OPA_SECRET_CLASS` yields `secret_class = None`.
+    #[test]
+    fn opa_without_secret_class_resolves_to_none() {
+        let resolved = ResolvedNifiAuthorizationConfig::validate(
+            &opa_authorization(),
+            &DereferencedAuthorization {
+                opa_config_map: Some(config_map_with(BTreeMap::new())),
+            },
+        );
+        match resolved {
+            ResolvedNifiAuthorizationConfig::Opa { secret_class, .. } => {
+                assert_eq!(secret_class, None);
+            }
+            _ => panic!("expected the Opa variant"),
+        }
     }
 }

@@ -1,0 +1,191 @@
+//! Builder for the NiFi JVM arguments used in `bootstrap.conf`.
+
+use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::{
+    memory::{BinaryMultiple, MemoryQuantity},
+    v2::jvm_argument_overrides::JvmArgumentOverrides,
+};
+
+use crate::{
+    controller::{
+        ValidatedNifiConfig,
+        build::{NIFI_CONFIG_DIRECTORY, properties::ConfigFileName},
+    },
+    security::{
+        authentication::{STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD},
+        authorization::ResolvedNifiAuthorizationConfig,
+    },
+};
+
+// Part of memory resources allocated for Java heap
+const JAVA_HEAP_FACTOR: f32 = 0.8;
+
+#[derive(Snafu, Debug)]
+pub enum Error {
+    #[snafu(display("invalid memory resource configuration - missing default or value in crd?"))]
+    MissingMemoryResourceConfig,
+
+    #[snafu(display("invalid memory config"))]
+    InvalidMemoryConfig {
+        source: stackable_operator::memory::Error,
+    },
+}
+
+/// Build the effective JVM arguments for the NiFi bootstrap.conf.
+///
+/// The operator-generated arguments below form the base that the role <- role-group merged
+/// user overrides (`merged_jvm_argument_overrides`) are applied on top of.
+pub fn build_merged_jvm_config(
+    merged_config: &ValidatedNifiConfig,
+    merged_jvm_argument_overrides: &JvmArgumentOverrides,
+    authorization_config: Option<&ResolvedNifiAuthorizationConfig>,
+) -> Result<Vec<String>, Error> {
+    let heap_size = MemoryQuantity::try_from(
+        merged_config
+            .resources
+            .memory
+            .limit
+            .as_ref()
+            .context(MissingMemoryResourceConfigSnafu)?,
+    )
+    .context(InvalidMemoryConfigSnafu)?
+    .scale_to(BinaryMultiple::Mebi)
+        * JAVA_HEAP_FACTOR;
+    let java_heap = heap_size
+        .format_for_java()
+        .context(InvalidMemoryConfigSnafu)?;
+
+    let mut operator_generated = vec![
+        // Heap settings
+        format!("-Xmx{java_heap}"),
+        format!("-Xms{java_heap}"),
+        // The G1GC is known to cause some problems in Java 8 and earlier, but the issues were addressed in Java 9. If using Java 8 or earlier,
+        // it is recommended that G1GC not be used, especially in conjunction with the Write Ahead Provenance Repository. However, if using a newer
+        // version of Java, it can result in better performance without significant \"stop-the-world\" delays.
+        "-XX:+UseG1GC".to_owned(),
+        // Set headless mode by default
+        "-Djava.awt.headless=true".to_owned(),
+        // Disable JSR 199 so that we can use JSP's without running a JDK
+        "-Dorg.apache.jasper.compiler.disablejsr199=true".to_owned(),
+        // Note(sbernauer): This has been here since ages, leaving it here for compatibility reasons.
+        // That being said: IPV6 rocks :rocket:!
+        "-Djava.net.preferIPv4Stack=true".to_owned(),
+        // allowRestrictedHeaders is required for Cluster/Node communications to work properly
+        "-Dsun.net.http.allowRestrictedHeaders=true".to_owned(),
+        "-Djava.protocol.handler.pkgs=sun.net.www.protocol".to_owned(),
+        // Sets the provider of SecureRandom to /dev/urandom to prevent blocking on VMs
+        "-Djava.security.egd=file:/dev/urandom".to_owned(),
+        // Requires JAAS to use only the provided JAAS configuration to authenticate a Subject, without using any "fallback" methods (such as prompting for username/password)
+        // Please see https://docs.oracle.com/javase/8/docs/technotes/guides/security/jgss/single-signon.html, section "EXCEPTIONS TO THE MODEL"
+        "-Djavax.security.auth.useSubjectCredsOnly=true".to_owned(),
+        // Zookeeper 3.5 now includes an Admin Server that starts on port 8080, since NiFi is already using that port disable by default.
+        // Please see https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_adminserver_config for configuration options.
+        "-Dzookeeper.admin.enableServer=false".to_owned(),
+        // JVM security properties include especially TTL values for the positive and negative DNS caches.
+        format!(
+            "-Djava.security.properties={NIFI_CONFIG_DIRECTORY}/{}",
+            ConfigFileName::SecurityProperties
+        ),
+    ];
+
+    // Add JVM truststore properties when OPA TLS is enabled
+    // This ensures that the OPA authorizer can verify the OPA server's TLS certificate
+    //
+    // Note: JVM system properties are currently the correct way to configure TLS for the OPA
+    // plugin. The NiFi OPA authorizer uses the Styra OPA Java SDK, which internally creates a
+    // standard Java HttpClient without exposed SSL configuration options, but the HttpClient
+    // respects these JVM-wide SSL system properties. So there is no plugin-level configuration
+    // available for truststore settings. This was last checked for version 1.7.0 of the Styra
+    // OPA Java SDK.
+    if let Some(authz_config) = authorization_config
+        && authz_config.has_opa_tls()
+    {
+        operator_generated.push(format!(
+            "-Djavax.net.ssl.trustStore={STACKABLE_SERVER_TLS_DIR}/truststore.p12"
+        ));
+        operator_generated.push(format!(
+            "-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"
+        ));
+        operator_generated.push("-Djavax.net.ssl.trustStoreType=pkcs12".to_owned());
+    }
+
+    Ok(merged_jvm_argument_overrides.apply_to(operator_generated))
+}
+
+#[cfg(test)]
+mod tests {
+    use stackable_operator::{
+        commons::opa::OpaConfig, v2::jvm_argument_overrides::JvmArgumentOverrides,
+    };
+
+    use super::build_merged_jvm_config;
+    use crate::{
+        controller::build::properties::test_support::{default_rg, minimal_validated_cluster},
+        security::authorization::ResolvedNifiAuthorizationConfig,
+    };
+
+    fn opa_with_tls() -> ResolvedNifiAuthorizationConfig {
+        ResolvedNifiAuthorizationConfig::Opa {
+            config: OpaConfig {
+                config_map_name: "simple-opa".to_string(),
+                package: Some("nifi".to_string()),
+            },
+            cache_entry_time_to_live_secs: 0,
+            cache_max_entries: 0,
+            secret_class: Some("tls".to_string()),
+        }
+    }
+
+    /// The heap is sized from the memory limit and `-Xmx` must equal `-Xms`.
+    #[test]
+    fn heap_is_set_and_min_equals_max() {
+        let cluster = minimal_validated_cluster();
+        let args = build_merged_jvm_config(
+            &default_rg(&cluster).config,
+            &JvmArgumentOverrides::default(),
+            None,
+        )
+        .expect("jvm config should build");
+
+        let xmx = args.iter().find(|a| a.starts_with("-Xmx")).expect("-Xmx");
+        let xms = args.iter().find(|a| a.starts_with("-Xms")).expect("-Xms");
+        assert_eq!(xmx[4..], xms[4..], "min and max heap should be equal");
+    }
+
+    /// OPA with a TLS secret class adds the JVM truststore properties.
+    #[test]
+    fn opa_tls_adds_truststore_properties() {
+        let cluster = minimal_validated_cluster();
+        let args = build_merged_jvm_config(
+            &default_rg(&cluster).config,
+            &JvmArgumentOverrides::default(),
+            Some(&opa_with_tls()),
+        )
+        .expect("jvm config should build");
+
+        assert!(
+            args.iter()
+                .any(|a| a.starts_with("-Djavax.net.ssl.trustStore=")),
+            "expected truststore property when OPA TLS is enabled"
+        );
+    }
+
+    /// Without OPA TLS, no truststore properties are emitted.
+    #[test]
+    fn without_opa_tls_no_truststore_properties() {
+        let cluster = minimal_validated_cluster();
+        let args = build_merged_jvm_config(
+            &default_rg(&cluster).config,
+            &JvmArgumentOverrides::default(),
+            Some(&ResolvedNifiAuthorizationConfig::SingleUser),
+        )
+        .expect("jvm config should build");
+
+        assert!(
+            !args
+                .iter()
+                .any(|a| a.starts_with("-Djavax.net.ssl.trustStore=")),
+            "did not expect truststore properties without OPA TLS"
+        );
+    }
+}
