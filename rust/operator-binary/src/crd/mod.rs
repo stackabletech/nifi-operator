@@ -68,6 +68,7 @@ pub mod versioned {
     /// Find more information on how to use it and the resources that the operator generates in the
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/nifi/).
     #[versioned(crd(
+        doc = "A NiFi cluster stacklet. This resource is managed by the Stackable operator for Apache NiFi.",
         group = "nifi.stackable.tech",
         shortname = "nifi",
         status = "NifiStatus",
