@@ -23,17 +23,14 @@ use stackable_operator::{
     config::{fragment::Fragment, merge::Merge},
     crd::{authentication::core as auth_core, git_sync},
     deep_merger::ObjectOverrides,
-    k8s_openapi::{
-        api::core::v1::{PodTemplateSpec, Volume},
-        apimachinery::pkg::api::resource::Quantity,
-    },
+    k8s_openapi::{api::core::v1::Volume, apimachinery::pkg::api::resource::Quantity},
     kube::CustomResource,
     product_logging::{self, spec::Logging},
     role_utils::{GenericRoleConfig, Role},
     schemars::{self, JsonSchema},
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
-    utils::crds::{raw_object_list_schema, raw_object_schema},
+    utils::crds::raw_object_list_schema,
     v2::{
         config_overrides::KeyValueConfigOverrides,
         role_utils::JavaCommonConfig,
@@ -145,10 +142,6 @@ pub mod versioned {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         #[schemars(schema_with = "raw_object_list_schema")]
         pub extra_volumes: Vec<Volume>,
-
-        // Docs are on the struct
-        #[serde(default)]
-        pub create_reporting_task_job: CreateReportingTaskJob,
     }
 
     // This is flattened in for backwards compatibility reasons, `zookeeper_config_map_name` already existed and used to be mandatory.
@@ -163,8 +156,7 @@ pub mod versioned {
             /// When using the [Stackable operator for Apache ZooKeeper](DOCS_BASE_URL_PLACEHOLDER/zookeeper/)
             /// to deploy a ZooKeeper cluster, this will simply be the name of your ZookeeperCluster resource.
             ///
-            /// The Kubernetes provider will be used if this field is unset. Kubernetes is only supported for NiFi 2.x and newer,
-            /// NiFi 1.x requires ZooKeeper.
+            /// The Kubernetes provider will be used if this field is unset.
             zookeeper_config_map_name: ConfigMapName,
         },
         Kubernetes {},
@@ -229,43 +221,6 @@ impl Default for HostHeaderCheckConfig {
 
 pub fn default_allow_all() -> bool {
     true
-}
-
-/// This section creates a `create-reporting-task` Kubernetes Job, which enables the export of
-/// Prometheus metrics within NiFi.
-#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CreateReportingTaskJob {
-    /// Whether the Kubernetes Job should be created, defaults to true. It can be helpful to disable
-    /// the Job, e.g. when you configOverride an authentication mechanism, which the Job currently
-    /// can't use to authenticate against NiFi.
-    #[serde(default = "CreateReportingTaskJob::default_enabled")]
-    pub enabled: bool,
-
-    /// Here you can define a
-    /// [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core)
-    /// to override any property that can be set on the Pod of the create-reporting-task Kubernetes Job.
-    /// Read the
-    /// [Pod overrides documentation](DOCS_BASE_URL_PLACEHOLDER/concepts/overrides#pod-overrides)
-    /// for more information.
-    #[serde(default)]
-    #[schemars(schema_with = "raw_object_schema")]
-    pub pod_overrides: PodTemplateSpec,
-}
-
-impl Default for CreateReportingTaskJob {
-    fn default() -> Self {
-        Self {
-            enabled: Self::default_enabled(),
-            pod_overrides: Default::default(),
-        }
-    }
-}
-
-impl CreateReportingTaskJob {
-    const fn default_enabled() -> bool {
-        true
-    }
 }
 
 #[derive(
@@ -585,7 +540,7 @@ mod tests {
         fn roundtrip_test_data() -> Vec<Self> {
             stackable_operator::utils::yaml_from_str_singleton_map(indoc::indoc! {r#"
               - image:
-                  productVersion: 1.2.3
+                  productVersion: 2.9.0
                   pullPolicy: IfNotPresent
                 clusterOperation:
                   stopped: false

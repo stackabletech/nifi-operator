@@ -135,31 +135,7 @@ data:
       "parameterContexts": [],
       "parameterProviders": [],
       "controllerServices": [],
-      "reportingTasks": [
-        {
-          "identifier": "fd3cf892-0196-1000-0000-000074a555a2",
-          "instanceIdentifier": "fd3cf892-0196-1000-0000-000074a555a2",
-          "name": "StackablePrometheusReportingTask",
-          "type": "org.apache.nifi.reporting.prometheus.PrometheusReportingTask",
-          "bundle": {
-            "group": "org.apache.nifi",
-            "artifact": "nifi-prometheus-nar",
-            "version": "2.9.0"
-          },
-          "properties": {
-            "prometheus-reporting-task-metrics-endpoint-port": "8081",
-            "prometheus-reporting-task-metrics-strategy": "All Components",
-            "prometheus-reporting-task-instance-id": "${hostname(true)}",
-            "prometheus-reporting-task-client-auth": "No Authentication",
-            "prometheus-reporting-task-metrics-send-jvm": "true"
-          },
-          "propertyDescriptors": {},
-          "scheduledState": "RUNNING",
-          "schedulingPeriod": "60 sec",
-          "schedulingStrategy": "TIMER_DRIVEN",
-          "componentType": "REPORTING_TASK"
-        }
-      ],
+      "reportingTasks": [],
       "templates": [],
       "rootGroup": {
         "identifier": "b4fe1571-02fd-3351-a2c0-e92f420b3ce9",

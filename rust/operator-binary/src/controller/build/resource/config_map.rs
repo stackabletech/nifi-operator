@@ -3,8 +3,7 @@
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::configmap::ConfigMapBuilder, k8s_openapi::api::core::v1::ConfigMap,
-    product_logging::framework::VECTOR_CONFIG_FILE, utils::cluster_info::KubernetesClusterInfo,
-    v2::types::operator::RoleGroupName,
+    product_logging::framework::VECTOR_CONFIG_FILE, v2::types::operator::RoleGroupName,
 };
 
 use crate::controller::{
@@ -58,11 +57,10 @@ pub fn build_rolegroup_config_map(
     cluster: &ValidatedCluster,
     role_group_name: &RoleGroupName,
     rg: &NifiRoleGroupConfig,
-    cluster_info: &KubernetesClusterInfo,
 ) -> Result<ConfigMap> {
     tracing::debug!("building rolegroup ConfigMap");
 
-    let proxy_hosts = proxy_hosts::compute_proxy_hosts(cluster, cluster_info);
+    let proxy_hosts = proxy_hosts::compute_proxy_hosts(cluster);
 
     let mut cm_builder = ConfigMapBuilder::new();
 
