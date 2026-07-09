@@ -70,11 +70,9 @@ spec:
       COMMON_VAR: role-value # overridden by role group below
       ROLE_VAR: role-value   # only defined here at role level
     configOverrides:
-      "nifi.properties":
-        "nifi.diagnostics.on.shutdown.enabled": "true"
-        "nifi.diagnostics.on.shutdown.verbose": "false"
-        # Quicker startup, and we only have a single node
-        "nifi.cluster.flow.election.max.wait.time": "10 secs"
+      nifi.properties:
+        nifi.diagnostics.on.shutdown.enabled: "true"
+        nifi.diagnostics.on.shutdown.verbose: "false"
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}

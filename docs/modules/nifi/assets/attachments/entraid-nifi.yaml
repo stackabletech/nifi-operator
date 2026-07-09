@@ -204,7 +204,6 @@ spec:
         nifi.security.user.oidc.additional.scopes: "profile"
         nifi.security.user.oidc.claim.identifying.user: "upn"
         nifi.process.group.root.placeholder: "root"
-        nifi.cluster.flow.election.max.wait.time: "10 secs"
     podOverrides:
       spec:
         initContainers:

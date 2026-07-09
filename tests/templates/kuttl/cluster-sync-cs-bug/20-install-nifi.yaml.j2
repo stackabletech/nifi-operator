@@ -186,8 +186,6 @@ spec:
       nifi.properties:
         nifi.web.https.sni.required: "false"
         nifi.web.https.sni.host.check: "false"
-        # Quicker startup, and we only have a single node
-        nifi.cluster.flow.election.max.wait.time: "10 secs"
     podOverrides:
       spec:
         initContainers:
