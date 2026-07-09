@@ -1,8 +1,7 @@
 = Flow Versioning
 
-IMPORTANT: The way described in this document to version flows is only available in NiFi 2.0.0 and later versions. Previous versions of NiFi relied exclusively on the NiFi Registry service for flow versioning.
-
-Starting with Apache NiFi 2.0.0, you can connect directly to Git repositories using either GitHub or GitLab as your flow registry without requiring a separate NiFi Registry service. This document explains how to configure and use these registry clients to version your NiFi flows.
+You can connect directly to Git repositories using either GitHub or GitLab as your flow registry without requiring a separate NiFi Registry service.
+This document explains how to configure and use these registry clients to version your NiFi flows.
 
 == Setting up the Registry Client
 

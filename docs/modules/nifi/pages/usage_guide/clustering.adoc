@@ -14,8 +14,6 @@ CAUTION: The cluster backend of an existing cluster should never be changed. Oth
 [#backend-kubernetes]
 == Kubernetes
 
-NOTE: The Kubernetes provider is only supported by Apache NiFi 2.0 or newer. When using NiFi 1.x, use the xref:#backend-zookeeper[] backend instead.
-
 The Kubernetes backend is used by default (unless the xref:#backend-zookeeper[] backend is configured), and stores all state in Kubernetes objects, in the same namespace as the `NifiCluster` object.
 
 It takes no configuration.
