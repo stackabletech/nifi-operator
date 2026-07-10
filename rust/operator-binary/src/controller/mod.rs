@@ -11,8 +11,15 @@ use stackable_operator::{
         product_image_selection::ResolvedProductImage,
         resources::{NoRuntimeLimits, Resources},
     },
-    crd::git_sync,
-    k8s_openapi::{api::core::v1::Volume, apimachinery::pkg::apis::meta::v1::ObjectMeta},
+    crd::{git_sync, listener},
+    k8s_openapi::{
+        api::{
+            apps::v1::StatefulSet,
+            core::v1::{ConfigMap, Service, Volume},
+            policy::v1::PodDisruptionBudget,
+        },
+        apimachinery::pkg::apis::meta::v1::ObjectMeta,
+    },
     kube::Resource,
     kvp::Labels,
     shared::time::Duration,
@@ -47,6 +54,15 @@ use crate::{
 pub(crate) mod build;
 pub(crate) mod dereference;
 pub(crate) mod validate;
+
+/// Every Kubernetes resource produced by the [`build`] step.
+pub struct KubernetesResources {
+    pub stateful_sets: Vec<StatefulSet>,
+    pub services: Vec<Service>,
+    pub listeners: Vec<listener::v1alpha1::Listener>,
+    pub config_maps: Vec<ConfigMap>,
+    pub pod_disruption_budgets: Vec<PodDisruptionBudget>,
+}
 
 /// A validated, merged (default <- role <- role-group) NiFi rolegroup config.
 pub type NifiRoleGroupConfig =

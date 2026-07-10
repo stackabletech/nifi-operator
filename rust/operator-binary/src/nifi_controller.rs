@@ -3,7 +3,7 @@
 use std::{str::FromStr, sync::Arc};
 
 use const_format::concatcp;
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     client::Client,
@@ -20,27 +20,14 @@ use stackable_operator::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
         statefulset::StatefulSetConditionBuilder,
     },
-    v2::{
-        cluster_resources::cluster_resources_new,
-        types::operator::{ProductVersion, RoleGroupName},
-    },
+    v2::{cluster_resources::cluster_resources_new, types::operator::ProductVersion},
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
-use tracing::Instrument;
 
 use crate::{
     OPERATOR_NAME,
-    controller::{
-        build,
-        build::resource::{
-            listener::{build_group_listener, group_listener_name},
-            pdb::build_pdb,
-            service::{build_rolegroup_headless_service, build_rolegroup_metrics_service},
-            statefulset::build_node_rolegroup_statefulset,
-        },
-        controller_name, dereference, operator_name, product_name, validate,
-    },
-    crd::{APP_NAME, NifiRole, NifiStatus, v1alpha1},
+    controller::{build, controller_name, dereference, operator_name, product_name, validate},
+    crd::{APP_NAME, NifiStatus, v1alpha1},
     security::{
         authentication::NifiAuthenticationConfig, check_or_generate_oidc_admin_password,
         check_or_generate_sensitive_key,
@@ -80,37 +67,12 @@ pub enum Error {
         source: stackable_operator::client::Error,
     },
 
-    #[snafu(display("failed to apply Service for {}", rolegroup))]
-    ApplyRoleGroupService {
+    #[snafu(display("failed to build the Kubernetes resources"))]
+    BuildResources { source: build::Error },
+
+    #[snafu(display("failed to apply Kubernetes resource"))]
+    ApplyResource {
         source: stackable_operator::cluster_resources::Error,
-        rolegroup: RoleGroupName,
-    },
-
-    #[snafu(display("failed to build rolegroup ConfigMap for {}", rolegroup))]
-    BuildRoleGroupConfigMap {
-        source: build::resource::config_map::Error,
-        rolegroup: RoleGroupName,
-    },
-
-    #[snafu(display("failed to build StatefulSet for {}", rolegroup))]
-    BuildStatefulSet {
-        source: crate::controller::build::resource::statefulset::Error,
-        rolegroup: RoleGroupName,
-    },
-
-    #[snafu(display("object has no nodes defined"))]
-    NoNodesDefined,
-
-    #[snafu(display("failed to apply ConfigMap for {}", rolegroup))]
-    ApplyRoleGroupConfig {
-        source: stackable_operator::cluster_resources::Error,
-        rolegroup: RoleGroupName,
-    },
-
-    #[snafu(display("failed to apply StatefulSet for {}", rolegroup))]
-    ApplyRoleGroupStatefulSet {
-        source: stackable_operator::cluster_resources::Error,
-        rolegroup: RoleGroupName,
     },
 
     #[snafu(display("failed to patch service account"))]
@@ -128,11 +90,6 @@ pub enum Error {
         source: stackable_operator::commons::rbac::Error,
     },
 
-    #[snafu(display("failed to apply PodDisruptionBudget"))]
-    ApplyPdb {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
     #[snafu(display("failed to get required labels"))]
     GetRequiredLabels {
         source:
@@ -141,11 +98,6 @@ pub enum Error {
 
     #[snafu(display("security failure"))]
     Security { source: crate::security::Error },
-
-    #[snafu(display("failed to apply group listener"))]
-    ApplyGroupListener {
-        source: stackable_operator::cluster_resources::Error,
-    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -231,103 +183,46 @@ pub async fn reconcile_nifi(
         .await
         .context(ApplyRoleBindingSnafu)?;
 
+    let resources =
+        build::build(&validated_cluster, &rbac_sa.name_any()).context(BuildResourcesSnafu)?;
+
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
-    let nifi_role = NifiRole::Node;
-    let node_role_group_configs = validated_cluster
-        .role_group_configs
-        .get(&nifi_role)
-        .context(NoNodesDefinedSnafu)?;
-    for (role_group_name, rg) in node_role_group_configs.iter() {
-        let rg_span = tracing::info_span!("rolegroup_span", rolegroup = role_group_name.as_ref());
-        async {
-            tracing::debug!("Processing rolegroup {role_group_name}");
-
-            let rg_headless_service =
-                build_rolegroup_headless_service(&validated_cluster, role_group_name);
-
-            let rg_configmap = build::resource::config_map::build_rolegroup_config_map(
-                &validated_cluster,
-                role_group_name,
-                rg,
-            )
-            .context(BuildRoleGroupConfigMapSnafu {
-                rolegroup: role_group_name.clone(),
-            })?;
-
-            let effective_replicas = rg.replicas.map(i32::from);
-
-            let rg_statefulset = build_node_rolegroup_statefulset(
-                &validated_cluster,
-                role_group_name,
-                rg,
-                effective_replicas,
-                &rbac_sa.name_any(),
-            )
-            .with_context(|_| BuildStatefulSetSnafu {
-                rolegroup: role_group_name.clone(),
-            })?;
-
-            let rg_metrics_service =
-                build_rolegroup_metrics_service(&validated_cluster, role_group_name);
-
-            cluster_resources
-                .add(client, rg_metrics_service)
-                .await
-                .with_context(|_| ApplyRoleGroupServiceSnafu {
-                    rolegroup: role_group_name.clone(),
-                })?;
-
-            cluster_resources
-                .add(client, rg_headless_service)
-                .await
-                .with_context(|_| ApplyRoleGroupServiceSnafu {
-                    rolegroup: role_group_name.clone(),
-                })?;
-
-            cluster_resources
-                .add(client, rg_configmap)
-                .await
-                .with_context(|_| ApplyRoleGroupConfigSnafu {
-                    rolegroup: role_group_name.clone(),
-                })?;
-
-            // Note: The StatefulSet needs to be applied after all ConfigMaps and Secrets it mounts
-            // to prevent unnecessary Pod restarts.
-            // See https://github.com/stackabletech/commons-operator/issues/111 for details.
-            ss_cond_builder.add(
-                cluster_resources
-                    .add(client, rg_statefulset)
-                    .await
-                    .with_context(|_| ApplyRoleGroupStatefulSetSnafu {
-                        rolegroup: role_group_name.clone(),
-                    })?,
-            );
-
-            Ok(())
-        }
-        .instrument(rg_span)
-        .await?
+    // Apply order: everything before StatefulSets, StatefulSets last. A StatefulSet must be applied
+    // after all ConfigMaps and Secrets it mounts, otherwise the Pods restart unnecessarily.
+    // See https://github.com/stackabletech/commons-operator/issues/111 for details.
+    for service in resources.services {
+        cluster_resources
+            .add(client, service)
+            .await
+            .context(ApplyResourceSnafu)?;
     }
-
-    let role_config = &validated_cluster.role_config;
-    if let Some(pdb) = build_pdb(&role_config.pdb, &validated_cluster, &nifi_role) {
+    for listener in resources.listeners {
+        cluster_resources
+            .add(client, listener)
+            .await
+            .context(ApplyResourceSnafu)?;
+    }
+    for config_map in resources.config_maps {
+        cluster_resources
+            .add(client, config_map)
+            .await
+            .context(ApplyResourceSnafu)?;
+    }
+    for pdb in resources.pod_disruption_budgets {
         cluster_resources
             .add(client, pdb)
             .await
-            .context(ApplyPdbSnafu)?;
+            .context(ApplyResourceSnafu)?;
     }
-
-    let role_group_listener = build_group_listener(
-        &validated_cluster,
-        role_config.listener_class.clone(),
-        group_listener_name(&validated_cluster, &nifi_role.to_string()),
-    );
-
-    cluster_resources
-        .add(client, role_group_listener)
-        .await
-        .context(ApplyGroupListenerSnafu)?;
+    for stateful_set in resources.stateful_sets {
+        ss_cond_builder.add(
+            cluster_resources
+                .add(client, stateful_set)
+                .await
+                .context(ApplyResourceSnafu)?,
+        );
+    }
 
     // Remove any orphaned resources that still exist in k8s, but have not been added to
     // the cluster resources during the reconciliation
