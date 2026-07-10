@@ -10,7 +10,6 @@ data:
     package my_nifi_package
 
     nifi_node_proxy := "CN=generated certificate for pod"
-    nifi_reporting_task_user := "admin"
 
     # Setting "resourceNotFound" to true results in the parent resource being evaluated for authorization,
     # e.g. the parent of a processor is the processor-group.
@@ -62,16 +61,6 @@ data:
       input.action.name == "read"
       some group in user_groups
       group == "nifi-user"
-    }
-
-    ### Reporting Task permissions (NiFi 1.x.x)
-
-    # Allow the reporting task user
-    allow := {
-      "allowed": true,
-      "dumpCache": true
-    } if {
-      input.identity.name == nifi_reporting_task_user
     }
 
     ### NiFi Node permissions

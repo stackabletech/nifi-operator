@@ -49,17 +49,13 @@ use crate::{
     controller::{
         NifiRoleGroupConfig, ValidatedCluster,
         build::{
-            BALANCE_PORT, BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, METRICS_PORT,
-            METRICS_PORT_NAME, NIFI_CONFIG_DIRECTORY, NIFI_PYTHON_WORKING_DIRECTORY, PROTOCOL_PORT,
-            PROTOCOL_PORT_NAME,
+            BALANCE_PORT, BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, NIFI_CONFIG_DIRECTORY,
+            NIFI_PYTHON_WORKING_DIRECTORY, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
             graceful_shutdown::add_graceful_shutdown_config,
             properties::ConfigFileName,
-            resource::{
-                listener::{
-                    LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_group_listener_pvc,
-                    group_listener_name,
-                },
-                reporting_task::build_reporting_task_service_name,
+            resource::listener::{
+                LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_group_listener_pvc,
+                group_listener_name,
             },
         },
     },
@@ -174,7 +170,6 @@ pub(crate) async fn build_node_rolegroup_statefulset(
     cluster_info: &KubernetesClusterInfo,
     role_group_name: &RoleGroupName,
     rg: &NifiRoleGroupConfig,
-    rolling_update_supported: bool,
     effective_replicas: Option<i32>,
     service_account_name: &str,
 ) -> Result<StatefulSet> {
@@ -463,11 +458,6 @@ pub(crate) async fn build_node_rolegroup_statefulset(
         })
         .resources(merged_config.resources.clone().into());
 
-    // NiFi 2.x.x offers nifi-api/flow/metrics/prometheus at the HTTPS_PORT, therefore METRICS_PORT is only required for NiFi 1.x.x.
-    if resolved_product_image.product_version.starts_with("1.") {
-        container_nifi.add_container_port(METRICS_PORT_NAME, METRICS_PORT.into());
-    }
-
     let mut pod_builder = PodBuilder::new();
 
     let recommended_object_labels = cluster.recommended_labels(role_group_name);
@@ -573,7 +563,6 @@ pub(crate) async fn build_node_rolegroup_statefulset(
     let requested_secret_lifetime = merged_config
         .requested_secret_lifetime
         .context(MissingSecretLifetimeSnafu)?;
-    let nifi_cluster_name = cluster.name.to_string();
     pod_builder
         .metadata(metadata)
         .image_pull_secrets_from_product_image(resolved_product_image)
@@ -616,13 +605,10 @@ pub(crate) async fn build_node_rolegroup_statefulset(
             build_tls_volume(
                 &cluster.cluster_config.server_tls_secret_class,
                 &KEYSTORE_VOLUME_NAME,
-                [
-                    cluster
-                        .resource_names(role_group_name)
-                        .metrics_service_name()
-                        .to_string(),
-                    build_reporting_task_service_name(&nifi_cluster_name),
-                ],
+                [cluster
+                    .resource_names(role_group_name)
+                    .metrics_service_name()
+                    .to_string()],
                 SecretFormat::TlsPkcs12,
                 &requested_secret_lifetime,
                 Some(LISTENER_VOLUME_NAME),
@@ -683,11 +669,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
             service_name: Some(resource_names.headless_service_name().to_string()),
             template: pod_template,
             update_strategy: Some(StatefulSetUpdateStrategy {
-                type_: if rolling_update_supported {
-                    Some("RollingUpdate".to_string())
-                } else {
-                    Some("OnDelete".to_string())
-                },
+                type_: Some("RollingUpdate".to_string()),
                 ..StatefulSetUpdateStrategy::default()
             }),
             volume_claim_templates: Some(get_volume_claim_templates(cluster, role_group_name, rg)?),

@@ -23,8 +23,6 @@ pub const PROTOCOL_PORT_NAME: &str = "protocol";
 pub const PROTOCOL_PORT: Port = Port(9088);
 pub const BALANCE_PORT_NAME: &str = "balance";
 pub const BALANCE_PORT: Port = Port(6243);
-pub const METRICS_PORT_NAME: &str = "metrics";
-pub const METRICS_PORT: Port = Port(8081);
 
 // Filesystem paths shared by multiple builders. Single-consumer paths live in their builder.
 pub const NIFI_CONFIG_DIRECTORY: &str = "/stackable/nifi/conf";

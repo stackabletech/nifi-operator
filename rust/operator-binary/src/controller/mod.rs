@@ -11,16 +11,13 @@ use stackable_operator::{
         resources::{NoRuntimeLimits, Resources},
     },
     crd::git_sync,
-    k8s_openapi::{
-        api::core::v1::{PodTemplateSpec, Volume},
-        apimachinery::pkg::apis::meta::v1::ObjectMeta,
-    },
+    k8s_openapi::{api::core::v1::Volume, apimachinery::pkg::apis::meta::v1::ObjectMeta},
     kube::Resource,
     kvp::Labels,
     shared::time::Duration,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
-        kvp::label::{recommended_labels, role_group_selector, role_selector},
+        kvp::label::{recommended_labels, role_group_selector},
         product_logging::framework::{ValidatedContainerLogConfigChoice, VectorContainerLogConfig},
         role_group_utils::ResourceNames,
         role_utils::{JavaCommonConfig, RoleGroupConfig},
@@ -48,7 +45,6 @@ use crate::{
 
 pub(crate) mod build;
 pub(crate) mod dereference;
-pub(crate) mod upgrade;
 pub(crate) mod validate;
 
 /// A validated, merged (default <- role <- role-group) NiFi rolegroup config.
@@ -176,8 +172,6 @@ pub struct ValidatedClusterConfig {
     pub server_tls_secret_class: SecretClassName,
     /// User-provided extra volumes, mounted into every container under `/stackable/userdata/`.
     pub extra_volumes: Vec<Volume>,
-    /// The resolved (NiFi 1.x-only) create-reporting-task Job configuration.
-    pub reporting_task: ValidatedReportingTask,
 }
 
 /// The resolved `spec.clusterConfig.sensitiveProperties`.
@@ -188,14 +182,6 @@ pub struct ValidatedSensitiveProperties {
     pub key_secret: SecretName,
     /// Whether to generate the key Secret if it is missing.
     pub auto_generate: bool,
-}
-
-/// The resolved `spec.clusterConfig.createReportingTaskJob` (NiFi 1.x only).
-pub struct ValidatedReportingTask {
-    /// Whether the reporting-task Job should be created.
-    pub enabled: bool,
-    /// Pod overrides for the reporting-task Job.
-    pub pod_overrides: PodTemplateSpec,
 }
 
 /// Per-role configuration extracted during validation.
@@ -288,11 +274,6 @@ impl ValidatedCluster {
     /// Selector labels matching the pods of a role group.
     pub fn role_group_selector(&self, role_group_name: &RoleGroupName) -> Labels {
         role_group_selector(self, &product_name(), &Self::role_name(), role_group_name)
-    }
-
-    /// Selector labels matching all pods of the (single) NiFi role.
-    pub fn role_selector(&self) -> Labels {
-        role_selector(self, &product_name(), &Self::role_name())
     }
 
     /// Returns an [`ObjectMetaBuilder`](stackable_operator::builder::meta::ObjectMetaBuilder)

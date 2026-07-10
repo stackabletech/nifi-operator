@@ -30,6 +30,12 @@ All notable changes to this project will be documented in this file.
 
 - Fix broken link to the NiFi authorization usage guide in the `spec.clusterConfig.authorization` CRD doc (`usage-guide` -> `usage_guide`) ([#924]).
 
+### Removed
+
+- BREAKING: Remove support for NiFi 1.x.
+  This removes the Prometheus reporting-task Job (and its `spec.clusterConfig.createReportingTaskJob` field), the pre-2.x non-rolling upgrade handling, the dedicated metrics port, and the sensitive-properties algorithms that were only supported on NiFi 1.x.
+  `status.deployed_version` is retained even though it no longer drives the (now removed) non-rolling upgrade state machine, as we don't want a breaking change to the status just for this ([#954]).
+
 [#903]: https://github.com/stackabletech/nifi-operator/pull/903
 [#916]: https://github.com/stackabletech/nifi-operator/pull/916
 [#921]: https://github.com/stackabletech/nifi-operator/pull/921
@@ -41,6 +47,7 @@ All notable changes to this project will be documented in this file.
 [#940]: https://github.com/stackabletech/nifi-operator/pull/940
 [#945]: https://github.com/stackabletech/nifi-operator/pull/945
 [#953]: https://github.com/stackabletech/nifi-operator/pull/953
+[#954]: https://github.com/stackabletech/nifi-operator/pull/954
 [#959]: https://github.com/stackabletech/nifi-operator/pull/959
 
 ## [26.3.0] - 2026-03-16

@@ -35,7 +35,8 @@ Every role group is accessible through it's own Service, and there is a Service 
 
 == Dependencies
 
-Apache NiFi 1.x depends on Apache ZooKeeper which you can run in Kubernetes with the xref:zookeeper:index.adoc[].
+NiFi builds its cluster quorum using Kubernetes by default and needs no additional dependencies.
+It can optionally use Apache ZooKeeper instead, which you can run in Kubernetes with the xref:zookeeper:index.adoc[].
 
 == [[demos]]Demos
 
