@@ -32,7 +32,7 @@ use stackable_operator::{
         self,
         framework::{create_vector_shutdown_file_command, remove_vector_shutdown_file_command},
     },
-    utils::{COMMON_BASH_TRAP_FUNCTIONS, cluster_info::KubernetesClusterInfo},
+    utils::COMMON_BASH_TRAP_FUNCTIONS,
     v2::{
         builder::pod::container::{EnvVarSet, new_container_builder},
         product_logging::framework::{
@@ -164,10 +164,8 @@ pub(crate) const LISTENER_DEFAULT_PORT_HTTPS_ENV: &str = "LISTENER_DEFAULT_PORT_
 ///
 /// The [`Pod`](`stackable_operator::k8s_openapi::api::core::v1::Pod`)s are accessible through the
 /// corresponding [`stackable_operator::k8s_openapi::api::core::v1::Service`] (from `build_rolegroup_headless_service`).
-#[allow(clippy::too_many_arguments)]
-pub(crate) async fn build_node_rolegroup_statefulset(
+pub(crate) fn build_node_rolegroup_statefulset(
     cluster: &ValidatedCluster,
-    cluster_info: &KubernetesClusterInfo,
     role_group_name: &RoleGroupName,
     rg: &NifiRoleGroupConfig,
     effective_replicas: Option<i32>,
@@ -251,7 +249,7 @@ pub(crate) async fn build_node_rolegroup_statefulset(
         "$POD_NAME.{service_name}.{namespace}.svc.{cluster_domain}",
         service_name = resource_names.headless_service_name(),
         namespace = cluster.namespace,
-        cluster_domain = cluster_info.cluster_domain,
+        cluster_domain = cluster.cluster_domain,
     );
 
     let sensitive_key_secret = &cluster.cluster_config.sensitive_properties.key_secret;

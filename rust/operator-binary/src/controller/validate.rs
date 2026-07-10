@@ -156,6 +156,7 @@ pub fn validate(
         .context(NoNodesDefinedSnafu)?;
 
     let namespace = dereferenced_objects.namespace.clone();
+    let cluster_domain = dereferenced_objects.cluster_domain.clone();
     let uid = get_uid(nifi).context(GetUidSnafu)?;
 
     // `app_version_label_value` is constructed to be a valid label value, so it is always a valid
@@ -166,6 +167,7 @@ pub fn validate(
     Ok(ValidatedCluster::new(
         name,
         namespace,
+        cluster_domain,
         uid,
         image,
         product_version,

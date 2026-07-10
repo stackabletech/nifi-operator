@@ -259,13 +259,11 @@ pub async fn reconcile_nifi(
 
             let rg_statefulset = build_node_rolegroup_statefulset(
                 &validated_cluster,
-                &client.kubernetes_cluster_info,
                 role_group_name,
                 rg,
                 effective_replicas,
                 &rbac_sa.name_any(),
             )
-            .await
             .with_context(|_| BuildStatefulSetSnafu {
                 rolegroup: role_group_name.clone(),
             })?;

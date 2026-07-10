@@ -7,6 +7,7 @@ use std::{collections::BTreeMap, str::FromStr as _};
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
+        networking::DomainName,
         product_image_selection::ResolvedProductImage,
         resources::{NoRuntimeLimits, Resources},
     },
@@ -140,6 +141,9 @@ pub struct ValidatedCluster {
     pub name: ClusterName,
     /// The namespace of the NifiCluster, parsed once in the dereference step and reused everywhere.
     pub namespace: NamespaceName,
+    /// The Kubernetes cluster domain, captured from the client in the dereference step so the
+    /// build step needs no client to assemble in-cluster DNS names.
+    pub cluster_domain: DomainName,
     /// The UID of the NifiCluster, used to build OwnerReferences downstream.
     pub uid: Uid,
     /// The product image.
@@ -198,6 +202,7 @@ impl ValidatedCluster {
     pub fn new(
         name: ClusterName,
         namespace: NamespaceName,
+        cluster_domain: DomainName,
         uid: Uid,
         image: ResolvedProductImage,
         product_version: ProductVersion,
@@ -216,6 +221,7 @@ impl ValidatedCluster {
             metadata,
             name,
             namespace,
+            cluster_domain,
             uid,
             image,
             product_version,

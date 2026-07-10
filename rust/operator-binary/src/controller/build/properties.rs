@@ -81,7 +81,7 @@ pub(crate) mod test_support {
     use std::str::FromStr as _;
 
     use stackable_operator::{
-        commons::product_image_selection::ResolvedProductImage,
+        commons::{networking::DomainName, product_image_selection::ResolvedProductImage},
         crd::authentication::r#static::v1alpha1::{
             AuthenticationProvider as StaticAuthProvider, UserCredentialsSecretRef,
         },
@@ -168,6 +168,7 @@ pub(crate) mod test_support {
         ValidatedCluster::new(
             name,
             namespace,
+            DomainName::from_str("cluster.local").expect("valid cluster domain"),
             uid,
             image,
             product_version,
