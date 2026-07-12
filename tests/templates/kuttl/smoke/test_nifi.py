@@ -52,13 +52,15 @@ if __name__ == "__main__":
     node_count = int(args["count"])
 
     x = 0
-    while x < 15:
+    while x < 30:
         url = host + "/nifi-api/controller/cluster"
         cluster = requests.get(
             url, headers=headers, verify=False
         )  # , cert='/tmp/cacert.pem')
         if cluster.status_code != 200:
-            print("Waiting for cluster...")
+            print(
+                f"Waiting for cluster (HTTP status code was {cluster.status_code})..."
+            )
         else:
             cluster_data = json.loads(cluster.content.decode("utf-8"))
             nodes = cluster_data["cluster"]["nodes"]

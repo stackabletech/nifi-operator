@@ -5,6 +5,5 @@
 pub mod config_map;
 pub mod listener;
 pub mod pdb;
-pub mod reporting_task;
 pub mod service;
 pub mod statefulset;

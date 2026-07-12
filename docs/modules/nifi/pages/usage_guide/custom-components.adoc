@@ -12,7 +12,7 @@ There are currently two types of custom components:
 
 1. Custom NiFi Archives (NARs) +
    The {nifi-docs-developers-guide}[NiFi Developer’s Guide] provides further information on how to develop custom NARs.
-2. Starting with NiFi 2.0, also custom Python extensions can be used. +
+2. Additionally, custom Python extensions can be used. +
    In the {nifi-docs-python-developers-guide}[NiFi Python Developer’s Guide], the development of custom components using Python is described.
 
 The Stackable image contains the required tooling for both types.
@@ -165,7 +165,7 @@ metadata:
   name: simple-nifi
 spec:
   image:
-    productVersion: 2.2.0
+    productVersion: 2.9.0
   clusterConfig:
     authentication:
     - authenticationClass: simple-nifi-admin-user
@@ -202,7 +202,7 @@ The basic Dockerfile below shows how to achieve this:
 
 [source,Dockerfile]
 ----
-FROM oci.stackable.tech/sdp/nifi:2.2.0-stackable25.3.0
+FROM oci.stackable.tech/sdp/nifi:2.9.0-stackable26.7.0
 COPY /path/to/your/nar.file /stackable/nifi/lib/
 COPY /path/to/your/Python.file /stackable/nifi/python/extensions/
 ----
@@ -213,8 +213,8 @@ You then need to make this image available to your Kubernetes cluster and specif
 ----
 spec:
   image:
-    productVersion: 2.2.0
-    custom: oci-registry.company.org/nifi:2.2.0-customprocessors
+    productVersion: 2.9.0
+    custom: oci-registry.company.org/nifi:2.9.0-customprocessors
 ----
 
 Also read the xref:guides:custom-images.adoc[Using customized product images] guide for additional information.
@@ -285,7 +285,7 @@ metadata:
   name: simple-nifi
 spec:
   image:
-    productVersion: 2.2.0
+    productVersion: 2.9.0
   clusterConfig:
     authentication:
     - authenticationClass: simple-nifi-admin-user

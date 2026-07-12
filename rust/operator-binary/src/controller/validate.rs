@@ -30,11 +30,11 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 
 use super::{
     NifiRoleGroupConfig, ValidatedCluster, ValidatedClusterConfig, ValidatedLogging,
-    ValidatedNifiConfig, ValidatedReportingTask, ValidatedRoleConfig, ValidatedSensitiveProperties,
+    ValidatedNifiConfig, ValidatedRoleConfig, ValidatedSensitiveProperties,
 };
 use crate::{
     controller::{build::git_sync::build_git_sync_resources, dereference::DereferencedObjects},
-    crd::{Container, NifiConfig, NifiRole, sensitive_properties, v1alpha1},
+    crd::{Container, NifiConfig, NifiRole, v1alpha1},
     security::{
         authentication::{self, NifiAuthenticationConfig},
         authorization::ResolvedNifiAuthorizationConfig,
@@ -79,9 +79,6 @@ pub enum Error {
         source: stackable_operator::v2::macros::attributed_string_type::Error,
         name: String,
     },
-
-    #[snafu(display("invalid sensitive properties algorithm"))]
-    InvalidSensitivePropertiesAlgorithm { source: sensitive_properties::Error },
 
     #[snafu(display("failed to build git-sync resources"))]
     BuildGitSyncResources {
@@ -135,9 +132,6 @@ pub fn validate(
         .algorithm
         .clone()
         .unwrap_or_default();
-    sensitive_properties_algorithm
-        .check_for_nifi_version(&image.product_version)
-        .context(InvalidSensitivePropertiesAlgorithmSnafu)?;
 
     // The Vector aggregator discovery ConfigMap name is validated by the CRD's typed field. It is
     // only required when the Vector agent is enabled for a role group.
@@ -193,15 +187,6 @@ pub fn validate(
             },
             server_tls_secret_class: nifi.server_tls_secret_class().clone(),
             extra_volumes: nifi.spec.cluster_config.extra_volumes.clone(),
-            reporting_task: ValidatedReportingTask {
-                enabled: nifi.spec.cluster_config.create_reporting_task_job.enabled,
-                pod_overrides: nifi
-                    .spec
-                    .cluster_config
-                    .create_reporting_task_job
-                    .pod_overrides
-                    .clone(),
-            },
             host_header_check: nifi.spec.cluster_config.host_header_check.clone(),
         },
     ))

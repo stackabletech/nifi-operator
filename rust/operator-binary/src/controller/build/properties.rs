@@ -94,8 +94,8 @@ pub(crate) mod test_support {
 
     use crate::{
         controller::{
-            NifiRoleGroupConfig, ValidatedCluster, ValidatedClusterConfig, ValidatedReportingTask,
-            ValidatedRoleConfig, ValidatedSensitiveProperties, validate::build_role_group_configs,
+            NifiRoleGroupConfig, ValidatedCluster, ValidatedClusterConfig, ValidatedRoleConfig,
+            ValidatedSensitiveProperties, validate::build_role_group_configs,
         },
         crd::{NifiRole, v1alpha1},
         security::{
@@ -105,8 +105,7 @@ pub(crate) mod test_support {
     };
 
     /// A minimal NiFi cluster YAML.  Mirrors the fixture used by bootstrap_conf tests,
-    /// stripped down to the mandatory fields only (NiFi 2.x, Kubernetes clustering backend,
-    /// SingleUser auth).
+    /// stripped down to the mandatory fields only (Kubernetes clustering backend, SingleUser auth).
     pub const MINIMAL_NIFI_YAML: &str = r#"
         apiVersion: nifi.stackable.tech/v1alpha1
         kind: NifiCluster
@@ -196,15 +195,6 @@ pub(crate) mod test_support {
                 },
                 server_tls_secret_class: nifi.server_tls_secret_class().clone(),
                 extra_volumes: nifi.spec.cluster_config.extra_volumes.clone(),
-                reporting_task: ValidatedReportingTask {
-                    enabled: nifi.spec.cluster_config.create_reporting_task_job.enabled,
-                    pod_overrides: nifi
-                        .spec
-                        .cluster_config
-                        .create_reporting_task_job
-                        .pod_overrides
-                        .clone(),
-                },
                 host_header_check: nifi.spec.cluster_config.host_header_check.clone(),
             },
         )

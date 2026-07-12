@@ -35,13 +35,10 @@ use crate::{
         build::resource::{
             listener::{build_group_listener, group_listener_name},
             pdb::build_pdb,
-            reporting_task::build_maybe_reporting_task,
             service::{build_rolegroup_headless_service, build_rolegroup_metrics_service},
             statefulset::build_node_rolegroup_statefulset,
         },
-        controller_name, dereference, operator_name, product_name,
-        upgrade::{self, ClusterVersionUpdateState},
-        validate,
+        controller_name, dereference, operator_name, product_name, validate,
     },
     crd::{APP_NAME, NifiRole, NifiStatus, v1alpha1},
     security::{
@@ -116,16 +113,6 @@ pub enum Error {
         rolegroup: RoleGroupName,
     },
 
-    #[snafu(display("failed to apply create ReportingTask service"))]
-    ApplyCreateReportingTaskService {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to apply create ReportingTask job"))]
-    ApplyCreateReportingTaskJob {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
     #[snafu(display("failed to patch service account"))]
     ApplyServiceAccount {
         source: stackable_operator::cluster_resources::Error,
@@ -154,14 +141,6 @@ pub enum Error {
 
     #[snafu(display("security failure"))]
     Security { source: crate::security::Error },
-
-    #[snafu(display("reporting task failure"))]
-    ReportingTask {
-        source: crate::controller::build::resource::reporting_task::Error,
-    },
-
-    #[snafu(display("Failed to determine the state of the version upgrade procedure"))]
-    ClusterVersionUpdateState { source: upgrade::Error },
 
     #[snafu(display("failed to apply group listener"))]
     ApplyGroupListener {
@@ -211,30 +190,6 @@ pub async fn reconcile_nifi(
     )
     .await
     .context(SecuritySnafu)?;
-
-    // If rolling upgrade is supported, kubernetes takes care of the cluster scaling automatically
-    // otherwise the operator handles it
-    // manage our own flow for upgrade from 1.x.x to 1.x.x/2.x.x
-    // TODO: this can be removed once 1.x.x is longer supported
-    let mut cluster_version_update_state = ClusterVersionUpdateState::NoVersionChange;
-    let deployed_version = nifi
-        .status
-        .as_ref()
-        .and_then(|status| status.deployed_version.as_ref());
-    let rolling_upgrade_supported = resolved_product_image.product_version.starts_with("2.")
-        && deployed_version.is_some_and(|v| v.as_ref().starts_with("2."));
-
-    if !rolling_upgrade_supported {
-        cluster_version_update_state =
-            upgrade::cluster_version_update_state(&validated_cluster, client, deployed_version)
-                .await
-                .context(ClusterVersionUpdateStateSnafu)?;
-
-        if cluster_version_update_state == ClusterVersionUpdateState::UpdateInProgress {
-            return Ok(Action::await_change());
-        }
-    }
-    // end todo
 
     let mut cluster_resources = cluster_resources_new(
         &product_name(),
@@ -295,25 +250,18 @@ pub async fn reconcile_nifi(
                 &validated_cluster,
                 role_group_name,
                 rg,
-                &client.kubernetes_cluster_info,
             )
             .context(BuildRoleGroupConfigMapSnafu {
                 rolegroup: role_group_name.clone(),
             })?;
 
-            let effective_replicas =
-                if cluster_version_update_state == ClusterVersionUpdateState::UpdateRequested {
-                    Some(0)
-                } else {
-                    rg.replicas.map(i32::from)
-                };
+            let effective_replicas = rg.replicas.map(i32::from);
 
             let rg_statefulset = build_node_rolegroup_statefulset(
                 &validated_cluster,
                 &client.kubernetes_cluster_info,
                 role_group_name,
                 rg,
-                rolling_upgrade_supported,
                 effective_replicas,
                 &rbac_sa.name_any(),
             )
@@ -383,26 +331,6 @@ pub async fn reconcile_nifi(
         .await
         .context(ApplyGroupListenerSnafu)?;
 
-    // Only add the reporting task in case it is enabled.
-    if validated_cluster.cluster_config.reporting_task.enabled
-        && let Some((reporting_task_job, reporting_task_service)) = build_maybe_reporting_task(
-            &validated_cluster,
-            &client.kubernetes_cluster_info,
-            &rbac_sa.name_any(),
-        )
-        .context(ReportingTaskSnafu)?
-    {
-        cluster_resources
-            .add(client, reporting_task_service)
-            .await
-            .context(ApplyCreateReportingTaskServiceSnafu)?;
-
-        cluster_resources
-            .add(client, reporting_task_job)
-            .await
-            .context(ApplyCreateReportingTaskJobSnafu)?;
-    }
-
     // Remove any orphaned resources that still exist in k8s, but have not been added to
     // the cluster resources during the reconciliation
     // TODO: this doesn't cater for a graceful cluster shrink, for that we'd need to predict
@@ -418,24 +346,12 @@ pub async fn reconcile_nifi(
 
     let conditions = compute_conditions(nifi, &[&ss_cond_builder, &cluster_operation_cond_builder]);
 
-    // Update the deployed product version in the status after everything has been deployed, unless
-    // we are still in the process of updating
-    let status = if cluster_version_update_state != ClusterVersionUpdateState::UpdateRequested {
-        NifiStatus {
-            deployed_version: Some(
-                ProductVersion::from_str(&resolved_product_image.product_version)
-                    .expect("the resolved product version is a valid product version label value"),
-            ),
-            conditions,
-        }
-    } else {
-        NifiStatus {
-            deployed_version: nifi
-                .status
-                .as_ref()
-                .and_then(|status| status.deployed_version.clone()),
-            conditions,
-        }
+    let status = NifiStatus {
+        deployed_version: Some(
+            ProductVersion::from_str(&resolved_product_image.product_version)
+                .expect("the resolved product version is a valid product version label value"),
+        ),
+        conditions,
     };
 
     client

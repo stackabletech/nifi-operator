@@ -1,17 +1,8 @@
 use serde::{Deserialize, Serialize};
-use snafu::Snafu;
 use stackable_operator::{
     schemars::{self, JsonSchema},
     v2::types::kubernetes::SecretName,
 };
-
-#[derive(Snafu, Debug)]
-pub enum Error {
-    #[snafu(display(
-        "The sensitive properties algorithm '{algorithm}' is not supported in NiFi 2.X.X. Please see https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#updating-the-sensitive-properties-algorithm on how to upgrade the algorithm."
-    ))]
-    UnsupportedSensitivePropertiesAlgorithm { algorithm: String },
-}
 
 /// These settings configure the encryption of sensitive properties in NiFi processors.
 /// NiFi supports encrypting sensitive properties in processors as they are written to disk.
@@ -37,15 +28,6 @@ pub struct NifiSensitivePropertiesConfig {
     /// `nifiPbkdf2AesGcm256` (the default value),
     /// `nifiArgon2AesGcm256`,
     ///
-    /// The following algorithms are deprecated and will be removed in future versions:
-    ///
-    /// `nifiArgon2AesGcm128`,
-    /// `nifiBcryptAesGcm128`,
-    /// `nifiBcryptAesGcm256`,
-    /// `nifiPbkdf2AesGcm128`,
-    /// `nifiScryptAesGcm128`,
-    /// `nifiScryptAesGcm256`.
-    ///
     /// Learn more about the specifics of the algorithm parameters in the
     /// [NiFi documentation](https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#property-encryption-algorithms).
     pub algorithm: Option<NifiSensitiveKeyAlgorithm>,
@@ -56,104 +38,10 @@ pub struct NifiSensitivePropertiesConfig {
 )]
 #[serde(rename_all = "camelCase")]
 pub enum NifiSensitiveKeyAlgorithm {
-    // Supported in NiFi 2.x
     #[strum(serialize = "NIFI_PBKDF2_AES_GCM_256")]
     NifiPbkdf2AesGcm256,
 
-    // Supported in NiFi 2.x
     #[default]
     #[strum(serialize = "NIFI_ARGON2_AES_GCM_256")]
     NifiArgon2AesGcm256,
-
-    // Deprecated in v1 -> can be removed when 1.x.x is no longer supported
-    #[strum(serialize = "NIFI_BCRYPT_AES_GCM_128")]
-    NifiBcryptAesGcm128,
-
-    // Deprecated in v1 -> can be removed when 1.x.x is no longer supported
-    #[strum(serialize = "NIFI_BCRYPT_AES_GCM_256")]
-    NifiBcryptAesGcm256,
-
-    // Deprecated in v1 -> can be removed when 1.x.x is no longer supported
-    #[strum(serialize = "NIFI_PBKDF2_AES_GCM_128")]
-    NifiPbkdf2AesGcm128,
-
-    // Deprecated in v1 -> can be removed when 1.x.x is no longer supported
-    #[strum(serialize = "NIFI_ARGON2_AES_GCM_128")]
-    NifiArgon2AesGcm128,
-
-    // Deprecated in v1 -> can be removed when 1.x.x is no longer supported
-    #[strum(serialize = "NIFI_SCRYPT_AES_GCM_128")]
-    NifiScryptAesGcm128,
-
-    // Deprecated in v1 -> can be removed when 1.x.x is no longer supported
-    #[strum(serialize = "NIFI_SCRYPT_AES_GCM_256")]
-    NifiScryptAesGcm256,
-}
-
-impl NifiSensitiveKeyAlgorithm {
-    /// Checks if the used encryption algorithm is supported or deprecated.
-    /// Will warn for deprecation and error out for missing support.
-    pub fn check_for_nifi_version(&self, product_version: &str) -> Result<(), Error> {
-        let algorithm = self.to_string();
-
-        match self {
-            // Allowed and supported in NiFi 1.x.x and 2.x.x
-            NifiSensitiveKeyAlgorithm::NifiPbkdf2AesGcm256
-            | NifiSensitiveKeyAlgorithm::NifiArgon2AesGcm256 => {}
-            // All others are deprecated in 1.x.x and removed in 2.x.x
-            // see https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#property-encryption-algorithms
-            _ => {
-                if product_version.starts_with("1.") {
-                    tracing::warn!(
-                        "You are using a deprecated sensitive properties algorithm '{algorithm}'. Please update to '{pbkd}' or '{argon}'.",
-                        pbkd = NifiSensitiveKeyAlgorithm::NifiPbkdf2AesGcm256,
-                        argon = NifiSensitiveKeyAlgorithm::NifiArgon2AesGcm256
-                    )
-                } else {
-                    return Err(Error::UnsupportedSensitivePropertiesAlgorithm { algorithm });
-                }
-            }
-        }
-
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{Error, NifiSensitiveKeyAlgorithm};
-
-    #[test]
-    fn supported_algorithms_are_accepted_on_nifi_2() {
-        for algorithm in [
-            NifiSensitiveKeyAlgorithm::NifiPbkdf2AesGcm256,
-            NifiSensitiveKeyAlgorithm::NifiArgon2AesGcm256,
-        ] {
-            assert!(
-                algorithm.check_for_nifi_version("2.9.0").is_ok(),
-                "{algorithm} must be supported on NiFi 2.x"
-            );
-        }
-    }
-
-    #[test]
-    fn deprecated_algorithm_is_allowed_with_a_warning_on_nifi_1() {
-        // Deprecated algorithms only warn (do not error) on NiFi 1.x.
-        assert!(
-            NifiSensitiveKeyAlgorithm::NifiArgon2AesGcm128
-                .check_for_nifi_version("1.27.0")
-                .is_ok()
-        );
-    }
-
-    #[test]
-    fn deprecated_algorithm_is_rejected_on_nifi_2() {
-        let error = NifiSensitiveKeyAlgorithm::NifiScryptAesGcm256
-            .check_for_nifi_version("2.9.0")
-            .expect_err("a deprecated algorithm must be rejected on NiFi 2.x");
-        assert!(matches!(
-            error,
-            Error::UnsupportedSensitivePropertiesAlgorithm { .. }
-        ));
-    }
 }

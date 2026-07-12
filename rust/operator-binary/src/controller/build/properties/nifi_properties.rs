@@ -2,8 +2,11 @@
 
 use std::collections::BTreeMap;
 
-use snafu::{ResultExt, Snafu, ensure};
-use stackable_operator::memory::MemoryQuantity;
+use snafu::{ResultExt, Snafu};
+use stackable_operator::{
+    memory::MemoryQuantity,
+    role_utils::{ZeroReplicasCounting, fixed_replica_count},
+};
 
 use super::{
     ConfigFileName, env_reference, file_reference, format_properties,
@@ -21,7 +24,7 @@ use crate::{
             },
         },
     },
-    crd::{storage::NifiRepository, v1alpha1},
+    crd::{NifiRole, storage::NifiRepository, v1alpha1},
     security::{
         authentication::{
             NifiAuthenticationConfig, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
@@ -48,11 +51,6 @@ pub enum Error {
     GenerateOidcConfig {
         source: crate::security::oidc::Error,
     },
-
-    #[snafu(display(
-        "NiFi 1.x requires ZooKeeper (hint: upgrade to NiFi 2.x or set .spec.clusterConfig.zookeeperConfigMapName)"
-    ))]
-    Nifi1RequiresZookeeper,
 }
 
 /// NiFi Python (`nipy`) extension directories, mounted only by the `nifi.properties` builder.
@@ -69,36 +67,15 @@ pub fn build(
     proxy_hosts: &str,
 ) -> Result<String, Error> {
     let git_sync_resources = &rg.config.git_sync_resources;
-    let product_version = &cluster.image.product_version;
     let auth_config = &cluster.cluster_config.authentication;
     let resource_config = &rg.config.resources;
 
-    // TODO: Remove once we dropped support for all NiFi 1.x versions
-    let is_nifi_1 = product_version.starts_with("1.");
-
     let mut properties = BTreeMap::new();
     // Core Properties
-    // According to https://cwiki.apache.org/confluence/display/NIFI/Migration+Guidance#MigrationGuidance-Migratingto2.0.0-M1
-    // The nifi.flow.configuration.file property in nifi.properties must be changed to reference
-    // "flow.json.gz" instead of "flow.xml.gz"
-    // TODO: Remove once we dropped support for all 1.x.x versions
-    // TODO(malte): In order to use CLI tools like: ./bin/nifi.sh set-sensitive-properties-algorithm NIFI_PBKDF2_AES_GCM_256
-    // we have to set both "nifi.flow.configuration.file" and "nifi.flow.configuration.json.file" in NiFi 1.x.x.
-    if is_nifi_1 {
-        properties.insert(
-            "nifi.flow.configuration.file".to_string(),
-            NifiRepository::Database.mount_path() + "/flow.xml.gz",
-        );
-        properties.insert(
-            "nifi.flow.configuration.json.file".to_string(),
-            NifiRepository::Database.mount_path() + "/flow.json.gz",
-        );
-    } else {
-        properties.insert(
-            "nifi.flow.configuration.file".to_string(),
-            NifiRepository::Database.mount_path() + "/flow.json.gz",
-        );
-    }
+    properties.insert(
+        "nifi.flow.configuration.file".to_string(),
+        NifiRepository::Database.mount_path() + "/flow.json.gz",
+    );
 
     properties.insert(
         "nifi.flow.configuration.archive.enabled".to_string(),
@@ -451,7 +428,6 @@ pub fn build(
         "".to_string(),
     );
 
-    // The algorithm has already been validated in the validate step (check_for_nifi_version).
     properties.insert(
         "nifi.sensitive.props.algorithm".to_string(),
         cluster
@@ -526,9 +502,26 @@ pub fn build(
         "nifi.cluster.node.protocol.port".to_string(),
         PROTOCOL_PORT.to_string(),
     );
+
+    // In case the number of NiFi nodes is hard-coded to a fixed number (no auto-scaling), we can
+    // tell this NiFi, so that startup is much quicker.
+    let fixed_replica_count = fixed_replica_count(
+        cluster
+            .role_group_configs
+            .get(&NifiRole::Node)
+            .iter()
+            .flat_map(|nodes| nodes.values())
+            .map(|rg| rg.replicas),
+        // We rather treat explicit 0 values as [`None`], so that we don't end up with too few nodes
+        ZeroReplicasCounting::TreatAsZero,
+    );
+    let max_election_candidates = fixed_replica_count
+        .map(|count| count.to_string())
+        // In case we don't know the replica count, we set it to "" as that's what we always did
+        .unwrap_or_default();
     properties.insert(
         "nifi.cluster.flow.election.max.candidates".to_string(),
-        "".to_string(),
+        max_election_candidates,
     );
 
     match cluster.cluster_config.clustering_backend {
@@ -552,8 +545,6 @@ pub fn build(
         }
 
         v1alpha1::NifiClusteringBackend::Kubernetes {} => {
-            ensure!(!is_nifi_1, Nifi1RequiresZookeeperSnafu);
-
             properties.insert(
                 "nifi.cluster.leader.election.implementation".to_string(),
                 "KubernetesLeaderElectionManager".to_string(),
@@ -570,9 +561,6 @@ pub fn build(
     //####################
     // Custom components #
     //####################
-    // NiFi 1.x does not support Python components and the Python configuration below is just
-    // ignored.
-
     // The command used to launch Python.
     // This property must be set to enable Python-based processors.
     properties.insert("nifi.python.command".to_string(), "python3".to_string());
@@ -785,53 +773,6 @@ mod tests {
                 "nifi.cluster.leader.election.kubernetes.lease.prefix=${env:STACKLET_NAME}"
             )
         );
-    }
-
-    /// NiFi 1.x cannot use the Kubernetes clustering backend, so building must fail.
-    #[test]
-    fn kubernetes_backend_is_rejected_on_nifi_1() {
-        let mut cluster = minimal_validated_cluster();
-        cluster.image.product_version = "1.27.0".to_string();
-        let rg = default_rg(&cluster);
-
-        let error = build(&cluster, rg, "*")
-            .expect_err("NiFi 1.x with the Kubernetes backend must be rejected");
-
-        assert!(matches!(error, Error::Nifi1RequiresZookeeper));
-    }
-
-    /// NiFi 1.x with the ZooKeeper backend is valid.
-    #[test]
-    fn zookeeper_backend_is_allowed_on_nifi_1() {
-        let mut cluster = minimal_validated_cluster();
-        cluster.image.product_version = "1.27.0".to_string();
-        cluster.cluster_config.clustering_backend = v1alpha1::NifiClusteringBackend::ZooKeeper {
-            zookeeper_config_map_name: "my-zk".parse().expect("valid ConfigMap name"),
-        };
-        let rg = default_rg(&cluster);
-
-        assert!(build(&cluster, rg, "*").is_ok());
-    }
-
-    /// NiFi 2.x configures only the JSON flow file; NiFi 1.x configures both the XML and JSON files.
-    #[test]
-    fn flow_configuration_files_differ_between_nifi_versions() {
-        let cluster_2 = minimal_validated_cluster(); // NiFi 2.x
-        let props_2 = build(&cluster_2, default_rg(&cluster_2), "*").expect("build should succeed");
-        assert!(props_2.contains("nifi.flow.configuration.file="));
-        assert!(props_2.contains("flow.json.gz"));
-        assert!(!props_2.contains("flow.xml.gz"));
-        assert!(!props_2.contains("nifi.flow.configuration.json.file="));
-
-        let mut cluster_1 = minimal_validated_cluster();
-        cluster_1.image.product_version = "1.27.0".to_string();
-        // NiFi 1.x must use the ZooKeeper backend.
-        cluster_1.cluster_config.clustering_backend = v1alpha1::NifiClusteringBackend::ZooKeeper {
-            zookeeper_config_map_name: "my-zk".parse().expect("valid ConfigMap name"),
-        };
-        let props_1 = build(&cluster_1, default_rg(&cluster_1), "*").expect("build should succeed");
-        assert!(props_1.contains("flow.xml.gz"));
-        assert!(props_1.contains("nifi.flow.configuration.json.file="));
     }
 
     /// The flow archive max storage is the flowfile-repo capacity scaled by the 0.9 utilization
