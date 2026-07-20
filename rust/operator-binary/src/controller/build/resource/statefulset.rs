@@ -169,7 +169,6 @@ pub(crate) fn build_node_rolegroup_statefulset(
     role_group_name: &RoleGroupName,
     rg: &NifiRoleGroupConfig,
     effective_replicas: Option<i32>,
-    service_account_name: &str,
 ) -> Result<StatefulSet> {
     tracing::debug!("Building statefulset");
 
@@ -642,7 +641,12 @@ pub(crate) fn build_node_rolegroup_statefulset(
             ..Volume::default()
         })
         .context(AddVolumeSnafu)?
-        .service_account_name(service_account_name)
+        .service_account_name(
+            cluster
+                .rbac_resource_names()
+                .service_account_name()
+                .to_string(),
+        )
         .security_context(PodSecurityContextBuilder::new().fs_group(1000).build());
 
     let mut pod_template = pod_builder.build_template();
@@ -709,7 +713,7 @@ fn get_volume_claim_templates(
 
     // Used for PVC templates that cannot be modified once they are deployed, so the version label
     // is set to the placeholder `none` to keep the labels stable across version upgrades.
-    let unversioned_recommended_labels = cluster.recommended_labels_unversioned(role_group_name);
+    let unversioned_recommended_labels = cluster.unversioned_recommended_labels(role_group_name);
 
     // listener endpoints will use persistent volumes
     // so that load balancers can hard-code the target addresses and
