@@ -6,6 +6,7 @@
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     client::Client,
+    commons::networking::DomainName,
     v2::{
         controller_utils::{self, get_namespace},
         types::kubernetes::NamespaceName,
@@ -38,6 +39,9 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct DereferencedObjects {
     /// The namespace of the [`v1alpha1::NifiCluster`], parsed once here and reused everywhere.
     pub namespace: NamespaceName,
+    /// The Kubernetes cluster domain, captured from the client here so the build step needs no
+    /// client to assemble in-cluster DNS names.
+    pub cluster_domain: DomainName,
     pub authentication_classes: DereferencedAuthenticationClasses,
     pub authorization: DereferencedAuthorization,
 }
@@ -63,6 +67,7 @@ pub async fn dereference(
 
     Ok(DereferencedObjects {
         namespace,
+        cluster_domain: client.kubernetes_cluster_info.cluster_domain.clone(),
         authentication_classes,
         authorization,
     })
