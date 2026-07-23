@@ -180,7 +180,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
     let git_sync_resources = &rg.config.git_sync_resources;
 
     // Type-safe names for this role group's resources (StatefulSet, ConfigMap, headless Service).
-    let resource_names = cluster.resource_names(role_group_name);
+    let resource_names = cluster.role_group_resource_names(role_group_name);
 
     // The validated, merged `NifiConfig` is the single source of truth; the ConfigMap builder
     // sources the same `rg.config`.
@@ -603,7 +603,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
                 &cluster.cluster_config.server_tls_secret_class,
                 &KEYSTORE_VOLUME_NAME,
                 [cluster
-                    .resource_names(role_group_name)
+                    .role_group_resource_names(role_group_name)
                     .metrics_service_name()
                     .to_string()],
                 SecretFormat::TlsPkcs12,
@@ -643,7 +643,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
         .context(AddVolumeSnafu)?
         .service_account_name(
             cluster
-                .rbac_resource_names()
+                .cluster_resource_names()
                 .service_account_name()
                 .to_string(),
         )
