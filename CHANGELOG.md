@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Internal operator refactoring: introduce a build() step in the reconciler that
+  assembles all relevant Kubernetes resources before anything is applied ([#961]).
+- Bump stackable-operator to 0.114.0 ([#970])
+
+[#961]: https://github.com/stackabletech/nifi-operator/pull/961
+[#970]: https://github.com/stackabletech/nifi-operator/pull/970
+
+## [26.7.0] - 2026-07-21
+
+## [26.7.0-rc1] - 2026-07-16
+
 ### Added
 
 - BREAKING: Add required CLI argument and env var to set the image repository used to construct final product image names: `IMAGE_REPOSITORY` (`--image-repository`), eg. `oci.example.org/my/namespace` ([#928]).
