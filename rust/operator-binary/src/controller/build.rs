@@ -67,9 +67,6 @@ pub enum Error {
 /// Does not need a Kubernetes client: every reference to another Kubernetes resource is already
 /// dereferenced and validated by this point, so the errors returned here are resource-assembly
 /// failures only.
-///
-/// `service_account_name` is the name of the RBAC `ServiceAccount` the role-group Pods run under
-/// (RBAC resources are built and applied separately, in the reconcile step).
 pub fn build(cluster: &ValidatedCluster) -> Result<KubernetesResources, Error> {
     let mut stateful_sets = vec![];
     let mut services = vec![];

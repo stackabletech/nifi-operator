@@ -253,12 +253,6 @@ impl ValidatedCluster {
         }
     }
 
-    /// The single NiFi role name (`node`).
-    pub fn role_name() -> RoleName {
-        RoleName::from_str(&NifiRole::Node.to_string())
-            .expect("the node role name is a valid role name")
-    }
-
     /// Type-safe names for the per-cluster RBAC resources: the ServiceAccount shared by all
     /// Pods, its (namespaced) RoleBinding, and the operator-deployed ClusterRole it binds.
     pub fn cluster_resource_names(&self) -> role_utils::ResourceNames {
@@ -275,14 +269,14 @@ impl ValidatedCluster {
     ) -> ResourceNames {
         ResourceNames {
             cluster_name: self.name.clone(),
-            role_name: Self::role_name(),
+            role_name: NifiRole::Node.into(),
             role_group_name: role_group_name.clone(),
         }
     }
 
     /// Recommended labels for a role-group resource.
     pub fn recommended_labels(&self, role_group_name: &RoleGroupName) -> Labels {
-        self.recommended_labels_for(&Self::role_name(), role_group_name)
+        self.recommended_labels_for(&NifiRole::Node.into(), role_group_name)
     }
 
     /// Recommended labels for a resource that is not tied to a concrete role, using a free-form role/role-group label value.
@@ -299,7 +293,7 @@ impl ValidatedCluster {
     pub fn unversioned_recommended_labels(&self, role_group_name: &RoleGroupName) -> Labels {
         self.recommended_labels_with(
             &UNVERSIONED_PRODUCT_VERSION,
-            &Self::role_name(),
+            &NifiRole::Node.into(),
             role_group_name,
         )
     }
@@ -323,7 +317,12 @@ impl ValidatedCluster {
 
     /// Selector labels matching the pods of a role group.
     pub fn role_group_selector(&self, role_group_name: &RoleGroupName) -> Labels {
-        role_group_selector(self, &product_name(), &Self::role_name(), role_group_name)
+        role_group_selector(
+            self,
+            &product_name(),
+            &NifiRole::Node.into(),
+            role_group_name,
+        )
     }
 
     /// Returns an [`ObjectMetaBuilder`](stackable_operator::builder::meta::ObjectMetaBuilder)
@@ -416,5 +415,23 @@ impl Resource for ValidatedCluster {
 
     fn meta_mut(&mut self) -> &mut ObjectMeta {
         &mut self.metadata
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use stackable_operator::v2::types::operator::RoleName;
+    use strum::IntoEnumIterator;
+
+    use crate::crd::NifiRole;
+
+    /// Locks the invariant behind the `expect` in the `From<NifiRole> for RoleName` impls:
+    /// every `NifiRole` variant (present and future) must serialise to a valid `RoleName`.
+    #[test]
+    fn every_nifi_role_serialises_to_a_valid_role_name() {
+        for role in NifiRole::iter() {
+            let _: RoleName = (&role).into();
+            let _: RoleName = role.into();
+        }
     }
 }

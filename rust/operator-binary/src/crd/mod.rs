@@ -36,7 +36,7 @@ use stackable_operator::{
         role_utils::JavaCommonConfig,
         types::{
             kubernetes::{ConfigMapName, ListenerClassName, SecretClassName},
-            operator::ProductVersion,
+            operator::{ProductVersion, RoleName},
         },
     },
     versioned::versioned,
@@ -224,13 +224,35 @@ pub fn default_allow_all() -> bool {
 }
 
 #[derive(
-    Clone, Debug, Deserialize, Eq, JsonSchema, Ord, PartialEq, PartialOrd, Serialize, strum::Display,
+    Clone,
+    Debug,
+    Deserialize,
+    Eq,
+    JsonSchema,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+    strum::Display,
+    strum::EnumIter,
 )]
 #[serde(rename_all = "camelCase")]
 #[strum(serialize_all = "camelCase")]
 pub enum NifiRole {
     #[strum(serialize = "node")]
     Node,
+}
+
+impl From<NifiRole> for RoleName {
+    fn from(value: NifiRole) -> Self {
+        RoleName::from_str(&value.to_string()).expect("a NifiRole is a valid role name")
+    }
+}
+
+impl From<&NifiRole> for RoleName {
+    fn from(value: &NifiRole) -> Self {
+        RoleName::from_str(&value.to_string()).expect("a NifiRole is a valid role name")
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, Serialize)]
