@@ -14,6 +14,7 @@ use crate::{
             config_map::build_rolegroup_config_map,
             listener::{build_group_listener, group_listener_name},
             pdb::build_pdb,
+            rbac::{build_role_binding, build_service_account},
             service::{build_rolegroup_headless_service, build_rolegroup_metrics_service},
             statefulset::build_node_rolegroup_statefulset,
         },
@@ -66,13 +67,7 @@ pub enum Error {
 /// Does not need a Kubernetes client: every reference to another Kubernetes resource is already
 /// dereferenced and validated by this point, so the errors returned here are resource-assembly
 /// failures only.
-///
-/// `service_account_name` is the name of the RBAC `ServiceAccount` the role-group Pods run under
-/// (RBAC resources are built and applied separately, in the reconcile step).
-pub fn build(
-    cluster: &ValidatedCluster,
-    service_account_name: &str,
-) -> Result<KubernetesResources, Error> {
+pub fn build(cluster: &ValidatedCluster) -> Result<KubernetesResources, Error> {
     let mut stateful_sets = vec![];
     let mut services = vec![];
     let mut listeners = vec![];
@@ -109,16 +104,10 @@ pub fn build(
 
         let effective_replicas = rg.replicas.map(i32::from);
         stateful_sets.push(
-            build_node_rolegroup_statefulset(
-                cluster,
-                role_group_name,
-                rg,
-                effective_replicas,
-                service_account_name,
-            )
-            .context(StatefulSetSnafu {
-                role_group: role_group_name.clone(),
-            })?,
+            build_node_rolegroup_statefulset(cluster, role_group_name, rg, effective_replicas)
+                .context(StatefulSetSnafu {
+                    role_group: role_group_name.clone(),
+                })?,
         );
     }
 
@@ -128,11 +117,15 @@ pub fn build(
         listeners,
         config_maps,
         pod_disruption_budgets,
+        service_accounts: vec![build_service_account(cluster)],
+        role_bindings: vec![build_role_binding(cluster)],
     })
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use stackable_operator::kube::Resource;
 
     use super::{build, properties::test_support::minimal_validated_cluster};
@@ -149,7 +142,7 @@ mod tests {
     #[test]
     fn build_produces_expected_resources() {
         let cluster = minimal_validated_cluster();
-        let resources = build(&cluster, "simple-nifi-serviceaccount").expect("build succeeds");
+        let resources = build(&cluster).expect("build succeeds");
 
         // The minimal fixture has a single `default` role group for the `node` role.
         assert_eq!(
@@ -168,5 +161,58 @@ mod tests {
             sorted_names(&resources.pod_disruption_budgets),
             ["simple-nifi-node"]
         );
+    }
+
+    /// Locks the RBAC resource names, the roleRef, and the recommended label set against
+    /// accidental drift. The fixture's cluster name deliberately differs from the product name so
+    /// that swapped `name`/`instance` label values cannot pass unnoticed.
+    ///
+    /// The version label is the bare `2.9.0` because the fixture hand-builds its
+    /// [`ResolvedProductImage`](stackable_operator::commons::product_image_selection::ResolvedProductImage)
+    /// instead of resolving it (which would append the `-stackable…` suffix).
+    #[test]
+    fn build_produces_rbac() {
+        let cluster = minimal_validated_cluster();
+        let resources = build(&cluster).expect("build succeeds");
+
+        assert_eq!(
+            sorted_names(&resources.service_accounts),
+            ["simple-nifi-serviceaccount"]
+        );
+        assert_eq!(
+            sorted_names(&resources.role_bindings),
+            ["simple-nifi-rolebinding"]
+        );
+
+        let expected_labels = BTreeMap::from(
+            [
+                ("app.kubernetes.io/component", "none"),
+                ("app.kubernetes.io/instance", "simple-nifi"),
+                (
+                    "app.kubernetes.io/managed-by",
+                    "nifi.stackable.tech_nificluster",
+                ),
+                ("app.kubernetes.io/name", "nifi"),
+                ("app.kubernetes.io/role-group", "none"),
+                ("app.kubernetes.io/version", "2.9.0"),
+                ("stackable.tech/vendor", "Stackable"),
+            ]
+            .map(|(key, value)| (key.to_string(), value.to_string())),
+        );
+        let service_account = resources
+            .service_accounts
+            .first()
+            .expect("a ServiceAccount is built");
+        assert_eq!(
+            service_account.metadata.labels,
+            Some(expected_labels.clone())
+        );
+
+        let role_binding = resources
+            .role_bindings
+            .first()
+            .expect("a RoleBinding is built");
+        assert_eq!(role_binding.metadata.labels, Some(expected_labels));
+        assert_eq!(role_binding.role_ref.name, "nifi-clusterrole");
     }
 }
