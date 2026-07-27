@@ -311,9 +311,146 @@ pub(crate) fn test_resolved_product_image() -> product_image_selection::Resolved
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
-    use stackable_operator::v2::types::kubernetes::ConfigMapName;
+    use stackable_operator::{
+        commons::networking::DomainName, crd::authentication::core as auth_core,
+        v2::types::kubernetes::ConfigMapName,
+    };
 
     use super::*;
+    use crate::{
+        controller::build::properties::test_support::app_version_label,
+        security::{
+            authentication::DereferencedAuthenticationClasses,
+            authorization::DereferencedAuthorization,
+        },
+    };
+
+    /// Locks every value the validate step itself derives from the minimal fixture — so a
+    /// validation regression fails here, with a validate-shaped message, instead of surfacing as
+    /// a confusing build-test failure downstream.
+    ///
+    /// The merged per-role-group config (resources, affinity, logging defaults, …) is produced by
+    /// `with_validated_config` and the config defaults, whose contracts are tested in operator-rs;
+    /// only the values this module derives on top are re-asserted here.
+    #[test]
+    fn validate_ok_derives_expected_values() {
+        let yaml = r#"
+        apiVersion: nifi.stackable.tech/v1alpha1
+        kind: NifiCluster
+        metadata:
+          name: simple-nifi
+          namespace: default
+          uid: e6ac237d-a6d4-43a1-8135-f36506110912
+        spec:
+          image:
+            productVersion: 2.9.0
+          clusterConfig:
+            authentication:
+              - authenticationClass: nifi-admin-credentials-simple
+            sensitiveProperties:
+              keySecret: simple-nifi-sensitive-property-key
+              autoGenerate: true
+          nodes:
+            roleGroups:
+              default:
+                replicas: 1
+        "#;
+        let nifi: v1alpha1::NifiCluster = serde_yaml::from_str(yaml).expect("valid test YAML");
+
+        let auth_class: auth_core::v1alpha1::AuthenticationClass = serde_yaml::from_str(
+            r#"
+            metadata:
+              name: nifi-admin-credentials-simple
+            spec:
+              provider: !static
+                userCredentialsSecret:
+                  name: nifi-admin-credentials-simple
+            "#,
+        )
+        .expect("valid static AuthenticationClass");
+        let auth_entry: auth_core::v1alpha1::ClientAuthenticationDetails =
+            serde_yaml::from_str("authenticationClass: nifi-admin-credentials-simple")
+                .expect("valid authentication entry");
+
+        let dereferenced_objects = DereferencedObjects {
+            namespace: "default".parse().expect("valid namespace"),
+            cluster_domain: DomainName::from_str("cluster.local").expect("valid cluster domain"),
+            authentication_classes: DereferencedAuthenticationClasses::from_entries(vec![(
+                auth_entry, auth_class,
+            )]),
+            authorization: DereferencedAuthorization::without_opa(),
+        };
+        let operator_environment = OperatorEnvironmentOptions {
+            operator_namespace: "stackable-operators".to_owned(),
+            operator_service_name: "nifi-operator".to_owned(),
+            image_repository: "oci.example.org".to_owned(),
+        };
+
+        let cluster = validate(&nifi, &dereferenced_objects, &operator_environment)
+            .expect("the minimal fixture validates");
+
+        assert_eq!(cluster.name.to_string(), "simple-nifi");
+        assert_eq!(cluster.namespace.to_string(), "default");
+        assert_eq!(
+            cluster.uid.to_string(),
+            "e6ac237d-a6d4-43a1-8135-f36506110912"
+        );
+        assert_eq!(cluster.cluster_domain.to_string(), "cluster.local");
+        assert_eq!(
+            cluster.image.image,
+            format!("oci.example.org/nifi:{}", app_version_label("2.9.0"))
+        );
+        assert_eq!(cluster.image.product_version, "2.9.0");
+        assert_eq!(
+            cluster.product_version.to_string(),
+            app_version_label("2.9.0")
+        );
+
+        // The role config falls back to its defaults: PDBs enabled, cluster-internal listener.
+        assert!(cluster.role_config.pdb.enabled);
+        assert_eq!(cluster.role_config.pdb.max_unavailable, None);
+        assert_eq!(
+            cluster.role_config.listener_class.to_string(),
+            "cluster-internal"
+        );
+
+        // SingleUser authentication and authorization, the default (Kubernetes) clustering
+        // backend, and the default `tls` server SecretClass.
+        let cluster_config = &cluster.cluster_config;
+        assert!(matches!(
+            &cluster_config.authentication,
+            NifiAuthenticationConfig::SingleUser { provider }
+                if provider.user_credentials_secret.name == "nifi-admin-credentials-simple"
+        ));
+        assert!(matches!(
+            cluster_config.authorization,
+            ResolvedNifiAuthorizationConfig::SingleUser
+        ));
+        assert!(matches!(
+            cluster_config.clustering_backend,
+            v1alpha1::NifiClusteringBackend::Kubernetes {}
+        ));
+        assert_eq!(cluster_config.server_tls_secret_class.to_string(), "tls");
+        assert_eq!(
+            cluster_config.sensitive_properties.key_secret.to_string(),
+            "simple-nifi-sensitive-property-key"
+        );
+        assert!(cluster_config.sensitive_properties.auto_generate);
+        assert!(cluster_config.extra_volumes.is_empty());
+
+        // A single `node` role with the single `default` role group; the Vector agent is off.
+        assert_eq!(cluster.role_group_configs.len(), 1);
+        let role_groups = &cluster.role_group_configs[&NifiRole::Node];
+        let role_group_names: Vec<String> = role_groups.keys().map(ToString::to_string).collect();
+        assert_eq!(role_group_names, ["default"]);
+        let role_group = role_groups
+            .values()
+            .next()
+            .expect("the default role group exists");
+        assert_eq!(role_group.replicas, Some(1));
+        assert!(!role_group.config.logging.enable_vector_agent);
+        assert_eq!(role_group.config.logging.vector_container, None);
+    }
 
     /// A NiFi cluster with the Vector agent enabled at the Node role level.
     const NIFI_VECTOR_ENABLED_YAML: &str = r#"
