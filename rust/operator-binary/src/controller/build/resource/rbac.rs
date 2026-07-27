@@ -50,8 +50,7 @@ mod tests {
         app_version_label, minimal_validated_cluster,
     };
 
-    // The fixture's cluster name (`simple-nifi`) deliberately differs from the product name
-    // (`nifi`), so swapped `name`/`instance` label values cannot pass unnoticed.
+    // `simple-nifi` vs `nifi`: see the swap-guard note on `MINIMAL_NIFI_YAML`.
 
     #[test]
     fn test_service_account() {

@@ -118,6 +118,9 @@ pub(crate) mod test_support {
 
     /// A minimal NiFi cluster YAML.  Mirrors the fixture used by bootstrap_conf tests,
     /// stripped down to the mandatory fields only (Kubernetes clustering backend, SingleUser auth).
+    ///
+    /// The cluster name (`simple-nifi`) deliberately differs from the product name (`nifi`), so
+    /// tests asserting recommended labels catch swapped `name`/`instance` values.
     pub const MINIMAL_NIFI_YAML: &str = r#"
         apiVersion: nifi.stackable.tech/v1alpha1
         kind: NifiCluster
