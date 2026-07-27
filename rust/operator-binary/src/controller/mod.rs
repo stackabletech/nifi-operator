@@ -174,7 +174,7 @@ pub struct ValidatedCluster {
     /// label on built resources.
     pub product_version: ProductVersion,
     /// Per-role configuration (PodDisruptionBudget and listener class). The `nodes` role is
-    /// mandatory, so this is always present.
+    /// required by the CRD, so this is always present.
     pub role_config: ValidatedRoleConfig,
     /// Cluster wide settings.
     pub cluster_config: ValidatedClusterConfig,
