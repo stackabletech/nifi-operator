@@ -165,13 +165,11 @@ pub(crate) mod test_support {
         let role_group_configs = build_role_group_configs(&nifi, &image, &None)
             .expect("role group configs should merge for minimal fixture");
 
-        let role_config = nifi
-            .role_config(&NifiRole::Node)
-            .map(|role_config| ValidatedRoleConfig {
-                pdb: role_config.common.pod_disruption_budget.clone(),
-                listener_class: role_config.listener_class.clone(),
-            })
-            .expect("the minimal fixture defines the nodes role");
+        let node_role_config = nifi.role_config(&NifiRole::Node);
+        let role_config = ValidatedRoleConfig {
+            pdb: node_role_config.common.pod_disruption_budget.clone(),
+            listener_class: node_role_config.listener_class.clone(),
+        };
 
         let name = ClusterName::from_str("simple-nifi").expect("valid cluster name");
         let namespace = NamespaceName::from_str("default").expect("valid namespace");

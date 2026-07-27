@@ -79,8 +79,7 @@ pub mod versioned {
         pub cluster_config: v1alpha1::NifiClusterConfig,
 
         // no doc - docs in Role struct.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub nodes: Option<NifiRoleType>,
+        pub nodes: NifiRoleType,
 
         // no doc - docs in ProductImage struct.
         pub image: ProductImage,
@@ -186,9 +185,9 @@ impl HasStatusCondition for v1alpha1::NifiCluster {
 }
 
 impl v1alpha1::NifiCluster {
-    pub fn role_config(&self, role: &NifiRole) -> Option<&NifiNodeRoleConfig> {
+    pub fn role_config(&self, role: &NifiRole) -> &NifiNodeRoleConfig {
         match role {
-            NifiRole::Node => self.spec.nodes.as_ref().map(|n| &n.role_config),
+            NifiRole::Node => &self.spec.nodes.role_config,
         }
     }
 

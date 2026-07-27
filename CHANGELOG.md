@@ -11,6 +11,8 @@ All notable changes to this project will be documented in this file.
 - Bump stackable-operator to 0.114.0 ([#970])
 - The RBAC ServiceAccount and RoleBinding are now built with the operator-rs `v2::rbac`
   functions and carry the full set of recommended labels ([#966]).
+- BREAKING: The `nodes` role is now required by the CRD; a NifiCluster without it was
+  previously accepted by the API server but failed reconciliation ([#966]).
 
 [#961]: https://github.com/stackabletech/nifi-operator/pull/961
 [#966]: https://github.com/stackabletech/nifi-operator/pull/966

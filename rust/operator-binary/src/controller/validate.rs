@@ -53,9 +53,6 @@ pub enum Error {
         source: product_image_selection::Error,
     },
 
-    #[snafu(display("object has no nodes defined"))]
-    NoNodesDefined,
-
     #[snafu(display("failed to get the cluster name"))]
     GetClusterName { source: controller_utils::Error },
 
@@ -145,15 +142,13 @@ pub fn validate(
         build_role_group_configs(nifi, &image, &vector_aggregator_config_map_name)?;
 
     // Per-role config (PDB + listener class), extracted here so downstream builders source it from
-    // the `ValidatedCluster` rather than the raw `NifiCluster`. The `nodes` role is mandatory
-    // (already enforced by `build_role_group_configs` above), so this is always present.
-    let role_config = nifi
-        .role_config(&NifiRole::Node)
-        .map(|role_config| ValidatedRoleConfig {
-            pdb: role_config.common.pod_disruption_budget.clone(),
-            listener_class: role_config.listener_class.clone(),
-        })
-        .context(NoNodesDefinedSnafu)?;
+    // the `ValidatedCluster` rather than the raw `NifiCluster`. The `nodes` role is required by
+    // the CRD, so this is always present.
+    let node_role_config = nifi.role_config(&NifiRole::Node);
+    let role_config = ValidatedRoleConfig {
+        pdb: node_role_config.common.pod_disruption_budget.clone(),
+        listener_class: node_role_config.listener_class.clone(),
+    };
 
     let namespace = dereferenced_objects.namespace.clone();
     let cluster_domain = dereferenced_objects.cluster_domain.clone();
@@ -199,7 +194,7 @@ pub(crate) fn build_role_group_configs(
     image: &product_image_selection::ResolvedProductImage,
     vector_aggregator_config_map_name: &Option<ConfigMapName>,
 ) -> Result<BTreeMap<NifiRole, BTreeMap<RoleGroupName, NifiRoleGroupConfig>>> {
-    let role = nifi.spec.nodes.as_ref().context(NoNodesDefinedSnafu)?;
+    let role = &nifi.spec.nodes;
     let default_config = NifiConfig::default_config(&nifi.name_any(), &NifiRole::Node);
 
     let mut groups: BTreeMap<RoleGroupName, NifiRoleGroupConfig> = BTreeMap::new();

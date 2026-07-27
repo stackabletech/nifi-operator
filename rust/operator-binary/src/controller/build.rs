@@ -4,7 +4,7 @@
 
 use std::str::FromStr;
 
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     v2::{
@@ -52,9 +52,6 @@ pub const NIFI_PYTHON_WORKING_DIRECTORY: &str = "/nifi-python-working-directory"
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("NifiCluster has no nodes role defined"))]
-    NoNodesDefined,
-
     #[snafu(display("failed to build ConfigMap for role group {role_group}"))]
     ConfigMap {
         source: resource::config_map::Error,
@@ -85,7 +82,7 @@ pub fn build(cluster: &ValidatedCluster) -> Result<KubernetesResources, Error> {
     let node_role_group_configs = cluster
         .role_group_configs
         .get(&nifi_role)
-        .context(NoNodesDefinedSnafu)?;
+        .expect("the nodes role is required by the CRD and validate always inserts it");
 
     // Role-level resources (one per role): the PodDisruptionBudget and the group Listener.
     let role_config = &cluster.role_config;
