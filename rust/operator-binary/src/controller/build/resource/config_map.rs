@@ -9,6 +9,7 @@ use stackable_operator::{
 use crate::controller::{
     NifiRoleGroupConfig, ValidatedCluster,
     build::{
+        object_meta,
         properties::{
             ConfigFileName, authorizers, bootstrap_conf, login_identity_providers, nifi_properties,
             product_logging, security_properties, state_management_xml,
@@ -66,15 +67,15 @@ pub fn build_rolegroup_config_map(
 
     cm_builder
         .metadata(
-            cluster
-                .object_meta(
-                    cluster
-                        .role_group_resource_names(role_group_name)
-                        .role_group_config_map()
-                        .to_string(),
-                    role_group_name,
-                )
-                .build(),
+            object_meta(
+                cluster,
+                cluster
+                    .role_group_resource_names(role_group_name)
+                    .role_group_config_map()
+                    .to_string(),
+                role_group_name,
+            )
+            .build(),
         )
         .add_data(
             ConfigFileName::BootstrapConf.to_string(),

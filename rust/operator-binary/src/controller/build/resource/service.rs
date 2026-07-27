@@ -9,7 +9,7 @@ use stackable_operator::{
 
 use crate::controller::{
     ValidatedCluster,
-    build::{HTTPS_PORT, HTTPS_PORT_NAME},
+    build::{HTTPS_PORT, HTTPS_PORT_NAME, object_meta},
 };
 
 /// The rolegroup headless [`Service`] is a service that allows direct access to the instances of a certain rolegroup
@@ -19,15 +19,15 @@ pub fn build_rolegroup_headless_service(
     role_group_name: &RoleGroupName,
 ) -> Service {
     Service {
-        metadata: cluster
-            .object_meta(
-                cluster
-                    .role_group_resource_names(role_group_name)
-                    .headless_service_name()
-                    .to_string(),
-                role_group_name,
-            )
-            .build(),
+        metadata: object_meta(
+            cluster,
+            cluster
+                .role_group_resource_names(role_group_name)
+                .headless_service_name()
+                .to_string(),
+            role_group_name,
+        )
+        .build(),
         spec: Some(ServiceSpec {
             // Internal communication does not need to be exposed
             type_: Some("ClusterIP".to_string()),
@@ -47,17 +47,17 @@ pub fn build_rolegroup_metrics_service(
     role_group_name: &RoleGroupName,
 ) -> Service {
     Service {
-        metadata: cluster
-            .object_meta(
-                cluster
-                    .role_group_resource_names(role_group_name)
-                    .metrics_service_name()
-                    .to_string(),
-                role_group_name,
-            )
-            .with_labels(service::prometheus_labels(&Scraping::Enabled))
-            .with_annotations(prometheus_annotations())
-            .build(),
+        metadata: object_meta(
+            cluster,
+            cluster
+                .role_group_resource_names(role_group_name)
+                .metrics_service_name()
+                .to_string(),
+            role_group_name,
+        )
+        .with_labels(service::prometheus_labels(&Scraping::Enabled))
+        .with_annotations(prometheus_annotations())
+        .build(),
         spec: Some(ServiceSpec {
             // Internal communication does not need to be exposed
             type_: Some("ClusterIP".to_string()),

@@ -324,35 +324,6 @@ impl ValidatedCluster {
             role_group_name,
         )
     }
-
-    /// Returns an [`ObjectMetaBuilder`](stackable_operator::builder::meta::ObjectMetaBuilder)
-    /// pre-filled with the namespace, an owner reference back to this cluster, and the recommended
-    /// labels for a resource named `name` in `role_group_name`.
-    ///
-    /// Consolidates the metadata chain repeated by the child-resource builders. Call sites that
-    /// need extra labels/annotations chain them onto the returned builder. Role-level resources
-    /// (e.g. the per-role [`Listener`](stackable_operator::crd::listener::v1alpha1::Listener)) pass
-    /// the placeholder role-group `none`, preserving the historical
-    /// `app.kubernetes.io/role-group: none` label.
-    pub(crate) fn object_meta(
-        &self,
-        name: impl Into<String>,
-        role_group_name: &RoleGroupName,
-    ) -> stackable_operator::builder::meta::ObjectMetaBuilder {
-        let mut builder = stackable_operator::builder::meta::ObjectMetaBuilder::new();
-        builder
-            .name_and_namespace(self)
-            .name(name)
-            .ownerreference(
-                stackable_operator::v2::builder::meta::ownerreference_from_resource(
-                    self,
-                    None,
-                    Some(true),
-                ),
-            )
-            .with_labels(self.recommended_labels(role_group_name));
-        builder
-    }
 }
 
 /// The product name (`nifi`) as a type-safe label value.

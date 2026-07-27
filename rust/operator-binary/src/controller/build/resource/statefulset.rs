@@ -52,6 +52,7 @@ use crate::{
             BALANCE_PORT, BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, NIFI_CONFIG_DIRECTORY,
             NIFI_PYTHON_WORKING_DIRECTORY, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
             graceful_shutdown::add_graceful_shutdown_config,
+            object_meta,
             properties::ConfigFileName,
             resource::listener::{
                 LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_group_listener_pvc,
@@ -654,13 +655,13 @@ pub(crate) fn build_node_rolegroup_statefulset(
     pod_template.merge_from(rg.pod_overrides.clone());
 
     Ok(StatefulSet {
-        metadata: cluster
-            .object_meta(
-                resource_names.stateful_set_name().to_string(),
-                role_group_name,
-            )
-            .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
-            .build(),
+        metadata: object_meta(
+            cluster,
+            resource_names.stateful_set_name().to_string(),
+            role_group_name,
+        )
+        .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
+        .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("Parallel".to_string()),
             replicas: effective_replicas,
