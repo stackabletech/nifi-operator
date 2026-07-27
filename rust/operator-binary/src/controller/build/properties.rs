@@ -104,6 +104,18 @@ pub(crate) mod test_support {
         },
     };
 
+    /// The expected `app.kubernetes.io/version` label value for the given product version.
+    ///
+    /// The `-stackable` suffix carries the operator's own version, which is `0.0.0-dev` on main
+    /// but rewritten by the release process — so tests must derive it rather than hardcode it,
+    /// or they fail on release branches.
+    pub fn app_version_label(product_version: &str) -> String {
+        format!(
+            "{product_version}-stackable{}",
+            crate::built_info::PKG_VERSION
+        )
+    }
+
     /// A minimal NiFi cluster YAML.  Mirrors the fixture used by bootstrap_conf tests,
     /// stripped down to the mandatory fields only (Kubernetes clustering backend, SingleUser auth).
     pub const MINIMAL_NIFI_YAML: &str = r#"
@@ -140,10 +152,12 @@ pub(crate) mod test_support {
         let nifi: v1alpha1::NifiCluster =
             serde_yaml::from_str(MINIMAL_NIFI_YAML).expect("invalid test YAML");
 
+        // Mirrors what `image.resolve()` produces in production, so label-asserting tests see
+        // realistic values.
         let image = ResolvedProductImage {
             product_version: "2.9.0".to_string(),
-            app_version_label_value: "2.9.0".parse::<LabelValue>().unwrap(),
-            image: "oci.stackable.tech/sdp/nifi:2.9.0-stackable0.0.0-dev".to_string(),
+            app_version_label_value: app_version_label("2.9.0").parse::<LabelValue>().unwrap(),
+            image: format!("oci.stackable.tech/sdp/nifi:{}", app_version_label("2.9.0")),
             image_pull_policy: "IfNotPresent".to_string(),
             pull_secrets: None,
         };

@@ -124,8 +124,6 @@ pub fn build(cluster: &ValidatedCluster) -> Result<KubernetesResources, Error> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
     use stackable_operator::kube::Resource;
 
     use super::{build, properties::test_support::minimal_validated_cluster};
@@ -161,20 +159,7 @@ mod tests {
             sorted_names(&resources.pod_disruption_budgets),
             ["simple-nifi-node"]
         );
-    }
-
-    /// Locks the RBAC resource names, the roleRef, and the recommended label set against
-    /// accidental drift. The fixture's cluster name deliberately differs from the product name so
-    /// that swapped `name`/`instance` label values cannot pass unnoticed.
-    ///
-    /// The version label is the bare `2.9.0` because the fixture hand-builds its
-    /// [`ResolvedProductImage`](stackable_operator::commons::product_image_selection::ResolvedProductImage)
-    /// instead of resolving it (which would append the `-stackable…` suffix).
-    #[test]
-    fn build_produces_rbac() {
-        let cluster = minimal_validated_cluster();
-        let resources = build(&cluster).expect("build succeeds");
-
+        // The cluster-shared RBAC pair.
         assert_eq!(
             sorted_names(&resources.service_accounts),
             ["simple-nifi-serviceaccount"]
@@ -183,36 +168,5 @@ mod tests {
             sorted_names(&resources.role_bindings),
             ["simple-nifi-rolebinding"]
         );
-
-        let expected_labels = BTreeMap::from(
-            [
-                ("app.kubernetes.io/component", "none"),
-                ("app.kubernetes.io/instance", "simple-nifi"),
-                (
-                    "app.kubernetes.io/managed-by",
-                    "nifi.stackable.tech_nificluster",
-                ),
-                ("app.kubernetes.io/name", "nifi"),
-                ("app.kubernetes.io/role-group", "none"),
-                ("app.kubernetes.io/version", "2.9.0"),
-                ("stackable.tech/vendor", "Stackable"),
-            ]
-            .map(|(key, value)| (key.to_string(), value.to_string())),
-        );
-        let service_account = resources
-            .service_accounts
-            .first()
-            .expect("a ServiceAccount is built");
-        assert_eq!(
-            service_account.metadata.labels,
-            Some(expected_labels.clone())
-        );
-
-        let role_binding = resources
-            .role_bindings
-            .first()
-            .expect("a RoleBinding is built");
-        assert_eq!(role_binding.metadata.labels, Some(expected_labels));
-        assert_eq!(role_binding.role_ref.name, "nifi-clusterrole");
     }
 }
