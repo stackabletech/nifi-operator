@@ -114,6 +114,18 @@ impl DereferencedAuthenticationClasses {
 
         Ok(DereferencedAuthenticationClasses { entries })
     }
+
+    /// Builds the struct directly from already-fetched entries, for tests that cannot use the
+    /// client-based [`Self::dereference`].
+    #[cfg(test)]
+    pub(crate) fn from_entries(
+        entries: Vec<(
+            auth_core::v1alpha1::ClientAuthenticationDetails,
+            auth_core::v1alpha1::AuthenticationClass,
+        )>,
+    ) -> Self {
+        Self { entries }
+    }
 }
 
 #[derive(Clone)]

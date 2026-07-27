@@ -36,7 +36,7 @@ use stackable_operator::{
         role_utils::JavaCommonConfig,
         types::{
             kubernetes::{ConfigMapName, ListenerClassName, SecretClassName},
-            operator::ProductVersion,
+            operator::{ProductVersion, RoleName},
         },
     },
     versioned::versioned,
@@ -79,8 +79,7 @@ pub mod versioned {
         pub cluster_config: v1alpha1::NifiClusterConfig,
 
         // no doc - docs in Role struct.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub nodes: Option<NifiRoleType>,
+        pub nodes: NifiRoleType,
 
         // no doc - docs in ProductImage struct.
         pub image: ProductImage,
@@ -186,9 +185,9 @@ impl HasStatusCondition for v1alpha1::NifiCluster {
 }
 
 impl v1alpha1::NifiCluster {
-    pub fn role_config(&self, role: &NifiRole) -> Option<&NifiNodeRoleConfig> {
+    pub fn role_config(&self, role: &NifiRole) -> &NifiNodeRoleConfig {
         match role {
-            NifiRole::Node => self.spec.nodes.as_ref().map(|n| &n.role_config),
+            NifiRole::Node => &self.spec.nodes.role_config,
         }
     }
 
@@ -224,13 +223,35 @@ pub fn default_allow_all() -> bool {
 }
 
 #[derive(
-    Clone, Debug, Deserialize, Eq, JsonSchema, Ord, PartialEq, PartialOrd, Serialize, strum::Display,
+    Clone,
+    Debug,
+    Deserialize,
+    Eq,
+    JsonSchema,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+    strum::Display,
+    strum::EnumIter,
 )]
 #[serde(rename_all = "camelCase")]
 #[strum(serialize_all = "camelCase")]
 pub enum NifiRole {
     #[strum(serialize = "node")]
     Node,
+}
+
+impl From<NifiRole> for RoleName {
+    fn from(value: NifiRole) -> Self {
+        RoleName::from_str(&value.to_string()).expect("a NifiRole is a valid role name")
+    }
+}
+
+impl From<&NifiRole> for RoleName {
+    fn from(value: &NifiRole) -> Self {
+        RoleName::from_str(&value.to_string()).expect("a NifiRole is a valid role name")
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, Serialize)]

@@ -52,6 +52,7 @@ use crate::{
             BALANCE_PORT, BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, NIFI_CONFIG_DIRECTORY,
             NIFI_PYTHON_WORKING_DIRECTORY, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
             graceful_shutdown::add_graceful_shutdown_config,
+            object_meta,
             properties::ConfigFileName,
             resource::listener::{
                 LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_group_listener_pvc,
@@ -169,7 +170,6 @@ pub(crate) fn build_node_rolegroup_statefulset(
     role_group_name: &RoleGroupName,
     rg: &NifiRoleGroupConfig,
     effective_replicas: Option<i32>,
-    service_account_name: &str,
 ) -> Result<StatefulSet> {
     tracing::debug!("Building statefulset");
 
@@ -181,7 +181,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
     let git_sync_resources = &rg.config.git_sync_resources;
 
     // Type-safe names for this role group's resources (StatefulSet, ConfigMap, headless Service).
-    let resource_names = cluster.resource_names(role_group_name);
+    let resource_names = cluster.role_group_resource_names(role_group_name);
 
     // The validated, merged `NifiConfig` is the single source of truth; the ConfigMap builder
     // sources the same `rg.config`.
@@ -604,7 +604,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
                 &cluster.cluster_config.server_tls_secret_class,
                 &KEYSTORE_VOLUME_NAME,
                 [cluster
-                    .resource_names(role_group_name)
+                    .role_group_resource_names(role_group_name)
                     .metrics_service_name()
                     .to_string()],
                 SecretFormat::TlsPkcs12,
@@ -642,7 +642,12 @@ pub(crate) fn build_node_rolegroup_statefulset(
             ..Volume::default()
         })
         .context(AddVolumeSnafu)?
-        .service_account_name(service_account_name)
+        .service_account_name(
+            cluster
+                .cluster_resource_names()
+                .service_account_name()
+                .to_string(),
+        )
         .security_context(PodSecurityContextBuilder::new().fs_group(1000).build());
 
     let mut pod_template = pod_builder.build_template();
@@ -650,13 +655,13 @@ pub(crate) fn build_node_rolegroup_statefulset(
     pod_template.merge_from(rg.pod_overrides.clone());
 
     Ok(StatefulSet {
-        metadata: cluster
-            .object_meta(
-                resource_names.stateful_set_name().to_string(),
-                role_group_name,
-            )
-            .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
-            .build(),
+        metadata: object_meta(
+            cluster,
+            resource_names.stateful_set_name().to_string(),
+            role_group_name,
+        )
+        .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
+        .build(),
         spec: Some(StatefulSetSpec {
             pod_management_policy: Some("Parallel".to_string()),
             replicas: effective_replicas,
@@ -709,7 +714,7 @@ fn get_volume_claim_templates(
 
     // Used for PVC templates that cannot be modified once they are deployed, so the version label
     // is set to the placeholder `none` to keep the labels stable across version upgrades.
-    let unversioned_recommended_labels = cluster.recommended_labels_unversioned(role_group_name);
+    let unversioned_recommended_labels = cluster.unversioned_recommended_labels(role_group_name);
 
     // listener endpoints will use persistent volumes
     // so that load balancers can hard-code the target addresses and

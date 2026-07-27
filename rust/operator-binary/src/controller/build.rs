@@ -4,8 +4,14 @@
 
 use std::str::FromStr;
 
-use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::v2::types::{common::Port, operator::RoleGroupName};
+use snafu::{ResultExt, Snafu};
+use stackable_operator::{
+    builder::meta::ObjectMetaBuilder,
+    v2::{
+        builder::meta::ownerreference_from_resource,
+        types::{common::Port, operator::RoleGroupName},
+    },
+};
 
 use crate::{
     controller::{
@@ -14,6 +20,7 @@ use crate::{
             config_map::build_rolegroup_config_map,
             listener::{build_group_listener, group_listener_name},
             pdb::build_pdb,
+            rbac::{build_role_binding, build_service_account},
             service::{build_rolegroup_headless_service, build_rolegroup_metrics_service},
             statefulset::build_node_rolegroup_statefulset,
         },
@@ -45,9 +52,6 @@ pub const NIFI_PYTHON_WORKING_DIRECTORY: &str = "/nifi-python-working-directory"
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("NifiCluster has no nodes role defined"))]
-    NoNodesDefined,
-
     #[snafu(display("failed to build ConfigMap for role group {role_group}"))]
     ConfigMap {
         source: resource::config_map::Error,
@@ -66,13 +70,7 @@ pub enum Error {
 /// Does not need a Kubernetes client: every reference to another Kubernetes resource is already
 /// dereferenced and validated by this point, so the errors returned here are resource-assembly
 /// failures only.
-///
-/// `service_account_name` is the name of the RBAC `ServiceAccount` the role-group Pods run under
-/// (RBAC resources are built and applied separately, in the reconcile step).
-pub fn build(
-    cluster: &ValidatedCluster,
-    service_account_name: &str,
-) -> Result<KubernetesResources, Error> {
+pub fn build(cluster: &ValidatedCluster) -> Result<KubernetesResources, Error> {
     let mut stateful_sets = vec![];
     let mut services = vec![];
     let mut listeners = vec![];
@@ -84,7 +82,7 @@ pub fn build(
     let node_role_group_configs = cluster
         .role_group_configs
         .get(&nifi_role)
-        .context(NoNodesDefinedSnafu)?;
+        .expect("the nodes role is required by the CRD and validate always inserts it");
 
     // Role-level resources (one per role): the PodDisruptionBudget and the group Listener.
     let role_config = &cluster.role_config;
@@ -109,16 +107,10 @@ pub fn build(
 
         let effective_replicas = rg.replicas.map(i32::from);
         stateful_sets.push(
-            build_node_rolegroup_statefulset(
-                cluster,
-                role_group_name,
-                rg,
-                effective_replicas,
-                service_account_name,
-            )
-            .context(StatefulSetSnafu {
-                role_group: role_group_name.clone(),
-            })?,
+            build_node_rolegroup_statefulset(cluster, role_group_name, rg, effective_replicas)
+                .context(StatefulSetSnafu {
+                    role_group: role_group_name.clone(),
+                })?,
         );
     }
 
@@ -128,7 +120,31 @@ pub fn build(
         listeners,
         config_maps,
         pod_disruption_budgets,
+        service_accounts: vec![build_service_account(cluster)],
+        role_bindings: vec![build_role_binding(cluster)],
     })
+}
+
+/// Returns an [`ObjectMetaBuilder`] pre-filled with the namespace, an owner reference back to
+/// the cluster, and the recommended labels for a resource named `name` in `role_group_name`.
+///
+/// Consolidates the metadata chain repeated by the child-resource builders. Call sites that
+/// need extra labels/annotations chain them onto the returned builder. Role-level resources
+/// (e.g. the per-role [`Listener`](stackable_operator::crd::listener::v1alpha1::Listener)) pass
+/// the placeholder role-group `none`, preserving the historical
+/// `app.kubernetes.io/role-group: none` label.
+pub(crate) fn object_meta(
+    cluster: &ValidatedCluster,
+    name: impl Into<String>,
+    role_group_name: &RoleGroupName,
+) -> ObjectMetaBuilder {
+    let mut builder = ObjectMetaBuilder::new();
+    builder
+        .name_and_namespace(cluster)
+        .name(name)
+        .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
+        .with_labels(cluster.recommended_labels(role_group_name));
+    builder
 }
 
 #[cfg(test)]
@@ -149,7 +165,7 @@ mod tests {
     #[test]
     fn build_produces_expected_resources() {
         let cluster = minimal_validated_cluster();
-        let resources = build(&cluster, "simple-nifi-serviceaccount").expect("build succeeds");
+        let resources = build(&cluster).expect("build succeeds");
 
         // The minimal fixture has a single `default` role group for the `node` role.
         assert_eq!(
@@ -167,6 +183,15 @@ mod tests {
         assert_eq!(
             sorted_names(&resources.pod_disruption_budgets),
             ["simple-nifi-node"]
+        );
+        // The cluster-shared RBAC pair.
+        assert_eq!(
+            sorted_names(&resources.service_accounts),
+            ["simple-nifi-serviceaccount"]
+        );
+        assert_eq!(
+            sorted_names(&resources.role_bindings),
+            ["simple-nifi-rolebinding"]
         );
     }
 }

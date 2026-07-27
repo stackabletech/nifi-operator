@@ -9,7 +9,7 @@ use stackable_operator::{
 
 use crate::controller::{
     ValidatedCluster,
-    build::{HTTPS_PORT, HTTPS_PORT_NAME},
+    build::{HTTPS_PORT, HTTPS_PORT_NAME, object_meta},
 };
 
 /// The rolegroup headless [`Service`] is a service that allows direct access to the instances of a certain rolegroup
@@ -19,15 +19,15 @@ pub fn build_rolegroup_headless_service(
     role_group_name: &RoleGroupName,
 ) -> Service {
     Service {
-        metadata: cluster
-            .object_meta(
-                cluster
-                    .resource_names(role_group_name)
-                    .headless_service_name()
-                    .to_string(),
-                role_group_name,
-            )
-            .build(),
+        metadata: object_meta(
+            cluster,
+            cluster
+                .role_group_resource_names(role_group_name)
+                .headless_service_name()
+                .to_string(),
+            role_group_name,
+        )
+        .build(),
         spec: Some(ServiceSpec {
             // Internal communication does not need to be exposed
             type_: Some("ClusterIP".to_string()),
@@ -47,17 +47,17 @@ pub fn build_rolegroup_metrics_service(
     role_group_name: &RoleGroupName,
 ) -> Service {
     Service {
-        metadata: cluster
-            .object_meta(
-                cluster
-                    .resource_names(role_group_name)
-                    .metrics_service_name()
-                    .to_string(),
-                role_group_name,
-            )
-            .with_labels(service::prometheus_labels(&Scraping::Enabled))
-            .with_annotations(prometheus_annotations())
-            .build(),
+        metadata: object_meta(
+            cluster,
+            cluster
+                .role_group_resource_names(role_group_name)
+                .metrics_service_name()
+                .to_string(),
+            role_group_name,
+        )
+        .with_labels(service::prometheus_labels(&Scraping::Enabled))
+        .with_annotations(prometheus_annotations())
+        .build(),
         spec: Some(ServiceSpec {
             // Internal communication does not need to be exposed
             type_: Some("ClusterIP".to_string()),
@@ -103,9 +103,12 @@ mod tests {
     use std::str::FromStr as _;
 
     use pretty_assertions::assert_eq;
+    use serde_json::json;
 
     use super::*;
-    use crate::controller::build::properties::test_support::minimal_validated_cluster;
+    use crate::controller::build::properties::test_support::{
+        app_version_label, minimal_validated_cluster,
+    };
 
     #[test]
     fn headless_service_is_cluster_ip_none_with_https_port() {
@@ -123,5 +126,71 @@ mod tests {
         assert_eq!(1, ports.len());
         assert_eq!(Some(HTTPS_PORT_NAME.to_string()), ports[0].name);
         assert_eq!(i32::from(HTTPS_PORT), ports[0].port);
+    }
+
+    /// Every metrics Service must carry the Prometheus scrape label and the
+    /// `prometheus.io/path|port|scheme|scrape` annotations, or Prometheus stops discovering the
+    /// endpoints.
+    #[test]
+    fn test_rolegroup_metrics_service() {
+        let cluster = minimal_validated_cluster();
+        let role_group_name = RoleGroupName::from_str("default").expect("valid role-group name");
+
+        let service = build_rolegroup_metrics_service(&cluster, &role_group_name);
+
+        assert_eq!(
+            json!({
+                "apiVersion": "v1",
+                "kind": "Service",
+                "metadata": {
+                    "annotations": {
+                        "prometheus.io/path": "/nifi-api/flow/metrics/prometheus",
+                        "prometheus.io/port": "8443",
+                        "prometheus.io/scheme": "https",
+                        "prometheus.io/scrape": "true"
+                    },
+                    "labels": {
+                        "app.kubernetes.io/component": "node",
+                        "app.kubernetes.io/instance": "simple-nifi",
+                        "app.kubernetes.io/managed-by": "nifi.stackable.tech_nificluster",
+                        "app.kubernetes.io/name": "nifi",
+                        "app.kubernetes.io/role-group": "default",
+                        "app.kubernetes.io/version": app_version_label("2.9.0"),
+                        "prometheus.io/scrape": "true",
+                        "stackable.tech/vendor": "Stackable"
+                    },
+                    "name": "simple-nifi-node-default-metrics",
+                    "namespace": "default",
+                    "ownerReferences": [
+                        {
+                            "apiVersion": "nifi.stackable.tech/v1alpha1",
+                            "controller": true,
+                            "kind": "NifiCluster",
+                            "name": "simple-nifi",
+                            "uid": "e6ac237d-a6d4-43a1-8135-f36506110912"
+                        }
+                    ]
+                },
+                "spec": {
+                    "clusterIP": "None",
+                    "ports": [
+                        {
+                            "name": "https",
+                            "port": 8443,
+                            "protocol": "TCP"
+                        }
+                    ],
+                    "publishNotReadyAddresses": true,
+                    "selector": {
+                        "app.kubernetes.io/component": "node",
+                        "app.kubernetes.io/instance": "simple-nifi",
+                        "app.kubernetes.io/name": "nifi",
+                        "app.kubernetes.io/role-group": "default"
+                    },
+                    "type": "ClusterIP"
+                }
+            }),
+            serde_json::to_value(service).expect("must be serializable")
+        );
     }
 }

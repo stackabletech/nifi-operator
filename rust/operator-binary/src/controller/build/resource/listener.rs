@@ -14,7 +14,7 @@ use stackable_operator::{
 
 use crate::controller::{
     ValidatedCluster,
-    build::{HTTPS_PORT, HTTPS_PORT_NAME, PLACEHOLDER_LISTENER_ROLE_GROUP},
+    build::{HTTPS_PORT, HTTPS_PORT_NAME, PLACEHOLDER_LISTENER_ROLE_GROUP, object_meta},
 };
 
 pub const LISTENER_VOLUME_NAME: &str = "listener";
@@ -29,12 +29,12 @@ pub fn build_group_listener(
     listener_group_name: ListenerName,
 ) -> Listener {
     Listener {
-        metadata: cluster
-            .object_meta(
-                listener_group_name.to_string(),
-                &PLACEHOLDER_LISTENER_ROLE_GROUP,
-            )
-            .build(),
+        metadata: object_meta(
+            cluster,
+            listener_group_name.to_string(),
+            &PLACEHOLDER_LISTENER_ROLE_GROUP,
+        )
+        .build(),
         spec: ListenerSpec {
             class_name: Some(listener_class.to_string()),
             ports: Some(vec![ListenerPort {

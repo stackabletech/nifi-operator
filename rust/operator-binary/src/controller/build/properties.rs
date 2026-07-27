@@ -104,8 +104,23 @@ pub(crate) mod test_support {
         },
     };
 
+    /// The expected `app.kubernetes.io/version` label value for the given product version.
+    ///
+    /// The `-stackable` suffix carries the operator's own version, which is `0.0.0-dev` on main
+    /// but rewritten by the release process — so tests must derive it rather than hardcode it,
+    /// or they fail on release branches.
+    pub fn app_version_label(product_version: &str) -> String {
+        format!(
+            "{product_version}-stackable{}",
+            crate::built_info::PKG_VERSION
+        )
+    }
+
     /// A minimal NiFi cluster YAML.  Mirrors the fixture used by bootstrap_conf tests,
     /// stripped down to the mandatory fields only (Kubernetes clustering backend, SingleUser auth).
+    ///
+    /// The cluster name (`simple-nifi`) deliberately differs from the product name (`nifi`), so
+    /// tests asserting recommended labels catch swapped `name`/`instance` values.
     pub const MINIMAL_NIFI_YAML: &str = r#"
         apiVersion: nifi.stackable.tech/v1alpha1
         kind: NifiCluster
@@ -140,10 +155,12 @@ pub(crate) mod test_support {
         let nifi: v1alpha1::NifiCluster =
             serde_yaml::from_str(MINIMAL_NIFI_YAML).expect("invalid test YAML");
 
+        // Mirrors what `image.resolve()` produces in production, so label-asserting tests see
+        // realistic values.
         let image = ResolvedProductImage {
             product_version: "2.9.0".to_string(),
-            app_version_label_value: "2.9.0".parse::<LabelValue>().unwrap(),
-            image: "oci.stackable.tech/sdp/nifi:2.9.0-stackable0.0.0-dev".to_string(),
+            app_version_label_value: app_version_label("2.9.0").parse::<LabelValue>().unwrap(),
+            image: format!("oci.stackable.tech/sdp/nifi:{}", app_version_label("2.9.0")),
             image_pull_policy: "IfNotPresent".to_string(),
             pull_secrets: None,
         };
@@ -151,13 +168,11 @@ pub(crate) mod test_support {
         let role_group_configs = build_role_group_configs(&nifi, &image, &None)
             .expect("role group configs should merge for minimal fixture");
 
-        let role_config = nifi
-            .role_config(&NifiRole::Node)
-            .map(|role_config| ValidatedRoleConfig {
-                pdb: role_config.common.pod_disruption_budget.clone(),
-                listener_class: role_config.listener_class.clone(),
-            })
-            .expect("the minimal fixture defines the nodes role");
+        let node_role_config = nifi.role_config(&NifiRole::Node);
+        let role_config = ValidatedRoleConfig {
+            pdb: node_role_config.common.pod_disruption_budget.clone(),
+            listener_class: node_role_config.listener_class.clone(),
+        };
 
         let name = ClusterName::from_str("simple-nifi").expect("valid cluster name");
         let namespace = NamespaceName::from_str("default").expect("valid namespace");

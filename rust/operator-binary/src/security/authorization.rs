@@ -60,6 +60,15 @@ pub struct DereferencedAuthorization {
 }
 
 impl DereferencedAuthorization {
+    /// A dereferenced authorization with no OPA ConfigMap, for tests that cannot use the
+    /// client-based [`Self::dereference`].
+    #[cfg(test)]
+    pub(crate) fn without_opa() -> Self {
+        Self {
+            opa_config_map: None,
+        }
+    }
+
     /// Fetch the OPA ConfigMap referenced by the authorization spec, if applicable.
     pub async fn dereference(
         nifi_authorization: &NifiAuthorization,

@@ -8,9 +8,7 @@ use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     client::Client,
     cluster_resources::ClusterResourceApplyStrategy,
-    commons::rbac::build_rbac_resources,
     kube::{
-        ResourceExt,
         core::{DeserializeGuard, error_boundary},
         runtime::controller::Action,
     },
@@ -27,7 +25,7 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 use crate::{
     OPERATOR_NAME,
     controller::{build, controller_name, dereference, operator_name, product_name, validate},
-    crd::{APP_NAME, NifiStatus, v1alpha1},
+    crd::{NifiStatus, v1alpha1},
     security::{
         authentication::NifiAuthenticationConfig, check_or_generate_oidc_admin_password,
         check_or_generate_sensitive_key,
@@ -73,27 +71,6 @@ pub enum Error {
     #[snafu(display("failed to apply Kubernetes resource"))]
     ApplyResource {
         source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to patch service account"))]
-    ApplyServiceAccount {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to patch role binding"))]
-    ApplyRoleBinding {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to build RBAC resources"))]
-    BuildRbacResources {
-        source: stackable_operator::commons::rbac::Error,
-    },
-
-    #[snafu(display("failed to get required labels"))]
-    GetRequiredLabels {
-        source:
-            stackable_operator::kvp::KeyValuePairError<stackable_operator::kvp::LabelValueError>,
     },
 
     #[snafu(display("security failure"))]
@@ -164,33 +141,25 @@ pub async fn reconcile_nifi(
         .context(SecuritySnafu)?;
     }
 
-    let (rbac_sa, rbac_rolebinding) = build_rbac_resources(
-        nifi,
-        APP_NAME,
-        cluster_resources
-            .get_required_labels()
-            .context(GetRequiredLabelsSnafu)?,
-    )
-    .context(BuildRbacResourcesSnafu)?;
-
-    let rbac_sa = cluster_resources
-        .add(client, rbac_sa)
-        .await
-        .context(ApplyServiceAccountSnafu)?;
-
-    cluster_resources
-        .add(client, rbac_rolebinding)
-        .await
-        .context(ApplyRoleBindingSnafu)?;
-
-    let resources =
-        build::build(&validated_cluster, &rbac_sa.name_any()).context(BuildResourcesSnafu)?;
+    let resources = build::build(&validated_cluster).context(BuildResourcesSnafu)?;
 
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
     // Apply order: everything before StatefulSets, StatefulSets last. A StatefulSet must be applied
     // after all ConfigMaps and Secrets it mounts, otherwise the Pods restart unnecessarily.
     // See https://github.com/stackabletech/commons-operator/issues/111 for details.
+    for service_account in resources.service_accounts {
+        cluster_resources
+            .add(client, service_account)
+            .await
+            .context(ApplyResourceSnafu)?;
+    }
+    for role_binding in resources.role_bindings {
+        cluster_resources
+            .add(client, role_binding)
+            .await
+            .context(ApplyResourceSnafu)?;
+    }
     for service in resources.services {
         cluster_resources
             .add(client, service)
