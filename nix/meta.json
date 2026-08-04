@@ -1,1 +1,1 @@
-{"operator": {"name": "nifi-operator", "pretty_string": "Apache NiFi", "product_string": "nifi", "url": "stackabletech/nifi-operator.git"}}
+{"operator": {"name": "nifi-operator", "pretty_string": "Apache NiFi", "product_string": "nifi", "url": "stackabletech/nifi-operator.git", "chart_description": "Kubernetes operator for Apache NiFi. Deploy and run NiFi clusters with the Stackable Data Platform (SDP).", "keywords": ["apache-nifi", "nifi", "dataflow", "etl", "kubernetes", "operator", "big-data"]}}
