@@ -13,10 +13,13 @@ All notable changes to this project will be documented in this file.
   functions and carry the full set of recommended labels ([#966]).
 - BREAKING: The `nodes` role is now required by the CRD; a NifiCluster without it was
   previously accepted by the API server but failed reconciliation ([#966]).
+- The reconciler now applies resources and derives the cluster status in discrete
+  apply and update_status steps for the `nifi_controller` ([#974]).
 
 [#961]: https://github.com/stackabletech/nifi-operator/pull/961
 [#966]: https://github.com/stackabletech/nifi-operator/pull/966
 [#970]: https://github.com/stackabletech/nifi-operator/pull/970
+[#974]: https://github.com/stackabletech/nifi-operator/pull/974
 
 ## [26.7.0] - 2026-07-21
 

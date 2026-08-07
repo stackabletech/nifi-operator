@@ -2,11 +2,12 @@
 //!
 //! [`ValidatedCluster`]: crate::controller::ValidatedCluster
 
-use std::str::FromStr;
+use std::{marker::PhantomData, str::FromStr};
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
+    kvp::Labels,
     v2::{
         builder::meta::ownerreference_from_resource,
         types::{common::Port, operator::RoleGroupName},
@@ -15,7 +16,7 @@ use stackable_operator::{
 
 use crate::{
     controller::{
-        KubernetesResources, ValidatedCluster,
+        KubernetesResources, Prepared, ValidatedCluster,
         build::resource::{
             config_map::build_rolegroup_config_map,
             listener::{build_group_listener, group_listener_name},
@@ -70,7 +71,7 @@ pub enum Error {
 /// Does not need a Kubernetes client: every reference to another Kubernetes resource is already
 /// dereferenced and validated by this point, so the errors returned here are resource-assembly
 /// failures only.
-pub fn build(cluster: &ValidatedCluster) -> Result<KubernetesResources, Error> {
+pub fn build(cluster: &ValidatedCluster) -> Result<KubernetesResources<Prepared>, Error> {
     let mut stateful_sets = vec![];
     let mut services = vec![];
     let mut listeners = vec![];
@@ -122,28 +123,30 @@ pub fn build(cluster: &ValidatedCluster) -> Result<KubernetesResources, Error> {
         pod_disruption_budgets,
         service_accounts: vec![build_service_account(cluster)],
         role_bindings: vec![build_role_binding(cluster)],
+        status: PhantomData,
     })
 }
 
-/// Returns an [`ObjectMetaBuilder`] pre-filled with the namespace, an owner reference back to
-/// the cluster, and the recommended labels for a resource named `name` in `role_group_name`.
+/// Returns an [`ObjectMetaBuilder`] pre-filled with the cluster's namespace, an owner reference
+/// back to the cluster, the resource `name` and the given `recommended_labels`.
 ///
 /// Consolidates the metadata chain repeated by the child-resource builders. Call sites that
-/// need extra labels/annotations chain them onto the returned builder. Role-level resources
-/// (e.g. the per-role [`Listener`](stackable_operator::crd::listener::v1alpha1::Listener)) pass
-/// the placeholder role-group `none`, preserving the historical
-/// `app.kubernetes.io/role-group: none` label.
+/// need extra labels/annotations chain them onto the returned builder. The labels are passed in
+/// rather than derived here, so callers can pick the variant they need: role-level resources
+/// (e.g. the per-role [`Listener`](stackable_operator::crd::listener::v1alpha1::Listener)) use the
+/// placeholder role group `none`, and resources that must not change after deployment use the
+/// unversioned labels.
 pub(crate) fn object_meta(
     cluster: &ValidatedCluster,
     name: impl Into<String>,
-    role_group_name: &RoleGroupName,
+    recommended_labels: Labels,
 ) -> ObjectMetaBuilder {
     let mut builder = ObjectMetaBuilder::new();
     builder
         .name_and_namespace(cluster)
         .name(name)
         .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
-        .with_labels(cluster.recommended_labels(role_group_name));
+        .with_labels(recommended_labels);
     builder
 }
 
