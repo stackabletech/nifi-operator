@@ -18,18 +18,16 @@ use stackable_operator::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
         statefulset::StatefulSetConditionBuilder,
     },
-    v2::cluster_resources::cluster_resources_new,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
     OPERATOR_NAME,
-    controller::{build, controller_name, dereference, operator_name, product_name, validate},
-    crd::{NifiStatus, v1alpha1},
-    security::{
-        authentication::NifiAuthenticationConfig, check_or_generate_oidc_admin_password,
-        check_or_generate_sensitive_key,
+    controller::{
+        apply::{self, Applier, ensure_secrets},
+        build, dereference, validate,
     },
+    crd::{NifiStatus, v1alpha1},
 };
 
 pub const NIFI_CONTROLLER_NAME: &str = "nificluster";
@@ -55,11 +53,6 @@ pub enum Error {
     #[snafu(display("failed to validate cluster"))]
     ValidateCluster { source: validate::Error },
 
-    #[snafu(display("failed to delete orphaned resources"))]
-    DeleteOrphanedResources {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
     #[snafu(display("failed to update status"))]
     StatusUpdate {
         source: stackable_operator::client::Error,
@@ -68,13 +61,8 @@ pub enum Error {
     #[snafu(display("failed to build the Kubernetes resources"))]
     BuildResources { source: build::Error },
 
-    #[snafu(display("failed to apply Kubernetes resource"))]
-    ApplyResource {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("security failure"))]
-    Security { source: crate::security::Error },
+    #[snafu(display("failed to apply the Kubernetes resources"))]
+    ApplyResources { source: apply::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -108,99 +96,28 @@ pub async fn reconcile_nifi(
         validate::validate(nifi, &dereferenced_objects, &ctx.operator_environment)
             .context(ValidateClusterSnafu)?;
 
-    let authentication_config = &validated_cluster.cluster_config.authentication;
-
-    tracing::info!("Checking for sensitive key configuration");
-    check_or_generate_sensitive_key(
-        client,
-        &validated_cluster.cluster_config.sensitive_properties,
-        &validated_cluster.namespace,
-    )
-    .await
-    .context(SecuritySnafu)?;
-
-    let mut cluster_resources = cluster_resources_new(
-        &product_name(),
-        &operator_name(),
-        &controller_name(),
-        &validated_cluster.name,
-        &validated_cluster.namespace,
-        &validated_cluster.uid,
-        ClusterResourceApplyStrategy::from(&nifi.spec.cluster_operation),
-        &nifi.spec.object_overrides,
-    );
-
-    if let NifiAuthenticationConfig::Oidc { .. } = authentication_config {
-        check_or_generate_oidc_admin_password(
-            client,
-            &validated_cluster.name,
-            &validated_cluster.namespace,
-        )
-        .await
-        .context(SecuritySnafu)?;
-    }
-
+    // build (no Kubernetes API calls required)
     let resources = build::build(&validated_cluster).context(BuildResourcesSnafu)?;
 
-    let mut ss_cond_builder = StatefulSetConditionBuilder::default();
-
-    // Apply order: everything before StatefulSets, StatefulSets last. A StatefulSet must be applied
-    // after all ConfigMaps and Secrets it mounts, otherwise the Pods restart unnecessarily.
-    // See https://github.com/stackabletech/commons-operator/issues/111 for details.
-    for service_account in resources.service_accounts {
-        cluster_resources
-            .add(client, service_account)
-            .await
-            .context(ApplyResourceSnafu)?;
-    }
-    for role_binding in resources.role_bindings {
-        cluster_resources
-            .add(client, role_binding)
-            .await
-            .context(ApplyResourceSnafu)?;
-    }
-    for service in resources.services {
-        cluster_resources
-            .add(client, service)
-            .await
-            .context(ApplyResourceSnafu)?;
-    }
-    for listener in resources.listeners {
-        cluster_resources
-            .add(client, listener)
-            .await
-            .context(ApplyResourceSnafu)?;
-    }
-    for config_map in resources.config_maps {
-        cluster_resources
-            .add(client, config_map)
-            .await
-            .context(ApplyResourceSnafu)?;
-    }
-    for pdb in resources.pod_disruption_budgets {
-        cluster_resources
-            .add(client, pdb)
-            .await
-            .context(ApplyResourceSnafu)?;
-    }
-    for stateful_set in resources.stateful_sets {
-        ss_cond_builder.add(
-            cluster_resources
-                .add(client, stateful_set)
-                .await
-                .context(ApplyResourceSnafu)?,
-        );
-    }
-
-    // Remove any orphaned resources that still exist in k8s, but have not been added to
-    // the cluster resources during the reconciliation
-    // TODO: this doesn't cater for a graceful cluster shrink, for that we'd need to predict
-    //  the resources that will be removed and run a disconnect/offload job for those
-    //  see https://github.com/stackabletech/nifi-operator/issues/314
-    cluster_resources
-        .delete_orphaned_resources(client)
+    // apply (client required)
+    ensure_secrets(client, &validated_cluster)
         .await
-        .context(DeleteOrphanedResourcesSnafu)?;
+        .context(ApplyResourcesSnafu)?;
+
+    let applied = Applier::new(
+        client,
+        &validated_cluster,
+        ClusterResourceApplyStrategy::from(&nifi.spec.cluster_operation),
+        &nifi.spec.object_overrides,
+    )
+    .apply(resources)
+    .await
+    .context(ApplyResourcesSnafu)?;
+
+    let mut ss_cond_builder = StatefulSetConditionBuilder::default();
+    for stateful_set in &applied.stateful_sets {
+        ss_cond_builder.add(stateful_set.clone());
+    }
 
     let cluster_operation_cond_builder =
         ClusterOperationsConditionBuilder::new(&nifi.spec.cluster_operation);

@@ -52,6 +52,7 @@ use crate::{
     },
 };
 
+pub(crate) mod apply;
 pub(crate) mod build;
 pub(crate) mod dereference;
 pub(crate) mod validate;
@@ -62,10 +63,14 @@ stackable_operator::constant!(UNVERSIONED_PRODUCT_VERSION: ProductVersion = "non
 /// Marker for prepared Kubernetes resources which are not applied yet.
 pub struct Prepared;
 
+/// Marker for Kubernetes resources which have been applied, i.e. the specifications as returned by
+/// the Kubernetes API server.
+pub struct Applied;
+
 /// Every Kubernetes resource produced by the [`build`] step.
 ///
 /// `T` is a marker that indicates whether these resources are only [`Prepared`] or already
-/// applied. It lets the type system prove that the cluster status is derived from the applied
+/// [`Applied`]. It lets the type system prove that the cluster status is derived from the applied
 /// resources (which carry the API server's view, e.g. the StatefulSet status) rather than from the
 /// merely built ones.
 pub struct KubernetesResources<T> {
