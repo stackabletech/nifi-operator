@@ -2,7 +2,7 @@
 //! [`validate`] step and consumed by the [`build`] steps, plus the
 //! `dereference` / `validate` / `build` sub-modules.
 
-use std::{collections::BTreeMap, str::FromStr as _};
+use std::{collections::BTreeMap, marker::PhantomData, str::FromStr as _};
 
 use stackable_operator::{
     commons::{
@@ -59,8 +59,16 @@ pub(crate) mod validate;
 // Placeholder version label value for resources whose labels must not change after deployment.
 stackable_operator::constant!(UNVERSIONED_PRODUCT_VERSION: ProductVersion = "none");
 
+/// Marker for prepared Kubernetes resources which are not applied yet.
+pub struct Prepared;
+
 /// Every Kubernetes resource produced by the [`build`] step.
-pub struct KubernetesResources {
+///
+/// `T` is a marker that indicates whether these resources are only [`Prepared`] or already
+/// applied. It lets the type system prove that the cluster status is derived from the applied
+/// resources (which carry the API server's view, e.g. the StatefulSet status) rather than from the
+/// merely built ones.
+pub struct KubernetesResources<T> {
     pub stateful_sets: Vec<StatefulSet>,
     pub services: Vec<Service>,
     pub listeners: Vec<listener::v1alpha1::Listener>,
@@ -68,6 +76,7 @@ pub struct KubernetesResources {
     pub pod_disruption_budgets: Vec<PodDisruptionBudget>,
     pub service_accounts: Vec<ServiceAccount>,
     pub role_bindings: Vec<RoleBinding>,
+    pub status: PhantomData<T>,
 }
 
 /// A validated, merged (default <- role <- role-group) NiFi rolegroup config.

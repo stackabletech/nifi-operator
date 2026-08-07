@@ -2,7 +2,7 @@
 //!
 //! [`ValidatedCluster`]: crate::controller::ValidatedCluster
 
-use std::str::FromStr;
+use std::{marker::PhantomData, str::FromStr};
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
@@ -15,7 +15,7 @@ use stackable_operator::{
 
 use crate::{
     controller::{
-        KubernetesResources, ValidatedCluster,
+        KubernetesResources, Prepared, ValidatedCluster,
         build::resource::{
             config_map::build_rolegroup_config_map,
             listener::{build_group_listener, group_listener_name},
@@ -70,7 +70,7 @@ pub enum Error {
 /// Does not need a Kubernetes client: every reference to another Kubernetes resource is already
 /// dereferenced and validated by this point, so the errors returned here are resource-assembly
 /// failures only.
-pub fn build(cluster: &ValidatedCluster) -> Result<KubernetesResources, Error> {
+pub fn build(cluster: &ValidatedCluster) -> Result<KubernetesResources<Prepared>, Error> {
     let mut stateful_sets = vec![];
     let mut services = vec![];
     let mut listeners = vec![];
@@ -122,6 +122,7 @@ pub fn build(cluster: &ValidatedCluster) -> Result<KubernetesResources, Error> {
         pod_disruption_budgets,
         service_accounts: vec![build_service_account(cluster)],
         role_bindings: vec![build_role_binding(cluster)],
+        status: PhantomData,
     })
 }
 
