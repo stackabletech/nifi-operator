@@ -1,4 +1,9 @@
 //! Ensures that `Pod`s are configured and running for each [`v1alpha1::NifiCluster`].
+//!
+//! This is the controller driver: it runs the
+//! `dereference -> validate -> build -> apply -> update_status` pipeline. The validated cluster
+//! type and the resource builders live under the [`crate::controller`] module tree; this file is
+//! kept next to `main.rs` for consistency with the other Stackable operators.
 
 use std::sync::Arc;
 
@@ -14,10 +19,6 @@ use stackable_operator::{
     },
     logging::controller::ReconcilerError,
     shared::time::Duration,
-    status::condition::{
-        compute_conditions, operations::ClusterOperationsConditionBuilder,
-        statefulset::StatefulSetConditionBuilder,
-    },
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
@@ -25,9 +26,11 @@ use crate::{
     OPERATOR_NAME,
     controller::{
         apply::{self, Applier, ensure_secrets},
-        build, dereference, validate,
+        build, dereference,
+        update_status::{self, update_status},
+        validate,
     },
-    crd::{NifiStatus, v1alpha1},
+    crd::v1alpha1,
 };
 
 pub const NIFI_CONTROLLER_NAME: &str = "nificluster";
@@ -40,7 +43,6 @@ pub struct Ctx {
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
-#[allow(clippy::enum_variant_names)]
 pub enum Error {
     #[snafu(display("NifiCluster object is invalid"))]
     InvalidNifiCluster {
@@ -53,16 +55,14 @@ pub enum Error {
     #[snafu(display("failed to validate cluster"))]
     ValidateCluster { source: validate::Error },
 
-    #[snafu(display("failed to update status"))]
-    StatusUpdate {
-        source: stackable_operator::client::Error,
-    },
-
     #[snafu(display("failed to build the Kubernetes resources"))]
     BuildResources { source: build::Error },
 
     #[snafu(display("failed to apply the Kubernetes resources"))]
     ApplyResources { source: apply::Error },
+
+    #[snafu(display("failed to update the cluster status"))]
+    UpdateStatus { source: update_status::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -114,25 +114,10 @@ pub async fn reconcile_nifi(
     .await
     .context(ApplyResourcesSnafu)?;
 
-    let mut ss_cond_builder = StatefulSetConditionBuilder::default();
-    for stateful_set in &applied.stateful_sets {
-        ss_cond_builder.add(stateful_set.clone());
-    }
-
-    let cluster_operation_cond_builder =
-        ClusterOperationsConditionBuilder::new(&nifi.spec.cluster_operation);
-
-    let conditions = compute_conditions(nifi, &[&ss_cond_builder, &cluster_operation_cond_builder]);
-
-    let status = NifiStatus {
-        deployed_version: Some(validated_cluster.deployed_product_version.clone()),
-        conditions,
-    };
-
-    client
-        .apply_patch_status(OPERATOR_NAME, nifi, &status)
+    // update status (client required)
+    update_status(client, nifi, &validated_cluster, &applied)
         .await
-        .context(StatusUpdateSnafu)?;
+        .context(UpdateStatusSnafu)?;
 
     Ok(Action::await_change())
 }
