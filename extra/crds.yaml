@@ -6,7 +6,6 @@ metadata:
 spec:
   group: nifi.stackable.tech
   names:
-    categories: []
     kind: NifiCluster
     plural: nificlusters
     shortNames:
@@ -14,8 +13,7 @@ spec:
     singular: nificluster
   scope: Namespaced
   versions:
-  - additionalPrinterColumns: []
-    name: v1alpha1
+  - name: v1alpha1
     schema:
       openAPIV3Schema:
         description: A NiFi cluster stacklet. This resource is managed by the Stackable operator for Apache NiFi.
