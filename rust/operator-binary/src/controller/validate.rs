@@ -91,6 +91,12 @@ pub enum Error {
     ValidateLoggingConfig {
         source: stackable_operator::v2::product_logging::framework::Error,
     },
+
+    #[snafu(display("the product version {product_version:?} is invalid"))]
+    ParseProductVersion {
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
+        product_version: String,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -159,6 +165,16 @@ pub fn validate(
     let product_version = ProductVersion::from_str(&image.app_version_label_value)
         .expect("the app version label value is a valid product version");
 
+    // The bare product version, reported as `status.deployedVersion`. Unlike
+    // `app_version_label_value` this is the user's input copied verbatim (it is never truncated to
+    // the label value length limit), so it has to be parsed fallibly.
+    let deployed_product_version =
+        ProductVersion::from_str(&image.product_version).with_context(|_| {
+            ParseProductVersionSnafu {
+                product_version: image.product_version.clone(),
+            }
+        })?;
+
     Ok(ValidatedCluster::new(
         name,
         namespace,
@@ -166,6 +182,7 @@ pub fn validate(
         uid,
         image,
         product_version,
+        deployed_product_version,
         role_config,
         role_group_configs,
         ValidatedClusterConfig {
@@ -401,10 +418,13 @@ mod tests {
             format!("oci.example.org/nifi:{}", app_version_label("2.9.0"))
         );
         assert_eq!(cluster.image.product_version, "2.9.0");
+        // The label value carries the `-stackable<operator version>` suffix, the version reported
+        // in `status.deployedVersion` does not.
         assert_eq!(
             cluster.product_version.to_string(),
             app_version_label("2.9.0")
         );
+        assert_eq!(cluster.deployed_product_version.to_string(), "2.9.0");
 
         // The role config falls back to its defaults: PDBs enabled, cluster-internal listener.
         assert!(cluster.role_config.pdb.enabled);

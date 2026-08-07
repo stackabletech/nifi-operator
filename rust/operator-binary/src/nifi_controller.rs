@@ -1,6 +1,6 @@
 //! Ensures that `Pod`s are configured and running for each [`v1alpha1::NifiCluster`].
 
-use std::{str::FromStr, sync::Arc};
+use std::sync::Arc;
 
 use const_format::concatcp;
 use snafu::{ResultExt, Snafu};
@@ -18,7 +18,7 @@ use stackable_operator::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
         statefulset::StatefulSetConditionBuilder,
     },
-    v2::{cluster_resources::cluster_resources_new, types::operator::ProductVersion},
+    v2::cluster_resources::cluster_resources_new,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
@@ -108,7 +108,6 @@ pub async fn reconcile_nifi(
         validate::validate(nifi, &dereferenced_objects, &ctx.operator_environment)
             .context(ValidateClusterSnafu)?;
 
-    let resolved_product_image = &validated_cluster.image;
     let authentication_config = &validated_cluster.cluster_config.authentication;
 
     tracing::info!("Checking for sensitive key configuration");
@@ -209,10 +208,7 @@ pub async fn reconcile_nifi(
     let conditions = compute_conditions(nifi, &[&ss_cond_builder, &cluster_operation_cond_builder]);
 
     let status = NifiStatus {
-        deployed_version: Some(
-            ProductVersion::from_str(&resolved_product_image.product_version)
-                .expect("the resolved product version is a valid product version label value"),
-        ),
+        deployed_version: Some(validated_cluster.deployed_product_version.clone()),
         conditions,
     };
 

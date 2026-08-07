@@ -179,6 +179,8 @@ pub(crate) mod test_support {
         let uid = Uid::from_str("e6ac237d-a6d4-43a1-8135-f36506110912").expect("valid uid");
         let product_version = ProductVersion::from_str(&image.app_version_label_value)
             .expect("valid product version");
+        let deployed_product_version =
+            ProductVersion::from_str(&image.product_version).expect("valid product version");
 
         ValidatedCluster::new(
             name,
@@ -187,6 +189,7 @@ pub(crate) mod test_support {
             uid,
             image,
             product_version,
+            deployed_product_version,
             role_config,
             role_group_configs,
             ValidatedClusterConfig {

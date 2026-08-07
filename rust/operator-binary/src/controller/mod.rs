@@ -180,8 +180,16 @@ pub struct ValidatedCluster {
     /// The product image.
     pub image: ResolvedProductImage,
     /// The product version as a type-safe label value, used for the `app.kubernetes.io/version`
-    /// label on built resources.
+    /// label on built resources. This is the full image app version (for example
+    /// `2.9.0-stackable0.0.0-dev`), not the bare NiFi version.
     pub product_version: ProductVersion,
+    /// The bare NiFi version (for example `2.9.0`), reported as `status.deployedVersion`.
+    ///
+    /// Deliberately separate from [`Self::product_version`]: that one carries the image app
+    /// version label value, whereas this is the product version the user asked for. The status
+    /// field is user facing and is asserted bare by the `upgrade` integration test, so the two
+    /// must not be conflated.
+    pub deployed_product_version: ProductVersion,
     /// Per-role configuration (PodDisruptionBudget and listener class). The `nodes` role is
     /// required by the CRD, so this is always present.
     pub role_config: ValidatedRoleConfig,
@@ -237,6 +245,7 @@ impl ValidatedCluster {
         uid: Uid,
         image: ResolvedProductImage,
         product_version: ProductVersion,
+        deployed_product_version: ProductVersion,
         role_config: ValidatedRoleConfig,
         role_group_configs: BTreeMap<NifiRole, BTreeMap<RoleGroupName, NifiRoleGroupConfig>>,
         cluster_config: ValidatedClusterConfig,
@@ -256,6 +265,7 @@ impl ValidatedCluster {
             uid,
             image,
             product_version,
+            deployed_product_version,
             role_config,
             role_group_configs,
             cluster_config,
