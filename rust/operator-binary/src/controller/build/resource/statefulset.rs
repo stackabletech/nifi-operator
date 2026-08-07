@@ -658,7 +658,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
         metadata: object_meta(
             cluster,
             resource_names.stateful_set_name().to_string(),
-            role_group_name,
+            cluster.recommended_labels(role_group_name),
         )
         .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
         .build(),

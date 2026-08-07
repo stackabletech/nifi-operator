@@ -32,7 +32,7 @@ pub fn build_group_listener(
         metadata: object_meta(
             cluster,
             listener_group_name.to_string(),
-            &PLACEHOLDER_LISTENER_ROLE_GROUP,
+            cluster.recommended_labels(&PLACEHOLDER_LISTENER_ROLE_GROUP),
         )
         .build(),
         spec: ListenerSpec {
