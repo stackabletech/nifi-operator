@@ -37,7 +37,7 @@ pub fn management_startup_probe() -> Probe {
     Probe {
         initial_delay_seconds: Some(10),
         period_seconds: Some(10),
-        timeout_seconds: Some(3),
+        timeout_seconds: Some(5),
         failure_threshold: Some(20 * 6),
         exec: Some(management_health_exec("/health")),
         ..Probe::default()
@@ -51,7 +51,7 @@ pub fn management_readiness_probe() -> Probe {
     Probe {
         initial_delay_seconds: Some(10),
         period_seconds: Some(10),
-        timeout_seconds: Some(3),
+        timeout_seconds: Some(5),
         failure_threshold: Some(3),
         exec: Some(management_health_exec("/health/cluster")),
         ..Probe::default()
@@ -78,7 +78,7 @@ mod tests {
             "expected curl against /health, got: {script}"
         );
         assert_eq!(probe.failure_threshold, Some(120));
-        assert_eq!(probe.timeout_seconds, Some(3));
+        assert_eq!(probe.timeout_seconds, Some(5));
         assert!(
             probe.tcp_socket.is_none(),
             "must not fall back to tcp_socket"
@@ -101,7 +101,7 @@ mod tests {
             "expected curl against /health/cluster, got: {script}"
         );
         assert_eq!(probe.failure_threshold, Some(3));
-        assert_eq!(probe.timeout_seconds, Some(3));
+        assert_eq!(probe.timeout_seconds, Some(5));
     }
 
     #[test]
