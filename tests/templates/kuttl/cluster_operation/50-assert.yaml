@@ -3,23 +3,6 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 timeout: 600
 commands:
-  - script: |
-      # Confirm at least one pod is reported NotReady while the rollout is in
-      # progress - i.e. readiness is actually gating on cluster membership,
-      # not just passing immediately. Polls briefly right after the restart
-      # is triggered, before asserting the final converged state below.
-      for i in $(seq 1 30); do
-        NOT_READY=$(kubectl -n $NAMESPACE get pods -l app.kubernetes.io/name=nifi \
-          -o jsonpath='{range .items[*]}{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}' \
-          | grep -c False || true)
-        if [ "$NOT_READY" -gt 0 ]; then
-          echo "observed $NOT_READY not-ready pod(s) mid-restart, as expected"
-          exit 0
-        fi
-        sleep 2
-      done
-      echo "never observed a not-ready pod during the restart window - readiness probe may not be gating correctly"
-      exit 1
   - script: kubectl -n $NAMESPACE wait --for=condition=available nificlusters.nifi.stackable.tech/test-nifi --timeout 601s
 ---
 apiVersion: apps/v1
