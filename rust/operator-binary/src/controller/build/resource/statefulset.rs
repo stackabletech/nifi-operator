@@ -54,9 +54,12 @@ use crate::{
             graceful_shutdown::add_graceful_shutdown_config,
             object_meta,
             properties::ConfigFileName,
-            resource::listener::{
-                LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_group_listener_pvc,
-                group_listener_name,
+            resource::{
+                listener::{
+                    LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_group_listener_pvc,
+                    group_listener_name,
+                },
+                probes::{management_readiness_probe, management_startup_probe},
             },
         },
     },
@@ -444,16 +447,14 @@ pub(crate) fn build_node_rolegroup_statefulset(
             }),
             ..Probe::default()
         })
-        .startup_probe(Probe {
-            initial_delay_seconds: Some(10),
-            period_seconds: Some(10),
-            failure_threshold: Some(20 * 6),
-            tcp_socket: Some(TCPSocketAction {
-                port: IntOrString::String(HTTPS_PORT_NAME.to_string()),
-                ..TCPSocketAction::default()
-            }),
-            ..Probe::default()
-        })
+        // Gates startup on the NiFi 2.x management server reporting the app
+        // server has booted (rather than just the HTTPS port accepting
+        // connections).
+        .startup_probe(management_startup_probe())
+        // Gates readiness on the node actually being connected to the
+        // cluster, so a node that is up but not yet rejoined after a
+        // rolling restart is correctly reported as not Ready.
+        .readiness_probe(management_readiness_probe())
         .resources(merged_config.resources.clone().into());
 
     let mut pod_builder = PodBuilder::new();
