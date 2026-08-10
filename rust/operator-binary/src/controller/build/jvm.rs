@@ -9,10 +9,7 @@ use stackable_operator::{
 use crate::{
     controller::{
         ValidatedNifiConfig,
-        build::{
-            NIFI_CONFIG_DIRECTORY, properties::ConfigFileName,
-            resource::probes::MANAGEMENT_SERVER_PORT,
-        },
+        build::{MANAGEMENT_SERVER_PORT, NIFI_CONFIG_DIRECTORY, properties::ConfigFileName},
     },
     security::{
         authentication::{STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD},

@@ -8,12 +8,7 @@
 
 use stackable_operator::k8s_openapi::api::core::v1::{ExecAction, Probe};
 
-/// Port NiFi's management server binds to by default
-/// (`org.apache.nifi.management.server.address`, see
-/// `ManagementServerProvider.MANAGEMENT_SERVER_DEFAULT_ADDRESS` upstream).
-/// The operator pins the JVM system property to this same value (see
-/// `build::jvm`), so this constant is the single source of truth for it.
-pub const MANAGEMENT_SERVER_PORT: u16 = 52020;
+use crate::controller::build::MANAGEMENT_SERVER_PORT;
 
 fn management_health_exec(path: &str) -> ExecAction {
     ExecAction {
@@ -49,7 +44,6 @@ pub fn management_startup_probe() -> Probe {
 /// otherwise (e.g. during a rolling restart before the node has rejoined).
 pub fn management_readiness_probe() -> Probe {
     Probe {
-        initial_delay_seconds: Some(10),
         period_seconds: Some(10),
         timeout_seconds: Some(5),
         failure_threshold: Some(3),
@@ -102,6 +96,11 @@ mod tests {
         );
         assert_eq!(probe.failure_threshold, Some(3));
         assert_eq!(probe.timeout_seconds, Some(5));
+        assert_eq!(
+            probe.initial_delay_seconds, None,
+            "readiness probe delay is redundant: k8s already suppresses readiness checks \
+             until the startup probe succeeds"
+        );
     }
 
     #[test]
