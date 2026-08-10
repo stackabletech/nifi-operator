@@ -122,6 +122,7 @@ mod tests {
                 java.arg.10=-Djavax.security.auth.useSubjectCredsOnly=true
                 java.arg.11=-Dzookeeper.admin.enableServer=false
                 java.arg.12=-Djava.security.properties=/stackable/nifi/conf/security.properties
+                java.arg.13=-Dorg.apache.nifi.management.server.address=127.0.0.1:52020
                 java.arg.2=-Xms3276m
                 java.arg.3=-XX:+UseG1GC
                 java.arg.4=-Djava.awt.headless=true
@@ -187,10 +188,11 @@ mod tests {
                 java=java
                 java.arg.1=-Xms34406m
                 java.arg.10=-Djava.security.properties=/stackable/nifi/conf/security.properties
-                java.arg.11=-Dhttps.proxyHost=proxy.my.corp
-                java.arg.12=-Djava.net.preferIPv4Stack=true
-                java.arg.13=-Xmx40000m
-                java.arg.14=-Dhttps.proxyPort=1234
+                java.arg.11=-Dorg.apache.nifi.management.server.address=127.0.0.1:52020
+                java.arg.12=-Dhttps.proxyHost=proxy.my.corp
+                java.arg.13=-Djava.net.preferIPv4Stack=true
+                java.arg.14=-Xmx40000m
+                java.arg.15=-Dhttps.proxyPort=1234
                 java.arg.2=-Djava.awt.headless=true
                 java.arg.3=-Dorg.apache.jasper.compiler.disablejsr199=true
                 java.arg.4=-Djava.net.preferIPv4Stack=true

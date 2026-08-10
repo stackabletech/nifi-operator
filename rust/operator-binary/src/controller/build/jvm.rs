@@ -9,7 +9,10 @@ use stackable_operator::{
 use crate::{
     controller::{
         ValidatedNifiConfig,
-        build::{NIFI_CONFIG_DIRECTORY, properties::ConfigFileName},
+        build::{
+            NIFI_CONFIG_DIRECTORY, properties::ConfigFileName,
+            resource::probes::MANAGEMENT_SERVER_PORT,
+        },
     },
     security::{
         authentication::{STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD},
@@ -86,6 +89,10 @@ pub fn build_merged_jvm_config(
             "-Djava.security.properties={NIFI_CONFIG_DIRECTORY}/{}",
             ConfigFileName::SecurityProperties
         ),
+        // Pin the NiFi 2.x management server (used by the startup/readiness
+        // probes in resource::probes) to a known address instead of relying
+        // on its undocumented upstream default.
+        format!("-Dorg.apache.nifi.management.server.address=127.0.0.1:{MANAGEMENT_SERVER_PORT}"),
     ];
 
     // Add JVM truststore properties when OPA TLS is enabled
@@ -167,6 +174,28 @@ mod tests {
             args.iter()
                 .any(|a| a.starts_with("-Djavax.net.ssl.trustStore=")),
             "expected truststore property when OPA TLS is enabled"
+        );
+    }
+
+    /// The management-server bind address is pinned explicitly rather than
+    /// relying on NiFi's undocumented upstream default, so the probes in
+    /// `resource::probes` always target the right port even if that default
+    /// ever changes upstream.
+    #[test]
+    fn management_server_address_is_pinned_explicitly() {
+        let cluster = minimal_validated_cluster();
+        let args = build_merged_jvm_config(
+            &default_rg(&cluster).config,
+            &JvmArgumentOverrides::default(),
+            None,
+        )
+        .expect("jvm config should build");
+
+        assert!(
+            args.contains(
+                &"-Dorg.apache.nifi.management.server.address=127.0.0.1:52020".to_string()
+            ),
+            "expected an explicit management-server address JVM property, got: {args:?}"
         );
     }
 
