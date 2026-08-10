@@ -1,6 +1,6 @@
 //! Builds the exec-based startup and readiness probes that check NiFi 2.x's
 //! local, unauthenticated management-server endpoints (`/health` and
-//! `/health/cluster`), rather than only checking that the HTTPS port is open.
+//! `/health/cluster`).
 //!
 //! The management server binds `127.0.0.1` only, so these must be `exec`
 //! probes using `curl` from inside the container - a `httpGet` probe cannot
@@ -23,11 +23,6 @@ fn management_health_exec(path: &str) -> ExecAction {
         ]),
     }
 }
-
-/// Gates startup on the management server reporting the app server has
-/// booted. `/health` only starts responding once NiFi's own web server (and
-/// flow load) has completed, so this replaces the old blunt TCP-socket check
-/// on the HTTPS port.
 pub fn management_startup_probe() -> Probe {
     Probe {
         initial_delay_seconds: Some(10),
@@ -38,10 +33,6 @@ pub fn management_startup_probe() -> Probe {
         ..Probe::default()
     }
 }
-
-/// Gates readiness on cluster membership: `/health/cluster` returns 200 only
-/// while the node's `ConnectionState` is `CONNECTED`/`CONNECTING`, and 503
-/// otherwise (e.g. during a rolling restart before the node has rejoined).
 pub fn management_readiness_probe() -> Probe {
     Probe {
         period_seconds: Some(10),

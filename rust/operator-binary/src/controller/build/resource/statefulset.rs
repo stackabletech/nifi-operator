@@ -447,13 +447,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
             }),
             ..Probe::default()
         })
-        // Gates startup on the NiFi 2.x management server reporting the app
-        // server has booted (rather than just the HTTPS port accepting
-        // connections).
         .startup_probe(management_startup_probe())
-        // Gates readiness on the node actually being connected to the
-        // cluster, so a node that is up but not yet rejoined after a
-        // rolling restart is correctly reported as not Ready.
         .readiness_probe(management_readiness_probe())
         .resources(merged_config.resources.clone().into());
 
