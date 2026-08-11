@@ -648,7 +648,11 @@ pub(crate) fn build_node_rolegroup_statefulset(
                 .service_account_name()
                 .to_string(),
         )
-        .security_context(PodSecurityContextBuilder::new().fs_group(1000).build());
+        .security_context(
+            PodSecurityContextBuilder::with_stackable_defaults()
+                .fs_group(1000)
+                .build(),
+        );
 
     let mut pod_template = pod_builder.build_template();
     // `rg.pod_overrides` is already the merged role <- rolegroup overrides.
