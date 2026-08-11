@@ -9,7 +9,10 @@ use stackable_operator::{
 use crate::{
     controller::{
         ValidatedNifiConfig,
-        build::{MANAGEMENT_SERVER_PORT, NIFI_CONFIG_DIRECTORY, properties::ConfigFileName},
+        build::{
+            MANAGEMENT_SERVER_ADDRESS, MANAGEMENT_SERVER_PORT, NIFI_CONFIG_DIRECTORY,
+            properties::ConfigFileName,
+        },
     },
     security::{
         authentication::{STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD},
@@ -89,7 +92,9 @@ pub fn build_merged_jvm_config(
         // Pin the NiFi 2.x management server (used by the startup/readiness
         // probes in resource::probes) to a known address instead of relying
         // on its undocumented upstream default.
-        format!("-Dorg.apache.nifi.management.server.address=127.0.0.1:{MANAGEMENT_SERVER_PORT}"),
+        format!(
+            "-Dorg.apache.nifi.management.server.address={MANAGEMENT_SERVER_ADDRESS}:{MANAGEMENT_SERVER_PORT}"
+        ),
     ];
 
     // Add JVM truststore properties when OPA TLS is enabled

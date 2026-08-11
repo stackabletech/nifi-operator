@@ -11,7 +11,9 @@ use stackable_operator::k8s_openapi::{
     apimachinery::pkg::util::intstr::IntOrString,
 };
 
-use crate::controller::build::{HTTPS_PORT_NAME, MANAGEMENT_SERVER_PORT};
+use crate::controller::build::{
+    HTTPS_PORT_NAME, MANAGEMENT_SERVER_ADDRESS, MANAGEMENT_SERVER_PORT,
+};
 
 fn management_health_exec(path: &str) -> ExecAction {
     ExecAction {
@@ -21,7 +23,7 @@ fn management_health_exec(path: &str) -> ExecAction {
             "pipefail".to_string(),
             "-c".to_string(),
             format!(
-                "curl --fail --silent --show-error --output /dev/null http://127.0.0.1:{MANAGEMENT_SERVER_PORT}{path}"
+                "curl --fail --silent --show-error --output /dev/null http://{MANAGEMENT_SERVER_ADDRESS}:{MANAGEMENT_SERVER_PORT}{path}"
             ),
         ]),
     }
