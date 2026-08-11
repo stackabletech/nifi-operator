@@ -12,7 +12,9 @@ use stackable_operator::{
     v2::types::operator::ClusterName,
 };
 
-use crate::{crd::v1alpha1, security::oidc::build_oidc_admin_password_secret_name};
+use crate::{
+    controller::build::resource::secret::build_oidc_admin_password_secret_name, crd::v1alpha1,
+};
 
 pub const STACKABLE_ADMIN_USERNAME: &str = "admin";
 

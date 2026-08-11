@@ -203,6 +203,7 @@ pub fn validate(
             extra_volumes: nifi.spec.cluster_config.extra_volumes.clone(),
             host_header_check: nifi.spec.cluster_config.host_header_check.clone(),
         },
+        dereferenced_objects.existing_secrets.clone(),
     ))
 }
 
@@ -335,7 +336,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        controller::build::properties::test_support::app_version_label,
+        controller::{
+            build::properties::test_support::app_version_label, dereference::ExistingSecrets,
+        },
         security::{
             authentication::DereferencedAuthenticationClasses,
             authorization::DereferencedAuthorization,
@@ -396,6 +399,8 @@ mod tests {
                 auth_entry, auth_class,
             )]),
             authorization: DereferencedAuthorization::without_opa(),
+            // As on the first reconcile run: neither Secret exists yet.
+            existing_secrets: ExistingSecrets::default(),
         };
         let operator_environment = OperatorEnvironmentOptions {
             operator_namespace: "stackable-operators".to_owned(),

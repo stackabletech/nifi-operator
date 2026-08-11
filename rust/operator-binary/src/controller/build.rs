@@ -22,6 +22,7 @@ use crate::{
             listener::{build_group_listener, group_listener_name},
             pdb::build_pdb,
             rbac::{build_role_binding, build_service_account},
+            secret::build_secrets,
             service::{build_rolegroup_headless_service, build_rolegroup_metrics_service},
             statefulset::build_node_rolegroup_statefulset,
         },
@@ -50,6 +51,9 @@ pub const BALANCE_PORT: Port = Port(6243);
 // Filesystem paths shared by multiple builders. Single-consumer paths live in their builder.
 pub const NIFI_CONFIG_DIRECTORY: &str = "/stackable/nifi/conf";
 pub const NIFI_PYTHON_WORKING_DIRECTORY: &str = "/nifi-python-working-directory";
+/// Mount path of the sensitive-properties key Secret, whose contents are keyed by
+/// [`SENSITIVE_PROPERTY_KEY_NAME`](resource::secret::SENSITIVE_PROPERTY_KEY_NAME).
+pub const SENSITIVE_PROPERTY_VOLUME_MOUNT: &str = "/stackable/sensitiveproperty";
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -64,6 +68,9 @@ pub enum Error {
         source: resource::statefulset::Error,
         role_group: RoleGroupName,
     },
+
+    #[snafu(display("failed to build the Secrets"))]
+    Secrets { source: resource::secret::Error },
 }
 
 /// Builds every Kubernetes resource for the given validated cluster.
@@ -120,6 +127,7 @@ pub fn build(cluster: &ValidatedCluster) -> Result<KubernetesResources<Prepared>
         services,
         listeners,
         config_maps,
+        secrets: build_secrets(cluster).context(SecretsSnafu)?,
         pod_disruption_budgets,
         service_accounts: vec![build_service_account(cluster)],
         role_bindings: vec![build_role_binding(cluster)],
@@ -186,6 +194,12 @@ mod tests {
         assert_eq!(
             sorted_names(&resources.pod_disruption_budgets),
             ["simple-nifi-node"]
+        );
+        // The sensitive-properties key Secret, generated because the fixture has none yet. The
+        // OIDC admin password Secret is absent because the fixture uses SingleUser authentication.
+        assert_eq!(
+            sorted_names(&resources.secrets),
+            ["simple-nifi-sensitive-property-key"]
         );
         // The cluster-shared RBAC pair.
         assert_eq!(

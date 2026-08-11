@@ -15,6 +15,11 @@ All notable changes to this project will be documented in this file.
   previously accepted by the API server but failed reconciliation ([#966]).
 - The reconciler now applies resources and derives the cluster status in discrete
   apply and update_status steps for the `nifi_controller` ([#974]).
+- The sensitive properties key Secret and (for OIDC authentication) the admin password Secret are
+  now dereferenced, built and applied like every other resource, instead of being created
+  out-of-band before the apply step. An existing Secret is re-emitted with its contents unchanged,
+  so applying it is a no-op and the contents are never rotated. The operator therefore now needs
+  the `patch` permission on `secrets` ([#974]).
 - All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#975]).
 
 ### Fixed

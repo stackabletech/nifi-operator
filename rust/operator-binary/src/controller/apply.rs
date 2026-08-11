@@ -11,15 +11,9 @@ use stackable_operator::{
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-use crate::{
-    controller::{
-        Applied, KubernetesResources, Prepared, ValidatedCluster, controller_name, operator_name,
-        product_name,
-    },
-    security::{
-        authentication::NifiAuthenticationConfig, check_or_generate_oidc_admin_password,
-        check_or_generate_sensitive_key,
-    },
+use crate::controller::{
+    Applied, KubernetesResources, Prepared, ValidatedCluster, controller_name, operator_name,
+    product_name,
 };
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
@@ -34,9 +28,6 @@ pub enum Error {
     DeleteOrphanedResources {
         source: stackable_operator::cluster_resources::Error,
     },
-
-    #[snafu(display("security failure"))]
-    Security { source: crate::security::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -86,6 +77,7 @@ impl<'a> Applier<'a> {
             services,
             listeners,
             config_maps,
+            secrets,
             pod_disruption_budgets,
             service_accounts,
             role_bindings,
@@ -100,6 +92,7 @@ impl<'a> Applier<'a> {
         let services = self.add_resources(services).await?;
         let listeners = self.add_resources(listeners).await?;
         let config_maps = self.add_resources(config_maps).await?;
+        let secrets = self.add_resources(secrets).await?;
         let pod_disruption_budgets = self.add_resources(pod_disruption_budgets).await?;
         let stateful_sets = self.add_resources(stateful_sets).await?;
 
@@ -118,6 +111,7 @@ impl<'a> Applier<'a> {
             services,
             listeners,
             config_maps,
+            secrets,
             pod_disruption_budgets,
             service_accounts,
             role_bindings,
@@ -142,30 +136,4 @@ impl<'a> Applier<'a> {
 
         Ok(applied_resources)
     }
-}
-
-/// Ensures the Secrets that the NiFi Pods mount but that the operator does not own exist, creating
-/// any that are missing: the sensitive properties key and (for OIDC authentication) the admin
-/// password.
-///
-/// These are read-or-create client operations, so they cannot be part of the client-free `build()`
-/// step. They are also deliberately not tracked in [`ClusterResources`], so they survive orphan
-/// deletion and an existing Secret is never overwritten.
-pub async fn ensure_secrets(client: &Client, cluster: &ValidatedCluster) -> Result<()> {
-    tracing::info!("Checking for sensitive key configuration");
-    check_or_generate_sensitive_key(
-        client,
-        &cluster.cluster_config.sensitive_properties,
-        &cluster.namespace,
-    )
-    .await
-    .context(SecuritySnafu)?;
-
-    if let NifiAuthenticationConfig::Oidc { .. } = cluster.cluster_config.authentication {
-        check_or_generate_oidc_admin_password(client, &cluster.name, &cluster.namespace)
-            .await
-            .context(SecuritySnafu)?;
-    }
-
-    Ok(())
 }

@@ -15,7 +15,7 @@ use stackable_operator::{
     k8s_openapi::{
         api::{
             apps::v1::StatefulSet,
-            core::v1::{ConfigMap, Service, ServiceAccount, Volume},
+            core::v1::{ConfigMap, Secret, Service, ServiceAccount, Volume},
             policy::v1::PodDisruptionBudget,
             rbac::v1::RoleBinding,
         },
@@ -42,6 +42,7 @@ use stackable_operator::{
 
 use crate::{
     OPERATOR_NAME,
+    controller::dereference::ExistingSecrets,
     crd::{
         APP_NAME, HostHeaderCheckConfig, NifiConfig, NifiRole, NifiStorageConfig,
         sensitive_properties::NifiSensitiveKeyAlgorithm, v1alpha1,
@@ -61,6 +62,12 @@ pub(crate) mod validate;
 // Placeholder version label value for resources whose labels must not change after deployment.
 stackable_operator::constant!(UNVERSIONED_PRODUCT_VERSION: ProductVersion = "none");
 
+// Placeholder role and role-group label values for resources that are shared by the whole cluster
+// and therefore not tied to a role or role group (see
+// [`ValidatedCluster::cluster_shared_recommended_labels`]).
+stackable_operator::constant!(NONE_ROLE_NAME: RoleName = "none");
+stackable_operator::constant!(NONE_ROLE_GROUP_NAME: RoleGroupName = "none");
+
 /// Marker for prepared Kubernetes resources which are not applied yet.
 pub struct Prepared;
 
@@ -79,6 +86,10 @@ pub struct KubernetesResources<T> {
     pub services: Vec<Service>,
     pub listeners: Vec<listener::v1alpha1::Listener>,
     pub config_maps: Vec<ConfigMap>,
+    /// The Secrets whose contents this operator generates: the sensitive-properties key and, for
+    /// OIDC authentication, the admin password. See
+    /// [`build::resource::secret`](crate::controller::build::resource::secret).
+    pub secrets: Vec<Secret>,
     pub pod_disruption_budgets: Vec<PodDisruptionBudget>,
     pub service_accounts: Vec<ServiceAccount>,
     pub role_bindings: Vec<RoleBinding>,
@@ -203,6 +214,10 @@ pub struct ValidatedCluster {
     pub cluster_config: ValidatedClusterConfig,
     /// Collected configuration per rolegroup.
     pub role_group_configs: BTreeMap<NifiRole, BTreeMap<RoleGroupName, NifiRoleGroupConfig>>,
+    /// The Secrets whose contents this operator generates, as currently stored in Kubernetes.
+    /// Carried through so the [`build`] step can re-emit their contents unchanged instead of
+    /// rotating them on every run.
+    pub existing_secrets: ExistingSecrets,
 }
 
 /// The resolved `spec.clusterConfig`.
@@ -255,6 +270,7 @@ impl ValidatedCluster {
         role_config: ValidatedRoleConfig,
         role_group_configs: BTreeMap<NifiRole, BTreeMap<RoleGroupName, NifiRoleGroupConfig>>,
         cluster_config: ValidatedClusterConfig,
+        existing_secrets: ExistingSecrets,
     ) -> Self {
         let metadata = ObjectMeta {
             name: Some(name.to_string()),
@@ -275,6 +291,7 @@ impl ValidatedCluster {
             role_config,
             role_group_configs,
             cluster_config,
+            existing_secrets,
         }
     }
 
@@ -311,6 +328,13 @@ impl ValidatedCluster {
         role_group_name: &RoleGroupName,
     ) -> Labels {
         self.recommended_labels_with(&self.product_version, role_name, role_group_name)
+    }
+
+    /// Recommended labels for a resource that is shared by the whole cluster rather than tied to a
+    /// role or role group (the RBAC pair, the Secrets built by this operator), which is expressed
+    /// by carrying `none` for both label values.
+    pub fn cluster_shared_recommended_labels(&self) -> Labels {
+        self.recommended_labels_for(&NONE_ROLE_NAME, &NONE_ROLE_GROUP_NAME)
     }
 
     /// Recommended labels with the constant [`UNVERSIONED_PRODUCT_VERSION`], for PVC templates

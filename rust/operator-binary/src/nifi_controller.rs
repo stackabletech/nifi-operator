@@ -25,7 +25,7 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 use crate::{
     OPERATOR_NAME,
     controller::{
-        apply::{self, Applier, ensure_secrets},
+        apply::{self, Applier},
         build, dereference,
         update_status::{self, update_status},
         validate,
@@ -100,10 +100,6 @@ pub async fn reconcile_nifi(
     let resources = build::build(&validated_cluster).context(BuildResourcesSnafu)?;
 
     // apply (client required)
-    ensure_secrets(client, &validated_cluster)
-        .await
-        .context(ApplyResourcesSnafu)?;
-
     let applied = Applier::new(
         client,
         &validated_cluster,

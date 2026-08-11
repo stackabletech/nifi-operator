@@ -95,7 +95,8 @@ pub(crate) mod test_support {
     use crate::{
         controller::{
             NifiRoleGroupConfig, ValidatedCluster, ValidatedClusterConfig, ValidatedRoleConfig,
-            ValidatedSensitiveProperties, validate::build_role_group_configs,
+            ValidatedSensitiveProperties, dereference::ExistingSecrets,
+            validate::build_role_group_configs,
         },
         crd::{NifiRole, v1alpha1},
         security::{
@@ -216,6 +217,8 @@ pub(crate) mod test_support {
                 extra_volumes: nifi.spec.cluster_config.extra_volumes.clone(),
                 host_header_check: nifi.spec.cluster_config.host_header_check.clone(),
             },
+            // As on the first reconcile run: neither Secret exists yet.
+            ExistingSecrets::default(),
         )
     }
 

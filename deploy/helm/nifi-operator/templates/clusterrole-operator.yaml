@@ -39,7 +39,9 @@ rules:
       - get
       - list
       - patch
-  # Sensitive properties key and (when OIDC) admin password secret.
+  # Sensitive properties key and (when OIDC) admin password Secret. Applied via SSA like every
+  # other resource, but deliberately not owned by the NifiCluster, so they are never orphan-deleted
+  # (which is also why no `list` is needed here).
   - apiGroups:
       - ""
     resources:
@@ -47,6 +49,7 @@ rules:
     verbs:
       - get
       - create
+      - patch
   # RoleBinding created per NifiCluster to bind the product ClusterRole to the workload
   # ServiceAccount. Applied via SSA and tracked for orphan cleanup.
   - apiGroups:
