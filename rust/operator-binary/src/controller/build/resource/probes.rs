@@ -6,9 +6,12 @@
 //! probes using `curl` from inside the container - a `httpGet` probe cannot
 //! reach a loopback-only address.
 
-use stackable_operator::k8s_openapi::api::core::v1::{ExecAction, Probe};
+use stackable_operator::k8s_openapi::{
+    api::core::v1::{ExecAction, Probe, TCPSocketAction},
+    apimachinery::pkg::util::intstr::IntOrString,
+};
 
-use crate::controller::build::MANAGEMENT_SERVER_PORT;
+use crate::controller::build::{HTTPS_PORT_NAME, MANAGEMENT_SERVER_PORT};
 
 fn management_health_exec(path: &str) -> ExecAction {
     ExecAction {
@@ -39,6 +42,18 @@ pub fn management_readiness_probe() -> Probe {
         timeout_seconds: Some(5),
         failure_threshold: Some(3),
         exec: Some(management_health_exec("/health/cluster")),
+        ..Probe::default()
+    }
+}
+
+pub fn tcp_liveliness_probe() -> Probe {
+    Probe {
+        initial_delay_seconds: Some(10),
+        period_seconds: Some(10),
+        tcp_socket: Some(TCPSocketAction {
+            port: IntOrString::String(HTTPS_PORT_NAME.to_string()),
+            ..TCPSocketAction::default()
+        }),
         ..Probe::default()
     }
 }
