@@ -218,7 +218,10 @@ pub(crate) mod test_support {
                 host_header_check: nifi.spec.cluster_config.host_header_check.clone(),
             },
             // As on the first reconcile run: neither Secret exists yet.
-            ExistingSecrets::default(),
+            ExistingSecrets {
+                sensitive_key: None,
+                oidc_admin_password: None,
+            },
         )
     }
 

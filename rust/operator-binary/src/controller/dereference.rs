@@ -65,7 +65,9 @@ pub struct DereferencedObjects {
 /// fetched here so that the build step can re-emit the existing contents unchanged, and only
 /// generate fresh ones when a Secret is missing. See
 /// [`build::resource::secret`](crate::controller::build::resource::secret).
-#[derive(Clone, Debug, Default)]
+/// Deliberately not [`Default`]: an `ExistingSecrets::default()` reads as "the default Secrets",
+/// whereas it would mean "no Secret exists yet". Call sites spell both fields out instead.
+#[derive(Clone, Debug)]
 pub struct ExistingSecrets {
     /// The sensitive-properties key Secret named by
     /// `spec.clusterConfig.sensitiveProperties.keySecret`, mounted by the NiFi Pods.

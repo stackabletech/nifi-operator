@@ -400,7 +400,10 @@ mod tests {
             )]),
             authorization: DereferencedAuthorization::without_opa(),
             // As on the first reconcile run: neither Secret exists yet.
-            existing_secrets: ExistingSecrets::default(),
+            existing_secrets: ExistingSecrets {
+                sensitive_key: None,
+                oidc_admin_password: None,
+            },
         };
         let operator_environment = OperatorEnvironmentOptions {
             operator_namespace: "stackable-operators".to_owned(),
