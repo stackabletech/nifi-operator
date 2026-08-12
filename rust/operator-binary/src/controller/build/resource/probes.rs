@@ -98,8 +98,10 @@ mod tests {
             .expect("exec action must have a command");
         let script = command.last().expect("bash -c script argument");
 
+        let cluster_health_url =
+            format!("http://{MANAGEMENT_SERVER_ADDRESS}:{MANAGEMENT_SERVER_PORT}/health/cluster");
         assert!(
-            script.contains("http://127.0.0.1:52020/health/cluster"),
+            script.contains(&cluster_health_url),
             "expected curl against /health/cluster, got: {script}"
         );
         assert_eq!(probe.failure_threshold, Some(3));
