@@ -62,8 +62,8 @@ pub struct DereferencedObjects {
 /// The Secrets whose contents this operator generates, as currently stored in Kubernetes.
 ///
 /// Their contents are randomly generated at creation and can therefore not be rebuilt. They are
-/// fetched here so that the build step can re-emit the existing contents unchanged, and only
-/// generate fresh ones when a Secret is missing. See
+/// fetched here so that the validate step can check an existing Secret for its expected key, and
+/// the build step can generate only the ones that are still missing. See
 /// [`build::resource::secret`](crate::controller::build::resource::secret).
 /// Deliberately not [`Default`]: an `ExistingSecrets::default()` reads as "the default Secrets",
 /// whereas it would mean "no Secret exists yet". Call sites spell both fields out instead.

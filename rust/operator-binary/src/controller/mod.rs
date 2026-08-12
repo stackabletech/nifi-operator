@@ -215,8 +215,8 @@ pub struct ValidatedCluster {
     /// Collected configuration per rolegroup.
     pub role_group_configs: BTreeMap<NifiRole, BTreeMap<RoleGroupName, NifiRoleGroupConfig>>,
     /// The Secrets whose contents this operator generates, as currently stored in Kubernetes.
-    /// Carried through so the [`build`] step can re-emit their contents unchanged instead of
-    /// rotating them on every run.
+    /// Carried through so the [`build`] step only generates the ones that are still missing,
+    /// instead of rotating their contents on every run.
     pub existing_secrets: ExistingSecrets,
 }
 

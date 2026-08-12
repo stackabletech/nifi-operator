@@ -1,11 +1,16 @@
 //! Builds the Secrets whose contents this operator generates: the sensitive-properties key and,
 //! for OIDC authentication, the admin password.
 //!
-//! Their contents are randomly generated, so an identical Secret can never be *rebuilt*. Instead
-//! the contents fetched in the dereference step are re-emitted unchanged, which makes applying
-//! them a no-op. That way each Secret is emitted on *every* reconcile run and can be applied and
-//! tracked like every other resource, rather than being a read-or-create side effect outside the
-//! regular pipeline.
+//! Both are emitted only while they do not exist yet, as determined by the dereference step. Their
+//! contents are randomly generated, so an identical Secret can never be *rebuilt*, and rewriting an
+//! existing one would rotate contents that have to stay stable — a fresh sensitive-properties key
+//! cannot decrypt the sensitive values of the persisted flow.
+//!
+//! Emitting them only once is enough because, unlike the operator-generated Secrets of the sibling
+//! operators, these are deliberately not owned by the NifiCluster (see [`secret_meta`]) and hence
+//! never orphan-deleted. So there is nothing to re-emit them for.
+//!
+//! Everything that would leave an existing Secret unusable is rejected by the validate step.
 
 use std::collections::BTreeMap;
 
@@ -44,29 +49,21 @@ pub fn build_secrets(cluster: &ValidatedCluster) -> Vec<Secret> {
 /// The Secret holding the key with which NiFi encrypts the sensitive properties of its
 /// processors, mounted by the NiFi Pods.
 ///
-/// Only emitted when `autoGenerate` is set. Without it the Secret is provided and owned by the
-/// user, so this operator must not write to it at all. The validate step merely requires it to
-/// exist.
-///
-/// A Secret that is already present is re-emitted unchanged (see the module docs); regenerating
-/// it would render the sensitive properties of the persisted flow undecryptable.
+/// Only emitted when `autoGenerate` is set and the Secret does not exist yet. Without
+/// `autoGenerate` the Secret is provided and owned by the user, so this operator must not write to
+/// it at all. The validate step merely requires it to exist.
 fn build_sensitive_key_secret(cluster: &ValidatedCluster) -> Option<Secret> {
     let sensitive_properties = &cluster.cluster_config.sensitive_properties;
-    if !sensitive_properties.auto_generate {
+    if !sensitive_properties.auto_generate || cluster.existing_secrets.sensitive_key.is_some() {
         return None;
     }
-    let name = sensitive_properties.key_secret.to_string();
 
-    Some(match &cluster.existing_secrets.sensitive_key {
-        Some(existing) => reemit_secret(cluster, &name, existing),
-        None => {
-            tracing::info!(
-                secret.name = name,
-                "No existing sensitive properties key found, generating new one"
-            );
-            generate_secret(cluster, &name, SENSITIVE_PROPERTY_KEY_NAME)
-        }
-    })
+    let name = sensitive_properties.key_secret.to_string();
+    tracing::info!(
+        secret.name = name,
+        "No existing sensitive properties key found, generating new one"
+    );
+    Some(generate_secret(cluster, &name, SENSITIVE_PROPERTY_KEY_NAME))
 }
 
 /// The name of the Secret built by [`build_oidc_admin_password_secret`], which the StatefulSet
@@ -78,27 +75,23 @@ pub fn build_oidc_admin_password_secret_name(cluster_name: &ClusterName) -> Stri
 /// The Secret holding the password of the admin user that can access the API, mounted by the NiFi
 /// Pods. This admin user is the same as for SingleUser authentication.
 ///
-/// Only emitted for OIDC authentication, which is the only authentication method that uses it.
+/// Only emitted for OIDC authentication — the only authentication method that uses it — and only
+/// while the Secret does not exist yet.
 fn build_oidc_admin_password_secret(cluster: &ValidatedCluster) -> Option<Secret> {
     if !matches!(
         cluster.cluster_config.authentication,
         NifiAuthenticationConfig::Oidc { .. }
-    ) {
+    ) || cluster.existing_secrets.oidc_admin_password.is_some()
+    {
         return None;
     }
 
     let name = build_oidc_admin_password_secret_name(&cluster.name);
-
-    Some(match &cluster.existing_secrets.oidc_admin_password {
-        Some(existing) => reemit_secret(cluster, &name, existing),
-        None => {
-            tracing::info!(
-                secret.name = name,
-                "No existing oidc admin password secret found, generating new one"
-            );
-            generate_secret(cluster, &name, STACKABLE_ADMIN_USERNAME)
-        }
-    })
+    tracing::info!(
+        secret.name = name,
+        "No existing oidc admin password secret found, generating new one"
+    );
+    Some(generate_secret(cluster, &name, STACKABLE_ADMIN_USERNAME))
 }
 
 /// A Secret holding a freshly generated random password under the given `key`.
@@ -116,24 +109,7 @@ fn generate_secret(cluster: &ValidatedCluster, name: &str, key: &str) -> Secret 
     }
 }
 
-/// Re-emits an existing Secret, carrying its fetched `data` over unchanged: the contents are
-/// randomly generated at creation and cannot be rebuilt, so echoing them back is the only way to
-/// emit the Secret on every run without rotating its contents. Applying identical contents
-/// changes nothing on the server (no watch event, no propagation into the Pods, no restart).
-///
-/// The metadata is built fresh rather than echoed, because a fetched object carries
-/// server-populated fields (`resourceVersion`, `uid`, `managedFields`) that must not appear in an
-/// apply patch.
-fn reemit_secret(cluster: &ValidatedCluster, name: &str, existing: &Secret) -> Secret {
-    Secret {
-        metadata: secret_meta(cluster, name),
-        data: existing.data.clone(),
-        ..Secret::default()
-    }
-}
-
-/// Metadata shared by the freshly generated and the re-emitted Secret, so that the two are
-/// identical apart from their contents.
+/// Metadata of a generated Secret.
 ///
 /// Deliberately carries no owner reference, unlike every other resource built by this operator:
 /// both Secrets have to outlive the NifiCluster. The sensitive-properties key still decrypts the
@@ -150,7 +126,7 @@ fn secret_meta(cluster: &ValidatedCluster, name: &str) -> ObjectMeta {
 
 #[cfg(test)]
 mod tests {
-    use stackable_operator::{k8s_openapi::ByteString, kube::ResourceExt as _};
+    use stackable_operator::kube::ResourceExt as _;
 
     use super::*;
     use crate::controller::build::properties::test_support::{
@@ -200,10 +176,10 @@ mod tests {
         );
     }
 
-    /// An existing Secret is re-emitted with its fetched contents unchanged, so that applying it
-    /// is a no-op instead of rotating the key on every reconcile run.
+    /// An existing Secret is left alone: it is not owned by the cluster, so nothing deletes it,
+    /// and rewriting it would rotate a key that has to keep decrypting the persisted flow.
     #[test]
-    fn reemits_the_existing_sensitive_key_secret_unchanged() {
+    fn does_not_emit_an_existing_sensitive_key_secret() {
         let mut cluster = minimal_validated_cluster();
         cluster.existing_secrets.sensitive_key = Some(fetched_secret(
             "simple-nifi-sensitive-property-key",
@@ -212,23 +188,7 @@ mod tests {
 
         let secrets = build_secrets(&cluster);
 
-        let [secret] = secrets.as_slice() else {
-            panic!("SingleUser authentication only needs the sensitive key Secret");
-        };
-        assert_eq!(
-            secret.data.as_ref().and_then(|data| data
-                .get(SENSITIVE_PROPERTY_KEY_NAME)
-                .map(|ByteString(value)| value.clone())),
-            Some(b"old-secret".to_vec()),
-            "the fetched contents must be carried over unchanged"
-        );
-        assert!(
-            secret.string_data.is_none(),
-            "nothing may be regenerated for an existing Secret"
-        );
-        // The server-populated metadata of the fetched Secret must not end up in the apply patch.
-        assert_eq!(secret.metadata.resource_version, None);
-        assert_eq!(secret.metadata.uid, None);
+        assert!(secrets.is_empty());
     }
 
     /// Without `autoGenerate` the Secret belongs to the user, so it is only required to exist and
@@ -265,7 +225,7 @@ mod tests {
     }
 
     #[test]
-    fn reemits_the_existing_oidc_admin_password_secret_unchanged() {
+    fn does_not_emit_an_existing_oidc_admin_password_secret() {
         let mut cluster = oidc_cluster();
         cluster.existing_secrets.oidc_admin_password = Some(fetched_secret(
             "simple-nifi-oidc-admin-password",
@@ -274,17 +234,12 @@ mod tests {
 
         let secrets = build_secrets(&cluster);
 
-        let [_sensitive_key, admin_password] = secrets.as_slice() else {
-            panic!("OIDC authentication needs both Secrets");
+        let [sensitive_key] = secrets.as_slice() else {
+            panic!("only the still missing sensitive key Secret may be emitted");
         };
         assert_eq!(
-            admin_password.data,
-            fetched_secret("simple-nifi-oidc-admin-password", STACKABLE_ADMIN_USERNAME).data,
-            "the fetched contents must be carried over unchanged"
-        );
-        assert!(
-            admin_password.string_data.is_none(),
-            "nothing may be regenerated for an existing Secret"
+            sensitive_key.name_any(),
+            "simple-nifi-sensitive-property-key"
         );
     }
 
