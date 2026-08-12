@@ -5,6 +5,10 @@ version: "0.0.0-dev"
 appVersion: "0.0.0-dev"
 description: "Kubernetes operator for Apache NiFi. Deploy and run NiFi clusters with the Stackable Data Platform (SDP)."
 home: https://github.com/stackabletech/nifi-operator
+# One known use of this is the Artifact Hub (AH) listing which shows the logo.
+# AH downloads the logo and re-hosts it.
+# We opted to not use the project logos (e.g. the Apache Spark logo) here due to trademark concerns.
+icon: https://raw.githubusercontent.com/stackabletech/nifi-operator/main/.readme/static/borrowed/Icon_Stackable.svg
 sources:
   - https://github.com/stackabletech/nifi-operator
 keywords: ["apache-nifi", "nifi", "dataflow", "etl", "kubernetes", "operator", "big-data"]
@@ -21,3 +25,9 @@ annotations:
       url: https://docs.stackable.tech/home/stable/nifi/
     - name: support
       url: https://github.com/stackabletech/nifi-operator/issues
+  artifacthub.io/crds: |-
+    - kind: NifiCluster
+      version: v1alpha1
+      name: nificlusters.nifi.stackable.tech
+      displayName: NifiCluster
+      description: A NiFi cluster stacklet. This resource is managed by the Stackable operator for Apache NiFi.
