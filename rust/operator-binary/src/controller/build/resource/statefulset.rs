@@ -21,11 +21,11 @@ use stackable_operator::{
             apps::v1::{StatefulSet, StatefulSetSpec, StatefulSetUpdateStrategy},
             core::v1::{
                 ConfigMapKeySelector, ConfigMapVolumeSource, EmptyDirVolumeSource, EnvVar,
-                EnvVarSource, ObjectFieldSelector, PersistentVolumeClaim, Probe,
-                SecretVolumeSource, TCPSocketAction, Volume,
+                EnvVarSource, ObjectFieldSelector, PersistentVolumeClaim, SecretVolumeSource,
+                Volume,
             },
         },
-        apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
+        apimachinery::pkg::apis::meta::v1::LabelSelector,
     },
     memory::{BinaryMultiple, MemoryQuantity},
     product_logging::{
@@ -54,9 +54,14 @@ use crate::{
             graceful_shutdown::add_graceful_shutdown_config,
             object_meta,
             properties::ConfigFileName,
-            resource::listener::{
-                LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_group_listener_pvc,
-                group_listener_name,
+            resource::{
+                listener::{
+                    LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_group_listener_pvc,
+                    group_listener_name,
+                },
+                probes::{
+                    management_readiness_probe, management_startup_probe, tcp_liveliness_probe,
+                },
             },
         },
     },
@@ -435,25 +440,9 @@ pub(crate) fn build_node_rolegroup_statefulset(
         .add_container_port(HTTPS_PORT_NAME, HTTPS_PORT.into())
         .add_container_port(PROTOCOL_PORT_NAME, PROTOCOL_PORT.into())
         .add_container_port(BALANCE_PORT_NAME, BALANCE_PORT.into())
-        .liveness_probe(Probe {
-            initial_delay_seconds: Some(10),
-            period_seconds: Some(10),
-            tcp_socket: Some(TCPSocketAction {
-                port: IntOrString::String(HTTPS_PORT_NAME.to_string()),
-                ..TCPSocketAction::default()
-            }),
-            ..Probe::default()
-        })
-        .startup_probe(Probe {
-            initial_delay_seconds: Some(10),
-            period_seconds: Some(10),
-            failure_threshold: Some(20 * 6),
-            tcp_socket: Some(TCPSocketAction {
-                port: IntOrString::String(HTTPS_PORT_NAME.to_string()),
-                ..TCPSocketAction::default()
-            }),
-            ..Probe::default()
-        })
+        .liveness_probe(tcp_liveliness_probe())
+        .startup_probe(management_startup_probe())
+        .readiness_probe(management_readiness_probe())
         .resources(merged_config.resources.clone().into());
 
     let mut pod_builder = PodBuilder::new();

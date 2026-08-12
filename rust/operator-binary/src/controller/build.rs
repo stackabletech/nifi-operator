@@ -46,6 +46,19 @@ pub const PROTOCOL_PORT: Port = Port(9088);
 pub const BALANCE_PORT_NAME: &str = "balance";
 pub const BALANCE_PORT: Port = Port(6243);
 
+/// Loopback address NiFi's management server binds to by default
+/// (`org.apache.nifi.management.server.address`, see
+/// `ManagementServerProvider.MANAGEMENT_SERVER_DEFAULT_ADDRESS` upstream).
+/// The operator pins the JVM system property to this same value (see
+/// `build::jvm`), so this constant is the single source of truth for it.
+/// Note: a user-supplied `jvmArgumentOverrides` that removes or repoints the
+/// corresponding `-D` property would desync this from the actual
+/// management-server address, silently breaking both probes.
+pub const MANAGEMENT_SERVER_ADDRESS: &str = "127.0.0.1";
+/// Port NiFi's management server binds to by default, see
+/// [`MANAGEMENT_SERVER_ADDRESS`].
+pub const MANAGEMENT_SERVER_PORT: u16 = 52020;
+
 // Filesystem paths shared by multiple builders. Single-consumer paths live in their builder.
 pub const NIFI_CONFIG_DIRECTORY: &str = "/stackable/nifi/conf";
 pub const NIFI_PYTHON_WORKING_DIRECTORY: &str = "/nifi-python-working-directory";
