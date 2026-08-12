@@ -68,9 +68,6 @@ pub enum Error {
         source: resource::statefulset::Error,
         role_group: RoleGroupName,
     },
-
-    #[snafu(display("failed to build the Secrets"))]
-    Secrets { source: resource::secret::Error },
 }
 
 /// Builds every Kubernetes resource for the given validated cluster.
@@ -127,7 +124,7 @@ pub fn build(cluster: &ValidatedCluster) -> Result<KubernetesResources<Prepared>
         services,
         listeners,
         config_maps,
-        secrets: build_secrets(cluster).context(SecretsSnafu)?,
+        secrets: build_secrets(cluster),
         pod_disruption_budgets,
         service_accounts: vec![build_service_account(cluster)],
         role_bindings: vec![build_role_binding(cluster)],

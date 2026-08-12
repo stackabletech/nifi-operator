@@ -81,9 +81,15 @@ pub(crate) mod test_support {
     use std::str::FromStr as _;
 
     use stackable_operator::{
-        commons::{networking::DomainName, product_image_selection::ResolvedProductImage},
-        crd::authentication::r#static::v1alpha1::{
-            AuthenticationProvider as StaticAuthProvider, UserCredentialsSecretRef,
+        commons::{
+            networking::DomainName, product_image_selection::ResolvedProductImage,
+            tls_verification::TlsClientDetails,
+        },
+        crd::authentication::{
+            oidc,
+            r#static::v1alpha1::{
+                AuthenticationProvider as StaticAuthProvider, UserCredentialsSecretRef,
+            },
         },
         kvp::LabelValue,
         v2::types::{
@@ -223,6 +229,31 @@ pub(crate) mod test_support {
                 oidc_admin_password: None,
             },
         )
+    }
+
+    /// The OIDC authentication config, for tests that need an authentication method other than the
+    /// fixture's `SingleUser`, the admin password Secret is only used with this one.
+    pub fn oidc_authentication_config(cluster_name: &ClusterName) -> NifiAuthenticationConfig {
+        NifiAuthenticationConfig::Oidc {
+            provider: oidc::v1alpha1::AuthenticationProvider::new(
+                "keycloak.mycorp.org"
+                    .to_owned()
+                    .try_into()
+                    .expect("valid hostname"),
+                Some(443),
+                "/realms/sdp".to_owned(),
+                TlsClientDetails { tls: None },
+                "preferred_username".to_owned(),
+                vec!["openid".to_owned()],
+                None,
+            ),
+            oidc: oidc::v1alpha1::ClientAuthenticationOptions {
+                client_credentials_secret_ref: "nifi-keycloak-client".to_owned(),
+                extra_scopes: vec![],
+                product_specific_fields: (),
+            },
+            cluster_name: cluster_name.clone(),
+        }
     }
 
     /// Return the "default" role-group config from a [`ValidatedCluster`].
