@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
 - BREAKING: The `nodes` role is now required by the CRD; a NifiCluster without it was
   previously accepted by the API server but failed reconciliation ([#966]).
 - All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#975]).
-- NiFi 2.x startup and readiness probes now use the local management server's `/health` and
+- NiFi startup and readiness probes now use the local management server's `/health` and
   `/health/cluster` endpoints instead of a bare TCP check ([#976]).
 
 ### Fixed
