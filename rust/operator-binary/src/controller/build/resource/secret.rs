@@ -190,24 +190,23 @@ mod tests {
         }
     }
 
-    /// The names of the given Secrets, sorted: the order in which [`build_secrets`] returns them
-    /// is not part of its contract.
-    fn sorted_names(secrets: &[Secret]) -> Vec<&str> {
-        let mut names: Vec<&str> = secrets
-            .iter()
-            .filter_map(|secret| secret.metadata.name.as_deref())
-            .collect();
-        names.sort();
-        names
+    /// The built Secrets keyed by name: which order [`build_secrets`] returns them in is not part
+    /// of its contract.
+    fn to_secret_map(secrets: Vec<Secret>) -> BTreeMap<String, Secret> {
+        secrets
+            .into_iter()
+            .map(|secret| (secret.name_any(), secret))
+            .collect()
     }
 
     #[test]
     fn generates_the_sensitive_key_secret_when_it_is_missing() {
-        let secrets = build_secrets(&minimal_validated_cluster());
+        let secrets = to_secret_map(build_secrets(&minimal_validated_cluster()));
 
-        assert_eq!(sorted_names(&secrets), [SENSITIVE_KEY_SECRET]);
         assert_eq!(
-            secrets[0]
+            secrets
+                .get(SENSITIVE_KEY_SECRET)
+                .expect("should be emitted")
                 .string_data
                 .as_ref()
                 .expect("a generated Secret carries its contents in string_data")
@@ -243,18 +242,12 @@ mod tests {
 
     #[test]
     fn generates_the_oidc_admin_password_secret_when_it_is_missing() {
-        let secrets = build_secrets(&oidc_cluster());
+        let secrets = to_secret_map(build_secrets(&oidc_cluster()));
 
-        assert_eq!(
-            sorted_names(&secrets),
-            [OIDC_ADMIN_PASSWORD_SECRET, SENSITIVE_KEY_SECRET]
-        );
-        let admin_password = secrets
-            .iter()
-            .find(|secret| secret.name_any() == OIDC_ADMIN_PASSWORD_SECRET)
-            .expect("just asserted to be emitted");
         assert!(
-            admin_password
+            secrets
+                .get(OIDC_ADMIN_PASSWORD_SECRET)
+                .expect("should be emitted")
                 .string_data
                 .as_ref()
                 .expect("a generated Secret carries its contents in string_data")
@@ -268,25 +261,21 @@ mod tests {
         cluster.existing_secrets.oidc_admin_password =
             Some(existing_secret(OIDC_ADMIN_PASSWORD_SECRET));
 
-        let secrets = build_secrets(&cluster);
+        let secrets = to_secret_map(build_secrets(&cluster));
 
-        assert_eq!(
-            sorted_names(&secrets),
-            [SENSITIVE_KEY_SECRET],
-            "only the still missing sensitive key Secret may be emitted"
+        assert!(!secrets.contains_key(OIDC_ADMIN_PASSWORD_SECRET));
+        assert!(
+            secrets.contains_key(SENSITIVE_KEY_SECRET),
+            "the still missing sensitive key Secret is unaffected"
         );
     }
 
     #[test]
     fn omits_the_oidc_admin_password_secret_for_other_authentication_methods() {
         // `fixture_preconditions` locks that the fixture does not use OIDC authentication.
-        let secrets = build_secrets(&minimal_validated_cluster());
+        let secrets = to_secret_map(build_secrets(&minimal_validated_cluster()));
 
-        assert_eq!(
-            sorted_names(&secrets),
-            [SENSITIVE_KEY_SECRET],
-            "the admin password Secret is only built for OIDC authentication"
-        );
+        assert!(!secrets.contains_key(OIDC_ADMIN_PASSWORD_SECRET));
     }
 
     /// Locks the metadata both Secrets carry: the labels `ClusterResources::add` requires (without
@@ -295,16 +284,14 @@ mod tests {
     /// [`ClusterResources::add`]: stackable_operator::cluster_resources::ClusterResources::add
     #[test]
     fn secret_metadata_is_labelled_but_not_owned_by_the_cluster() {
-        let cluster = oidc_cluster();
+        let secrets = to_secret_map(build_secrets(&oidc_cluster()));
 
-        let secrets = build_secrets(&cluster);
-
-        assert_eq!(
-            sorted_names(&secrets),
-            [OIDC_ADMIN_PASSWORD_SECRET, SENSITIVE_KEY_SECRET],
+        assert!(
+            secrets.contains_key(SENSITIVE_KEY_SECRET)
+                && secrets.contains_key(OIDC_ADMIN_PASSWORD_SECRET),
             "both Secrets must be checked, not an empty list"
         );
-        for secret in &secrets {
+        for secret in secrets.values() {
             assert_eq!(
                 serde_json::to_value(&secret.metadata).expect("must be serializable"),
                 serde_json::json!({
