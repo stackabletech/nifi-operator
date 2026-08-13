@@ -12,3 +12,31 @@ metadata:
 status:
   readyReplicas: 2
   replicas: 2
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test-nifi-node-default
+spec:
+  template:
+    spec:
+      containers:
+        - name: nifi
+          startupProbe:
+            failureThreshold: 120
+            exec:
+              command:
+                - /bin/bash
+                - -euo
+                - pipefail
+                - -c
+                - curl --fail --silent --show-error --output /dev/null http://127.0.0.1:52020/health
+          readinessProbe:
+            failureThreshold: 3
+            exec:
+              command:
+                - /bin/bash
+                - -euo
+                - pipefail
+                - -c
+                - curl --fail --silent --show-error --output /dev/null http://127.0.0.1:52020/health/cluster

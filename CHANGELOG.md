@@ -21,6 +21,8 @@ All notable changes to this project will be documented in this file.
   contents are never rotated. The operator therefore now needs the `patch` permission on
   `secrets` ([#974]).
 - All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#975]).
+- NiFi startup and readiness probes now use the local management server's `/health` and
+  `/health/cluster` endpoints instead of a bare TCP check ([#976]).
 
 ### Fixed
 
@@ -33,6 +35,7 @@ All notable changes to this project will be documented in this file.
 [#970]: https://github.com/stackabletech/nifi-operator/pull/970
 [#974]: https://github.com/stackabletech/nifi-operator/pull/974
 [#975]: https://github.com/stackabletech/nifi-operator/pull/975
+[#976]: https://github.com/stackabletech/nifi-operator/pull/976
 
 ## [26.7.0] - 2026-07-21
 
