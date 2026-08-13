@@ -81,9 +81,15 @@ pub(crate) mod test_support {
     use std::str::FromStr as _;
 
     use stackable_operator::{
-        commons::{networking::DomainName, product_image_selection::ResolvedProductImage},
-        crd::authentication::r#static::v1alpha1::{
-            AuthenticationProvider as StaticAuthProvider, UserCredentialsSecretRef,
+        commons::{
+            networking::DomainName, product_image_selection::ResolvedProductImage,
+            tls_verification::TlsClientDetails,
+        },
+        crd::authentication::{
+            oidc,
+            r#static::v1alpha1::{
+                AuthenticationProvider as StaticAuthProvider, UserCredentialsSecretRef,
+            },
         },
         kvp::LabelValue,
         v2::types::{
@@ -95,7 +101,8 @@ pub(crate) mod test_support {
     use crate::{
         controller::{
             NifiRoleGroupConfig, ValidatedCluster, ValidatedClusterConfig, ValidatedRoleConfig,
-            ValidatedSensitiveProperties, validate::build_role_group_configs,
+            ValidatedSensitiveProperties, dereference::ExistingSecrets,
+            validate::build_role_group_configs,
         },
         crd::{NifiRole, v1alpha1},
         security::{
@@ -179,6 +186,8 @@ pub(crate) mod test_support {
         let uid = Uid::from_str("e6ac237d-a6d4-43a1-8135-f36506110912").expect("valid uid");
         let product_version = ProductVersion::from_str(&image.app_version_label_value)
             .expect("valid product version");
+        let deployed_product_version =
+            ProductVersion::from_str(&image.product_version).expect("valid product version");
 
         ValidatedCluster::new(
             name,
@@ -187,6 +196,7 @@ pub(crate) mod test_support {
             uid,
             image,
             product_version,
+            deployed_product_version,
             role_config,
             role_group_configs,
             ValidatedClusterConfig {
@@ -213,7 +223,37 @@ pub(crate) mod test_support {
                 extra_volumes: nifi.spec.cluster_config.extra_volumes.clone(),
                 host_header_check: nifi.spec.cluster_config.host_header_check.clone(),
             },
+            // As on the first reconcile run: neither Secret exists yet.
+            ExistingSecrets {
+                sensitive_key: None,
+                oidc_admin_password: None,
+            },
         )
+    }
+
+    /// The OIDC authentication config, for tests that need an authentication method other than the
+    /// fixture's `SingleUser`, the admin password Secret is only used with this one.
+    pub fn oidc_authentication_config(cluster_name: &ClusterName) -> NifiAuthenticationConfig {
+        NifiAuthenticationConfig::Oidc {
+            provider: oidc::v1alpha1::AuthenticationProvider::new(
+                "keycloak.mycorp.org"
+                    .to_owned()
+                    .try_into()
+                    .expect("valid hostname"),
+                Some(443),
+                "/realms/sdp".to_owned(),
+                TlsClientDetails { tls: None },
+                "preferred_username".to_owned(),
+                vec!["openid".to_owned()],
+                None,
+            ),
+            oidc: oidc::v1alpha1::ClientAuthenticationOptions {
+                client_credentials_secret_ref: "nifi-keycloak-client".to_owned(),
+                extra_scopes: vec![],
+                product_specific_fields: (),
+            },
+            cluster_name: cluster_name.clone(),
+        }
     }
 
     /// Return the "default" role-group config from a [`ValidatedCluster`].

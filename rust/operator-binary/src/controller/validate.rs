@@ -5,12 +5,13 @@
 
 use std::{collections::BTreeMap, str::FromStr as _};
 
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu, ensure};
 use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     commons::product_image_selection,
     config::fragment,
-    kube::ResourceExt as _,
+    k8s_openapi::api::core::v1::Secret,
+    kube::{ResourceExt as _, runtime::reflector::ObjectRef},
     product_logging::spec::Logging,
     role_utils::CommonConfiguration,
     v2::{
@@ -21,7 +22,7 @@ use stackable_operator::{
         },
         role_utils::with_validated_config,
         types::{
-            kubernetes::ConfigMapName,
+            kubernetes::{ConfigMapName, NamespaceName},
             operator::{ProductVersion, RoleGroupName},
         },
     },
@@ -33,10 +34,15 @@ use super::{
     ValidatedNifiConfig, ValidatedRoleConfig, ValidatedSensitiveProperties,
 };
 use crate::{
-    controller::{build::git_sync::build_git_sync_resources, dereference::DereferencedObjects},
-    crd::{Container, NifiConfig, NifiRole, v1alpha1},
+    controller::{
+        build::{
+            git_sync::build_git_sync_resources, resource::secret::SENSITIVE_PROPERTY_KEY_NAME,
+        },
+        dereference::{DereferencedObjects, ExistingSecrets},
+    },
+    crd::{Container, NifiConfig, NifiRole, sensitive_properties, v1alpha1},
     security::{
-        authentication::{self, NifiAuthenticationConfig},
+        authentication::{self, NifiAuthenticationConfig, STACKABLE_ADMIN_USERNAME},
         authorization::ResolvedNifiAuthorizationConfig,
     },
 };
@@ -91,6 +97,29 @@ pub enum Error {
     ValidateLoggingConfig {
         source: stackable_operator::v2::product_logging::framework::Error,
     },
+
+    #[snafu(display("the product version {product_version:?} is invalid"))]
+    ParseProductVersion {
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
+        product_version: String,
+    },
+
+    #[snafu(display(
+        "sensitive key secret [{namespace}/{name}] is missing, but auto generation is disabled",
+    ))]
+    SensitiveKeySecretMissing { name: String, namespace: String },
+
+    #[snafu(display(
+        "the existing sensitive key secret {secret} does not contain the key \
+         {SENSITIVE_PROPERTY_KEY_NAME}",
+    ))]
+    SensitiveKeySecretIncomplete { secret: ObjectRef<Secret> },
+
+    #[snafu(display(
+        "the existing admin password secret {secret} does not contain the key \
+         {STACKABLE_ADMIN_USERNAME}",
+    ))]
+    AdminPasswordSecretIncomplete { secret: ObjectRef<Secret> },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -121,6 +150,13 @@ pub fn validate(
         &nifi.spec.cluster_config.authorization,
         &dereferenced_objects.authorization,
     );
+
+    validate_existing_secrets(
+        &dereferenced_objects.existing_secrets,
+        &nifi.spec.cluster_config.sensitive_properties,
+        &authentication_config,
+        &dereferenced_objects.namespace,
+    )?;
 
     let sensitive_properties_algorithm = nifi
         .spec
@@ -159,6 +195,16 @@ pub fn validate(
     let product_version = ProductVersion::from_str(&image.app_version_label_value)
         .expect("the app version label value is a valid product version");
 
+    // The bare product version, reported as `status.deployedVersion`. Unlike
+    // `app_version_label_value` this is the user's input copied verbatim (it is never truncated to
+    // the label value length limit), so it has to be parsed fallibly.
+    let deployed_product_version =
+        ProductVersion::from_str(&image.product_version).with_context(|_| {
+            ParseProductVersionSnafu {
+                product_version: image.product_version.clone(),
+            }
+        })?;
+
     Ok(ValidatedCluster::new(
         name,
         namespace,
@@ -166,6 +212,7 @@ pub fn validate(
         uid,
         image,
         product_version,
+        deployed_product_version,
         role_config,
         role_group_configs,
         ValidatedClusterConfig {
@@ -186,7 +233,70 @@ pub fn validate(
             extra_volumes: nifi.spec.cluster_config.extra_volumes.clone(),
             host_header_check: nifi.spec.cluster_config.host_header_check.clone(),
         },
+        dereferenced_objects.existing_secrets.clone(),
     ))
+}
+
+/// Checks the preconditions on the Secrets whose contents this operator generates.
+///
+/// The build step only ever *creates* a missing Secret, it never rewrites an existing one (see the
+/// [`secret`](crate::controller::build::resource::secret) module docs). So a Secret that is present
+/// but does not carry its expected key is rejected here, rather than surfacing later as NiFi Pods
+/// that cannot start.
+///
+/// Rejecting rather than filling in the missing key is deliberate: a regenerated
+/// sensitive-properties key cannot decrypt the sensitive values of an already persisted flow, so
+/// silently writing a fresh one would destroy data. The admin password Secret follows the same rule
+/// for consistency; it is not this operator's to overwrite either.
+fn validate_existing_secrets(
+    existing_secrets: &ExistingSecrets,
+    sensitive_properties: &sensitive_properties::NifiSensitivePropertiesConfig,
+    authentication: &NifiAuthenticationConfig,
+    namespace: &NamespaceName,
+) -> Result<()> {
+    match &existing_secrets.sensitive_key {
+        Some(secret) => ensure!(
+            secret_contains_key(secret, SENSITIVE_PROPERTY_KEY_NAME),
+            SensitiveKeySecretIncompleteSnafu {
+                secret: ObjectRef::from_obj(secret),
+            }
+        ),
+        // Without `autoGenerate` the Secret is provided and owned by the user, so this operator
+        // never creates it and it is merely required to exist.
+        None => ensure!(
+            sensitive_properties.auto_generate,
+            SensitiveKeySecretMissingSnafu {
+                name: sensitive_properties.key_secret.to_string(),
+                namespace: namespace.to_string(),
+            }
+        ),
+    }
+
+    // The admin password Secret is only mounted for OIDC authentication; a leftover from a
+    // previous authentication method must not fail the cluster. It is named by this operator, so
+    // unlike the sensitive key Secret it is never required to exist up-front.
+    if matches!(authentication, NifiAuthenticationConfig::Oidc { .. })
+        && let Some(secret) = &existing_secrets.oidc_admin_password
+    {
+        ensure!(
+            secret_contains_key(secret, STACKABLE_ADMIN_USERNAME),
+            AdminPasswordSecretIncompleteSnafu {
+                secret: ObjectRef::from_obj(secret),
+            }
+        );
+    }
+
+    Ok(())
+}
+
+/// Whether the given fetched Secret carries `key`. Only `data` is inspected: the API server always
+/// returns the contents there, `string_data` is write-only.
+fn secret_contains_key(secret: &Secret, key: &str) -> bool {
+    secret
+        .data
+        .iter()
+        .flat_map(BTreeMap::keys)
+        .any(|existing| existing == key)
 }
 
 pub(crate) fn build_role_group_configs(
@@ -312,18 +422,186 @@ pub(crate) fn test_resolved_product_image() -> product_image_selection::Resolved
 mod tests {
     use pretty_assertions::assert_eq;
     use stackable_operator::{
-        commons::networking::DomainName, crd::authentication::core as auth_core,
-        v2::types::kubernetes::ConfigMapName,
+        commons::networking::DomainName,
+        crd::authentication::core as auth_core,
+        k8s_openapi::{ByteString, apimachinery::pkg::apis::meta::v1::ObjectMeta},
+        v2::types::{kubernetes::ConfigMapName, operator::ClusterName},
     };
 
     use super::*;
     use crate::{
-        controller::build::properties::test_support::app_version_label,
+        controller::{
+            build::properties::test_support::{app_version_label, oidc_authentication_config},
+            dereference::ExistingSecrets,
+        },
         security::{
             authentication::DereferencedAuthenticationClasses,
             authorization::DereferencedAuthorization,
         },
     };
+
+    /// The name of the sensitive-properties key Secret in every fixture below.
+    const SENSITIVE_KEY_SECRET_NAME: &str = "simple-nifi-sensitive-property-key";
+
+    /// `spec.clusterConfig.sensitiveProperties` with the given `autoGenerate` setting.
+    fn sensitive_properties(
+        auto_generate: bool,
+    ) -> sensitive_properties::NifiSensitivePropertiesConfig {
+        serde_yaml::from_str(&format!(
+            "keySecret: {SENSITIVE_KEY_SECRET_NAME}\nautoGenerate: {auto_generate}"
+        ))
+        .expect("valid sensitiveProperties")
+    }
+
+    /// A Secret as the API server returns it: contents in `data`, under the given `keys`. Only the
+    /// key names matter here, so the values are a fixed placeholder.
+    fn fetched_secret(name: &str, keys: &[&str]) -> Secret {
+        Secret {
+            metadata: ObjectMeta {
+                name: Some(name.to_owned()),
+                namespace: Some("default".to_owned()),
+                ..ObjectMeta::default()
+            },
+            data: Some(
+                keys.iter()
+                    .map(|key| ((*key).to_owned(), ByteString(b"irrelevant".to_vec())))
+                    .collect(),
+            ),
+            ..Secret::default()
+        }
+    }
+
+    fn single_user_authentication() -> NifiAuthenticationConfig {
+        NifiAuthenticationConfig::SingleUser {
+            provider: serde_yaml::from_str(
+                "userCredentialsSecret:\n  name: nifi-admin-credentials-simple",
+            )
+            .expect("valid static provider"),
+        }
+    }
+
+    fn test_namespace() -> NamespaceName {
+        NamespaceName::from_str("default").expect("valid namespace")
+    }
+
+    /// With `autoGenerate` the build step creates the Secret, so it may be absent.
+    #[test]
+    fn accepts_a_missing_sensitive_key_secret_when_auto_generation_is_enabled() {
+        let existing_secrets = ExistingSecrets {
+            sensitive_key: None,
+            oidc_admin_password: None,
+        };
+
+        validate_existing_secrets(
+            &existing_secrets,
+            &sensitive_properties(true),
+            &single_user_authentication(),
+            &test_namespace(),
+        )
+        .expect("a missing Secret is generated by the build step");
+    }
+
+    /// Without `autoGenerate` the Secret is the user's to provide, so it has to be there already.
+    #[test]
+    fn rejects_a_missing_sensitive_key_secret_when_auto_generation_is_disabled() {
+        let existing_secrets = ExistingSecrets {
+            sensitive_key: None,
+            oidc_admin_password: None,
+        };
+
+        let error = validate_existing_secrets(
+            &existing_secrets,
+            &sensitive_properties(false),
+            &single_user_authentication(),
+            &test_namespace(),
+        )
+        .expect_err("the missing Secret must be reported");
+
+        assert!(
+            matches!(error, Error::SensitiveKeySecretMissing { .. }),
+            "unexpected error: {error:?}"
+        );
+    }
+
+    /// An existing Secret is never rewritten, so one without the expected key would leave the NiFi
+    /// Pods with an unusable mount — regardless of `autoGenerate`.
+    #[test]
+    fn rejects_an_existing_sensitive_key_secret_without_its_key() {
+        for auto_generate in [true, false] {
+            let existing_secrets = ExistingSecrets {
+                sensitive_key: Some(fetched_secret(
+                    SENSITIVE_KEY_SECRET_NAME,
+                    &["some-other-key"],
+                )),
+                oidc_admin_password: None,
+            };
+
+            let error = validate_existing_secrets(
+                &existing_secrets,
+                &sensitive_properties(auto_generate),
+                &single_user_authentication(),
+                &test_namespace(),
+            )
+            .expect_err("the incomplete Secret must be reported");
+
+            assert!(
+                matches!(error, Error::SensitiveKeySecretIncomplete { .. }),
+                "unexpected error for autoGenerate={auto_generate}: {error:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_an_existing_admin_password_secret_without_its_key() {
+        let cluster_name = ClusterName::from_str("simple-nifi").expect("valid cluster name");
+        let existing_secrets = ExistingSecrets {
+            sensitive_key: Some(fetched_secret(
+                SENSITIVE_KEY_SECRET_NAME,
+                &[SENSITIVE_PROPERTY_KEY_NAME],
+            )),
+            oidc_admin_password: Some(fetched_secret(
+                "simple-nifi-oidc-admin-password",
+                &["some-other-user"],
+            )),
+        };
+
+        let error = validate_existing_secrets(
+            &existing_secrets,
+            &sensitive_properties(true),
+            &oidc_authentication_config(&cluster_name),
+            &test_namespace(),
+        )
+        .expect_err("the incomplete Secret must be reported");
+
+        assert!(
+            matches!(error, Error::AdminPasswordSecretIncomplete { .. }),
+            "unexpected error: {error:?}"
+        );
+    }
+
+    /// The admin password Secret is only mounted for OIDC, so a leftover from a previous
+    /// authentication method must not fail the cluster.
+    #[test]
+    fn ignores_the_admin_password_secret_for_other_authentication_methods() {
+        let existing_secrets = ExistingSecrets {
+            sensitive_key: Some(fetched_secret(
+                SENSITIVE_KEY_SECRET_NAME,
+                &[SENSITIVE_PROPERTY_KEY_NAME],
+            )),
+            oidc_admin_password: Some(fetched_secret(
+                "simple-nifi-oidc-admin-password",
+                &["some-other-user"],
+            )),
+        };
+
+        validate_existing_secrets(
+            &existing_secrets,
+            &sensitive_properties(true),
+            &single_user_authentication(),
+            &test_namespace(),
+        )
+        .expect("the unused Secret must be ignored");
+    }
 
     /// Locks every value the validate step itself derives from the minimal fixture — so a
     /// validation regression fails here, with a validate-shaped message, instead of surfacing as
@@ -379,6 +657,11 @@ mod tests {
                 auth_entry, auth_class,
             )]),
             authorization: DereferencedAuthorization::without_opa(),
+            // As on the first reconcile run: neither Secret exists yet.
+            existing_secrets: ExistingSecrets {
+                sensitive_key: None,
+                oidc_admin_password: None,
+            },
         };
         let operator_environment = OperatorEnvironmentOptions {
             operator_namespace: "stackable-operators".to_owned(),
@@ -401,10 +684,13 @@ mod tests {
             format!("oci.example.org/nifi:{}", app_version_label("2.9.0"))
         );
         assert_eq!(cluster.image.product_version, "2.9.0");
+        // The label value carries the `-stackable<operator version>` suffix, the version reported
+        // in `status.deployedVersion` does not.
         assert_eq!(
             cluster.product_version.to_string(),
             app_version_label("2.9.0")
         );
+        assert_eq!(cluster.deployed_product_version.to_string(), "2.9.0");
 
         // The role config falls back to its defaults: PDBs enabled, cluster-internal listener.
         assert!(cluster.role_config.pdb.enabled);

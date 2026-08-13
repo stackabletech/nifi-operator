@@ -315,8 +315,8 @@ spec:
                           This setting configures the encryption algorithm to use to encrypt sensitive properties.
                           Valid values are:
 
-                          `nifiPbkdf2AesGcm256` (the default value),
-                          `nifiArgon2AesGcm256`,
+                          `nifiArgon2AesGcm256` (the default value),
+                          `nifiPbkdf2AesGcm256`,
 
                           Learn more about the specifics of the algorithm parameters in the
                           [NiFi documentation](https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#property-encryption-algorithms).

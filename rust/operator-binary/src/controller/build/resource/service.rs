@@ -25,7 +25,7 @@ pub fn build_rolegroup_headless_service(
                 .role_group_resource_names(role_group_name)
                 .headless_service_name()
                 .to_string(),
-            role_group_name,
+            cluster.recommended_labels(role_group_name),
         )
         .build(),
         spec: Some(ServiceSpec {
@@ -53,7 +53,7 @@ pub fn build_rolegroup_metrics_service(
                 .role_group_resource_names(role_group_name)
                 .metrics_service_name()
                 .to_string(),
-            role_group_name,
+            cluster.recommended_labels(role_group_name),
         )
         .with_labels(service::prometheus_labels(&Scraping::Enabled))
         .with_annotations(prometheus_annotations())

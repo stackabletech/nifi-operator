@@ -2,7 +2,7 @@
 //! [`validate`] step and consumed by the [`build`] steps, plus the
 //! `dereference` / `validate` / `build` sub-modules.
 
-use std::{collections::BTreeMap, str::FromStr as _};
+use std::{collections::BTreeMap, marker::PhantomData, str::FromStr as _};
 
 use stackable_operator::{
     commons::{
@@ -15,7 +15,7 @@ use stackable_operator::{
     k8s_openapi::{
         api::{
             apps::v1::StatefulSet,
-            core::v1::{ConfigMap, Service, ServiceAccount, Volume},
+            core::v1::{ConfigMap, Secret, Service, ServiceAccount, Volume},
             policy::v1::PodDisruptionBudget,
             rbac::v1::RoleBinding,
         },
@@ -42,6 +42,7 @@ use stackable_operator::{
 
 use crate::{
     OPERATOR_NAME,
+    controller::dereference::ExistingSecrets,
     crd::{
         APP_NAME, HostHeaderCheckConfig, NifiConfig, NifiRole, NifiStorageConfig,
         sensitive_properties::NifiSensitiveKeyAlgorithm, v1alpha1,
@@ -52,22 +53,47 @@ use crate::{
     },
 };
 
+pub(crate) mod apply;
 pub(crate) mod build;
 pub(crate) mod dereference;
+pub(crate) mod update_status;
 pub(crate) mod validate;
 
 // Placeholder version label value for resources whose labels must not change after deployment.
 stackable_operator::constant!(UNVERSIONED_PRODUCT_VERSION: ProductVersion = "none");
 
+// Placeholder role and role-group label values for resources that are shared by the whole cluster
+// and therefore not tied to a role or role group (see
+// [`ValidatedCluster::cluster_shared_recommended_labels`]).
+stackable_operator::constant!(NONE_ROLE_NAME: RoleName = "none");
+stackable_operator::constant!(NONE_ROLE_GROUP_NAME: RoleGroupName = "none");
+
+/// Marker for prepared Kubernetes resources which are not applied yet.
+pub struct Prepared;
+
+/// Marker for Kubernetes resources which have been applied, i.e. the specifications as returned by
+/// the Kubernetes API server.
+pub struct Applied;
+
 /// Every Kubernetes resource produced by the [`build`] step.
-pub struct KubernetesResources {
+///
+/// `T` is a marker that indicates whether these resources are only [`Prepared`] or already
+/// [`Applied`]. It lets the type system prove that the cluster status is derived from the applied
+/// resources (which carry the API server's view, e.g. the StatefulSet status) rather than from the
+/// merely built ones.
+pub struct KubernetesResources<T> {
     pub stateful_sets: Vec<StatefulSet>,
     pub services: Vec<Service>,
     pub listeners: Vec<listener::v1alpha1::Listener>,
     pub config_maps: Vec<ConfigMap>,
+    /// The Secrets whose contents this operator generates: the sensitive-properties key and, for
+    /// OIDC authentication, the admin password. See
+    /// [`build::resource::secret`](crate::controller::build::resource::secret).
+    pub secrets: Vec<Secret>,
     pub pod_disruption_budgets: Vec<PodDisruptionBudget>,
     pub service_accounts: Vec<ServiceAccount>,
     pub role_bindings: Vec<RoleBinding>,
+    pub status: PhantomData<T>,
 }
 
 /// A validated, merged (default <- role <- role-group) NiFi rolegroup config.
@@ -171,8 +197,16 @@ pub struct ValidatedCluster {
     /// The product image.
     pub image: ResolvedProductImage,
     /// The product version as a type-safe label value, used for the `app.kubernetes.io/version`
-    /// label on built resources.
+    /// label on built resources. This is the full image app version (for example
+    /// `2.9.0-stackable0.0.0-dev`), not the bare NiFi version.
     pub product_version: ProductVersion,
+    /// The bare NiFi version (for example `2.9.0`), reported as `status.deployedVersion`.
+    ///
+    /// Deliberately separate from [`Self::product_version`]: that one carries the image app
+    /// version label value, whereas this is the product version the user asked for. The status
+    /// field is user facing and is asserted bare by the `upgrade` integration test, so the two
+    /// must not be conflated.
+    pub deployed_product_version: ProductVersion,
     /// Per-role configuration (PodDisruptionBudget and listener class). The `nodes` role is
     /// required by the CRD, so this is always present.
     pub role_config: ValidatedRoleConfig,
@@ -180,6 +214,10 @@ pub struct ValidatedCluster {
     pub cluster_config: ValidatedClusterConfig,
     /// Collected configuration per rolegroup.
     pub role_group_configs: BTreeMap<NifiRole, BTreeMap<RoleGroupName, NifiRoleGroupConfig>>,
+    /// The Secrets whose contents this operator generates, as currently stored in Kubernetes.
+    /// Carried through so the [`build`] step only generates the ones that are still missing,
+    /// instead of rotating their contents on every run.
+    pub existing_secrets: ExistingSecrets,
 }
 
 /// The resolved `spec.clusterConfig`.
@@ -228,9 +266,11 @@ impl ValidatedCluster {
         uid: Uid,
         image: ResolvedProductImage,
         product_version: ProductVersion,
+        deployed_product_version: ProductVersion,
         role_config: ValidatedRoleConfig,
         role_group_configs: BTreeMap<NifiRole, BTreeMap<RoleGroupName, NifiRoleGroupConfig>>,
         cluster_config: ValidatedClusterConfig,
+        existing_secrets: ExistingSecrets,
     ) -> Self {
         let metadata = ObjectMeta {
             name: Some(name.to_string()),
@@ -247,9 +287,11 @@ impl ValidatedCluster {
             uid,
             image,
             product_version,
+            deployed_product_version,
             role_config,
             role_group_configs,
             cluster_config,
+            existing_secrets,
         }
     }
 
@@ -286,6 +328,13 @@ impl ValidatedCluster {
         role_group_name: &RoleGroupName,
     ) -> Labels {
         self.recommended_labels_with(&self.product_version, role_name, role_group_name)
+    }
+
+    /// Recommended labels for a resource that is shared by the whole cluster rather than tied to a
+    /// role or role group (the RBAC pair, the Secrets built by this operator), which is expressed
+    /// by carrying `none` for both label values.
+    pub fn cluster_shared_recommended_labels(&self) -> Labels {
+        self.recommended_labels_for(&NONE_ROLE_NAME, &NONE_ROLE_GROUP_NAME)
     }
 
     /// Recommended labels with the constant [`UNVERSIONED_PRODUCT_VERSION`], for PVC templates

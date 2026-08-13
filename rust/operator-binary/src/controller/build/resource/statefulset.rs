@@ -51,6 +51,7 @@ use crate::{
         build::{
             BALANCE_PORT, BALANCE_PORT_NAME, HTTPS_PORT, HTTPS_PORT_NAME, NIFI_CONFIG_DIRECTORY,
             NIFI_PYTHON_WORKING_DIRECTORY, PROTOCOL_PORT, PROTOCOL_PORT_NAME,
+            SENSITIVE_PROPERTY_VOLUME_MOUNT,
             graceful_shutdown::add_graceful_shutdown_config,
             object_meta,
             properties::ConfigFileName,
@@ -76,9 +77,10 @@ use crate::{
             NifiAuthenticationConfig, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
         },
         authorization::{self, OPA_TLS_MOUNT_PATH, ResolvedNifiAuthorizationConfig},
-        build_tls_volume,
-        sensitive_key::SENSITIVE_PROPERTY_VOLUME_MOUNT,
-        tls::{KEYSTORE_NIFI_CONTAINER_MOUNT, KEYSTORE_VOLUME_NAME, TRUSTSTORE_VOLUME_NAME},
+        tls::{
+            self, KEYSTORE_NIFI_CONTAINER_MOUNT, KEYSTORE_VOLUME_NAME, TRUSTSTORE_VOLUME_NAME,
+            build_tls_volume,
+        },
     },
 };
 
@@ -94,8 +96,8 @@ pub enum Error {
         source: crate::security::authentication::Error,
     },
 
-    #[snafu(display("security failure"))]
-    Security { source: crate::security::Error },
+    #[snafu(display("failed to build the TLS certificate Volume"))]
+    BuildTlsVolume { source: tls::Error },
 
     #[snafu(display("failed to add needed volume"))]
     AddVolume { source: builder::pod::Error },
@@ -600,7 +602,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
                 &requested_secret_lifetime,
                 Some(LISTENER_VOLUME_NAME),
             )
-            .context(SecuritySnafu)?,
+            .context(BuildTlsVolumeSnafu)?,
         )
         .context(AddVolumeSnafu)?
         .add_empty_dir_volume(TRUSTSTORE_VOLUME_NAME.to_string(), None)
@@ -651,7 +653,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
         metadata: object_meta(
             cluster,
             resource_names.stateful_set_name().to_string(),
-            role_group_name,
+            cluster.recommended_labels(role_group_name),
         )
         .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
         .build(),

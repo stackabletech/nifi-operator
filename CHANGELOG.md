@@ -13,6 +13,13 @@ All notable changes to this project will be documented in this file.
   functions and carry the full set of recommended labels ([#966]).
 - BREAKING: The `nodes` role is now required by the CRD; a NifiCluster without it was
   previously accepted by the API server but failed reconciliation ([#966]).
+- The reconciler now applies resources and derives the cluster status in discrete
+  apply and update_status steps for the `nifi_controller` ([#974]).
+- The sensitive properties key Secret and (for OIDC authentication) the admin password Secret are
+  now dereferenced, built and applied like every other resource, instead of being created
+  out-of-band before the apply step. They are emitted only while they do not exist yet, so their
+  contents are never rotated. The operator therefore now needs the `patch` permission on
+  `secrets` ([#974]).
 - All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#975]).
 - NiFi startup and readiness probes now use the local management server's `/health` and
   `/health/cluster` endpoints instead of a bare TCP check ([#976]).
@@ -26,6 +33,7 @@ All notable changes to this project will be documented in this file.
 [#961]: https://github.com/stackabletech/nifi-operator/pull/961
 [#966]: https://github.com/stackabletech/nifi-operator/pull/966
 [#970]: https://github.com/stackabletech/nifi-operator/pull/970
+[#974]: https://github.com/stackabletech/nifi-operator/pull/974
 [#975]: https://github.com/stackabletech/nifi-operator/pull/975
 [#976]: https://github.com/stackabletech/nifi-operator/pull/976
 
