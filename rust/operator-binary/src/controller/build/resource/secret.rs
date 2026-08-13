@@ -133,47 +133,47 @@ mod tests {
         app_version_label, minimal_validated_cluster, oidc_authentication_config,
     };
 
-    /// The shared [`minimal_validated_cluster`] fixture, with the properties these tests depend on
-    /// spelled out and asserted: a cluster that asks for exactly one generated Secret, the
-    /// sensitive-properties key.
-    fn minimal_cluster() -> ValidatedCluster {
+    /// The Secret the fixture asks for in `spec.clusterConfig.sensitiveProperties.keySecret`.
+    const SENSITIVE_KEY_SECRET: &str = "simple-nifi-sensitive-property-key";
+
+    /// The admin password Secret, whose name this operator derives from the fixture's cluster name.
+    const OIDC_ADMIN_PASSWORD_SECRET: &str = "simple-nifi-oidc-admin-password";
+
+    /// Everything the tests below assume about the shared fixture. A change to it fails here,
+    /// instead of as a puzzling failure in one of them.
+    #[test]
+    fn fixture_preconditions() {
         let cluster = minimal_validated_cluster();
-        assert!(
-            cluster.cluster_config.sensitive_properties.auto_generate,
-            "fixture precondition: sensitiveProperties.autoGenerate is on"
+
+        assert!(cluster.cluster_config.sensitive_properties.auto_generate);
+        assert!(!matches!(
+            cluster.cluster_config.authentication,
+            NifiAuthenticationConfig::Oidc { .. }
+        ));
+        // As on the first reconcile run: neither Secret exists yet.
+        assert!(cluster.existing_secrets.sensitive_key.is_none());
+        assert!(cluster.existing_secrets.oidc_admin_password.is_none());
+        assert_eq!(
+            cluster
+                .cluster_config
+                .sensitive_properties
+                .key_secret
+                .to_string(),
+            SENSITIVE_KEY_SECRET
         );
-        assert!(
-            !matches!(
-                cluster.cluster_config.authentication,
-                NifiAuthenticationConfig::Oidc { .. }
-            ),
-            "fixture precondition: authentication is not OIDC, so no admin password is needed"
+        assert_eq!(
+            build_oidc_admin_password_secret_name(&cluster.name),
+            OIDC_ADMIN_PASSWORD_SECRET
         );
-        assert!(
-            cluster.existing_secrets.sensitive_key.is_none()
-                && cluster.existing_secrets.oidc_admin_password.is_none(),
-            "fixture precondition: as on the first reconcile run, neither Secret exists yet"
-        );
-        cluster
     }
 
-    /// The same fixture switched over to OIDC authentication, which additionally needs the admin
+    /// The fixture switched over to OIDC authentication, which additionally needs the admin
     /// password Secret.
     fn oidc_cluster() -> ValidatedCluster {
-        let mut cluster = minimal_cluster();
+        let mut cluster = minimal_validated_cluster();
         let authentication = oidc_authentication_config(&cluster.name);
         cluster.cluster_config.authentication = authentication;
         cluster
-    }
-
-    /// The Secret name the cluster asks for in `spec.clusterConfig.sensitiveProperties.keySecret`,
-    /// read off the fixture so the assertions below cannot drift from it.
-    fn sensitive_key_secret_name(cluster: &ValidatedCluster) -> String {
-        cluster
-            .cluster_config
-            .sensitive_properties
-            .key_secret
-            .to_string()
     }
 
     /// An existing Secret, as the dereference step hands it over. Only its presence matters to the
@@ -190,26 +190,22 @@ mod tests {
         }
     }
 
-    fn names(secrets: &[Secret]) -> Vec<String> {
-        secrets.iter().map(|secret| secret.name_any()).collect()
-    }
-
-    /// Looks a Secret up by name: the order in which [`build_secrets`] returns them is not part of
-    /// its contract.
-    fn secret_named<'a>(secrets: &'a [Secret], name: &str) -> &'a Secret {
-        secrets
+    /// The names of the given Secrets, sorted: the order in which [`build_secrets`] returns them
+    /// is not part of its contract.
+    fn sorted_names(secrets: &[Secret]) -> Vec<&str> {
+        let mut names: Vec<&str> = secrets
             .iter()
-            .find(|secret| secret.name_any() == name)
-            .unwrap_or_else(|| panic!("no Secret named {name:?} among {:?}", names(secrets)))
+            .filter_map(|secret| secret.metadata.name.as_deref())
+            .collect();
+        names.sort();
+        names
     }
 
     #[test]
     fn generates_the_sensitive_key_secret_when_it_is_missing() {
-        let cluster = minimal_cluster();
+        let secrets = build_secrets(&minimal_validated_cluster());
 
-        let secrets = build_secrets(&cluster);
-
-        assert_eq!(names(&secrets), [sensitive_key_secret_name(&cluster)]);
+        assert_eq!(sorted_names(&secrets), [SENSITIVE_KEY_SECRET]);
         assert_eq!(
             secrets[0]
                 .string_data
@@ -225,36 +221,40 @@ mod tests {
     /// and rewriting it would rotate a key that has to keep decrypting the persisted flow.
     #[test]
     fn does_not_emit_an_existing_sensitive_key_secret() {
-        let mut cluster = minimal_cluster();
-        let name = sensitive_key_secret_name(&cluster);
-        cluster.existing_secrets.sensitive_key = Some(existing_secret(&name));
+        let mut cluster = minimal_validated_cluster();
+        cluster.existing_secrets.sensitive_key = Some(existing_secret(SENSITIVE_KEY_SECRET));
 
         let secrets = build_secrets(&cluster);
 
-        assert_eq!(names(&secrets), [] as [String; 0]);
+        assert!(secrets.is_empty());
     }
 
     /// Without `autoGenerate` the Secret belongs to the user, so this operator never writes it —
     /// not even while it is missing, a case the validate step rejects before the build step runs.
     #[test]
     fn never_generates_a_user_provided_sensitive_key_secret() {
-        let mut cluster = minimal_cluster();
+        let mut cluster = minimal_validated_cluster();
         cluster.cluster_config.sensitive_properties.auto_generate = false;
 
         let secrets = build_secrets(&cluster);
 
-        assert_eq!(names(&secrets), [] as [String; 0]);
+        assert!(secrets.is_empty());
     }
 
     #[test]
     fn generates_the_oidc_admin_password_secret_when_it_is_missing() {
-        let cluster = oidc_cluster();
-        let name = build_oidc_admin_password_secret_name(&cluster.name);
+        let secrets = build_secrets(&oidc_cluster());
 
-        let secrets = build_secrets(&cluster);
-
+        assert_eq!(
+            sorted_names(&secrets),
+            [OIDC_ADMIN_PASSWORD_SECRET, SENSITIVE_KEY_SECRET]
+        );
+        let admin_password = secrets
+            .iter()
+            .find(|secret| secret.name_any() == OIDC_ADMIN_PASSWORD_SECRET)
+            .expect("just asserted to be emitted");
         assert!(
-            secret_named(&secrets, &name)
+            admin_password
                 .string_data
                 .as_ref()
                 .expect("a generated Secret carries its contents in string_data")
@@ -265,26 +265,28 @@ mod tests {
     #[test]
     fn does_not_emit_an_existing_oidc_admin_password_secret() {
         let mut cluster = oidc_cluster();
-        let name = build_oidc_admin_password_secret_name(&cluster.name);
-        cluster.existing_secrets.oidc_admin_password = Some(existing_secret(&name));
+        cluster.existing_secrets.oidc_admin_password =
+            Some(existing_secret(OIDC_ADMIN_PASSWORD_SECRET));
 
         let secrets = build_secrets(&cluster);
 
         assert_eq!(
-            names(&secrets),
-            [sensitive_key_secret_name(&cluster)],
+            sorted_names(&secrets),
+            [SENSITIVE_KEY_SECRET],
             "only the still missing sensitive key Secret may be emitted"
         );
     }
 
     #[test]
     fn omits_the_oidc_admin_password_secret_for_other_authentication_methods() {
-        // `minimal_cluster` asserts that the fixture does not use OIDC authentication.
-        let cluster = minimal_cluster();
+        // `fixture_preconditions` locks that the fixture does not use OIDC authentication.
+        let secrets = build_secrets(&minimal_validated_cluster());
 
-        let secrets = build_secrets(&cluster);
-
-        assert!(!names(&secrets).contains(&build_oidc_admin_password_secret_name(&cluster.name)));
+        assert_eq!(
+            sorted_names(&secrets),
+            [SENSITIVE_KEY_SECRET],
+            "the admin password Secret is only built for OIDC authentication"
+        );
     }
 
     /// Locks the metadata both Secrets carry: the labels `ClusterResources::add` requires (without
@@ -297,14 +299,9 @@ mod tests {
 
         let secrets = build_secrets(&cluster);
 
-        let mut emitted = names(&secrets);
-        emitted.sort();
         assert_eq!(
-            emitted,
-            [
-                build_oidc_admin_password_secret_name(&cluster.name),
-                sensitive_key_secret_name(&cluster),
-            ],
+            sorted_names(&secrets),
+            [OIDC_ADMIN_PASSWORD_SECRET, SENSITIVE_KEY_SECRET],
             "both Secrets must be checked, not an empty list"
         );
         for secret in &secrets {
