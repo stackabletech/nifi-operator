@@ -65,8 +65,6 @@ pub struct DereferencedObjects {
 /// fetched here so that the validate step can check an existing Secret for its expected key, and
 /// the build step can generate only the ones that are still missing. See
 /// [`build::resource::secret`](crate::controller::build::resource::secret).
-/// Deliberately not [`Default`]: an `ExistingSecrets::default()` reads as "the default Secrets",
-/// whereas it would mean "no Secret exists yet". Call sites spell both fields out instead.
 #[derive(Clone, Debug)]
 pub struct ExistingSecrets {
     /// The sensitive-properties key Secret named by
