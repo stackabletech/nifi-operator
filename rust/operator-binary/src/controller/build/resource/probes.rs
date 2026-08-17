@@ -60,12 +60,12 @@ pub fn management_readiness_probe() -> Probe {
     ProbeBuilder::exec_command(management_cluster_connected_exec_command())
         .with_period(Duration::from_secs(10))
         .with_timeout(Duration::from_secs(5))
-        .with_failure_threshold(3)
+        .with_failure_threshold(30)
         .build()
         .expect("the readiness probe's durations must fit into an i32")
 }
 
-pub fn tcp_liveliness_probe() -> Probe {
+pub fn tcp_liveness_probe() -> Probe {
     ProbeBuilder::tcp_socket(TCPSocketAction {
         port: IntOrString::String(HTTPS_PORT_NAME.to_string()),
         ..Default::default()
@@ -73,7 +73,7 @@ pub fn tcp_liveliness_probe() -> Probe {
     .with_period(Duration::from_secs(10))
     .with_initial_delay(Duration::from_secs(10))
     .build()
-    .expect("the liveliness probe's durations must fit into an i32")
+    .expect("the liveness probe's durations must fit into an i32")
 }
 
 #[cfg(test)]
@@ -120,7 +120,7 @@ mod tests {
             script.contains(&cluster_health_url),
             "expected curl against /health/cluster, got: {script}"
         );
-        assert_eq!(probe.failure_threshold, Some(3));
+        assert_eq!(probe.failure_threshold, Some(30));
         assert_eq!(probe.timeout_seconds, Some(5));
         assert_eq!(
             probe.initial_delay_seconds,

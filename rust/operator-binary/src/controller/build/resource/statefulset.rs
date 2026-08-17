@@ -61,7 +61,7 @@ use crate::{
                     group_listener_name,
                 },
                 probes::{
-                    management_readiness_probe, management_startup_probe, tcp_liveliness_probe,
+                    management_readiness_probe, management_startup_probe, tcp_liveness_probe,
                 },
             },
         },
@@ -442,7 +442,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
         .add_container_port(HTTPS_PORT_NAME, HTTPS_PORT.into())
         .add_container_port(PROTOCOL_PORT_NAME, PROTOCOL_PORT.into())
         .add_container_port(BALANCE_PORT_NAME, BALANCE_PORT.into())
-        .liveness_probe(tcp_liveliness_probe())
+        .liveness_probe(tcp_liveness_probe())
         .startup_probe(management_startup_probe())
         .readiness_probe(management_readiness_probe())
         .resources(merged_config.resources.clone().into());
