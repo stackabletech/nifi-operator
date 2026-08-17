@@ -22,7 +22,7 @@ All notable changes to this project will be documented in this file.
   `secrets` ([#974]).
 - All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#975]).
 - NiFi startup and readiness probes now use the local management server's `/health` and
-  `/health/cluster` endpoints instead of a bare TCP check ([#976], [#981]).
+  `/health/cluster` endpoints instead of a bare TCP check ([#976], [#982]).
 
 ### Fixed
 
@@ -36,7 +36,7 @@ All notable changes to this project will be documented in this file.
 [#974]: https://github.com/stackabletech/nifi-operator/pull/974
 [#975]: https://github.com/stackabletech/nifi-operator/pull/975
 [#976]: https://github.com/stackabletech/nifi-operator/pull/976
-[#981]: https://github.com/stackabletech/nifi-operator/pull/981
+[#982]: https://github.com/stackabletech/nifi-operator/pull/982
 
 ## [26.7.0] - 2026-07-21
 
