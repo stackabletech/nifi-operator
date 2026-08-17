@@ -28,6 +28,24 @@ fn management_health_exec(path: &str) -> ExecAction {
         ]),
     }
 }
+
+/// NiFi's `/health/cluster` endpoint returns HTTP 200 for both `CONNECTING`
+/// and `CONNECTED`, so the readiness probe greps for that instead of only
+/// checking the return code.
+fn management_cluster_connected_exec() -> ExecAction {
+    ExecAction {
+        command: Some(vec![
+            "/bin/bash".to_string(),
+            "-euo".to_string(),
+            "pipefail".to_string(),
+            "-c".to_string(),
+            format!(
+                "curl --fail --silent --show-error http://{MANAGEMENT_SERVER_ADDRESS}:{MANAGEMENT_SERVER_PORT}/health/cluster | grep -q 'Cluster Status: CONNECTED'"
+            ),
+        ]),
+    }
+}
+
 pub fn management_startup_probe() -> Probe {
     Probe {
         initial_delay_seconds: Some(10),
@@ -43,7 +61,7 @@ pub fn management_readiness_probe() -> Probe {
         period_seconds: Some(10),
         timeout_seconds: Some(5),
         failure_threshold: Some(3),
-        exec: Some(management_health_exec("/health/cluster")),
+        exec: Some(management_cluster_connected_exec()),
         ..Probe::default()
     }
 }
@@ -110,6 +128,32 @@ mod tests {
             probe.initial_delay_seconds, None,
             "readiness probe delay is redundant: k8s already suppresses readiness checks \
              until the startup probe succeeds"
+        );
+    }
+
+    #[test]
+    fn readiness_probe_greps_body_for_connected_status() {
+        // NiFi's /health/cluster endpoint returns HTTP 200 for both
+        // CONNECTING and CONNECTED nodes, so the return code alone can't
+        // distinguish a node that is still joining from one that has
+        // actually joined. The probe must inspect the response body.
+        let probe = management_readiness_probe();
+
+        let command = probe
+            .exec
+            .expect("readiness probe must be an exec probe")
+            .command
+            .expect("exec action must have a command");
+        let script = command.last().expect("bash -c script argument");
+
+        assert!(
+            script.contains("grep") && script.contains("Cluster Status: CONNECTED"),
+            "expected the probe to grep the response body for \"Cluster Status: CONNECTED\", \
+             got: {script}"
+        );
+        assert!(
+            !script.contains("--output /dev/null"),
+            "the response body must not be discarded, the probe needs to inspect it: {script}"
         );
     }
 
