@@ -6,46 +6,46 @@
 //! probes using `curl` from inside the container - a `httpGet` probe cannot
 //! reach a loopback-only address.
 
-use stackable_operator::k8s_openapi::{
-    api::core::v1::{ExecAction, Probe, TCPSocketAction},
-    apimachinery::pkg::util::intstr::IntOrString,
+use stackable_operator::{
+    builder::pod::probe::{ProbeAction, ProbeBuilder},
+    k8s_openapi::{
+        api::core::v1::{Probe, TCPSocketAction},
+        apimachinery::pkg::util::intstr::IntOrString,
+    },
+    shared::time::Duration,
 };
 
 use crate::controller::build::{
     HTTPS_PORT_NAME, MANAGEMENT_SERVER_ADDRESS, MANAGEMENT_SERVER_PORT,
 };
 
-fn management_health_exec(path: &str) -> ExecAction {
-    ExecAction {
-        command: Some(vec![
-            "/bin/bash".to_string(),
-            "-euo".to_string(),
-            "pipefail".to_string(),
-            "-c".to_string(),
-            format!(
-                "curl --fail --silent --show-error --output /dev/null http://{MANAGEMENT_SERVER_ADDRESS}:{MANAGEMENT_SERVER_PORT}{path}"
-            ),
-        ]),
-    }
+fn common_probe_baseline(path: &str) -> ProbeBuilder<ProbeAction, Duration> {
+    ProbeBuilder::exec_command([
+        "/bin/bash".to_string(),
+        "-euo".to_string(),
+        "pipefail".to_string(),
+        "-c".to_string(),
+        format!("curl --fail --silent --show-error --output /dev/null http://{MANAGEMENT_SERVER_ADDRESS}:{MANAGEMENT_SERVER_PORT}{path}"),
+    ])
+    .with_period(Duration::from_secs(10))
+    .with_timeout(Duration::from_secs(5))
 }
+
 pub fn management_startup_probe() -> Probe {
-    Probe {
-        initial_delay_seconds: Some(10),
-        period_seconds: Some(10),
-        timeout_seconds: Some(5),
-        failure_threshold: Some(20 * 6),
-        exec: Some(management_health_exec("/health")),
-        ..Probe::default()
-    }
+    common_probe_baseline("/health")
+        .with_initial_delay(Duration::from_secs(10))
+        .with_failure_threshold_duration(Duration::from_minutes_unchecked(20))
+        .expect("static period is non-zero")
+        .build()
+        .expect("static duration is not too long")
 }
+
 pub fn management_readiness_probe() -> Probe {
-    Probe {
-        period_seconds: Some(10),
-        timeout_seconds: Some(5),
-        failure_threshold: Some(3),
-        exec: Some(management_health_exec("/health/cluster")),
-        ..Probe::default()
-    }
+    common_probe_baseline("/health/cluster")
+        .with_failure_threshold_duration(Duration::from_secs(30))
+        .expect("static period is non-zero")
+        .build()
+        .expect("static duration is not too long")
 }
 
 pub fn tcp_liveliness_probe() -> Probe {
@@ -107,7 +107,8 @@ mod tests {
         assert_eq!(probe.failure_threshold, Some(3));
         assert_eq!(probe.timeout_seconds, Some(5));
         assert_eq!(
-            probe.initial_delay_seconds, None,
+            probe.initial_delay_seconds,
+            Some(0),
             "readiness probe delay is redundant: k8s already suppresses readiness checks \
              until the startup probe succeeds"
         );
