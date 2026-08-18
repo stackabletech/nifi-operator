@@ -19,8 +19,8 @@ use crate::controller::build::{
     HTTPS_PORT_NAME, MANAGEMENT_SERVER_ADDRESS, MANAGEMENT_SERVER_PORT,
 };
 
-fn management_health_exec_command(path: &str) -> Vec<String> {
-    vec![
+fn management_health_exec_command(path: &str) -> [String; 5] {
+    [
         "/bin/bash".to_string(),
         "-euo".to_string(),
         "pipefail".to_string(),
@@ -34,8 +34,8 @@ fn management_health_exec_command(path: &str) -> Vec<String> {
 /// NiFi's `/health/cluster` endpoint returns HTTP 200 for both `CONNECTING`
 /// and `CONNECTED`, so the readiness probe greps for that instead of only
 /// checking the return code.
-fn management_cluster_connected_exec_command() -> Vec<String> {
-    vec![
+fn management_cluster_connected_exec_command() -> [String; 5] {
+    [
         "/bin/bash".to_string(),
         "-euo".to_string(),
         "pipefail".to_string(),
@@ -51,7 +51,8 @@ pub fn management_startup_probe() -> Probe {
         .with_period(Duration::from_secs(10))
         .with_initial_delay(Duration::from_secs(10))
         .with_timeout(Duration::from_secs(5))
-        .with_failure_threshold(20 * 6)
+        .with_failure_threshold_duration(Duration::from_minutes_unchecked(20))
+        .expect("static period is non-zero")
         .build()
         .expect("the startup probe's durations must fit into an i32")
 }
@@ -60,7 +61,8 @@ pub fn management_readiness_probe() -> Probe {
     ProbeBuilder::exec_command(management_cluster_connected_exec_command())
         .with_period(Duration::from_secs(10))
         .with_timeout(Duration::from_secs(5))
-        .with_failure_threshold(30)
+        .with_failure_threshold_duration(Duration::from_minutes_unchecked(5))
+        .expect("static period is non-zero")
         .build()
         .expect("the readiness probe's durations must fit into an i32")
 }
