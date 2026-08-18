@@ -6,58 +6,93 @@
 //! probes using `curl` from inside the container - a `httpGet` probe cannot
 //! reach a loopback-only address.
 
-use stackable_operator::k8s_openapi::{
-    api::core::v1::{ExecAction, Probe, TCPSocketAction},
-    apimachinery::pkg::util::intstr::IntOrString,
+use stackable_operator::{
+    builder::pod::probe::ProbeBuilder,
+    k8s_openapi::{
+        api::core::v1::{Probe, TCPSocketAction},
+        apimachinery::pkg::util::intstr::IntOrString,
+    },
+    shared::time::Duration,
 };
 
 use crate::controller::build::{
     HTTPS_PORT_NAME, MANAGEMENT_SERVER_ADDRESS, MANAGEMENT_SERVER_PORT,
 };
 
-fn management_health_exec(path: &str) -> ExecAction {
-    ExecAction {
-        command: Some(vec![
-            "/bin/bash".to_string(),
-            "-euo".to_string(),
-            "pipefail".to_string(),
-            "-c".to_string(),
-            format!(
-                "curl --fail --silent --show-error --output /dev/null http://{MANAGEMENT_SERVER_ADDRESS}:{MANAGEMENT_SERVER_PORT}{path}"
-            ),
-        ]),
-    }
-}
-pub fn management_startup_probe() -> Probe {
-    Probe {
-        initial_delay_seconds: Some(10),
-        period_seconds: Some(10),
-        timeout_seconds: Some(5),
-        failure_threshold: Some(20 * 6),
-        exec: Some(management_health_exec("/health")),
-        ..Probe::default()
-    }
-}
-pub fn management_readiness_probe() -> Probe {
-    Probe {
-        period_seconds: Some(10),
-        timeout_seconds: Some(5),
-        failure_threshold: Some(3),
-        exec: Some(management_health_exec("/health/cluster")),
-        ..Probe::default()
-    }
+fn management_health_exec_command() -> [String; 5] {
+    [
+        "/bin/bash".to_string(),
+        "-euo".to_string(),
+        "pipefail".to_string(),
+        "-c".to_string(),
+        format!(
+            "curl --fail --silent --show-error --output /dev/null http://{MANAGEMENT_SERVER_ADDRESS}:{MANAGEMENT_SERVER_PORT}/health"
+        ),
+    ]
 }
 
-pub fn tcp_liveliness_probe() -> Probe {
-    Probe {
-        initial_delay_seconds: Some(10),
-        period_seconds: Some(10),
-        tcp_socket: Some(TCPSocketAction {
-            port: IntOrString::String(HTTPS_PORT_NAME.to_string()),
-            ..TCPSocketAction::default()
-        }),
-        ..Probe::default()
-    }
+/// NiFi's `/health/cluster` endpoint returns HTTP 200 for both `CONNECTING`
+/// and `CONNECTED`, so the readiness probe greps for that instead of only
+/// checking the return code.
+fn management_cluster_connected_exec_command() -> [String; 5] {
+    [
+        "/bin/bash".to_string(),
+        "-euo".to_string(),
+        "pipefail".to_string(),
+        "-c".to_string(),
+        format!(
+            "curl --fail --silent --show-error http://{MANAGEMENT_SERVER_ADDRESS}:{MANAGEMENT_SERVER_PORT}/health/cluster | grep -q 'Cluster Status: CONNECTED'"
+        ),
+    ]
+}
+
+/// We give up on the startup probe after ~20 minutes.
+///
+/// Nifi might take a very long time to start up due to the following factors:
+/// - JVM cold starts are usually slow.
+/// - It expands NAR bundles (each processor/controller-service bundle) into
+///   the working directory and builds a classloader per NAR.
+/// - It replays/rolls back the FlowFile repository  to reconstruct in-flight
+///   FlowFile state.
+///   If the previous shutdown wasn't clean, or there's a large backlog of
+///   in-flight FlowFiles, this replay can take a while.
+///   Content and provenance repositories also do startup housekeeping.
+/// - Large flow definitions take longer to deserialize and instantiate into
+///   the running flow controller graph.
+pub fn management_startup_probe() -> Probe {
+    ProbeBuilder::exec_command(management_health_exec_command())
+        .with_period(Duration::from_secs(10))
+        .with_initial_delay(Duration::from_secs(10))
+        .with_timeout(Duration::from_secs(5))
+        .with_failure_threshold_duration(Duration::from_minutes_unchecked(20))
+        .expect("static period is non-zero")
+        .build()
+        .expect("the startup probe's durations must fit into an i32")
+}
+
+/// We give up on the readiness probe after ~5 minutes.
+///
+/// In clustered mode, a node connecting has to talk to the cluster coordinator,
+/// participate in flow election/inheritance, and reconcile its local flow against
+/// the cluster's.
+pub fn management_readiness_probe() -> Probe {
+    ProbeBuilder::exec_command(management_cluster_connected_exec_command())
+        .with_period(Duration::from_secs(10))
+        .with_timeout(Duration::from_secs(5))
+        .with_failure_threshold_duration(Duration::from_minutes_unchecked(5))
+        .expect("static period is non-zero")
+        .build()
+        .expect("the readiness probe's durations must fit into an i32")
+}
+
+pub fn tcp_liveness_probe() -> Probe {
+    ProbeBuilder::tcp_socket(TCPSocketAction {
+        port: IntOrString::String(HTTPS_PORT_NAME.to_string()),
+        ..Default::default()
+    })
+    .with_period(Duration::from_secs(10))
+    .build()
+    .expect("the liveness probe's durations must fit into an i32")
 }
 
 #[cfg(test)]
@@ -104,12 +139,39 @@ mod tests {
             script.contains(&cluster_health_url),
             "expected curl against /health/cluster, got: {script}"
         );
-        assert_eq!(probe.failure_threshold, Some(3));
+        assert_eq!(probe.failure_threshold, Some(30));
         assert_eq!(probe.timeout_seconds, Some(5));
         assert_eq!(
-            probe.initial_delay_seconds, None,
+            probe.initial_delay_seconds,
+            Some(0),
             "readiness probe delay is redundant: k8s already suppresses readiness checks \
              until the startup probe succeeds"
+        );
+    }
+
+    #[test]
+    fn readiness_probe_greps_body_for_connected_status() {
+        // NiFi's /health/cluster endpoint returns HTTP 200 for both
+        // CONNECTING and CONNECTED nodes, so the return code alone can't
+        // distinguish a node that is still joining from one that has
+        // actually joined. The probe must inspect the response body.
+        let probe = management_readiness_probe();
+
+        let command = probe
+            .exec
+            .expect("readiness probe must be an exec probe")
+            .command
+            .expect("exec action must have a command");
+        let script = command.last().expect("bash -c script argument");
+
+        assert!(
+            script.contains("grep") && script.contains("Cluster Status: CONNECTED"),
+            "expected the probe to grep the response body for \"Cluster Status: CONNECTED\", \
+             got: {script}"
+        );
+        assert!(
+            !script.contains("--output /dev/null"),
+            "the response body must not be discarded, the probe needs to inspect it: {script}"
         );
     }
 
