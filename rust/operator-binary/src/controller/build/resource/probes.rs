@@ -46,6 +46,19 @@ fn management_cluster_connected_exec_command() -> [String; 5] {
     ]
 }
 
+/// The startup probe fails after roughly 20 minutes.
+///
+/// Nifi might take a very long time to start up due to the following factors:
+/// - JVM cold starts are usually slow.
+/// - It expands NAR bundles (each processor/controller-service bundle) into
+///   the working directory and builds a classloader per NAR.
+/// - It replays/rolls back the FlowFile repository  to reconstruct in-flight
+///   FlowFile state.
+///   If the previous shutdown wasn't clean, or there's a large backlog of
+///   in-flight FlowFiles, this replay can take a while.
+///   Content and provenance repositories also do startup housekeeping.
+/// - Large flow definitions take longer to deserialize and instantiate into
+///   the running flow controller graph.
 pub fn management_startup_probe() -> Probe {
     ProbeBuilder::exec_command(management_health_exec_command())
         .with_period(Duration::from_secs(10))
@@ -57,6 +70,11 @@ pub fn management_startup_probe() -> Probe {
         .expect("the startup probe's durations must fit into an i32")
 }
 
+/// The readiness probe fails after roughly 5 minutes.
+///
+/// In clustered mode, a node connecting has to talk to the cluster coordinator,
+/// participate in flow election/inheritance, and reconcile its local flow against
+/// the cluster's.
 pub fn management_readiness_probe() -> Probe {
     ProbeBuilder::exec_command(management_cluster_connected_exec_command())
         .with_period(Duration::from_secs(10))
@@ -73,7 +91,6 @@ pub fn tcp_liveness_probe() -> Probe {
         ..Default::default()
     })
     .with_period(Duration::from_secs(10))
-    .with_initial_delay(Duration::from_secs(10))
     .build()
     .expect("the liveness probe's durations must fit into an i32")
 }
