@@ -19,14 +19,14 @@ use crate::controller::build::{
     HTTPS_PORT_NAME, MANAGEMENT_SERVER_ADDRESS, MANAGEMENT_SERVER_PORT,
 };
 
-fn management_health_exec_command(path: &str) -> [String; 5] {
+fn management_health_exec_command() -> [String; 5] {
     [
         "/bin/bash".to_string(),
         "-euo".to_string(),
         "pipefail".to_string(),
         "-c".to_string(),
         format!(
-            "curl --fail --silent --show-error --output /dev/null http://{MANAGEMENT_SERVER_ADDRESS}:{MANAGEMENT_SERVER_PORT}{path}"
+            "curl --fail --silent --show-error --output /dev/null http://{MANAGEMENT_SERVER_ADDRESS}:{MANAGEMENT_SERVER_PORT}/health"
         ),
     ]
 }
@@ -47,7 +47,7 @@ fn management_cluster_connected_exec_command() -> [String; 5] {
 }
 
 pub fn management_startup_probe() -> Probe {
-    ProbeBuilder::exec_command(management_health_exec_command("/health"))
+    ProbeBuilder::exec_command(management_health_exec_command())
         .with_period(Duration::from_secs(10))
         .with_initial_delay(Duration::from_secs(10))
         .with_timeout(Duration::from_secs(5))
