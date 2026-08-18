@@ -46,7 +46,7 @@ fn management_cluster_connected_exec_command() -> [String; 5] {
     ]
 }
 
-/// The startup probe fails after roughly 20 minutes.
+/// We give up on the startup probe after ~20 minutes.
 ///
 /// Nifi might take a very long time to start up due to the following factors:
 /// - JVM cold starts are usually slow.
@@ -70,7 +70,7 @@ pub fn management_startup_probe() -> Probe {
         .expect("the startup probe's durations must fit into an i32")
 }
 
-/// The readiness probe fails after roughly 5 minutes.
+/// We give up on the readiness probe after ~5 minutes.
 ///
 /// In clustered mode, a node connecting has to talk to the cluster coordinator,
 /// participate in flow election/inheritance, and reconcile its local flow against
