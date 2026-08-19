@@ -23,7 +23,7 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
-    OPERATOR_NAME,
+    NIFI_OPERATOR_NAME,
     controller::{
         apply::{self, Applier},
         build, dereference,
@@ -34,7 +34,8 @@ use crate::{
 };
 
 pub const NIFI_CONTROLLER_NAME: &str = "nificluster";
-pub const NIFI_FULL_CONTROLLER_NAME: &str = concatcp!(NIFI_CONTROLLER_NAME, '.', OPERATOR_NAME);
+pub const NIFI_FULL_CONTROLLER_NAME: &str =
+    concatcp!(NIFI_CONTROLLER_NAME, '.', NIFI_OPERATOR_NAME);
 
 pub struct Ctx {
     pub client: Client,

@@ -22,7 +22,7 @@ use stackable_operator::{
 };
 
 use crate::{
-    controller::ValidatedCluster,
+    controller::{ValidatedCluster, build::recommended_labels_for_cluster_resources},
     security::authentication::{NifiAuthenticationConfig, STACKABLE_ADMIN_USERNAME},
 };
 
@@ -120,7 +120,7 @@ fn secret_meta(cluster: &ValidatedCluster, name: &str) -> ObjectMeta {
     ObjectMetaBuilder::new()
         .name_and_namespace(cluster)
         .name(name)
-        .with_labels(cluster.cluster_shared_recommended_labels())
+        .with_labels(recommended_labels_for_cluster_resources(cluster))
         .build()
 }
 
@@ -297,11 +297,9 @@ mod tests {
                 serde_json::json!({
                     // The Secrets are cluster-shared, so role and role group are `none`.
                     "labels": {
-                        "app.kubernetes.io/component": "none",
                         "app.kubernetes.io/instance": "simple-nifi",
                         "app.kubernetes.io/managed-by": "nifi.stackable.tech_nificluster",
                         "app.kubernetes.io/name": "nifi",
-                        "app.kubernetes.io/role-group": "none",
                         "app.kubernetes.io/version": app_version_label("2.9.0"),
                         "stackable.tech/vendor": "Stackable"
                     },

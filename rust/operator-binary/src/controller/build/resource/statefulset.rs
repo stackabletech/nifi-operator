@@ -9,10 +9,11 @@ use stackable_operator::{
         self,
         meta::ObjectMetaBuilder,
         pod::{
-            PodBuilder, resources::ResourceRequirementsBuilder,
+            PodBuilder, container::FieldPathEnvVar, resources::ResourceRequirementsBuilder,
             security::PodSecurityContextBuilder, volume::SecretFormat,
         },
     },
+    constant,
     constants::RESTART_CONTROLLER_ENABLED_LABEL,
     crd::authentication::oidc::v1alpha1::AuthenticationProvider,
     k8s_openapi::{
@@ -20,9 +21,8 @@ use stackable_operator::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec, StatefulSetUpdateStrategy},
             core::v1::{
-                ConfigMapKeySelector, ConfigMapVolumeSource, EmptyDirVolumeSource, EnvVar,
-                EnvVarSource, ObjectFieldSelector, PersistentVolumeClaim, SecretVolumeSource,
-                Volume,
+                ConfigMapVolumeSource, EmptyDirVolumeSource, EnvVar, PersistentVolumeClaim,
+                SecretVolumeSource, Volume,
             },
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
@@ -34,12 +34,12 @@ use stackable_operator::{
     },
     utils::COMMON_BASH_TRAP_FUNCTIONS,
     v2::{
-        builder::pod::container::{EnvVarSet, new_container_builder},
+        builder::pod::container::{EnvVarName, EnvVarSet, new_container_builder},
         product_logging::framework::{
             STACKABLE_LOG_DIR, ValidatedContainerLogConfigChoice, vector_container,
         },
         types::{
-            kubernetes::{ContainerName, VolumeName},
+            kubernetes::{ConfigMapKey, ContainerName, VolumeName},
             operator::RoleGroupName,
         },
     },
@@ -55,6 +55,8 @@ use crate::{
             graceful_shutdown::add_graceful_shutdown_config,
             object_meta,
             properties::ConfigFileName,
+            recommended_labels_for_role_group_resources,
+            recommended_labels_for_unversioned_role_group_resources,
             resource::{
                 listener::{
                     LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, build_group_listener_pvc,
@@ -64,6 +66,7 @@ use crate::{
                     management_readiness_probe, management_startup_probe, tcp_liveness_probe,
                 },
             },
+            role_group_selector,
         },
     },
     crd::{
@@ -122,49 +125,63 @@ const USERDATA_MOUNTPOINT: &str = "/stackable/userdata";
 
 // Volume providing the rendered NiFi config (the `conf` ConfigMap), mounted into the prepare
 // container which templates it into `ACTIVE_CONFIG_VOLUME_NAME`.
-stackable_operator::constant!(CONFIG_VOLUME_NAME: VolumeName = "conf");
+constant!(CONFIG_VOLUME_NAME: VolumeName = "conf");
 const CONFIG_VOLUME_MOUNT: &str = "/conf";
 
 // `emptyDir` holding the live config templated by the prepare container and shared with the NiFi
 // container.
-stackable_operator::constant!(ACTIVE_CONFIG_VOLUME_NAME: VolumeName = "activeconf");
+constant!(ACTIVE_CONFIG_VOLUME_NAME: VolumeName = "activeconf");
 
 // Volume holding the generated sensitive-properties key.
-stackable_operator::constant!(SENSITIVE_PROPERTY_VOLUME_NAME: VolumeName = "sensitiveproperty");
+constant!(SENSITIVE_PROPERTY_VOLUME_NAME: VolumeName = "sensitiveproperty");
 
 // Volume providing the log config (logback/log4j) ConfigMap.
-stackable_operator::constant!(LOG_CONFIG_VOLUME_NAME: VolumeName = "log-config");
+constant!(LOG_CONFIG_VOLUME_NAME: VolumeName = "log-config");
 
 /// Directory the `log-config` ConfigMap volume is mounted at.
 const STACKABLE_LOG_CONFIG_DIR: &str = "/stackable/log_config";
 
 // Volume the NiFi logs are written to and shared with the Vector sidecar (also used by the
 // git-sync container, see [`crate::controller::build::git_sync`]).
-stackable_operator::constant!(pub(crate) LOG_VOLUME_NAME: VolumeName = "log");
+constant!(pub(crate) LOG_VOLUME_NAME: VolumeName = "log");
 
 // `emptyDir` for the Python working directory, mounted into the NiFi container at
 // `NIFI_PYTHON_WORKING_DIRECTORY`.
-stackable_operator::constant!(PYTHON_WORKING_DIR_VOLUME_NAME: VolumeName = "nifi-python-working-directory");
+constant!(PYTHON_WORKING_DIR_VOLUME_NAME: VolumeName = "nifi-python-working-directory");
 
 // Container names. These must match the corresponding (kebab-cased) `crate::crd::Container`
 // variants, which key the per-container logging config.
-stackable_operator::constant!(PREPARE_CONTAINER_NAME: ContainerName = "prepare");
-stackable_operator::constant!(NIFI_CONTAINER_NAME: ContainerName = "nifi");
-stackable_operator::constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
+constant!(PREPARE_CONTAINER_NAME: ContainerName = "prepare");
+constant!(NIFI_CONTAINER_NAME: ContainerName = "nifi");
+constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
 
 // Typed `VolumeName`s for the Vector container's log-config and log volumes. They reuse the
 // existing rolegroup-`ConfigMap` "config" volume (which carries `vector.yaml`) and the "log"
 // empty-dir, both already added to the pod by `build_node_rolegroup_statefulset`.
-stackable_operator::constant!(VECTOR_LOG_CONFIG_VOLUME_NAME: VolumeName = "config");
-stackable_operator::constant!(VECTOR_LOG_VOLUME_NAME: VolumeName = "log");
+constant!(VECTOR_LOG_CONFIG_VOLUME_NAME: VolumeName = "config");
+constant!(VECTOR_LOG_VOLUME_NAME: VolumeName = "log");
 
-// Names of the environment variables injected into the NiFi container here (or exported by the
-// prepare init-container) and referenced as `${env:...}` placeholders by the config-file builders
-// (`nifi.properties`, `state-management.xml`, proxy hosts). The two sides must agree.
-pub(crate) const STACKLET_NAME_ENV: &str = "STACKLET_NAME";
+// Names of the environment variables injected into the NiFi container here and referenced as
+// `${env:...}` placeholders by the config-file builders (`nifi.properties`,
+// `state-management.xml`). The two sides must agree.
+constant!(pub(crate) STACKLET_NAME_ENV: EnvVarName = "STACKLET_NAME");
+constant!(pub(crate) ZOOKEEPER_HOSTS_ENV: EnvVarName = "ZOOKEEPER_HOSTS");
+constant!(pub(crate) ZOOKEEPER_CHROOT_ENV: EnvVarName = "ZOOKEEPER_CHROOT");
+
+// The ZooKeeper env var names double as the keys of the ZooKeeper discovery ConfigMap the
+// values are mounted from (the same strings, as the env var names are used as the keys).
+constant!(ZOOKEEPER_HOSTS_CONFIG_MAP_KEY: ConfigMapKey = "ZOOKEEPER_HOSTS");
+constant!(ZOOKEEPER_CHROOT_CONFIG_MAP_KEY: ConfigMapKey = "ZOOKEEPER_CHROOT");
+
+// The POD_NAME env var is needed to overwrite `nifi.cluster.node.address` later.
+constant!(POD_NAME_ENV: EnvVarName = "POD_NAME");
+// Needed for the `containerdebug` process to log its tracing information to.
+constant!(CONTAINERDEBUG_LOG_DIRECTORY_ENV: EnvVarName = "CONTAINERDEBUG_LOG_DIRECTORY");
+
+// Names of environment variables exported by shell commands in the containers (never set as
+// Kubernetes `EnvVar`s by the operator) and referenced as `${env:...}` placeholders by the
+// config-file builders. The sides must agree.
 pub(crate) const NODE_ADDRESS_ENV: &str = "NODE_ADDRESS";
-pub(crate) const ZOOKEEPER_HOSTS_ENV: &str = "ZOOKEEPER_HOSTS";
-pub(crate) const ZOOKEEPER_CHROOT_ENV: &str = "ZOOKEEPER_CHROOT";
 pub(crate) const LISTENER_DEFAULT_ADDRESS_ENV: &str = "LISTENER_DEFAULT_ADDRESS";
 pub(crate) const LISTENER_DEFAULT_PORT_HTTPS_ENV: &str = "LISTENER_DEFAULT_PORT_HTTPS";
 
@@ -194,63 +211,51 @@ pub(crate) fn build_node_rolegroup_statefulset(
     // sources the same `rg.config`.
     let merged_config = &rg.config;
 
-    let mut env_vars: Vec<EnvVar> = rg.env_overrides.clone().into();
-
-    // we need the POD_NAME env var to overwrite `nifi.cluster.node.address` later
-    env_vars.push(EnvVar {
-        name: "POD_NAME".to_string(),
-        value_from: Some(EnvVarSource {
-            field_ref: Some(ObjectFieldSelector {
-                api_version: Some("v1".to_string()),
-                field_path: "metadata.name".to_string(),
-            }),
-            ..EnvVarSource::default()
-        }),
-        ..EnvVar::default()
-    });
-
-    // Needed for the `containerdebug` process to log it's tracing information to.
-    env_vars.push(EnvVar {
-        name: "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
-        value: Some(format!("{STACKABLE_LOG_DIR}/containerdebug")),
-        ..Default::default()
-    });
-
-    env_vars.push(EnvVar {
-        name: STACKLET_NAME_ENV.to_string(),
-        value: Some(cluster.name.to_string()),
-        ..Default::default()
-    });
+    // All operator-set environment variables, collected into an `EnvVarSet` so that every name
+    // occurs only once.
+    let mut env = EnvVarSet::new()
+        .with_field_path(&POD_NAME_ENV, &FieldPathEnvVar::Name)
+        .with_value(
+            &CONTAINERDEBUG_LOG_DIRECTORY_ENV,
+            format!("{STACKABLE_LOG_DIR}/containerdebug"),
+        )
+        .with_value(&STACKLET_NAME_ENV, cluster.name.to_string());
 
     match &cluster.cluster_config.clustering_backend {
         v1alpha1::NifiClusteringBackend::ZooKeeper {
             zookeeper_config_map_name,
         } => {
-            let zookeeper_env_var = |name: &str| EnvVar {
-                name: name.to_string(),
-                value_from: Some(EnvVarSource {
-                    config_map_key_ref: Some(ConfigMapKeySelector {
-                        name: zookeeper_config_map_name.to_string(),
-                        key: name.to_string(),
-                        ..ConfigMapKeySelector::default()
-                    }),
-                    ..EnvVarSource::default()
-                }),
-                ..EnvVar::default()
-            };
-            env_vars.push(zookeeper_env_var(ZOOKEEPER_HOSTS_ENV));
-            env_vars.push(zookeeper_env_var(ZOOKEEPER_CHROOT_ENV));
+            env = env
+                .with_config_map_key_ref(
+                    &ZOOKEEPER_HOSTS_ENV,
+                    zookeeper_config_map_name,
+                    &ZOOKEEPER_HOSTS_CONFIG_MAP_KEY,
+                )
+                .with_config_map_key_ref(
+                    &ZOOKEEPER_CHROOT_ENV,
+                    zookeeper_config_map_name,
+                    &ZOOKEEPER_CHROOT_CONFIG_MAP_KEY,
+                );
         }
         v1alpha1::NifiClusteringBackend::Kubernetes {} => {}
     }
 
     if let NifiAuthenticationConfig::Oidc { oidc, .. } = authentication_config {
-        env_vars.extend(AuthenticationProvider::client_credentials_env_var_mounts(
+        for env_var in AuthenticationProvider::client_credentials_env_var_mounts(
             oidc.client_credentials_secret_ref.clone(),
-        ));
+        ) {
+            env = env.with_env_var(env_var).expect(
+                "env_var name is valid because it is either OIDC_<16-hex-characters>_CLIENT_ID or OIDC_<16-hex-characters>_CLIENT_SECRET",
+            );
+        }
     }
 
-    env_vars.extend(authorization_config.get_env_vars());
+    env = env.merge(authorization_config.get_env_vars());
+
+    // Environment variable overrides (highest precedence), merged from role and role group.
+    // They are merged in last of all so that they override any operator-set environment
+    // variable; `EnvVarSet` is keyed by name, so an override replaces the operator's value.
+    let env_vars: Vec<EnvVar> = env.merge(rg.env_overrides.clone()).into();
 
     let node_address = format!(
         "$POD_NAME.{service_name}.{namespace}.svc.{cluster_domain}",
@@ -449,7 +454,8 @@ pub(crate) fn build_node_rolegroup_statefulset(
 
     let mut pod_builder = PodBuilder::new();
 
-    let recommended_object_labels = cluster.recommended_labels(role_group_name);
+    let recommended_object_labels =
+        recommended_labels_for_role_group_resources(cluster, &NifiRole::Node, role_group_name);
 
     add_graceful_shutdown_config(merged_config, &mut pod_builder).context(GracefulShutdownSnafu)?;
 
@@ -463,7 +469,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
         tracing::info!(
             ?volume_name,
             ?mount_point,
-            role = %NifiRole::Node,
+            role = NifiRole::Node.as_ref(),
             "Adding user specified extra volume",
         );
         pod_builder
@@ -653,7 +659,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
         metadata: object_meta(
             cluster,
             resource_names.stateful_set_name().to_string(),
-            cluster.recommended_labels(role_group_name),
+            recommended_labels_for_role_group_resources(cluster, &NifiRole::Node, role_group_name),
         )
         .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
         .build(),
@@ -661,7 +667,9 @@ pub(crate) fn build_node_rolegroup_statefulset(
             pod_management_policy: Some("Parallel".to_string()),
             replicas: effective_replicas,
             selector: LabelSelector {
-                match_labels: Some(cluster.role_group_selector(role_group_name).into()),
+                match_labels: Some(
+                    role_group_selector(cluster, &NifiRole::Node, role_group_name).into(),
+                ),
                 ..LabelSelector::default()
             },
             service_name: Some(resource_names.headless_service_name().to_string()),
@@ -707,15 +715,19 @@ fn get_volume_claim_templates(
         ),
     ];
 
-    // Used for PVC templates that cannot be modified once they are deployed, so the version label
-    // is set to the placeholder `none` to keep the labels stable across version upgrades.
-    let unversioned_recommended_labels = cluster.unversioned_recommended_labels(role_group_name);
+    // Used for PVC templates, which cannot be modified once they are deployed. The version label
+    // is omitted so the labels stay stable across version upgrades.
+    let unversioned_recommended_labels = recommended_labels_for_unversioned_role_group_resources(
+        cluster,
+        &NifiRole::Node,
+        role_group_name,
+    );
 
     // listener endpoints will use persistent volumes
     // so that load balancers can hard-code the target addresses and
     // that it is possible to connect to a consistent address
     pvcs.push(build_group_listener_pvc(
-        &group_listener_name(cluster, &NifiRole::Node.to_string()),
+        &group_listener_name(cluster, &NifiRole::Node),
         &unversioned_recommended_labels,
     ));
 
@@ -731,4 +743,101 @@ fn get_volume_claim_templates(
     }
 
     Ok(pvcs)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::controller::build::properties::test_support::{
+        default_rg, validated_cluster_from_yaml,
+    };
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *CONFIG_VOLUME_NAME;
+        let _ = *ACTIVE_CONFIG_VOLUME_NAME;
+        let _ = *SENSITIVE_PROPERTY_VOLUME_NAME;
+        let _ = *LOG_CONFIG_VOLUME_NAME;
+        let _ = *LOG_VOLUME_NAME;
+        let _ = *PYTHON_WORKING_DIR_VOLUME_NAME;
+        let _ = *PREPARE_CONTAINER_NAME;
+        let _ = *NIFI_CONTAINER_NAME;
+        let _ = *VECTOR_CONTAINER_NAME;
+        let _ = *VECTOR_LOG_CONFIG_VOLUME_NAME;
+        let _ = *VECTOR_LOG_VOLUME_NAME;
+        let _ = *STACKLET_NAME_ENV;
+        let _ = *ZOOKEEPER_HOSTS_ENV;
+        let _ = *ZOOKEEPER_CHROOT_ENV;
+        let _ = *ZOOKEEPER_HOSTS_CONFIG_MAP_KEY;
+        let _ = *ZOOKEEPER_CHROOT_CONFIG_MAP_KEY;
+        let _ = *POD_NAME_ENV;
+        let _ = *CONTAINERDEBUG_LOG_DIRECTORY_ENV;
+    }
+
+    /// `envOverrides` are applied after every operator-set environment variable, so users can
+    /// override any of them (previously the operator-set variables were appended after the
+    /// overrides, so the operator's values always took precedence).
+    /// `CONTAINERDEBUG_LOG_DIRECTORY` is used as the example here because it is set
+    /// unconditionally by the operator.
+    #[test]
+    fn env_overrides_take_precedence_over_operator_set_env_vars() {
+        // The minimal fixture cluster, plus an `envOverrides` entry on the `default` role group
+        // that collides with the operator-set `CONTAINERDEBUG_LOG_DIRECTORY`.
+        let cluster = validated_cluster_from_yaml(
+            r#"
+            apiVersion: nifi.stackable.tech/v1alpha1
+            kind: NifiCluster
+            metadata:
+              name: simple-nifi
+              namespace: default
+            spec:
+              image:
+                productVersion: 2.9.0
+              clusterConfig:
+                authentication:
+                  - authenticationClass: nifi-admin-credentials-simple
+                sensitiveProperties:
+                  keySecret: simple-nifi-sensitive-property-key
+                  autoGenerate: true
+              nodes:
+                roleGroups:
+                  default:
+                    replicas: 1
+                    envOverrides:
+                      CONTAINERDEBUG_LOG_DIRECTORY: /custom/log/dir
+            "#,
+        );
+        let role_group_name = RoleGroupName::from_str("default").expect("valid role group name");
+        let rg = default_rg(&cluster);
+
+        let stateful_set = build_node_rolegroup_statefulset(&cluster, &role_group_name, rg, None)
+            .expect("the StatefulSet builds");
+
+        let containerdebug: Vec<(String, String)> = stateful_set
+            .spec
+            .expect("the StatefulSet has a spec")
+            .template
+            .spec
+            .expect("the pod template has a spec")
+            .containers
+            .into_iter()
+            .find(|container| container.name == NIFI_CONTAINER_NAME.to_string())
+            .expect("the nifi container exists")
+            .env
+            .expect("the nifi container has env vars")
+            .into_iter()
+            .filter(|env_var| env_var.name == "CONTAINERDEBUG_LOG_DIRECTORY")
+            .map(|env_var| (env_var.name, env_var.value.unwrap_or_default()))
+            .collect();
+
+        // Exact comparison so a duplicate entry (operator value alongside the override) fails too.
+        assert_eq!(
+            containerdebug,
+            [(
+                "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+                "/custom/log/dir".to_string()
+            )]
+        );
+    }
 }

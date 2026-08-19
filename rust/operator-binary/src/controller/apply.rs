@@ -12,8 +12,8 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::controller::{
-    Applied, KubernetesResources, Prepared, ValidatedCluster, controller_name, operator_name,
-    product_name,
+    Applied, CONTROLLER_NAME, KubernetesResources, OPERATOR_NAME, PRODUCT_NAME, Prepared,
+    ValidatedCluster,
 };
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
@@ -49,9 +49,9 @@ impl<'a> Applier<'a> {
         object_overrides: &'a ObjectOverrides,
     ) -> Applier<'a> {
         let cluster_resources = cluster_resources_new(
-            &product_name(),
-            &operator_name(),
-            &controller_name(),
+            &PRODUCT_NAME,
+            &OPERATOR_NAME,
+            &CONTROLLER_NAME,
             &cluster.name,
             &cluster.namespace,
             &cluster.uid,

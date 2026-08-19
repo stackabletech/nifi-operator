@@ -11,7 +11,7 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
-    OPERATOR_NAME,
+    NIFI_OPERATOR_NAME,
     controller::{Applied, KubernetesResources, ValidatedCluster},
     crd::{NifiStatus, v1alpha1},
 };
@@ -53,7 +53,7 @@ pub async fn update_status(
     };
 
     client
-        .apply_patch_status(OPERATOR_NAME, nifi, &status)
+        .apply_patch_status(NIFI_OPERATOR_NAME, nifi, &status)
         .await
         .context(ApplyStatusSnafu)?;
 

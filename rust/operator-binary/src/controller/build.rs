@@ -2,7 +2,7 @@
 //!
 //! [`ValidatedCluster`]: crate::controller::ValidatedCluster
 
-use std::{marker::PhantomData, str::FromStr};
+use std::marker::PhantomData;
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
@@ -10,13 +10,18 @@ use stackable_operator::{
     kvp::Labels,
     v2::{
         builder::meta::ownerreference_from_resource,
-        types::{common::Port, operator::RoleGroupName},
+        kvp::label,
+        types::{
+            common::Port,
+            operator::{RoleGroupName, RoleName},
+        },
     },
 };
 
 use crate::{
     controller::{
-        KubernetesResources, Prepared, ValidatedCluster,
+        CONTROLLER_NAME, KubernetesResources, OPERATOR_NAME, PRODUCT_NAME, Prepared,
+        ValidatedCluster,
         build::resource::{
             config_map::build_rolegroup_config_map,
             listener::{build_group_listener, group_listener_name},
@@ -36,10 +41,6 @@ pub mod jvm;
 pub mod properties;
 pub mod proxy_hosts;
 pub mod resource;
-
-// Placeholder role-group name for role-level resources (e.g. the per-role `Listener`), which have
-// no associated role group. Preserves the historical `app.kubernetes.io/role-group: none` label.
-stackable_operator::constant!(pub(crate) PLACEHOLDER_LISTENER_ROLE_GROUP: RoleGroupName = "none");
 
 pub const HTTPS_PORT_NAME: &str = "https";
 pub const HTTPS_PORT: Port = Port(8443);
@@ -110,7 +111,7 @@ pub fn build(cluster: &ValidatedCluster) -> Result<KubernetesResources<Prepared>
     listeners.push(build_group_listener(
         cluster,
         role_config.listener_class.clone(),
-        group_listener_name(cluster, &nifi_role.to_string()),
+        group_listener_name(cluster, &nifi_role),
     ));
 
     for (role_group_name, rg) in node_role_group_configs {
@@ -152,8 +153,8 @@ pub fn build(cluster: &ValidatedCluster) -> Result<KubernetesResources<Prepared>
 /// need extra labels/annotations chain them onto the returned builder. The labels are passed in
 /// rather than derived here, so callers can pick the variant they need: role-level resources
 /// (e.g. the per-role [`Listener`](stackable_operator::crd::listener::v1alpha1::Listener)) use the
-/// placeholder role group `none`, and resources that must not change after deployment use the
-/// unversioned labels.
+/// role-level labels, and resources that must not change after deployment use the unversioned
+/// labels.
 pub(crate) fn object_meta(
     cluster: &ValidatedCluster,
     name: impl Into<String>,
@@ -166,6 +167,70 @@ pub(crate) fn object_meta(
         .ownerreference(ownerreference_from_resource(cluster, None, Some(true)))
         .with_labels(recommended_labels);
     builder
+}
+
+pub(crate) fn recommended_labels_for_cluster_resources(cluster: &ValidatedCluster) -> Labels {
+    label::recommended_labels_for_cluster_resources(
+        &cluster.name,
+        &PRODUCT_NAME,
+        &cluster.product_version,
+        &OPERATOR_NAME,
+        &CONTROLLER_NAME,
+    )
+}
+
+pub(crate) fn recommended_labels_for_role_resources(
+    cluster: &ValidatedCluster,
+    role_name: &RoleName,
+) -> Labels {
+    label::recommended_labels_for_role_resources(
+        &cluster.name,
+        &PRODUCT_NAME,
+        &cluster.product_version,
+        &OPERATOR_NAME,
+        &CONTROLLER_NAME,
+        role_name,
+    )
+}
+
+pub(crate) fn recommended_labels_for_role_group_resources(
+    cluster: &ValidatedCluster,
+    role_name: &RoleName,
+    role_group_name: &RoleGroupName,
+) -> Labels {
+    label::recommended_labels_for_role_group_resources(
+        &cluster.name,
+        &PRODUCT_NAME,
+        &cluster.product_version,
+        &OPERATOR_NAME,
+        &CONTROLLER_NAME,
+        role_name,
+        role_group_name,
+    )
+}
+
+pub(crate) fn recommended_labels_for_unversioned_role_group_resources(
+    cluster: &ValidatedCluster,
+    role_name: &RoleName,
+    role_group_name: &RoleGroupName,
+) -> Labels {
+    label::recommended_labels_for_unversioned_role_group_resources(
+        &cluster.name,
+        &PRODUCT_NAME,
+        &OPERATOR_NAME,
+        &CONTROLLER_NAME,
+        role_name,
+        role_group_name,
+    )
+}
+
+/// Selector labels matching the pods of a role group.
+pub(crate) fn role_group_selector(
+    cluster: &ValidatedCluster,
+    role_name: &RoleName,
+    role_group_name: &RoleGroupName,
+) -> Labels {
+    label::role_group_selector(&cluster.name, &PRODUCT_NAME, role_name, role_group_name)
 }
 
 #[cfg(test)]

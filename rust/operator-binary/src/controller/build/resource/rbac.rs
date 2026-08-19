@@ -5,7 +5,7 @@ use stackable_operator::{
     v2::rbac,
 };
 
-use crate::controller::ValidatedCluster;
+use crate::controller::{ValidatedCluster, build::recommended_labels_for_cluster_resources};
 
 /// Builds the [`ServiceAccount`] that the role-group Pods run under.
 ///
@@ -15,7 +15,7 @@ pub fn build_service_account(cluster: &ValidatedCluster) -> ServiceAccount {
     rbac::build_service_account(
         cluster,
         &cluster.cluster_resource_names(),
-        cluster.cluster_shared_recommended_labels(),
+        recommended_labels_for_cluster_resources(cluster),
     )
 }
 
@@ -25,7 +25,7 @@ pub fn build_role_binding(cluster: &ValidatedCluster) -> RoleBinding {
     rbac::build_role_binding(
         cluster,
         &cluster.cluster_resource_names(),
-        cluster.cluster_shared_recommended_labels(),
+        recommended_labels_for_cluster_resources(cluster),
     )
 }
 
@@ -51,11 +51,9 @@ mod tests {
                 "metadata": {
                     // The RBAC resources are cluster-shared, so role and role group are `none`.
                     "labels": {
-                        "app.kubernetes.io/component": "none",
                         "app.kubernetes.io/instance": "simple-nifi",
                         "app.kubernetes.io/managed-by": "nifi.stackable.tech_nificluster",
                         "app.kubernetes.io/name": "nifi",
-                        "app.kubernetes.io/role-group": "none",
                         "app.kubernetes.io/version": app_version_label("2.9.0"),
                         "stackable.tech/vendor": "Stackable"
                     },
@@ -86,11 +84,9 @@ mod tests {
                 "kind": "RoleBinding",
                 "metadata": {
                     "labels": {
-                        "app.kubernetes.io/component": "none",
                         "app.kubernetes.io/instance": "simple-nifi",
                         "app.kubernetes.io/managed-by": "nifi.stackable.tech_nificluster",
                         "app.kubernetes.io/name": "nifi",
-                        "app.kubernetes.io/role-group": "none",
                         "app.kubernetes.io/version": app_version_label("2.9.0"),
                         "stackable.tech/vendor": "Stackable"
                     },

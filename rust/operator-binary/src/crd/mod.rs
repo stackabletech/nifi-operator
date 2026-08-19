@@ -4,7 +4,7 @@ pub mod sensitive_properties;
 pub mod storage;
 pub mod tls;
 
-use std::str::FromStr;
+use std::{ops::Deref, str::FromStr};
 
 use affinity::get_affinity;
 use authorization::NifiAuthorization;
@@ -21,19 +21,20 @@ use stackable_operator::{
         },
     },
     config::{fragment::Fragment, merge::Merge},
+    constant,
     crd::{authentication::core as auth_core, git_sync},
     deep_merger::ObjectOverrides,
     k8s_openapi::{api::core::v1::Volume, apimachinery::pkg::api::resource::Quantity},
     kube::CustomResource,
     product_logging::{self, spec::Logging},
-    role_utils::{GenericRoleConfig, Role},
+    role_utils::GenericRoleConfig,
     schemars::{self, JsonSchema},
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
     utils::crds::raw_object_list_schema,
     v2::{
         config_overrides::KeyValueConfigOverrides,
-        role_utils::JavaCommonConfig,
+        role_utils::{JavaCommonConfig, Role},
         types::{
             kubernetes::{ConfigMapName, ListenerClassName, SecretClassName},
             operator::{ProductVersion, RoleName},
@@ -222,35 +223,20 @@ pub fn default_allow_all() -> bool {
     true
 }
 
-#[derive(
-    Clone,
-    Debug,
-    Deserialize,
-    Eq,
-    JsonSchema,
-    Ord,
-    PartialEq,
-    PartialOrd,
-    Serialize,
-    strum::Display,
-    strum::EnumIter,
-)]
-#[serde(rename_all = "camelCase")]
-#[strum(serialize_all = "camelCase")]
+constant!(NODE_ROLE_NAME: RoleName = "node");
+
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum NifiRole {
-    #[strum(serialize = "node")]
     Node,
 }
 
-impl From<NifiRole> for RoleName {
-    fn from(value: NifiRole) -> Self {
-        RoleName::from_str(&value.to_string()).expect("a NifiRole is a valid role name")
-    }
-}
+impl Deref for NifiRole {
+    type Target = RoleName;
 
-impl From<&NifiRole> for RoleName {
-    fn from(value: &NifiRole) -> Self {
-        RoleName::from_str(&value.to_string()).expect("a NifiRole is a valid role name")
+    fn deref(&self) -> &Self::Target {
+        match self {
+            NifiRole::Node => &NODE_ROLE_NAME,
+        }
     }
 }
 
@@ -555,7 +541,14 @@ mod merge_tests {
 mod tests {
     use stackable_operator::versioned::test_utils::RoundtripTestData;
 
-    use super::v1alpha1;
+    use super::*;
+    use crate::crd::v1alpha1;
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *NODE_ROLE_NAME;
+    }
 
     impl RoundtripTestData for v1alpha1::NifiClusterSpec {
         fn roundtrip_test_data() -> Vec<Self> {

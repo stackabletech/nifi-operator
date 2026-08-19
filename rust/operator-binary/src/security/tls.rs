@@ -4,6 +4,7 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::pod::volume::{SecretFormat, SecretOperatorVolumeSourceBuilder, VolumeBuilder},
     commons::secret_class::SecretClassVolumeProvisionParts,
+    constant,
     k8s_openapi::api::core::v1::Volume,
     shared::time::Duration,
     v2::types::kubernetes::{SecretClassName, VolumeName},
@@ -11,9 +12,9 @@ use stackable_operator::{
 
 use crate::security::authentication::STACKABLE_TLS_STORE_PASSWORD;
 
-stackable_operator::constant!(pub KEYSTORE_VOLUME_NAME: VolumeName = "keystore");
+constant!(pub KEYSTORE_VOLUME_NAME: VolumeName = "keystore");
 pub const KEYSTORE_NIFI_CONTAINER_MOUNT: &str = "/stackable/keystore";
-stackable_operator::constant!(pub TRUSTSTORE_VOLUME_NAME: VolumeName = "truststore");
+constant!(pub TRUSTSTORE_VOLUME_NAME: VolumeName = "truststore");
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -60,4 +61,16 @@ pub(crate) fn build_tls_volume(
                 .context(TlsCertSecretClassVolumeBuildSnafu)?,
         )
         .build())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *KEYSTORE_VOLUME_NAME;
+        let _ = *TRUSTSTORE_VOLUME_NAME;
+    }
 }

@@ -13,14 +13,13 @@ use stackable_operator::{
     k8s_openapi::api::core::v1::Secret,
     kube::{ResourceExt as _, runtime::reflector::ObjectRef},
     product_logging::spec::Logging,
-    role_utils::CommonConfiguration,
     v2::{
-        builder::pod::container::{EnvVarName, EnvVarSet},
+        builder::pod::container::EnvVarSet,
         controller_utils::{self, get_cluster_name, get_uid},
         product_logging::framework::{
             VectorContainerLogConfig, validate_logging_configuration_for_container,
         },
-        role_utils::with_validated_config,
+        role_utils::{CommonConfiguration, with_validated_config},
         types::{
             kubernetes::{ConfigMapName, NamespaceName},
             operator::{ProductVersion, RoleGroupName},
@@ -75,12 +74,6 @@ pub enum Error {
     ParseRoleGroupName {
         source: stackable_operator::v2::macros::attributed_string_type::Error,
         role_group: String,
-    },
-
-    #[snafu(display("environment variable name {name:?} is invalid"))]
-    ParseEnvVarName {
-        source: stackable_operator::v2::macros::attributed_string_type::Error,
-        name: String,
     },
 
     #[snafu(display("failed to build git-sync resources"))]
@@ -325,16 +318,9 @@ pub(crate) fn build_role_group_configs(
             product_specific_common_config,
         } = validated.config;
 
-        // Convert the merged env-override HashMap into an EnvVarSet, validating each name
-        // eagerly. Keys are unique (HashMap), so insertion order is irrelevant.
-        let mut env_overrides_set = EnvVarSet::new();
-        for (name, value) in env_overrides {
-            env_overrides_set = env_overrides_set.with_value(
-                &EnvVarName::from_str(&name)
-                    .context(ParseEnvVarNameSnafu { name: name.clone() })?,
-                value,
-            );
-        }
+        // The env override names are validated on deserialization by the shared `EnvVarName`
+        // type; only the conversion into an `EnvVarSet` remains.
+        let env_overrides_set: EnvVarSet = env_overrides.into();
 
         // Validate the logging config (NiFi + optional Vector container) up-front so an invalid
         // custom log ConfigMap name, or a missing Vector aggregator discovery ConfigMap name, fails
