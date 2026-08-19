@@ -48,7 +48,7 @@ mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
 
-const OPERATOR_NAME: &str = "nifi.stackable.tech";
+const NIFI_OPERATOR_NAME: &str = "nifi.stackable.tech";
 const FIELD_MANAGER: &str = "nifi-operator";
 
 #[derive(Parser)]
@@ -97,7 +97,7 @@ async fn main() -> anyhow::Result<()> {
                     .map(anyhow::Ok);
 
             let client = stackable_operator::client::initialize_operator(
-                Some(OPERATOR_NAME.to_string()),
+                Some(NIFI_OPERATOR_NAME.to_string()),
                 &common.cluster_info,
             )
             .await?;

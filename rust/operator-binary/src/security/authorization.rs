@@ -9,7 +9,10 @@ use stackable_operator::{
     k8s_openapi::api::core::v1::{
         ConfigMap, ConfigMapKeySelector, EnvVar, EnvVarSource, Volume, VolumeMount,
     },
-    v2::types::kubernetes::VolumeName,
+    v2::{
+        builder::pod::container::{EnvVarName, EnvVarSet},
+        types::kubernetes::VolumeName,
+    },
 };
 
 use crate::crd::{
@@ -18,6 +21,9 @@ use crate::crd::{
 };
 
 stackable_operator::constant!(OPA_TLS_VOLUME_NAME: VolumeName = "opa-tls");
+// The env var carrying the OPA base URL (mounted from the OPA discovery ConfigMap) and referenced
+// as `${env:OPA_BASE_URL}` in the generated authorizers.xml.
+stackable_operator::constant!(OPA_BASE_URL_ENV: EnvVarName = "OPA_BASE_URL");
 pub const OPA_TLS_MOUNT_PATH: &str = "/stackable/opa_tls";
 
 const FILE_BASED_MOUNT_DIRECTORY: &str = "filebased";
@@ -204,16 +210,16 @@ impl ResolvedNifiAuthorizationConfig {
         authorizers_xml
     }
 
-    pub fn get_env_vars(&self) -> Vec<EnvVar> {
+    pub fn get_env_vars(&self) -> EnvVarSet {
         match self {
             ResolvedNifiAuthorizationConfig::Opa {
                 config: OpaConfig {
                     config_map_name, ..
                 },
                 ..
-            } => {
-                vec![EnvVar {
-                    name: "OPA_BASE_URL".to_owned(),
+            } => EnvVarSet::new()
+                .with_env_var(EnvVar {
+                    name: OPA_BASE_URL_ENV.to_string(),
                     value_from: Some(EnvVarSource {
                         config_map_key_ref: Some(ConfigMapKeySelector {
                             key: "OPA".to_owned(),
@@ -223,10 +229,10 @@ impl ResolvedNifiAuthorizationConfig {
                         ..Default::default()
                     }),
                     ..Default::default()
-                }]
-            }
-            ResolvedNifiAuthorizationConfig::SingleUser => vec![],
-            ResolvedNifiAuthorizationConfig::Standard { .. } => vec![],
+                })
+                .expect("the name comes from a typed EnvVarName constant and is therefore valid"),
+            ResolvedNifiAuthorizationConfig::SingleUser => EnvVarSet::new(),
+            ResolvedNifiAuthorizationConfig::Standard { .. } => EnvVarSet::new(),
         }
     }
 
@@ -307,6 +313,13 @@ impl ResolvedNifiAuthorizationConfig {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *OPA_TLS_VOLUME_NAME;
+        let _ = *OPA_BASE_URL_ENV;
+    }
 
     use super::*;
 

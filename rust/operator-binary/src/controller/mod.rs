@@ -2,7 +2,7 @@
 //! [`validate`] step and consumed by the [`build`] steps, plus the
 //! `dereference` / `validate` / `build` sub-modules.
 
-use std::{collections::BTreeMap, marker::PhantomData, str::FromStr as _};
+use std::{collections::BTreeMap, marker::PhantomData, ops::Deref as _, str::FromStr as _};
 
 use stackable_operator::{
     commons::{
@@ -11,6 +11,7 @@ use stackable_operator::{
         product_image_selection::ResolvedProductImage,
         resources::{NoRuntimeLimits, Resources},
     },
+    constant,
     crd::{git_sync, listener},
     k8s_openapi::{
         api::{
@@ -22,11 +23,9 @@ use stackable_operator::{
         apimachinery::pkg::apis::meta::v1::ObjectMeta,
     },
     kube::Resource,
-    kvp::Labels,
     shared::time::Duration,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
-        kvp::label::{recommended_labels, role_group_selector},
         product_logging::framework::{ValidatedContainerLogConfigChoice, VectorContainerLogConfig},
         role_group_utils::ResourceNames,
         role_utils::{self, JavaCommonConfig, RoleGroupConfig},
@@ -34,14 +33,14 @@ use stackable_operator::{
             kubernetes::{ListenerClassName, NamespaceName, SecretClassName, SecretName, Uid},
             operator::{
                 ClusterName, ControllerName, OperatorName, ProductName, ProductVersion,
-                RoleGroupName, RoleName,
+                RoleGroupName,
             },
         },
     },
 };
 
 use crate::{
-    OPERATOR_NAME,
+    NIFI_OPERATOR_NAME,
     controller::dereference::ExistingSecrets,
     crd::{
         APP_NAME, HostHeaderCheckConfig, NifiConfig, NifiRole, NifiStorageConfig,
@@ -59,14 +58,9 @@ pub(crate) mod dereference;
 pub(crate) mod update_status;
 pub(crate) mod validate;
 
-// Placeholder version label value for resources whose labels must not change after deployment.
-stackable_operator::constant!(UNVERSIONED_PRODUCT_VERSION: ProductVersion = "none");
-
-// Placeholder role and role-group label values for resources that are shared by the whole cluster
-// and therefore not tied to a role or role group (see
-// [`ValidatedCluster::cluster_shared_recommended_labels`]).
-stackable_operator::constant!(NONE_ROLE_NAME: RoleName = "none");
-stackable_operator::constant!(NONE_ROLE_GROUP_NAME: RoleGroupName = "none");
+constant!(PRODUCT_NAME: ProductName = APP_NAME);
+constant!(OPERATOR_NAME: OperatorName = NIFI_OPERATOR_NAME);
+constant!(CONTROLLER_NAME: ControllerName = NIFI_CONTROLLER_NAME);
 
 /// Marker for prepared Kubernetes resources which are not applied yet.
 pub struct Prepared;
@@ -88,7 +82,7 @@ pub struct KubernetesResources<T> {
     pub config_maps: Vec<ConfigMap>,
     /// The Secrets whose contents this operator generates: the sensitive-properties key and, for
     /// OIDC authentication, the admin password. See
-    /// [`build::resource::secret`](crate::controller::build::resource::secret).
+    /// [`build::resource::secret`].
     pub secrets: Vec<Secret>,
     pub pod_disruption_budgets: Vec<PodDisruptionBudget>,
     pub service_accounts: Vec<ServiceAccount>,
@@ -300,7 +294,7 @@ impl ValidatedCluster {
     pub fn cluster_resource_names(&self) -> role_utils::ResourceNames {
         role_utils::ResourceNames {
             cluster_name: self.name.clone(),
-            product_name: product_name(),
+            product_name: PRODUCT_NAME.clone(),
         }
     }
 
@@ -311,84 +305,10 @@ impl ValidatedCluster {
     ) -> ResourceNames {
         ResourceNames {
             cluster_name: self.name.clone(),
-            role_name: NifiRole::Node.into(),
+            role_name: NifiRole::Node.deref().clone(),
             role_group_name: role_group_name.clone(),
         }
     }
-
-    /// Recommended labels for a role-group resource.
-    pub fn recommended_labels(&self, role_group_name: &RoleGroupName) -> Labels {
-        self.recommended_labels_for(&NifiRole::Node.into(), role_group_name)
-    }
-
-    /// Recommended labels for a resource that is not tied to a concrete role, using a free-form role/role-group label value.
-    pub fn recommended_labels_for(
-        &self,
-        role_name: &RoleName,
-        role_group_name: &RoleGroupName,
-    ) -> Labels {
-        self.recommended_labels_with(&self.product_version, role_name, role_group_name)
-    }
-
-    /// Recommended labels for a resource that is shared by the whole cluster rather than tied to a
-    /// role or role group (the RBAC pair, the Secrets built by this operator), which is expressed
-    /// by carrying `none` for both label values.
-    pub fn cluster_shared_recommended_labels(&self) -> Labels {
-        self.recommended_labels_for(&NONE_ROLE_NAME, &NONE_ROLE_GROUP_NAME)
-    }
-
-    /// Recommended labels with the constant [`UNVERSIONED_PRODUCT_VERSION`], for PVC templates
-    /// that cannot be modified after deployment (keeps the labels stable across version upgrades).
-    pub fn unversioned_recommended_labels(&self, role_group_name: &RoleGroupName) -> Labels {
-        self.recommended_labels_with(
-            &UNVERSIONED_PRODUCT_VERSION,
-            &NifiRole::Node.into(),
-            role_group_name,
-        )
-    }
-
-    fn recommended_labels_with(
-        &self,
-        product_version: &ProductVersion,
-        role_name: &RoleName,
-        role_group_name: &RoleGroupName,
-    ) -> Labels {
-        recommended_labels(
-            self,
-            &product_name(),
-            product_version,
-            &operator_name(),
-            &controller_name(),
-            role_name,
-            role_group_name,
-        )
-    }
-
-    /// Selector labels matching the pods of a role group.
-    pub fn role_group_selector(&self, role_group_name: &RoleGroupName) -> Labels {
-        role_group_selector(
-            self,
-            &product_name(),
-            &NifiRole::Node.into(),
-            role_group_name,
-        )
-    }
-}
-
-/// The product name (`nifi`) as a type-safe label value.
-pub(crate) fn product_name() -> ProductName {
-    ProductName::from_str(APP_NAME).expect("'nifi' is a valid product name")
-}
-
-/// The operator name as a type-safe label value.
-pub(crate) fn operator_name() -> OperatorName {
-    OperatorName::from_str(OPERATOR_NAME).expect("the operator name is a valid label value")
-}
-
-/// The controller name as a type-safe label value.
-pub(crate) fn controller_name() -> ControllerName {
-    ControllerName::from_str(NIFI_CONTROLLER_NAME)
-        .expect("the controller name is a valid label value")
 }
 
 impl NameIsValidLabelValue for ValidatedCluster {
@@ -440,18 +360,13 @@ impl Resource for ValidatedCluster {
 
 #[cfg(test)]
 mod tests {
-    use stackable_operator::v2::types::operator::RoleName;
-    use strum::IntoEnumIterator;
+    use super::{CONTROLLER_NAME, OPERATOR_NAME, PRODUCT_NAME};
 
-    use crate::crd::NifiRole;
-
-    /// Locks the invariant behind the `expect` in the `From<NifiRole> for RoleName` impls:
-    /// every `NifiRole` variant (present and future) must serialise to a valid `RoleName`.
     #[test]
-    fn every_nifi_role_serialises_to_a_valid_role_name() {
-        for role in NifiRole::iter() {
-            let _: RoleName = (&role).into();
-            let _: RoleName = role.into();
-        }
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *PRODUCT_NAME;
+        let _ = *OPERATOR_NAME;
+        let _ = *CONTROLLER_NAME;
     }
 }

@@ -61,3 +61,15 @@ pub(crate) fn build_tls_volume(
         )
         .build())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *KEYSTORE_VOLUME_NAME;
+        let _ = *TRUSTSTORE_VOLUME_NAME;
+    }
+}

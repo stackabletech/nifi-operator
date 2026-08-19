@@ -159,8 +159,18 @@ pub(crate) mod test_support {
     /// - Kubernetes clustering backend
     /// - Default `NifiArgon2AesGcm256` sensitive-properties algorithm
     pub fn minimal_validated_cluster() -> ValidatedCluster {
-        let nifi: v1alpha1::NifiCluster =
-            serde_yaml::from_str(MINIMAL_NIFI_YAML).expect("invalid test YAML");
+        validated_cluster_from_yaml(MINIMAL_NIFI_YAML)
+    }
+
+    /// Build a [`ValidatedCluster`] from the given NifiCluster YAML (without Kubernetes API
+    /// access), running the real role-group validation ([`build_role_group_configs`]) on it.
+    ///
+    /// Everything outside the role groups is fixed to the [`MINIMAL_NIFI_YAML`] fixture values:
+    /// the given YAML must keep the cluster name (`simple-nifi`), the namespace (`default`) and
+    /// the product version (`2.9.0`). Use this for fixtures that vary role or role-group
+    /// settings (e.g. `envOverrides`), and [`minimal_validated_cluster`] otherwise.
+    pub fn validated_cluster_from_yaml(yaml: &str) -> ValidatedCluster {
+        let nifi: v1alpha1::NifiCluster = serde_yaml::from_str(yaml).expect("invalid test YAML");
 
         // Mirrors what `image.resolve()` produces in production, so label-asserting tests see
         // realistic values.

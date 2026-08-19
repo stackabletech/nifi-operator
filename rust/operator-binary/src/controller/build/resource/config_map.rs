@@ -6,16 +6,19 @@ use stackable_operator::{
     product_logging::framework::VECTOR_CONFIG_FILE, v2::types::operator::RoleGroupName,
 };
 
-use crate::controller::{
-    NifiRoleGroupConfig, ValidatedCluster,
-    build::{
-        object_meta,
-        properties::{
-            ConfigFileName, authorizers, bootstrap_conf, login_identity_providers, nifi_properties,
-            product_logging, security_properties, state_management_xml,
+use crate::{
+    controller::{
+        NifiRoleGroupConfig, ValidatedCluster,
+        build::{
+            object_meta,
+            properties::{
+                ConfigFileName, authorizers, bootstrap_conf, login_identity_providers,
+                nifi_properties, product_logging, security_properties, state_management_xml,
+            },
+            proxy_hosts, recommended_labels_for_role_group_resources,
         },
-        proxy_hosts,
     },
+    crd::NifiRole,
 };
 
 #[derive(Debug, Snafu)]
@@ -73,7 +76,11 @@ pub fn build_rolegroup_config_map(
                     .role_group_resource_names(role_group_name)
                     .role_group_config_map()
                     .to_string(),
-                cluster.recommended_labels(role_group_name),
+                recommended_labels_for_role_group_resources(
+                    cluster,
+                    &NifiRole::Node,
+                    role_group_name,
+                ),
             )
             .build(),
         )

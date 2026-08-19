@@ -538,13 +538,13 @@ pub fn build(
             // this will be replaced via a container command script
             properties.insert(
                 "nifi.zookeeper.connect.string".to_string(),
-                env_reference(ZOOKEEPER_HOSTS_ENV),
+                env_reference(ZOOKEEPER_HOSTS_ENV.as_ref()),
             );
 
             // this will be replaced via a container command script
             properties.insert(
                 "nifi.zookeeper.root.node".to_string(),
-                env_reference(ZOOKEEPER_CHROOT_ENV),
+                env_reference(ZOOKEEPER_CHROOT_ENV.as_ref()),
             );
         }
 
@@ -557,7 +557,7 @@ pub fn build(
             // this will be replaced via a container command script
             properties.insert(
                 "nifi.cluster.leader.election.kubernetes.lease.prefix".to_string(),
-                env_reference(STACKLET_NAME_ENV),
+                env_reference(STACKLET_NAME_ENV.as_ref()),
             );
         }
     }

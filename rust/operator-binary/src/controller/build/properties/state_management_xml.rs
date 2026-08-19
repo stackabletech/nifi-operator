@@ -62,7 +62,7 @@ mod tests {
         let xml = build(&NifiClusteringBackend::Kubernetes {});
         assert!(xml.contains(KUBERNETES_STATE_PROVIDER_ID));
         assert!(xml.contains("KubernetesConfigMapStateProvider"));
-        assert!(xml.contains(&env_reference(STACKLET_NAME_ENV)));
+        assert!(xml.contains(&env_reference(STACKLET_NAME_ENV.as_ref())));
         assert!(!xml.contains(ZOOKEEPER_STATE_PROVIDER_ID));
     }
 
@@ -74,8 +74,8 @@ mod tests {
         });
         assert!(xml.contains(ZOOKEEPER_STATE_PROVIDER_ID));
         assert!(xml.contains("ZooKeeperStateProvider"));
-        assert!(xml.contains(&env_reference(ZOOKEEPER_HOSTS_ENV)));
-        assert!(xml.contains(&env_reference(ZOOKEEPER_CHROOT_ENV)));
+        assert!(xml.contains(&env_reference(ZOOKEEPER_HOSTS_ENV.as_ref())));
+        assert!(xml.contains(&env_reference(ZOOKEEPER_CHROOT_ENV.as_ref())));
         assert!(!xml.contains(KUBERNETES_STATE_PROVIDER_ID));
     }
 }
