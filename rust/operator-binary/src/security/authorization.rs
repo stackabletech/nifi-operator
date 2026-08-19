@@ -6,6 +6,7 @@ use stackable_operator::{
     builder::pod::volume::{SecretOperatorVolumeSourceBuilder, VolumeBuilder},
     client::Client,
     commons::{opa::OpaConfig, secret_class::SecretClassVolumeProvisionParts},
+    constant,
     k8s_openapi::api::core::v1::{
         ConfigMap, ConfigMapKeySelector, EnvVar, EnvVarSource, Volume, VolumeMount,
     },
@@ -20,10 +21,10 @@ use crate::crd::{
     storage::{NIFI_PVC_STORAGE_DIRECTORY, NifiRepository},
 };
 
-stackable_operator::constant!(OPA_TLS_VOLUME_NAME: VolumeName = "opa-tls");
+constant!(OPA_TLS_VOLUME_NAME: VolumeName = "opa-tls");
 // The env var carrying the OPA base URL (mounted from the OPA discovery ConfigMap) and referenced
 // as `${env:OPA_BASE_URL}` in the generated authorizers.xml.
-stackable_operator::constant!(OPA_BASE_URL_ENV: EnvVarName = "OPA_BASE_URL");
+constant!(OPA_BASE_URL_ENV: EnvVarName = "OPA_BASE_URL");
 pub const OPA_TLS_MOUNT_PATH: &str = "/stackable/opa_tls";
 
 const FILE_BASED_MOUNT_DIRECTORY: &str = "filebased";

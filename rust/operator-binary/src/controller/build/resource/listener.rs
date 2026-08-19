@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use stackable_operator::{
+    constant,
     crd::listener::v1alpha1::{Listener, ListenerPort, ListenerSpec},
     k8s_openapi::api::core::v1::PersistentVolumeClaim,
     kvp::Labels,
@@ -27,7 +28,7 @@ pub const LISTENER_VOLUME_NAME: &str = "listener";
 pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
 
 // The listener volume is provisioned as a PVC by the listener-operator; this is its typed name.
-stackable_operator::constant!(LISTENER_PVC_NAME: PersistentVolumeClaimName = "listener");
+constant!(LISTENER_PVC_NAME: PersistentVolumeClaimName = "listener");
 
 pub fn build_group_listener(
     cluster: &ValidatedCluster,

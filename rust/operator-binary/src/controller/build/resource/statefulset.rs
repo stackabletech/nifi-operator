@@ -13,6 +13,7 @@ use stackable_operator::{
             security::PodSecurityContextBuilder, volume::SecretFormat,
         },
     },
+    constant,
     constants::RESTART_CONTROLLER_ENABLED_LABEL,
     crd::authentication::oidc::v1alpha1::AuthenticationProvider,
     k8s_openapi::{
@@ -124,58 +125,58 @@ const USERDATA_MOUNTPOINT: &str = "/stackable/userdata";
 
 // Volume providing the rendered NiFi config (the `conf` ConfigMap), mounted into the prepare
 // container which templates it into `ACTIVE_CONFIG_VOLUME_NAME`.
-stackable_operator::constant!(CONFIG_VOLUME_NAME: VolumeName = "conf");
+constant!(CONFIG_VOLUME_NAME: VolumeName = "conf");
 const CONFIG_VOLUME_MOUNT: &str = "/conf";
 
 // `emptyDir` holding the live config templated by the prepare container and shared with the NiFi
 // container.
-stackable_operator::constant!(ACTIVE_CONFIG_VOLUME_NAME: VolumeName = "activeconf");
+constant!(ACTIVE_CONFIG_VOLUME_NAME: VolumeName = "activeconf");
 
 // Volume holding the generated sensitive-properties key.
-stackable_operator::constant!(SENSITIVE_PROPERTY_VOLUME_NAME: VolumeName = "sensitiveproperty");
+constant!(SENSITIVE_PROPERTY_VOLUME_NAME: VolumeName = "sensitiveproperty");
 
 // Volume providing the log config (logback/log4j) ConfigMap.
-stackable_operator::constant!(LOG_CONFIG_VOLUME_NAME: VolumeName = "log-config");
+constant!(LOG_CONFIG_VOLUME_NAME: VolumeName = "log-config");
 
 /// Directory the `log-config` ConfigMap volume is mounted at.
 const STACKABLE_LOG_CONFIG_DIR: &str = "/stackable/log_config";
 
 // Volume the NiFi logs are written to and shared with the Vector sidecar (also used by the
 // git-sync container, see [`crate::controller::build::git_sync`]).
-stackable_operator::constant!(pub(crate) LOG_VOLUME_NAME: VolumeName = "log");
+constant!(pub(crate) LOG_VOLUME_NAME: VolumeName = "log");
 
 // `emptyDir` for the Python working directory, mounted into the NiFi container at
 // `NIFI_PYTHON_WORKING_DIRECTORY`.
-stackable_operator::constant!(PYTHON_WORKING_DIR_VOLUME_NAME: VolumeName = "nifi-python-working-directory");
+constant!(PYTHON_WORKING_DIR_VOLUME_NAME: VolumeName = "nifi-python-working-directory");
 
 // Container names. These must match the corresponding (kebab-cased) `crate::crd::Container`
 // variants, which key the per-container logging config.
-stackable_operator::constant!(PREPARE_CONTAINER_NAME: ContainerName = "prepare");
-stackable_operator::constant!(NIFI_CONTAINER_NAME: ContainerName = "nifi");
-stackable_operator::constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
+constant!(PREPARE_CONTAINER_NAME: ContainerName = "prepare");
+constant!(NIFI_CONTAINER_NAME: ContainerName = "nifi");
+constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
 
 // Typed `VolumeName`s for the Vector container's log-config and log volumes. They reuse the
 // existing rolegroup-`ConfigMap` "config" volume (which carries `vector.yaml`) and the "log"
 // empty-dir, both already added to the pod by `build_node_rolegroup_statefulset`.
-stackable_operator::constant!(VECTOR_LOG_CONFIG_VOLUME_NAME: VolumeName = "config");
-stackable_operator::constant!(VECTOR_LOG_VOLUME_NAME: VolumeName = "log");
+constant!(VECTOR_LOG_CONFIG_VOLUME_NAME: VolumeName = "config");
+constant!(VECTOR_LOG_VOLUME_NAME: VolumeName = "log");
 
 // Names of the environment variables injected into the NiFi container here and referenced as
 // `${env:...}` placeholders by the config-file builders (`nifi.properties`,
 // `state-management.xml`). The two sides must agree.
-stackable_operator::constant!(pub(crate) STACKLET_NAME_ENV: EnvVarName = "STACKLET_NAME");
-stackable_operator::constant!(pub(crate) ZOOKEEPER_HOSTS_ENV: EnvVarName = "ZOOKEEPER_HOSTS");
-stackable_operator::constant!(pub(crate) ZOOKEEPER_CHROOT_ENV: EnvVarName = "ZOOKEEPER_CHROOT");
+constant!(pub(crate) STACKLET_NAME_ENV: EnvVarName = "STACKLET_NAME");
+constant!(pub(crate) ZOOKEEPER_HOSTS_ENV: EnvVarName = "ZOOKEEPER_HOSTS");
+constant!(pub(crate) ZOOKEEPER_CHROOT_ENV: EnvVarName = "ZOOKEEPER_CHROOT");
 
 // The ZooKeeper env var names double as the keys of the ZooKeeper discovery ConfigMap the
 // values are mounted from (the same strings, as the env var names are used as the keys).
-stackable_operator::constant!(ZOOKEEPER_HOSTS_CONFIG_MAP_KEY: ConfigMapKey = "ZOOKEEPER_HOSTS");
-stackable_operator::constant!(ZOOKEEPER_CHROOT_CONFIG_MAP_KEY: ConfigMapKey = "ZOOKEEPER_CHROOT");
+constant!(ZOOKEEPER_HOSTS_CONFIG_MAP_KEY: ConfigMapKey = "ZOOKEEPER_HOSTS");
+constant!(ZOOKEEPER_CHROOT_CONFIG_MAP_KEY: ConfigMapKey = "ZOOKEEPER_CHROOT");
 
 // The POD_NAME env var is needed to overwrite `nifi.cluster.node.address` later.
-stackable_operator::constant!(POD_NAME_ENV: EnvVarName = "POD_NAME");
+constant!(POD_NAME_ENV: EnvVarName = "POD_NAME");
 // Needed for the `containerdebug` process to log its tracing information to.
-stackable_operator::constant!(CONTAINERDEBUG_LOG_DIRECTORY_ENV: EnvVarName = "CONTAINERDEBUG_LOG_DIRECTORY");
+constant!(CONTAINERDEBUG_LOG_DIRECTORY_ENV: EnvVarName = "CONTAINERDEBUG_LOG_DIRECTORY");
 
 // Names of environment variables exported by shell commands in the containers (never set as
 // Kubernetes `EnvVar`s by the operator) and referenced as `${env:...}` placeholders by the
