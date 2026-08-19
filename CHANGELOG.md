@@ -23,6 +23,16 @@ All notable changes to this project will be documented in this file.
 - All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#975]).
 - NiFi startup and readiness probes now use the local management server's `/health` and
   `/health/cluster` endpoints instead of a bare TCP check ([#976], [#982]).
+- Environment variable overrides (`envOverrides`) are now merged into the operator-set
+  environment variables by name, so an override replaces the operator's value instead of
+  producing a duplicated entry whose precedence depended on Kubernetes' duplicate-name
+  handling ([#984]).
+- BREAKING: Remove the `app.kubernetes.io/component` and `app.kubernetes.io/role-group` labels
+  from the resources they don't apply to, and the `app.kubernetes.io/version` label from PVC
+  templates (all previously set to the placeholder value `none`). Because the PVC templates of
+  a StatefulSet are immutable, StatefulSets created by older operator versions cannot be
+  updated in place: after the operator upgrade, delete each node StatefulSet so that the
+  operator immediately recreates it with the new labels ([#984]).
 
 ### Fixed
 
@@ -37,6 +47,7 @@ All notable changes to this project will be documented in this file.
 [#975]: https://github.com/stackabletech/nifi-operator/pull/975
 [#976]: https://github.com/stackabletech/nifi-operator/pull/976
 [#982]: https://github.com/stackabletech/nifi-operator/pull/982
+[#984]: https://github.com/stackabletech/nifi-operator/pull/984
 
 ## [26.7.0] - 2026-07-21
 
