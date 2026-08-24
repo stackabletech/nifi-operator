@@ -32,11 +32,11 @@ spec:
                 - -c
                 - curl --fail --silent --show-error --output /dev/null http://127.0.0.1:52020/health
           readinessProbe:
-            failureThreshold: 3
+            failureThreshold: 30
             exec:
               command:
                 - /bin/bash
                 - -euo
                 - pipefail
                 - -c
-                - curl --fail --silent --show-error --output /dev/null http://127.0.0.1:52020/health/cluster
+                - "curl --fail --silent --show-error http://127.0.0.1:52020/health/cluster | grep -q 'Cluster Status: CONNECTED'"
