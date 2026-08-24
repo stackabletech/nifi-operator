@@ -10565,10 +10565,6 @@ rec {
         ];
         devDependencies = [
           {
-            name = "http";
-            packageId = "http";
-          }
-          {
             name = "pretty_assertions";
             packageId = "pretty_assertions";
           }

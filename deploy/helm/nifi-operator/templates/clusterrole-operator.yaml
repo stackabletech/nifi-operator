@@ -13,26 +13,15 @@ rules:
       - nodes/proxy
     verbs:
       - get
-  # Manage core workload resources created per NifiCluster.
-  # Applied via SSA and tracked for orphan cleanup.
+  # Manage core workload resources created per NifiCluster (the ServiceAccount
+  # provides workload pod identity). All are applied via SSA, tracked for orphan
+  # cleanup and owned by the controller.
   - apiGroups:
       - ""
     resources:
       - configmaps
-      - services
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - watch
-  # ServiceAccount created per NifiCluster for workload pod identity.
-  # Applied via SSA and tracked for orphan cleanup, and owned by the controller.
-  - apiGroups:
-      - ""
-    resources:
       - serviceaccounts
+      - services
     verbs:
       - create
       - delete
