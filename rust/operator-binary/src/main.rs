@@ -133,31 +133,32 @@ async fn main() -> anyhow::Result<()> {
 
             let nifi_controller = nifi_controller
                 .owns(
-                    watch_namespace.get_api::<ConfigMap>(&client),
+                    watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
                     watcher::Config::default(),
                 )
                 .owns(
-                    watch_namespace.get_api::<listener::v1alpha1::Listener>(&client),
+                    watch_namespace
+                        .get_api::<DeserializeGuard<listener::v1alpha1::Listener>>(&client),
                     watcher::Config::default(),
                 )
                 .owns(
-                    watch_namespace.get_api::<PodDisruptionBudget>(&client),
+                    watch_namespace.get_api::<DeserializeGuard<PodDisruptionBudget>>(&client),
                     watcher::Config::default(),
                 )
                 .owns(
-                    watch_namespace.get_api::<RoleBinding>(&client),
+                    watch_namespace.get_api::<DeserializeGuard<RoleBinding>>(&client),
                     watcher::Config::default(),
                 )
                 .owns(
-                    watch_namespace.get_api::<Service>(&client),
+                    watch_namespace.get_api::<DeserializeGuard<Service>>(&client),
                     watcher::Config::default(),
                 )
                 .owns(
-                    watch_namespace.get_api::<ServiceAccount>(&client),
+                    watch_namespace.get_api::<DeserializeGuard<ServiceAccount>>(&client),
                     watcher::Config::default(),
                 )
                 .owns(
-                    watch_namespace.get_api::<StatefulSet>(&client),
+                    watch_namespace.get_api::<DeserializeGuard<StatefulSet>>(&client),
                     watcher::Config::default(),
                 )
                 .watches(
