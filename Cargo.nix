@@ -508,7 +508,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.3";
+            packageId = "syn 3.0.4";
             usesDefaultFeatures = false;
             features = [ "clone-impls" "full" "parsing" "printing" "proc-macro" "visit-mut" ];
           }
@@ -989,9 +989,9 @@ rec {
       };
       "cc" = rec {
         crateName = "cc";
-        version = "1.4.3";
+        version = "1.4.4";
         edition = "2021";
-        sha256 = "0v9b5arr047vbihfbh3fmbd3aj9vf1i7dbdgfpvlwzynpjvr35ah";
+        sha256 = "0wq26vvhzv5ci9gx3cfiw320skvaysf9i701wp668lks6ps39m8a";
         dependencies = [
           {
             name = "find-msvc-tools";
@@ -1220,7 +1220,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.3";
+            packageId = "syn 3.0.4";
             features = [ "full" ];
           }
         ];
@@ -1528,9 +1528,9 @@ rec {
       };
       "crc32fast" = rec {
         crateName = "crc32fast";
-        version = "1.5.0";
+        version = "1.5.1";
         edition = "2021";
-        sha256 = "04d51liy8rbssra92p0qnwjw8i9rm9c4m3bwy19wjamz1k4w30cl";
+        sha256 = "0l75bfakpwr86wz45gm38lylrpgbssr529fmm6m445qy2rqwi644";
         authors = [
           "Sam Rijs <srijs@airpost.net>"
           "Alex Crichton <alex@alexcrichton.com>"
@@ -1681,22 +1681,22 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "suggestions" ];
       };
-      "darling 0.24.0" = rec {
+      "darling 0.24.1" = rec {
         crateName = "darling";
-        version = "0.24.0";
+        version = "0.24.1";
         edition = "2021";
-        sha256 = "08vx6iikfg7nz88ljnvnb5rqx819ys3si2mclym7xn4hp7qhnjc8";
+        sha256 = "1v625grpyqddgaslgc0kzha41vzqy91yyg80ra9vjc363f8ga5zd";
         authors = [
           "Ted Driggs <ted.driggs@outlook.com>"
         ];
         dependencies = [
           {
             name = "darling_core";
-            packageId = "darling_core 0.24.0";
+            packageId = "darling_core 0.24.1";
           }
           {
             name = "darling_macro";
-            packageId = "darling_macro 0.24.0";
+            packageId = "darling_macro 0.24.1";
           }
         ];
         features = {
@@ -1746,11 +1746,11 @@ rec {
         };
         resolvedDefaultFeatures = [ "strsim" "suggestions" ];
       };
-      "darling_core 0.24.0" = rec {
+      "darling_core 0.24.1" = rec {
         crateName = "darling_core";
-        version = "0.24.0";
+        version = "0.24.1";
         edition = "2021";
-        sha256 = "1i38i1vwm2a2p3knsyqd0rm7frkfil5lxqz1600ji0n4j57jfkh8";
+        sha256 = "1zyxlb9ypzb3pzm0l8jy09x2kvd7x7qd50b1z0caxal5fk7y4dv8";
         authors = [
           "Ted Driggs <ted.driggs@outlook.com>"
         ];
@@ -1774,7 +1774,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.3";
+            packageId = "syn 3.0.4";
             features = [ "full" "extra-traits" ];
           }
         ];
@@ -1810,11 +1810,11 @@ rec {
         ];
 
       };
-      "darling_macro 0.24.0" = rec {
+      "darling_macro 0.24.1" = rec {
         crateName = "darling_macro";
-        version = "0.24.0";
+        version = "0.24.1";
         edition = "2021";
-        sha256 = "0pimi94crlpzw72s18vi96ysw3il197sdzz0bhrd476ll0ppkxb8";
+        sha256 = "1197l1qqsxssys3nnz58x36nv5kzpbjipsxv6dw2yazh7rf17ira";
         procMacro = true;
         authors = [
           "Ted Driggs <ted.driggs@outlook.com>"
@@ -1822,7 +1822,7 @@ rec {
         dependencies = [
           {
             name = "darling_core";
-            packageId = "darling_core 0.24.0";
+            packageId = "darling_core 0.24.1";
           }
           {
             name = "quote";
@@ -1830,7 +1830,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.3";
+            packageId = "syn 3.0.4";
           }
         ];
 
@@ -2208,7 +2208,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.3";
+            packageId = "syn 3.0.4";
           }
         ];
         features = {
@@ -2416,13 +2416,13 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.3";
+            packageId = "syn 3.0.4";
           }
         ];
         devDependencies = [
           {
             name = "syn";
-            packageId = "syn 3.0.3";
+            packageId = "syn 3.0.4";
             features = [ "full" ];
           }
         ];
@@ -2434,9 +2434,9 @@ rec {
       };
       "either" = rec {
         crateName = "either";
-        version = "1.17.0";
+        version = "1.18.0";
         edition = "2021";
-        sha256 = "07dagpwcfdzpkb1n7fxkx0q3nv80rnf81v7gwlz9ljx22mn8yply";
+        sha256 = "0d7dx31sf8rakcgp63070ngb2vkjynrni866pnx879pawndgnai5";
         features = {
           "default" = [ "std" ];
           "serde" = [ "dep:serde" ];
@@ -2636,7 +2636,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.3";
+            packageId = "syn 3.0.4";
           }
         ];
         features = {
@@ -3095,7 +3095,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.3";
+            packageId = "syn 3.0.4";
             features = [ "full" ];
           }
         ];
@@ -3631,9 +3631,9 @@ rec {
       };
       "h2" = rec {
         crateName = "h2";
-        version = "0.4.16";
+        version = "0.4.18";
         edition = "2021";
-        sha256 = "09syqqhvh36b3rwyn8vjhiz597hfki1hcz3hwagb3cs1ifapmwx9";
+        sha256 = "0a52hs8cakvg7xi3pxqi83vganyaasxn545ya8v74f8j3250x743";
         authors = [
           "Carl Lerche <me@carllerche.com>"
           "Sean McArthur <sean@seanmonstar.com>"
@@ -4618,9 +4618,9 @@ rec {
       };
       "icu_provider" = rec {
         crateName = "icu_provider";
-        version = "2.3.0";
+        version = "2.3.1";
         edition = "2024";
-        sha256 = "0a343jlrb7jlb20xv1airslzv63559wf38jihrx81bba39kyv9wj";
+        sha256 = "0wrydhwprwgyka3r3sw6276syjnlw6fpqr2zsm2srvxv7afvnyyj";
         authors = [
           "The ICU4X Project Developers"
         ];
@@ -5456,7 +5456,7 @@ rec {
         dependencies = [
           {
             name = "darling";
-            packageId = "darling 0.24.0";
+            packageId = "darling 0.24.1";
             optional = true;
           }
           {
@@ -6119,10 +6119,10 @@ rec {
       };
       "libgit2-sys" = rec {
         crateName = "libgit2-sys";
-        version = "0.18.7+1.9.6";
+        version = "0.18.8+1.9.7";
         edition = "2021";
         links = "git2";
-        sha256 = "12ad5zmffzbivn57d47lg2kgjprqsz0kq8i4lsqzlkwz9cg3kir3";
+        sha256 = "0l3vm5g59zl7r7aw7zpms922j78imdlyv219zg1rnj6p4n5mcz3z";
         libName = "libgit2_sys";
         libPath = "lib.rs";
         authors = [
@@ -6260,9 +6260,9 @@ rec {
       };
       "log" = rec {
         crateName = "log";
-        version = "0.4.33";
+        version = "0.4.34";
         edition = "2021";
-        sha256 = "1bd9dmk22pxgnf0h0slba6rz99zb0a0b2mdhpk8p92bp26ycbvhc";
+        sha256 = "1ihkzn0m33ab79fcl4mkb04n5iwqzbxzyw7l7hazqkffaqzbvy7r";
         authors = [
           "The Rust Project Developers"
         ];
@@ -6276,11 +6276,12 @@ rec {
           "kv_unstable_sval" = [ "kv_sval" "kv_unstable" ];
           "serde" = [ "serde_core" ];
           "serde_core" = [ "dep:serde_core" ];
+          "std" = [ "alloc" ];
           "sval" = [ "dep:sval" ];
           "sval_ref" = [ "dep:sval_ref" ];
           "value-bag" = [ "dep:value-bag" ];
         };
-        resolvedDefaultFeatures = [ "std" ];
+        resolvedDefaultFeatures = [ "alloc" "std" ];
       };
       "matchers" = rec {
         crateName = "matchers";
@@ -8174,9 +8175,9 @@ rec {
       };
       "ref-cast" = rec {
         crateName = "ref-cast";
-        version = "1.0.26";
+        version = "1.0.27";
         edition = "2021";
-        sha256 = "0vdra0766jcc2czzqwhql41kkfyajdnai1pbkjxbq8vr7mvqyvi1";
+        sha256 = "1hv5sf0j7b65gz2g57c3wp0fzr5r3807dywf6fap455lwjs0yi3y";
         libName = "ref_cast";
         authors = [
           "David Tolnay <dtolnay@gmail.com>"
@@ -8191,9 +8192,9 @@ rec {
       };
       "ref-cast-impl" = rec {
         crateName = "ref-cast-impl";
-        version = "1.0.26";
+        version = "1.0.27";
         edition = "2021";
-        sha256 = "0g70ff9an5i97cw9kijgzqrqydz7smcfic2zyydddizfbxl874ic";
+        sha256 = "0fnzgkvddgl9xs3884x5ypi9rd0dgc1p5vd1k4b74lw49ybdiv4j";
         procMacro = true;
         libName = "ref_cast_impl";
         authors = [
@@ -8210,7 +8211,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.3";
+            packageId = "syn 3.0.4";
           }
         ];
 
@@ -9131,9 +9132,9 @@ rec {
       };
       "rustls-webpki" = rec {
         crateName = "rustls-webpki";
-        version = "0.103.14";
+        version = "0.103.15";
         edition = "2021";
-        sha256 = "0njk28gvbqrsfg1b5r35y4f80n37kcjylj72fpc0k0g60n3529q5";
+        sha256 = "1hhanq3lz384v4nccacnjfwsyy99n3yc6m6iw8kljz8yicfwzhzk";
         libName = "webpki";
         dependencies = [
           {
@@ -9334,13 +9335,13 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.3";
+            packageId = "syn 3.0.4";
           }
         ];
         devDependencies = [
           {
             name = "syn";
-            packageId = "syn 3.0.3";
+            packageId = "syn 3.0.4";
             features = [ "extra-traits" ];
           }
         ];
@@ -9706,7 +9707,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.3";
+            packageId = "syn 3.0.4";
             usesDefaultFeatures = false;
             features = [ "clone-impls" "derive" "parsing" "printing" "proc-macro" ];
           }
@@ -9738,7 +9739,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.3";
+            packageId = "syn 3.0.4";
             usesDefaultFeatures = false;
             features = [ "clone-impls" "derive" "parsing" "printing" ];
           }
@@ -10792,7 +10793,7 @@ rec {
         dependencies = [
           {
             name = "darling";
-            packageId = "darling 0.24.0";
+            packageId = "darling 0.24.1";
           }
           {
             name = "proc-macro2";
@@ -10804,7 +10805,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.3";
+            packageId = "syn 3.0.4";
           }
         ];
 
@@ -11076,7 +11077,7 @@ rec {
           }
           {
             name = "darling";
-            packageId = "darling 0.24.0";
+            packageId = "darling 0.24.1";
           }
           {
             name = "indoc";
@@ -11113,7 +11114,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.3";
+            packageId = "syn 3.0.4";
           }
         ];
 
@@ -11405,11 +11406,11 @@ rec {
         };
         resolvedDefaultFeatures = [ "clone-impls" "default" "derive" "extra-traits" "fold" "full" "parsing" "printing" "proc-macro" "visit" "visit-mut" ];
       };
-      "syn 3.0.3" = rec {
+      "syn 3.0.4" = rec {
         crateName = "syn";
-        version = "3.0.3";
+        version = "3.0.4";
         edition = "2021";
-        sha256 = "18srnql3cd39j9q6hf1az02p67rlr1rf6njx9zx4vxj9i3jvmsak";
+        sha256 = "17v4ac61x0hvj1879ywqzlwhyzg7n9lr9zniwrsif3b1ykfmq9z6";
         authors = [
           "David Tolnay <dtolnay@gmail.com>"
         ];
@@ -11574,7 +11575,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.3";
+            packageId = "syn 3.0.4";
           }
         ];
 
@@ -11938,7 +11939,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.3";
+            packageId = "syn 3.0.4";
             features = [ "full" ];
           }
         ];
@@ -13324,9 +13325,9 @@ rec {
       };
       "uuid" = rec {
         crateName = "uuid";
-        version = "1.24.1";
+        version = "1.25.0";
         edition = "2021";
-        sha256 = "1n8b7fg7dbx6ws64387l2i0qq900rw9b7qax63acdh37sczw1vrc";
+        sha256 = "1k5y394cmcrpl038i5szyxk96pa27nzgn89480d7cnph6ilmflzh";
         authors = [
           "Ashley Mannix<ashleymannix@live.com.au>"
           "Dylan DPC<dylan.dpc@gmail.com>"
@@ -15401,9 +15402,9 @@ rec {
       };
       "zerovec" = rec {
         crateName = "zerovec";
-        version = "0.11.7";
+        version = "0.11.8";
         edition = "2021";
-        sha256 = "1n4n109wgbbin5hljq6gmbnqqg74yp9igzf40gbw2rkdjyswddcl";
+        sha256 = "1n3xlvyba8riys9s8awy4xp533phqycr78nbsmvdkh86g3hn815v";
         authors = [
           "The ICU4X Project Developers"
         ];
@@ -15447,9 +15448,9 @@ rec {
       };
       "zerovec-derive" = rec {
         crateName = "zerovec-derive";
-        version = "0.11.5";
+        version = "0.11.6";
         edition = "2021";
-        sha256 = "1a8pz516ddcgxvxq3j1xgprac5wnprlrbyzsgzarj0423la2l8cz";
+        sha256 = "1ni5j8v99x3fcf3l8kp64b7aq4vf8y22jshfq74xs9mxkp1nzprl";
         procMacro = true;
         libName = "zerovec_derive";
         authors = [
@@ -15466,7 +15467,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 3.0.3";
+            packageId = "syn 3.0.4";
             features = [ "extra-traits" ];
           }
         ];

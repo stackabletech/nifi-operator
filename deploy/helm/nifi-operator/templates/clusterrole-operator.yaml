@@ -13,12 +13,14 @@ rules:
       - nodes/proxy
     verbs:
       - get
-  # Manage core workload resources created per NifiCluster.
-  # Applied via SSA and tracked for orphan cleanup.
+  # Manage core workload resources created per NifiCluster (the ServiceAccount
+  # provides workload pod identity). All are applied via SSA, tracked for orphan
+  # cleanup and owned by the controller.
   - apiGroups:
       - ""
     resources:
       - configmaps
+      - serviceaccounts
       - services
     verbs:
       - create
@@ -27,18 +29,6 @@ rules:
       - list
       - patch
       - watch
-  # ServiceAccount created per NifiCluster for workload pod identity.
-  # Applied via SSA and tracked for orphan cleanup.
-  - apiGroups:
-      - ""
-    resources:
-      - serviceaccounts
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
   # Sensitive properties key and (when OIDC) admin password Secret. Applied via SSA like every
   # other resource, but deliberately not owned by the NifiCluster, so they are never orphan-deleted
   # (which is also why no `list` is needed here).
@@ -51,7 +41,7 @@ rules:
       - create
       - patch
   # RoleBinding created per NifiCluster to bind the product ClusterRole to the workload
-  # ServiceAccount. Applied via SSA and tracked for orphan cleanup.
+  # ServiceAccount. Applied via SSA and tracked for orphan cleanup, and owned by the controller.
   - apiGroups:
       - rbac.authorization.k8s.io
     resources:
@@ -62,6 +52,7 @@ rules:
       - get
       - list
       - patch
+      - watch
   # Required to bind the product ClusterRole to per-cluster ServiceAccounts
   - apiGroups:
       - rbac.authorization.k8s.io
@@ -84,7 +75,7 @@ rules:
       - list
       - patch
       - watch
-  # PodDisruptionBudget created per role. Applied via SSA and tracked for orphan cleanup.
+  # PodDisruptionBudget created per role. Applied via SSA and tracked for orphan cleanup, and owned by the controller.
   - apiGroups:
       - policy
     resources:
@@ -95,6 +86,7 @@ rules:
       - get
       - list
       - patch
+      - watch
   # Required for maintaining the CRDs within the operator (including the conversion webhook info).
   # Also for the startup condition check before the controller can run.
   - apiGroups:
@@ -120,7 +112,7 @@ rules:
       - create
       - patch
   # Listener created per role group for external access. Applied via SSA and tracked for orphan
-  # cleanup.
+  # cleanup, and owned by the controller.
   - apiGroups:
       - listeners.stackable.tech
     resources:
@@ -131,6 +123,7 @@ rules:
       - get
       - list
       - patch
+      - watch
   # Primary CRD: watched by the controller and read during reconciliation.
   - apiGroups:
       - {{ include "operator.name" . }}.stackable.tech
