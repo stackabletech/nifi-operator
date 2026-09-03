@@ -2,9 +2,9 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "operator.fullname" . }}-clusterrole
+  name: {{ include "nifi-operator.fullname" . }}-clusterrole
   labels:
-  {{- include "operator.labels" . | nindent 4 }}
+  {{- include "nifi-operator.labels" . | nindent 4 }}
 rules:
   # For automatic cluster domain detection
   - apiGroups:
@@ -61,7 +61,7 @@ rules:
     verbs:
       - bind
     resourceNames:
-      - {{ include "operator.name" . }}-clusterrole
+      - {{ include "nifi-operator.name" . }}-clusterrole
   # StatefulSet created per role group. Applied via SSA, tracked for orphan cleanup, and
   # owned by the controller.
   - apiGroups:
@@ -126,18 +126,18 @@ rules:
       - watch
   # Primary CRD: watched by the controller and read during reconciliation.
   - apiGroups:
-      - {{ include "operator.name" . }}.stackable.tech
+      - {{ include "nifi-operator.name" . }}.stackable.tech
     resources:
-      - {{ include "operator.name" . }}clusters
+      - {{ include "nifi-operator.name" . }}clusters
     verbs:
       - get
       - list
       - watch
   # Status subresource: updated at the end of every reconciliation.
   - apiGroups:
-      - {{ include "operator.name" . }}.stackable.tech
+      - {{ include "nifi-operator.name" . }}.stackable.tech
     resources:
-      - {{ include "operator.name" . }}clusters/status
+      - {{ include "nifi-operator.name" . }}clusters/status
     verbs:
       - patch
   # Read authentication class configuration referenced in the NifiCluster spec.
