@@ -40,3 +40,6 @@ spec:
                 - pipefail
                 - -c
                 - "curl --fail --silent --show-error http://127.0.0.1:52020/health/cluster | grep -q 'Cluster Status: CONNECTED'"
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+        - name: vector
+{% endif %}
