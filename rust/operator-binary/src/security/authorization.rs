@@ -266,6 +266,12 @@ impl ResolvedNifiAuthorizationConfig {
         volume_mounts
     }
 
+    /// Returns the volumes required by the configured authorization method.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a volume source cannot be built, which cannot happen because the annotation
+    /// keys are static and annotation values cannot be invalid.
     pub fn get_volumes(&self) -> Vec<Volume> {
         let mut volumes = vec![];
 

@@ -57,6 +57,12 @@ pub fn build_group_listener(
     }
 }
 
+/// Builds the persistent volume claim template for the group listener volume.
+///
+/// # Panics
+///
+/// Panics if the volume source cannot be built, which cannot happen because the annotation
+/// keys are static and annotation values cannot be invalid.
 pub fn build_group_listener_pvc(
     group_listener_name: &ListenerName,
     unversioned_recommended_labels: &Labels,

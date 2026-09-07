@@ -498,12 +498,6 @@ pub(crate) fn build_node_rolegroup_statefulset(
     for container in git_sync_resources.git_sync_init_containers.iter().cloned() {
         pod_builder.add_init_container(container);
     }
-    pod_builder
-        .add_volumes(git_sync_resources.git_content_volumes.to_owned())
-        .context(AddVolumeSnafu)?;
-    pod_builder
-        .add_volumes(git_sync_resources.git_ca_cert_volumes.to_owned())
-        .context(AddVolumeSnafu)?;
 
     // The NiFi `log-config` volume sources from the custom log ConfigMap when one is configured,
     // otherwise from this rolegroup's ConfigMap (which carries the operator-generated `logback.xml`).
@@ -540,22 +534,13 @@ pub(crate) fn build_node_rolegroup_statefulset(
         ));
     }
 
-    authentication_config
-        .add_volumes_and_mounts(&mut pod_builder, vec![&mut container_prepare])
-        .context(AddAuthVolumesSnafu)?;
-
-    let metadata = ObjectMetaBuilder::new()
-        .with_labels(recommended_object_labels)
-        .build();
-
     let requested_secret_lifetime = merged_config
         .requested_secret_lifetime
         .context(MissingSecretLifetimeSnafu)?;
+    // Operator-managed volumes with static names first: their adds are infallible. The volumes
+    // derived from user input (authentication, git-sync) and the user's `extraVolumes` are added
+    // afterwards and stay fallible, as they can collide with the operator-managed ones.
     pod_builder
-        .metadata(metadata)
-        .image_pull_secrets_from_product_image(resolved_product_image)
-        .add_init_container(container_prepare.build())
-        .affinity(&merged_config.affinity)
         // The rolegroup `ConfigMap` mounted as-is (it also carries `vector.yaml`); read by the
         // Vector sidecar via [`VECTOR_LOG_CONFIG_VOLUME_NAME`].
         .add_volume(Volume {
@@ -624,7 +609,30 @@ pub(crate) fn build_node_rolegroup_statefulset(
             name: ACTIVE_CONFIG_VOLUME_NAME.to_string(),
             ..Volume::default()
         })
-        .expect("The volume names are statically defined and there should be no duplicates.")
+        .expect("The volume names are statically defined and there should be no duplicates.");
+
+    // Volumes derived from user input: the authentication volumes are named after the user's
+    // SecretClasses (the helper adds its own static `admin` volume first), the git-sync volumes
+    // are numbered per configured repository.
+    authentication_config
+        .add_volumes_and_mounts(&mut pod_builder, vec![&mut container_prepare])
+        .context(AddAuthVolumesSnafu)?;
+    pod_builder
+        .add_volumes(git_sync_resources.git_content_volumes.to_owned())
+        .context(AddVolumeSnafu)?;
+    pod_builder
+        .add_volumes(git_sync_resources.git_ca_cert_volumes.to_owned())
+        .context(AddVolumeSnafu)?;
+
+    let metadata = ObjectMetaBuilder::new()
+        .with_labels(recommended_object_labels)
+        .build();
+
+    pod_builder
+        .metadata(metadata)
+        .image_pull_secrets_from_product_image(resolved_product_image)
+        .add_init_container(container_prepare.build())
+        .affinity(&merged_config.affinity)
         .service_account_name(
             cluster
                 .cluster_resource_names()

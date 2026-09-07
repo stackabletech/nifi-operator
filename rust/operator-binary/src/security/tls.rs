@@ -15,6 +15,12 @@ constant!(pub KEYSTORE_VOLUME_NAME: VolumeName = "keystore");
 pub const KEYSTORE_NIFI_CONTAINER_MOUNT: &str = "/stackable/keystore";
 constant!(pub TRUSTSTORE_VOLUME_NAME: VolumeName = "truststore");
 
+/// Builds the secret-operator volume providing the TLS keystore for the given SecretClass.
+///
+/// # Panics
+///
+/// Panics if the volume source cannot be built, which cannot happen because the annotation
+/// keys are static and annotation values cannot be invalid.
 pub(crate) fn build_tls_volume(
     server_tls_secret_class: &SecretClassName,
     volume_name: &VolumeName,

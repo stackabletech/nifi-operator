@@ -211,6 +211,12 @@ impl NifiAuthenticationConfig {
 
     /// Adds the volumes and volume mounts required by the configured authentication
     /// method to the pod and the given container builders.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the volumes or volume mounts cannot be added to the builders. Only call this
+    /// on builders whose volume names and mount paths are still distinct from the ones added
+    /// here.
     pub fn add_volumes_and_mounts(
         &self,
         pod_builder: &mut PodBuilder,
