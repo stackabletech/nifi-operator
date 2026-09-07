@@ -1,10 +1,7 @@
 use indoc::{formatdoc, indoc};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
-    builder::{
-        self,
-        pod::{PodBuilder, container::ContainerBuilder},
-    },
+    builder::pod::{PodBuilder, container::ContainerBuilder},
     client::Client,
     crd::authentication::{core as auth_core, ldap, oidc, r#static},
     k8s_openapi::api::core::v1::{KeyToPath, SecretVolumeSource, Volume},
@@ -74,14 +71,6 @@ pub enum Error {
         "The LDAP AuthenticationClass is missing the bind credentials. Currently the NiFi operator only supports connecting to LDAP servers using bind credentials"
     ))]
     LdapAuthenticationClassMissingBindCredentials {},
-
-    #[snafu(display("failed to add needed volume"))]
-    AddVolume { source: builder::pod::Error },
-
-    #[snafu(display("failed to add needed volumeMount"))]
-    AddVolumeMount {
-        source: builder::pod::container::Error,
-    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -243,13 +232,13 @@ impl NifiAuthenticationConfig {
                     }),
                     ..Volume::default()
                 };
-                pod_builder
-                    .add_volume(admin_volume)
-                    .context(AddVolumeSnafu)?;
+                pod_builder.add_volume(admin_volume).expect(
+                    "The volume names are statically defined and there should be no duplicates.",
+                );
 
                 for cb in container_builders {
                     cb.add_volume_mount(STACKABLE_ADMIN_USERNAME, STACKABLE_USER_VOLUME_MOUNT_PATH)
-                        .context(AddVolumeMountSnafu)?;
+                        .expect("The mount paths are statically defined and there should be no duplicates.");
                 }
             }
             Self::Ldap { provider } => {
@@ -276,13 +265,13 @@ impl NifiAuthenticationConfig {
                     }),
                     ..Volume::default()
                 };
-                pod_builder
-                    .add_volume(admin_volume)
-                    .context(AddVolumeSnafu)?;
+                pod_builder.add_volume(admin_volume).expect(
+                    "The volume names are statically defined and there should be no duplicates.",
+                );
 
                 for cb in &mut container_builders {
                     cb.add_volume_mount(STACKABLE_ADMIN_USERNAME, STACKABLE_USER_VOLUME_MOUNT_PATH)
-                        .context(AddVolumeMountSnafu)?;
+                        .expect("The mount paths are statically defined and there should be no duplicates.");
                 }
 
                 provider

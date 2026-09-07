@@ -2,9 +2,12 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 use stackable_operator::{
+    constant,
     schemars::{self, JsonSchema},
     v2::types::kubernetes::SecretClassName,
 };
+
+constant!(DEFAULT_SERVER_SECRET_CLASS: SecretClassName = "tls");
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -25,7 +28,20 @@ impl Default for NifiTls {
 }
 
 impl NifiTls {
+    /// Serde default for `serverSecretClass`. Kept as a function because
+    /// `#[serde(default = "...")]` requires a function path.
     fn default_server_secret_class() -> SecretClassName {
-        SecretClassName::from_str("tls").expect("'tls' is a valid secret class name")
+        DEFAULT_SERVER_SECRET_CLASS.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *DEFAULT_SERVER_SECRET_CLASS;
     }
 }

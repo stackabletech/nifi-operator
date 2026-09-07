@@ -37,10 +37,6 @@ pub enum Error {
         configmap_name: String,
         namespace: String,
     },
-    #[snafu(display("failed to build OPA TLS certificate volume"))]
-    OpaTlsCertSecretClassVolumeBuild {
-        source: stackable_operator::builder::pod::volume::SecretOperatorVolumeSourceBuilderError,
-    },
 }
 
 #[derive(Clone)]
@@ -270,7 +266,7 @@ impl ResolvedNifiAuthorizationConfig {
         volume_mounts
     }
 
-    pub fn get_volumes(&self) -> Result<Vec<Volume>, Error> {
+    pub fn get_volumes(&self) -> Vec<Volume> {
         let mut volumes = vec![];
 
         if let ResolvedNifiAuthorizationConfig::Opa {
@@ -287,13 +283,13 @@ impl ResolvedNifiAuthorizationConfig {
                             SecretClassVolumeProvisionParts::Public,
                         )
                         .build()
-                        .context(OpaTlsCertSecretClassVolumeBuildSnafu)?,
+                        .expect("The annotation keys are static and annotation values cannot be invalid."),
                     )
                     .build(),
             )
         };
 
-        Ok(volumes)
+        volumes
     }
 
     pub fn has_opa_tls(&self) -> bool {
