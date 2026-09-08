@@ -1,7 +1,10 @@
 use indoc::{formatdoc, indoc};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
-    builder::pod::{PodBuilder, container::ContainerBuilder},
+    builder::{
+        self,
+        pod::{PodBuilder, container::ContainerBuilder},
+    },
     client::Client,
     crd::authentication::{core as auth_core, ldap, oidc, r#static},
     k8s_openapi::api::core::v1::{KeyToPath, SecretVolumeSource, Volume},
@@ -71,6 +74,9 @@ pub enum Error {
         "The LDAP AuthenticationClass is missing the bind credentials. Currently the NiFi operator only supports connecting to LDAP servers using bind credentials"
     ))]
     LdapAuthenticationClassMissingBindCredentials {},
+
+    #[snafu(display("failed to add needed volume"))]
+    AddVolume { source: builder::pod::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -214,9 +220,8 @@ impl NifiAuthenticationConfig {
     ///
     /// # Panics
     ///
-    /// Panics if the volumes or volume mounts cannot be added to the builders. Only call this
-    /// on builders whose volume names and mount paths are still distinct from the ones added
-    /// here.
+    /// Panics if the volume mounts cannot be added to the container builders. Only call this on
+    /// container builders whose mount paths are still distinct from the ones added here.
     pub fn add_volumes_and_mounts(
         &self,
         pod_builder: &mut PodBuilder,
@@ -238,9 +243,9 @@ impl NifiAuthenticationConfig {
                     }),
                     ..Volume::default()
                 };
-                pod_builder.add_volume(admin_volume).expect(
-                    "The volume names are statically defined and there should be no duplicates.",
-                );
+                pod_builder
+                    .add_volume(admin_volume)
+                    .context(AddVolumeSnafu)?;
 
                 for cb in container_builders {
                     cb.add_volume_mount(STACKABLE_ADMIN_USERNAME, STACKABLE_USER_VOLUME_MOUNT_PATH)
@@ -271,9 +276,9 @@ impl NifiAuthenticationConfig {
                     }),
                     ..Volume::default()
                 };
-                pod_builder.add_volume(admin_volume).expect(
-                    "The volume names are statically defined and there should be no duplicates.",
-                );
+                pod_builder
+                    .add_volume(admin_volume)
+                    .context(AddVolumeSnafu)?;
 
                 for cb in &mut container_builders {
                     cb.add_volume_mount(STACKABLE_ADMIN_USERNAME, STACKABLE_USER_VOLUME_MOUNT_PATH)

@@ -33,7 +33,7 @@ All notable changes to this project will be documented in this file.
   a StatefulSet are immutable, StatefulSets created by older operator versions cannot be
   updated in place: after the operator upgrade, delete each node StatefulSet so that the
   operator immediately recreates it with the new labels ([#984]).
-- Make operations infallible where appropriate ([#990]).
+- Make operations infallible where dependent on static inputs ([#990]).
 
 ### Fixed
 

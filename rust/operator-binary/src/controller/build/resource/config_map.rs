@@ -33,6 +33,12 @@ pub enum Error {
         rolegroup: RoleGroupName,
     },
 
+    #[snafu(display("failed to build ConfigMap for {rolegroup}"))]
+    BuildRoleGroupConfig {
+        source: stackable_operator::builder::configmap::Error,
+        rolegroup: RoleGroupName,
+    },
+
     #[snafu(display("failed to serialize JVM security properties for {}", rolegroup))]
     JvmSecurityProperties {
         source: stackable_operator::v2::config_file_writer::PropertiesWriterError,
@@ -124,7 +130,9 @@ pub fn build_rolegroup_config_map(
         );
     }
 
-    Ok(cm_builder
+    cm_builder
         .build()
-        .expect("The ConfigMap metadata is set in this function."))
+        .with_context(|_| BuildRoleGroupConfigSnafu {
+            rolegroup: role_group_name.clone(),
+        })
 }

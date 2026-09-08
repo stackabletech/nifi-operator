@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::pod::volume::{SecretFormat, SecretOperatorVolumeSourceBuilder, VolumeBuilder},
     commons::secret_class::SecretClassVolumeProvisionParts,
@@ -15,6 +16,16 @@ constant!(pub KEYSTORE_VOLUME_NAME: VolumeName = "keystore");
 pub const KEYSTORE_NIFI_CONTAINER_MOUNT: &str = "/stackable/keystore";
 constant!(pub TRUSTSTORE_VOLUME_NAME: VolumeName = "truststore");
 
+type Result<T, E = Error> = std::result::Result<T, E>;
+
+#[derive(Snafu, Debug)]
+pub enum Error {
+    #[snafu(display("failed to build TLS certificate SecretClass Volume"))]
+    TlsCertSecretClassVolumeBuild {
+        source: stackable_operator::builder::pod::volume::SecretOperatorVolumeSourceBuilderError,
+    },
+}
+
 pub(crate) fn build_tls_volume(
     server_tls_secret_class: &SecretClassName,
     volume_name: &VolumeName,
@@ -22,7 +33,7 @@ pub(crate) fn build_tls_volume(
     secret_format: SecretFormat,
     requested_secret_lifetime: &Duration,
     listener_scope: Option<&str>,
-) -> Volume {
+) -> Result<Volume> {
     let mut secret_volume_source_builder = SecretOperatorVolumeSourceBuilder::new(
         server_tls_secret_class,
         // NiFi serves its own TLS endpoints, so the Pod needs both the public
@@ -40,16 +51,16 @@ pub(crate) fn build_tls_volume(
         secret_volume_source_builder.with_listener_volume_scope(listener_scope);
     }
 
-    VolumeBuilder::new(volume_name)
+    Ok(VolumeBuilder::new(volume_name)
         .ephemeral(
             secret_volume_source_builder
                 .with_pod_scope()
                 .with_format(secret_format)
                 .with_auto_tls_cert_lifetime(*requested_secret_lifetime)
                 .build()
-                .expect("The annotation keys are static and annotation values cannot be invalid."),
+                .context(TlsCertSecretClassVolumeBuildSnafu)?,
         )
-        .build()
+        .build())
 }
 
 #[cfg(test)]

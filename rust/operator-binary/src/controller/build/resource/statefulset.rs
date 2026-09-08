@@ -79,9 +79,9 @@ use crate::{
         authentication::{
             NifiAuthenticationConfig, STACKABLE_SERVER_TLS_DIR, STACKABLE_TLS_STORE_PASSWORD,
         },
-        authorization::{OPA_TLS_MOUNT_PATH, ResolvedNifiAuthorizationConfig},
+        authorization::{self, OPA_TLS_MOUNT_PATH, ResolvedNifiAuthorizationConfig},
         tls::{
-            KEYSTORE_NIFI_CONTAINER_MOUNT, KEYSTORE_VOLUME_NAME, TRUSTSTORE_VOLUME_NAME,
+            self, KEYSTORE_NIFI_CONTAINER_MOUNT, KEYSTORE_VOLUME_NAME, TRUSTSTORE_VOLUME_NAME,
             build_tls_volume,
         },
     },
@@ -99,6 +99,9 @@ pub enum Error {
         source: crate::security::authentication::Error,
     },
 
+    #[snafu(display("failed to build the TLS certificate Volume"))]
+    BuildTlsVolume { source: tls::Error },
+
     #[snafu(display("failed to add needed volume"))]
     AddVolume { source: builder::pod::Error },
 
@@ -111,6 +114,9 @@ pub enum Error {
     GracefulShutdown {
         source: crate::controller::build::graceful_shutdown::Error,
     },
+
+    #[snafu(display("failed to build authorization configuration"))]
+    AuthorizationConfiguration { source: authorization::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -355,7 +361,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
                 .iter()
                 .map(NifiRepository::volume_mount),
         )
-        .expect("The mount paths are statically defined and there should be no duplicates.")
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(CONFIG_VOLUME_NAME.to_string(), CONFIG_VOLUME_MOUNT)
         .expect("The mount paths are statically defined and there should be no duplicates.")
         .add_volume_mount(
@@ -377,7 +383,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
         .add_volume_mount(&*LISTENER_PVC_NAME, LISTENER_VOLUME_DIR)
         .expect("The mount paths are statically defined and there should be no duplicates.")
         .add_volume_mounts(authorization_config.get_volume_mounts())
-        .expect("The mount paths are statically defined and there should be no duplicates.")
+        .context(AddVolumeMountSnafu)?
         .resources(
             ResourceRequirementsBuilder::new()
                 .with_cpu_request("500m")
@@ -425,7 +431,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
                 .iter()
                 .map(NifiRepository::volume_mount),
         )
-        .expect("The mount paths are statically defined and there should be no duplicates.")
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(ACTIVE_CONFIG_VOLUME_NAME.to_string(), NIFI_CONFIG_DIRECTORY)
         .expect("The mount paths are statically defined and there should be no duplicates.")
         .add_volume_mount(LOG_CONFIG_VOLUME_NAME.to_string(), STACKABLE_LOG_CONFIG_DIR)
@@ -437,7 +443,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
         .add_volume_mount(&*LISTENER_PVC_NAME, LISTENER_VOLUME_DIR)
         .expect("The mount paths are statically defined and there should be no duplicates.")
         .add_volume_mounts(authorization_config.get_volume_mounts())
-        .expect("The mount paths are statically defined and there should be no duplicates.")
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(
             PYTHON_WORKING_DIR_VOLUME_NAME.to_string(),
             NIFI_PYTHON_WORKING_DIRECTORY,
@@ -465,7 +471,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
     // Mount the user configured extra volumes, if any are specified. The mounts come after every
     // operator-managed mount of the NiFi container, so they can collide with those and stay
     // fallible. The volumes themselves are added to the Pod at the very end, after every
-    // operator-managed volume, for the same reason.
+    // operator-managed volume.
     for volume in &cluster.cluster_config.extra_volumes {
         // Extract values into vars so we make it impossible to log something other than
         // what we actually use to create the mounts - maybe paranoid, but hey ..
@@ -516,7 +522,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
             }),
             ..Volume::default()
         })
-        .expect("The volume names are statically defined and there should be no duplicates.");
+        .context(AddVolumeSnafu)?;
 
     // The Vector logging config was validated up-front in the `validate` step. The static
     // `vector.yaml` is shipped in the rolegroup `ConfigMap`; the per-rolegroup values (namespace,
@@ -537,9 +543,10 @@ pub(crate) fn build_node_rolegroup_statefulset(
     let requested_secret_lifetime = merged_config
         .requested_secret_lifetime
         .context(MissingSecretLifetimeSnafu)?;
-    // Operator-managed volumes with static names first: their adds are infallible. The volumes
-    // derived from user input (authentication, git-sync) and the user's `extraVolumes` are added
-    // afterwards and stay fallible, as they can collide with the operator-managed ones.
+    // Operator-managed volumes first. Only the volume mounts with static paths are added
+    // infallibly, every volume add is fallible. The volumes derived from user input
+    // (authentication, git-sync) and the user's `extraVolumes` are added afterwards, so a name
+    // collision is reported on the user-derived side.
     pod_builder
         // The rolegroup `ConfigMap` mounted as-is (it also carries `vector.yaml`); read by the
         // Vector sidecar via [`VECTOR_LOG_CONFIG_VOLUME_NAME`].
@@ -551,7 +558,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
             }),
             ..Volume::default()
         })
-        .expect("The volume names are statically defined and there should be no duplicates.")
+        .context(AddVolumeSnafu)?
         .add_volume(Volume {
             name: CONFIG_VOLUME_NAME.to_string(),
             config_map: Some(ConfigMapVolumeSource {
@@ -560,7 +567,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
             }),
             ..Volume::default()
         })
-        .expect("The volume names are statically defined and there should be no duplicates.")
+        .context(AddVolumeSnafu)?
         .add_empty_dir_volume(
             LOG_VOLUME_NAME.to_string(),
             // Set volume size to higher than theoretically necessary to avoid running out of disk space as log rotation triggers are only checked by Logback every 5s.
@@ -572,24 +579,31 @@ pub(crate) fn build_node_rolegroup_statefulset(
                 .into(),
             ),
         )
-        .expect("The volume names are statically defined and there should be no duplicates.")
+        .context(AddVolumeSnafu)?
         // One volume for the keystore and truststore data configmap
-        .add_volume(build_tls_volume(
-            &cluster.cluster_config.server_tls_secret_class,
-            &KEYSTORE_VOLUME_NAME,
-            [cluster
-                .role_group_resource_names(role_group_name)
-                .metrics_service_name()
-                .to_string()],
-            SecretFormat::TlsPkcs12,
-            &requested_secret_lifetime,
-            Some(LISTENER_PVC_NAME.as_ref()),
-        ))
-        .expect("The volume names are statically defined and there should be no duplicates.")
+        .add_volume(
+            build_tls_volume(
+                &cluster.cluster_config.server_tls_secret_class,
+                &KEYSTORE_VOLUME_NAME,
+                [cluster
+                    .role_group_resource_names(role_group_name)
+                    .metrics_service_name()
+                    .to_string()],
+                SecretFormat::TlsPkcs12,
+                &requested_secret_lifetime,
+                Some(LISTENER_PVC_NAME.as_ref()),
+            )
+            .context(BuildTlsVolumeSnafu)?,
+        )
+        .context(AddVolumeSnafu)?
         .add_empty_dir_volume(TRUSTSTORE_VOLUME_NAME.to_string(), None)
         .expect("The volume names are statically defined and there should be no duplicates.")
-        .add_volumes(authorization_config.get_volumes())
-        .expect("The volume names are statically defined and there should be no duplicates.");
+        .add_volumes(
+            authorization_config
+                .get_volumes()
+                .context(AuthorizationConfigurationSnafu)?,
+        )
+        .context(AddVolumeSnafu)?;
 
     pod_builder
         .add_volume(Volume {
@@ -600,7 +614,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
             }),
             ..Volume::default()
         })
-        .expect("The volume names are statically defined and there should be no duplicates.")
+        .context(AddVolumeSnafu)?
         .add_volume(Volume {
             empty_dir: Some(EmptyDirVolumeSource {
                 medium: None,
@@ -609,7 +623,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
             name: ACTIVE_CONFIG_VOLUME_NAME.to_string(),
             ..Volume::default()
         })
-        .expect("The volume names are statically defined and there should be no duplicates.");
+        .context(AddVolumeSnafu)?;
 
     // Volumes derived from user input: the authentication volumes are named after the user's
     // SecretClasses (the helper adds its own static `admin` volume first), the git-sync volumes
@@ -844,8 +858,8 @@ mod tests {
     }
 
     /// A user-supplied extra volume whose name collides with an operator-managed volume must be
-    /// reported as an error (the operator's own volumes are added first and are infallible, so
-    /// the collision must surface on the user-supplied side, never as a panic).
+    /// reported as an error (the operator's own volumes are added first, so the collision
+    /// surfaces on the user-supplied side).
     #[test]
     fn extra_volume_colliding_with_operator_volume_is_an_error() {
         let cluster = validated_cluster_from_yaml(
