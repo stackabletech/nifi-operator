@@ -77,11 +77,6 @@ pub enum Error {
 
     #[snafu(display("failed to add needed volume"))]
     AddVolume { source: builder::pod::Error },
-
-    #[snafu(display("failed to add needed volumeMount"))]
-    AddVolumeMount {
-        source: builder::pod::container::Error,
-    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -222,6 +217,11 @@ impl NifiAuthenticationConfig {
 
     /// Adds the volumes and volume mounts required by the configured authentication
     /// method to the pod and the given container builders.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the volume mounts cannot be added to the container builders. Only call this on
+    /// container builders whose mount paths are still distinct from the ones added here.
     pub fn add_volumes_and_mounts(
         &self,
         pod_builder: &mut PodBuilder,
@@ -249,7 +249,7 @@ impl NifiAuthenticationConfig {
 
                 for cb in container_builders {
                     cb.add_volume_mount(STACKABLE_ADMIN_USERNAME, STACKABLE_USER_VOLUME_MOUNT_PATH)
-                        .context(AddVolumeMountSnafu)?;
+                        .expect("The mount paths are statically defined and there should be no duplicates.");
                 }
             }
             Self::Ldap { provider } => {
@@ -282,7 +282,7 @@ impl NifiAuthenticationConfig {
 
                 for cb in &mut container_builders {
                     cb.add_volume_mount(STACKABLE_ADMIN_USERNAME, STACKABLE_USER_VOLUME_MOUNT_PATH)
-                        .context(AddVolumeMountSnafu)?;
+                        .expect("The mount paths are statically defined and there should be no duplicates.");
                 }
 
                 provider

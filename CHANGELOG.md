@@ -33,6 +33,7 @@ All notable changes to this project will be documented in this file.
   a StatefulSet are immutable, StatefulSets created by older operator versions cannot be
   updated in place: after the operator upgrade, delete each node StatefulSet so that the
   operator immediately recreates it with the new labels ([#984]).
+- Make operations infallible where dependent on static inputs ([#990]).
 
 ### Fixed
 
@@ -51,6 +52,7 @@ All notable changes to this project will be documented in this file.
 [#982]: https://github.com/stackabletech/nifi-operator/pull/982
 [#984]: https://github.com/stackabletech/nifi-operator/pull/984
 [#985]: https://github.com/stackabletech/nifi-operator/pull/985
+[#990]: https://github.com/stackabletech/nifi-operator/pull/990
 
 ## [26.7.0] - 2026-07-21
 

@@ -42,6 +42,7 @@ use stackable_operator::{
     },
     versioned::versioned,
 };
+use strum::EnumIter;
 use tls::NifiTls;
 
 pub const APP_NAME: &str = "nifi";
@@ -225,7 +226,7 @@ pub fn default_allow_all() -> bool {
 
 constant!(NODE_ROLE_NAME: RoleName = "node");
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, EnumIter, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum NifiRole {
     Node,
 }
@@ -433,9 +434,12 @@ impl Default for NifiNodeRoleConfig {
     }
 }
 
+constant!(NODE_DEFAULT_LISTENER_CLASS: ListenerClassName = "cluster-internal");
+
+/// Serde default for `listenerClass`. Kept as a function because `#[serde(default = "...")]`
+/// requires a function path.
 fn node_default_listener_class() -> ListenerClassName {
-    ListenerClassName::from_str("cluster-internal")
-        .expect("'cluster-internal' is a valid listener class name")
+    NODE_DEFAULT_LISTENER_CLASS.clone()
 }
 
 #[cfg(test)]
@@ -548,6 +552,7 @@ mod tests {
     fn test_constants() {
         // Test that dereferencing the constants does not panic.
         let _ = *NODE_ROLE_NAME;
+        let _ = *NODE_DEFAULT_LISTENER_CLASS;
     }
 
     impl RoundtripTestData for v1alpha1::NifiClusterSpec {
