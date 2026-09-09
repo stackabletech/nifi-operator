@@ -42,6 +42,7 @@ use stackable_operator::{
     },
     versioned::versioned,
 };
+use strum::EnumIter;
 use tls::NifiTls;
 
 pub const APP_NAME: &str = "nifi";
@@ -225,7 +226,7 @@ pub fn default_allow_all() -> bool {
 
 constant!(NODE_ROLE_NAME: RoleName = "node");
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, EnumIter, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum NifiRole {
     Node,
 }

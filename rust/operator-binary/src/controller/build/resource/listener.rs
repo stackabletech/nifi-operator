@@ -68,6 +68,7 @@ pub fn build_group_listener_pvc(
     )
 }
 
+/// The returned ListenerName is a lowercase RFC 1035 label name (checked by a unit test).
 pub fn group_listener_name(cluster: &ValidatedCluster, role_name: &RoleName) -> ListenerName {
     const _: () = assert!(
         ClusterName::MAX_LENGTH + 1 /* dash */ + RoleName::MAX_LENGTH <= ListenerName::MAX_LENGTH,
@@ -86,11 +87,34 @@ pub fn group_listener_name(cluster: &ValidatedCluster, role_name: &RoleName) -> 
 
 #[cfg(test)]
 mod tests {
+    use strum::IntoEnumIterator;
+
     use super::*;
+    use crate::controller::build::properties::test_support::minimal_validated_cluster;
 
     #[test]
     fn test_constants() {
         // Test that dereferencing the constants does not panic.
         let _ = *LISTENER_PVC_NAME;
+    }
+
+    #[test]
+    fn group_listener_name_is_rfc_1035_label_name() {
+        // Every ClusterName is a valid RFC 1035 label name, so we use just some string with maximum
+        // length.
+        let _ = ClusterName::IS_RFC_1035_LABEL_NAME;
+        let mut cluster = minimal_validated_cluster();
+        cluster.name = ClusterName::from_str(&"a".repeat(ClusterName::MAX_LENGTH))
+            .expect("is a valid ClusterName");
+
+        for role in NifiRole::iter() {
+            let group_listener_name = group_listener_name(&cluster, &role);
+            assert!(
+                stackable_operator::validation::is_lowercase_rfc_1035_label(
+                    group_listener_name.as_ref()
+                )
+                .is_ok()
+            );
+        }
     }
 }
