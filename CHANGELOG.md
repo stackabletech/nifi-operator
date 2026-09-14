@@ -4,11 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Support floating tag in product image selection ([#994]).
+
 ### Changed
 
 - Internal operator refactoring: introduce a build() step in the reconciler that
   assembles all relevant Kubernetes resources before anything is applied ([#961]).
-- Bump stackable-operator to 0.114.0 ([#970])
+- Bump stackable-operator to 0.118.0 ([#970], [#994]).
 - The RBAC ServiceAccount and RoleBinding are now built with the operator-rs `v2::rbac`
   functions and carry the full set of recommended labels ([#966]).
 - BREAKING: The `nodes` role is now required by the CRD; a NifiCluster without it was
@@ -53,6 +57,7 @@ All notable changes to this project will be documented in this file.
 [#984]: https://github.com/stackabletech/nifi-operator/pull/984
 [#985]: https://github.com/stackabletech/nifi-operator/pull/985
 [#990]: https://github.com/stackabletech/nifi-operator/pull/990
+[#994]: https://github.com/stackabletech/nifi-operator/pull/994
 
 ## [26.7.0] - 2026-07-21
 
