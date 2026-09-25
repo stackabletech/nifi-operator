@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - Support floating tags for product images via the new `spec.image.stackableVersionPolicy` field
   ([#994]).
+- Add support for 2.12.0 ([#997]).
 
 ### Changed
 
@@ -43,6 +44,7 @@ All notable changes to this project will be documented in this file.
   updated in place: after the operator upgrade, delete each node StatefulSet so that the
   operator immediately recreates it with the new labels ([#984]).
 - Make operations infallible where dependent on static inputs ([#990]).
+- Deprecate support for 2.9.0 ([#997]).
 
 ### Fixed
 
@@ -51,6 +53,10 @@ All notable changes to this project will be documented in this file.
   See [our internal issue](https://github.com/stackabletech/hdfs-operator/issues/626) and [the fix](https://github.com/kube-rs/kube/pull/2042) for details ([#975]).
 - The operator now watches all resources that it creates and early-exits the reconcile action when the
   cluster is marked for deletion ([#985]).
+
+### Removed
+
+- Remove support for 2.7.2 ([#997]).
 
 [#961]: https://github.com/stackabletech/nifi-operator/pull/961
 [#966]: https://github.com/stackabletech/nifi-operator/pull/966
@@ -63,6 +69,7 @@ All notable changes to this project will be documented in this file.
 [#985]: https://github.com/stackabletech/nifi-operator/pull/985
 [#990]: https://github.com/stackabletech/nifi-operator/pull/990
 [#994]: https://github.com/stackabletech/nifi-operator/pull/994
+[#997]: https://github.com/stackabletech/nifi-operator/pull/997
 
 ## [26.7.0] - 2026-07-21
 
