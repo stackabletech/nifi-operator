@@ -87,7 +87,7 @@ metadata:
   name: simple-nifi
 spec:
   image:
-    productVersion: 2.9.0
+    productVersion: 2.12.0
   clusterConfig:
     authentication:
       - authenticationClass: simple-nifi-users
