@@ -165,7 +165,7 @@ metadata:
   name: simple-nifi
 spec:
   image:
-    productVersion: 2.9.0
+    productVersion: 2.12.0
   clusterConfig:
     authentication:
     - authenticationClass: simple-nifi-admin-user
@@ -202,7 +202,7 @@ The basic Dockerfile below shows how to achieve this:
 
 [source,Dockerfile]
 ----
-FROM oci.stackable.tech/sdp/nifi:2.9.0-stackable26.7.0
+FROM oci.stackable.tech/sdp/nifi:2.12.0-stackable26.11.0
 COPY /path/to/your/nar.file /stackable/nifi/lib/
 COPY /path/to/your/Python.file /stackable/nifi/python/extensions/
 ----
@@ -213,8 +213,8 @@ You then need to make this image available to your Kubernetes cluster and specif
 ----
 spec:
   image:
-    productVersion: 2.9.0
-    custom: oci-registry.company.org/nifi:2.9.0-customprocessors
+    productVersion: 2.12.0
+    custom: oci-registry.company.org/nifi:2.12.0-customprocessors
 ----
 
 Also read the xref:guides:custom-images.adoc[Using customized product images] guide for additional information.
@@ -285,7 +285,7 @@ metadata:
   name: simple-nifi
 spec:
   image:
-    productVersion: 2.9.0
+    productVersion: 2.12.0
   clusterConfig:
     authentication:
     - authenticationClass: simple-nifi-admin-user
