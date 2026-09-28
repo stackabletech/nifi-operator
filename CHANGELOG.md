@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - Support floating tags for product images via the new `spec.image.stackableVersionPolicy` field
   ([#994]).
 - Add support for 2.12.0 ([#997]).
+- Add `/ready` endpoint to the operator Deployment, which reports the CRD installation status ([#999]).
 
 ### Changed
 
@@ -45,6 +46,7 @@ All notable changes to this project will be documented in this file.
   operator immediately recreates it with the new labels ([#984]).
 - Make operations infallible where dependent on static inputs ([#990]).
 - Deprecate support for 2.9.0 ([#997]).
+- Bump stackable-operator to 0.119.0 ([#999]).
 
 ### Fixed
 
@@ -70,6 +72,7 @@ All notable changes to this project will be documented in this file.
 [#990]: https://github.com/stackabletech/nifi-operator/pull/990
 [#994]: https://github.com/stackabletech/nifi-operator/pull/994
 [#997]: https://github.com/stackabletech/nifi-operator/pull/997
+[#999]: https://github.com/stackabletech/nifi-operator/pull/999
 
 ## [26.7.0] - 2026-07-21
 
