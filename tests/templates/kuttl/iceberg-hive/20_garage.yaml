@@ -20,9 +20,13 @@ data:
 
     [s3_api]
     # Garage rejects requests signed for a different region, so this must match
-    # the region the clients use. This test goes through Hadoop's s3a, which
-    # signs for us-east-2 when fs.s3a.endpoint.region is unset and the endpoint
-    # is not an AWS one. MinIO ignored the region, Garage does not.
+    # the region every client signs with. That region is dictated by NiFi: the
+    # Iceberg catalog service reaches S3 through the Hadoop S3 implementation,
+    # which falls back to us-east-2 when fs.s3a.endpoint.region is unset and the
+    # endpoint is not an AWS one. Those settings are more convoluted to configure
+    # from a flow, so everything else follows suit instead, see the region in
+    # 01_s3-connection.yaml. NiFi drops the Hadoop S3 implementation after 2.7.0,
+    # after which this can become a provider agnostic name.
     s3_region = "us-east-2"
     api_bind_addr = "[::]:3900"
 

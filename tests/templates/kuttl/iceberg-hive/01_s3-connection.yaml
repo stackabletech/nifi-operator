@@ -6,6 +6,13 @@ metadata:
 spec:
   host: "garage.${NAMESPACE}.svc.cluster.local"
   port: 9000
+  # The operators pass this on to the products (Trino: s3.region, Hive:
+  # fs.s3a.endpoint.region), so it has to match s3_region in 20_garage.yaml.
+  # Not the us-east-1 default: NiFi signs with us-east-2 here, which is the
+  # Hadoop S3 implementation's fallback for non-AWS endpoints and is more
+  # convoluted to configure from a flow, so the products follow it instead.
+  region:
+    name: us-east-2
   accessStyle: Path
   credentials:
     secretClass: s3-credentials-class
