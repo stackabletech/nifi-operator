@@ -331,11 +331,11 @@
                 },
                 "properties": {
                     "Authentication Strategy": "BASIC_CREDENTIALS",
-                    "Access Key ID": "admin",
-                    "Secret Access Key": "adminadmin",
-                    "Endpoint URL": "https://minio.${NAMESPACE}.svc.cluster.local:9000",
+                    "Access Key ID": "GK31c0ffee31c0ffee31c0ffee",
+                    "Secret Access Key": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+                    "Endpoint URL": "https://garage.${NAMESPACE}.svc.cluster.local:9000",
                     "Path Style Access": "true",
-                    "Client Region": "us-east1"
+                    "Client Region": "us-east-1"
                 },
                 "propertyDescriptors": {
                     "Authentication Strategy": {

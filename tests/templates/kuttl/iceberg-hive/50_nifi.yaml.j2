@@ -58,7 +58,7 @@ spec:
 {% endif %}
     jvmArgumentOverrides:
       add:
-        # Needed for NiFi to trust the minio cert
+        # Needed for NiFi to trust the Garage cert
         - -Djavax.net.ssl.trustStore=/stackable/keystore/truststore.p12
         - -Djavax.net.ssl.trustStorePassword=secret
         - -Djavax.net.ssl.trustStoreType=PKCS12

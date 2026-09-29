@@ -21,7 +21,7 @@ spec:
     hdfs:
       configMap: hdfs
     s3:
-      reference: minio
+      reference: garage
 {% if test_scenario['values']['iceberg-use-kerberos'] == 'true' %}
     authentication:
       kerberos:
