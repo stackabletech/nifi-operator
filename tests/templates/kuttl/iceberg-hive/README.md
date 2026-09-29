@@ -1,6 +1,6 @@
 The file `60_nifi-flow.json` was exported from the NiFi UI.
 
-*However*, we need to update some stuff, such as adding S3 credentials and templating the namespace of MinIO.
+*However*, we need to update some stuff, such as adding S3 credentials and templating the namespace of Garage.
 
 TIP: I used `JSON: Sort Document` in VScode to somewhat have consistent formatting, which makes reading and diffs easier.
 
@@ -17,8 +17,8 @@ index 09783fa..23c679f 100644
                      "profile-name": null,
 -                    "Session Time": "3600"
 +                    "Session Time": "3600",
-+                    "Access Key": "admin",
-+                    "Secret Key": "adminadmin"
++                    "Access Key": "GK31c0ffee31c0ffee31c0ffee",
++                    "Secret Key": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
                  },
                  "propertyDescriptors": {
                      "Access Key": {
@@ -26,8 +26,8 @@ index 09783fa..23c679f 100644
                  "properties": {
                      "AWS Credentials Provider service": "d9e8d00a-c387-3064-add2-c6060f158ae7",
                      "hive-metastore-uri": "thrift://hive-metastore:9083",
--                    "s3-endpoint": "https://minio.kuttl-test-patient-tarpon.svc.cluster.local:9000",
-+                    "s3-endpoint": "https://minio.${NAMESPACE}.svc.cluster.local:9000",
+-                    "s3-endpoint": "https://garage.kuttl-test-patient-tarpon.svc.cluster.local:9000",
++                    "s3-endpoint": "https://garage.${NAMESPACE}.svc.cluster.local:9000",
                      "s3-path-style-access": "true",
                      "warehouse-location": "s3a://demo/lakehouse"
                  },

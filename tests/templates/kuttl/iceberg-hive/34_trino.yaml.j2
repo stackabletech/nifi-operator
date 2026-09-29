@@ -11,7 +11,7 @@ spec:
       metastore:
         configMap: hive
       s3:
-        reference: minio
+        reference: garage
       hdfs:
         configMap: hdfs
 {% if test_scenario['values']['iceberg-use-kerberos'] == 'true' %}

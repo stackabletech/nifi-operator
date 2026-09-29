@@ -1,6 +1,6 @@
 The file `60_nifi-flow.json` was exported from the NiFi UI.
 
-*However*, we need to update some stuff, such as adding S3 credentials and templating the namespace of MinIO.
+*However*, we need to update some stuff, such as adding S3 credentials and templating the namespace of Garage.
 
 TIP: I used `JSON: Sort Document` in VScode to somewhat have consistent formatting, which makes reading and diffs easier.
 
@@ -15,11 +15,12 @@ index eb64241..6ead26e 100644
                  },
                  "properties": {
                      "Authentication Strategy": "BASIC_CREDENTIALS",
--                    "Endpoint URL": "https://minio.kuttl-test-dear-bug.svc.cluster.local:9000",
-+                    "Access Key ID": "admin",
-+                    "Secret Access Key": "adminadmin",
-+                    "Endpoint URL": "https://minio.${NAMESPACE}.svc.cluster.local:9000",
++                    "Access Key ID": "GK31c0ffee31c0ffee31c0ffee",
++                    "Secret Access Key": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+-                    "Endpoint URL": "https://garage.kuttl-test-dear-bug.svc.cluster.local:9000",
++                    "Endpoint URL": "https://garage.${NAMESPACE}.svc.cluster.local:9000",
                      "Path Style Access": "true",
-                     "Client Region": "us-east1"
+-                    "Client Region": "us-east1"
++                    "Client Region": "us-east-1"
                  },
 ```
