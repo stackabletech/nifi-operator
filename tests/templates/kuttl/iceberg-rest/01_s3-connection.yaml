@@ -6,6 +6,13 @@ metadata:
 spec:
   host: "garage.${NAMESPACE}.svc.cluster.local"
   port: 9000
+  # The operators pass this on to the products (Trino: s3.region, Hive:
+  # fs.s3a.endpoint.region), so it has to match s3_region in 20_garage.yaml.
+  # The default (us-east-1) is not used, to keep the region the same everywhere:
+  # the Hadoop S3 implementation falls back to us-east-2 rather than us-east-1
+  # when unset, and Garage rejects requests signed for a different region.
+  region:
+    name: region-1
   accessStyle: Path
   credentials:
     secretClass: s3-credentials-class

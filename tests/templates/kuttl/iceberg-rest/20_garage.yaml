@@ -20,8 +20,10 @@ data:
 
     [s3_api]
     # Garage rejects requests signed for a different region, so this must match
-    # the region the clients use (the S3Connection default, and the NiFi flow).
-    s3_region = "us-east-1"
+    # the region every client signs with (01_s3-connection.yaml for the products
+    # configured by the operators, and 60_nifi-flow.json for NiFi).
+    # The name is a provider agnostic one.
+    s3_region = "region-1"
     api_bind_addr = "[::]:3900"
 
     [admin]

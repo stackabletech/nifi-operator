@@ -335,7 +335,7 @@
                     "Secret Access Key": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
                     "Endpoint URL": "https://garage.${NAMESPACE}.svc.cluster.local:9000",
                     "Path Style Access": "true",
-                    "Client Region": "us-east-1"
+                    "Client Region": "region-1"
                 },
                 "propertyDescriptors": {
                     "Authentication Strategy": {
