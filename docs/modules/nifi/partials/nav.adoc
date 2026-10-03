@@ -26,6 +26,6 @@
 * xref:nifi:troubleshooting/index.adoc[]
 * xref:nifi:reference/index.adoc[]
 ** xref:nifi:reference/crds.adoc[]
-*** {crd-docs}/nifi.stackable.tech/nificluster/v1alpha1/[NiFiCluster {external-link-icon}^]
+*** {crd-ref}/nifi.stackable.tech/v1alpha1/nificluster{crd-ref-release}[NiFiCluster {external-link-icon}^]
 ** xref:nifi:reference/commandline-parameters.adoc[]
 ** xref:nifi:reference/environment-variables.adoc[]

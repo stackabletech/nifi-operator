@@ -6,7 +6,7 @@
 By default, a NiFi Stacklet creates five different persistent volume claims for flow files, provenance, database, content and state directories.
 Depending on the NiFi cluster definition, another PVC for file-based authorization is added.
 
-You can find the default sizes of the PVCs in the {crd-docs}/nifi.stackable.tech/NifiCluster/v1alpha1/#spec-nodes-config-resources-storage[NifiCluster reference docs {external-link-icon}^], it is recommended that you configure these volume requests according to your needs.
+You can find the default sizes of the PVCs in the {crd-ref}/nifi.stackable.tech/v1alpha1/nificluster{crd-ref-release}#nodes.config.resources.storage[NifiCluster reference docs {external-link-icon}^], it is recommended that you configure these volume requests according to your needs.
 
 Storage requests can be configured at role or group level, for one or more of the persistent volumes as follows:
 
@@ -45,7 +45,7 @@ A minimal HA setup consisting of 2 NiFi instances has the following https://kube
 * `8448Mi` memory request and limit
 * `18432Mi` persistent storage
 
-You can find the default resource configuration values in the {crd-docs}/nifi.stackable.tech/NifiCluster/v1alpha1/#spec-nodes-config-resources[NifiCluster reference docs {external-link-icon}^].
+You can find the default resource configuration values in the {crd-ref}/nifi.stackable.tech/v1alpha1/nificluster{crd-ref-release}#nodes.config.resources[NifiCluster reference docs {external-link-icon}^].
 
 == Content archive retention
 
