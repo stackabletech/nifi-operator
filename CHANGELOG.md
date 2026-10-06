@@ -10,7 +10,7 @@ All notable changes to this project will be documented in this file.
   ([#994]).
 - Add support for 2.12.0 ([#997]).
 - Add `/ready` endpoint to the operator Deployment, which reports the CRD installation status ([#999]).
-- Nodes now have a default affinity to the OPA Pods when OPA authorization is configured ([#XXX]).
+- Nodes now have a default affinity to the OPA Pods when OPA authorization is configured ([#1002]).
 
 ### Changed
 
@@ -74,6 +74,7 @@ All notable changes to this project will be documented in this file.
 [#994]: https://github.com/stackabletech/nifi-operator/pull/994
 [#997]: https://github.com/stackabletech/nifi-operator/pull/997
 [#999]: https://github.com/stackabletech/nifi-operator/pull/999
+[#1002]: https://github.com/stackabletech/nifi-operator/pull/1002
 
 ## [26.7.0] - 2026-07-21
 
