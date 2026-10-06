@@ -298,7 +298,11 @@ pub(crate) fn build_role_group_configs(
     vector_aggregator_config_map_name: &Option<ConfigMapName>,
 ) -> Result<BTreeMap<NifiRole, BTreeMap<RoleGroupName, NifiRoleGroupConfig>>> {
     let role = &nifi.spec.nodes;
-    let default_config = NifiConfig::default_config(&nifi.name_any(), &NifiRole::Node);
+    let default_config = NifiConfig::default_config(
+        &nifi.name_any(),
+        &NifiRole::Node,
+        nifi.spec.cluster_config.authorization.opa_config(),
+    );
 
     let mut groups: BTreeMap<RoleGroupName, NifiRoleGroupConfig> = BTreeMap::new();
     for (rg_name, rg) in &role.role_groups {

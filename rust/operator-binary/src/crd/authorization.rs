@@ -24,6 +24,16 @@ impl Default for NifiAuthorization {
     }
 }
 
+impl NifiAuthorization {
+    /// The OPA config, if OPA is the configured authorizer.
+    pub fn opa_config(&self) -> Option<&OpaConfig> {
+        match self {
+            Self::Opa { opa } => Some(&opa.opa),
+            Self::SingleUser {} | Self::Standard { .. } => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NifiOpaConfig {
