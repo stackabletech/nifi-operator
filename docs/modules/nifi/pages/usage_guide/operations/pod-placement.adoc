@@ -5,3 +5,4 @@ You can configure the Pod placement of the NiFi pods as described in xref:concep
 The default affinities created by the operator are:
 
 1. Distribute all the NiFi Pods (weight 70)
+2. If OPA authorization is configured: co-locate the NiFi Pods with the OPA Pods (weight 50)

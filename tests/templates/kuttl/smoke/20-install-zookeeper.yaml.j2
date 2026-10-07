@@ -6,7 +6,7 @@ metadata:
   name: zookeeper
 spec:
   image:
-    productVersion: "{{ test_scenario['values']['zookeeper'] }}"
+    productVersion: "{{ test_scenario['values']['zookeeper-latest'] }}"
     pullPolicy: IfNotPresent
   clusterConfig:
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}

@@ -14,6 +14,7 @@ use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
         cluster_operation::ClusterOperation,
+        opa::OpaConfig,
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
@@ -311,7 +312,11 @@ impl NifiConfig {
     // Auto TLS certificate lifetime
     const DEFAULT_NODE_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(1);
 
-    pub fn default_config(cluster_name: &str, role: &NifiRole) -> NifiConfigFragment {
+    pub fn default_config(
+        cluster_name: &str,
+        role: &NifiRole,
+        opa_config: Option<&OpaConfig>,
+    ) -> NifiConfigFragment {
         NifiConfigFragment {
             logging: product_logging::spec::default_logging(),
             resources: ResourcesFragment {
@@ -356,7 +361,7 @@ impl NifiConfig {
                     },
                 },
             },
-            affinity: get_affinity(cluster_name, role),
+            affinity: get_affinity(cluster_name, role, opa_config),
             graceful_shutdown_timeout: Some(DEFAULT_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
             requested_secret_lifetime: Some(Self::DEFAULT_NODE_SECRET_LIFETIME),
         }
