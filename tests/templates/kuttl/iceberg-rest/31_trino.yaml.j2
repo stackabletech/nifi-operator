@@ -9,7 +9,7 @@ spec:
   connector:
     iceberg:
       s3:
-        reference: minio
+        reference: garage
   configOverrides:
     iceberg.catalog.type: rest
     # We are using the headless service, as the hive-metastore service is missing port 9001

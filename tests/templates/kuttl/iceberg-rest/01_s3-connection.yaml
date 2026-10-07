@@ -2,10 +2,13 @@
 apiVersion: s3.stackable.tech/v1alpha1
 kind: S3Connection
 metadata:
-  name: minio
+  name: garage
 spec:
-  host: "minio.${NAMESPACE}.svc.cluster.local"
+  host: "garage.${NAMESPACE}.svc.cluster.local"
   port: 9000
+  # The region must match the s3_region in 20_garage.yaml.
+  region:
+    name: region-1
   accessStyle: Path
   credentials:
     secretClass: s3-credentials-class
@@ -28,9 +31,11 @@ spec:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: minio-credentials
+  name: garage-credentials
   labels:
     secrets.stackable.tech/class: s3-credentials-class
 stringData:
-  accessKey: admin
-  secretKey: adminadmin
+  # Garage requires the GK<24 hex> key id format and a 64 hex char secret.
+  # Must match the GARAGE_DEFAULT_* variables in 20_garage.yaml.
+  accessKey: GK31c0ffee31c0ffee31c0ffee
+  secretKey: deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef

@@ -19,7 +19,7 @@ spec:
         database: hive
         credentialsSecretName: postgres-credentials
     s3:
-      reference: minio
+      reference: garage
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
     vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
