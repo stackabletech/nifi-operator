@@ -21,6 +21,6 @@ index eb64241..6ead26e 100644
 +                    "Endpoint URL": "https://garage.${NAMESPACE}.svc.cluster.local:9000",
                      "Path Style Access": "true",
 -                    "Client Region": "us-east1"
-+                    "Client Region": "us-east-1"
++                    "Client Region": "region-1"
                  },
 ```
