@@ -42,7 +42,7 @@ $ kubectl logs nifi-node-default-0
 == Synchronize with git-sync
 
 Custom NiFi components can be synchronized from a Git repository directly into the NiFi pods with git-sync.
-The {crd-docs}/nifi.stackable.tech/nificluster/v1alpha1[NifiCluster CRD] allows the specification of one or multiple Git repositories:
+The {crd-ref}/nifi.stackable.tech/v1alpha1/nificluster{crd-ref-release}[NifiCluster CRD] allows the specification of one or multiple Git repositories:
 
 [source,yaml]
 ----
