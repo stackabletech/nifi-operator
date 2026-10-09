@@ -48,6 +48,7 @@ All notable changes to this project will be documented in this file.
 - Make operations infallible where dependent on static inputs ([#990]).
 - Deprecate support for 2.9.0 ([#997]).
 - Bump stackable-operator to 0.119.0 ([#999]).
+- test: Bump vector-aggregator to 0.58.0 ([#1006]).
 
 ### Fixed
 
@@ -75,6 +76,7 @@ All notable changes to this project will be documented in this file.
 [#997]: https://github.com/stackabletech/nifi-operator/pull/997
 [#999]: https://github.com/stackabletech/nifi-operator/pull/999
 [#1002]: https://github.com/stackabletech/nifi-operator/pull/1002
+[#1006]: https://github.com/stackabletech/nifi-operator/pull/1006
 
 ## [26.7.0] - 2026-07-21
 
