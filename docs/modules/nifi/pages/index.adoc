@@ -3,8 +3,8 @@
 :keywords: k8s, Kubernetes, Stackable operator, Apache NiFi, open source, operator, data science, data exploration, big data
 :nifi: https://nifi.apache.org/
 :github: https://github.com/stackabletech/nifi-operator/
-:crd: {crd-docs-base-url}/nifi-operator/{crd-docs-version}/
-:crd-nificluster: {crd-docs}/nifi.stackable.tech/nificluster/v1alpha1/
+:crd: {crd-ref}{crd-ref-release}&operator=nifi-operator
+:crd-nificluster: {crd-ref}/nifi.stackable.tech/v1alpha1/nificluster{crd-ref-release}
 :feature-tracker: https://features.stackable.tech/unified
 
 [.link-bar]
