@@ -49,6 +49,7 @@ All notable changes to this project will be documented in this file.
 - Deprecate support for 2.9.0 ([#997]).
 - Bump stackable-operator to 0.119.0 ([#999]).
 - test: Bump vector-aggregator to 0.58.0 ([#1006]).
+- test: Update OPA to 1.20.2 in integration tests ([#1010]).
 
 ### Fixed
 
@@ -77,6 +78,7 @@ All notable changes to this project will be documented in this file.
 [#999]: https://github.com/stackabletech/nifi-operator/pull/999
 [#1002]: https://github.com/stackabletech/nifi-operator/pull/1002
 [#1006]: https://github.com/stackabletech/nifi-operator/pull/1006
+[#1010]: https://github.com/stackabletech/nifi-operator/pull/1010
 
 ## [26.7.0] - 2026-07-21
 
