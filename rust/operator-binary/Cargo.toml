@@ -31,7 +31,7 @@ url.workspace = true
 [dev-dependencies]
 pretty_assertions.workspace = true
 rstest.workspace = true
-serde_yaml.workspace = true
+yaml_serde.workspace = true
 
 [build-dependencies]
 built.workspace = true

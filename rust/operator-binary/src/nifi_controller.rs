@@ -157,7 +157,7 @@ mod tests {
     /// API, and because the spec is invalid, before the `DeserializeGuard` is unwrapped.
     #[test]
     fn reconcile_exits_early_for_deleted_cluster() {
-        let nifi = serde_yaml::from_str(
+        let nifi = yaml_serde::from_str(
             r#"
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster

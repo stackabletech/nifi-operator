@@ -818,7 +818,7 @@ mod tests {
                       nifi.properties:
                         some.custom.key: some-custom-value
         "#;
-        let nifi: v1alpha1::NifiCluster = serde_yaml::from_str(yaml).expect("invalid test YAML");
+        let nifi: v1alpha1::NifiCluster = yaml_serde::from_str(yaml).expect("invalid test YAML");
         let mut role_group_configs =
             build_role_group_configs(&nifi, &test_resolved_product_image(), &None)
                 .expect("failed to build role group configs");

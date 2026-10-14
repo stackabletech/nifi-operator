@@ -86,9 +86,8 @@ mod tests {
               default:
                 replicas: 1
         "#;
-        let deserializer = serde_yaml::Deserializer::from_str(input);
         let nifi: v1alpha1::NifiCluster =
-            serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
+            stackable_operator::utils::yaml_from_str_singleton_map(input).unwrap();
 
         let role_group_configs =
             build_role_group_configs(&nifi, &test_resolved_product_image(), &None).unwrap();

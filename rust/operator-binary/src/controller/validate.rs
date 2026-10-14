@@ -437,7 +437,7 @@ mod tests {
     fn sensitive_properties(
         auto_generate: bool,
     ) -> sensitive_properties::NifiSensitivePropertiesConfig {
-        serde_yaml::from_str(&format!(
+        yaml_serde::from_str(&format!(
             "keySecret: {SENSITIVE_KEY_SECRET_NAME}\nautoGenerate: {auto_generate}"
         ))
         .expect("valid sensitiveProperties")
@@ -463,7 +463,7 @@ mod tests {
 
     fn single_user_authentication() -> NifiAuthenticationConfig {
         NifiAuthenticationConfig::SingleUser {
-            provider: serde_yaml::from_str(
+            provider: yaml_serde::from_str(
                 "userCredentialsSecret:\n  name: nifi-admin-credentials-simple",
             )
             .expect("valid static provider"),
@@ -623,9 +623,9 @@ mod tests {
               default:
                 replicas: 1
         "#;
-        let nifi: v1alpha1::NifiCluster = serde_yaml::from_str(yaml).expect("valid test YAML");
+        let nifi: v1alpha1::NifiCluster = yaml_serde::from_str(yaml).expect("valid test YAML");
 
-        let auth_class: auth_core::v1alpha1::AuthenticationClass = serde_yaml::from_str(
+        let auth_class: auth_core::v1alpha1::AuthenticationClass = yaml_serde::from_str(
             r#"
             metadata:
               name: nifi-admin-credentials-simple
@@ -637,7 +637,7 @@ mod tests {
         )
         .expect("valid static AuthenticationClass");
         let auth_entry: auth_core::v1alpha1::ClientAuthenticationDetails =
-            serde_yaml::from_str("authenticationClass: nifi-admin-credentials-simple")
+            yaml_serde::from_str("authenticationClass: nifi-admin-credentials-simple")
                 .expect("valid authentication entry");
 
         let dereferenced_objects = DereferencedObjects {
@@ -786,7 +786,7 @@ mod tests {
     #[test]
     fn vector_container_is_validated_when_agent_enabled() {
         let nifi: v1alpha1::NifiCluster =
-            serde_yaml::from_str(NIFI_VECTOR_ENABLED_YAML).expect("invalid test YAML");
+            yaml_serde::from_str(NIFI_VECTOR_ENABLED_YAML).expect("invalid test YAML");
         let aggregator = Some(ConfigMapName::from_str("nifi-vector-aggregator-discovery").unwrap());
 
         let configs = build_role_group_configs(&nifi, &test_resolved_product_image(), &aggregator)
@@ -807,7 +807,7 @@ mod tests {
     #[test]
     fn vector_agent_enabled_without_aggregator_name_fails() {
         let nifi: v1alpha1::NifiCluster =
-            serde_yaml::from_str(NIFI_VECTOR_ENABLED_YAML).expect("invalid test YAML");
+            yaml_serde::from_str(NIFI_VECTOR_ENABLED_YAML).expect("invalid test YAML");
 
         // `NifiRoleGroupConfig` is not `Debug` (its `config` holds non-`Debug` git-sync resources),
         // so match on the result rather than using `expect_err` (which would require `Ok` to be
@@ -822,7 +822,7 @@ mod tests {
     #[test]
     fn no_vector_container_when_agent_disabled() {
         let nifi: v1alpha1::NifiCluster =
-            serde_yaml::from_str(NIFI_VECTOR_DISABLED_YAML).expect("invalid test YAML");
+            yaml_serde::from_str(NIFI_VECTOR_DISABLED_YAML).expect("invalid test YAML");
 
         // The aggregator name is not required when the Vector agent is disabled.
         let configs = build_role_group_configs(&nifi, &test_resolved_product_image(), &None)
