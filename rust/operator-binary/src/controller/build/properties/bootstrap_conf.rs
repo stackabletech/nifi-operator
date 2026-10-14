@@ -70,7 +70,7 @@ mod tests {
 
     fn construct_bootstrap_conf(nifi_cluster: &str) -> String {
         let nifi: v1alpha1::NifiCluster =
-            serde_yaml::from_str(nifi_cluster).expect("illegal test input");
+            yaml_serde::from_str(nifi_cluster).expect("illegal test input");
 
         let role_group_configs =
             build_role_group_configs(&nifi, &test_resolved_product_image(), &None)

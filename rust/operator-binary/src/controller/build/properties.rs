@@ -170,7 +170,7 @@ pub(crate) mod test_support {
     /// the product version (`2.9.0`). Use this for fixtures that vary role or role-group
     /// settings (e.g. `envOverrides`), and [`minimal_validated_cluster`] otherwise.
     pub fn validated_cluster_from_yaml(yaml: &str) -> ValidatedCluster {
-        let nifi: v1alpha1::NifiCluster = serde_yaml::from_str(yaml).expect("invalid test YAML");
+        let nifi: v1alpha1::NifiCluster = yaml_serde::from_str(yaml).expect("invalid test YAML");
 
         // Mirrors what `image.resolve()` produces in production, so label-asserting tests see
         // realistic values.

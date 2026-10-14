@@ -49,6 +49,8 @@ All notable changes to this project will be documented in this file.
 - Deprecate support for 2.9.0 ([#997]).
 - Bump stackable-operator to 0.119.0 ([#999]).
 - test: Bump vector-aggregator to 0.58.0 ([#1006]).
+- Bump stackable-operator to 0.121.0 and replace the unmaintained `serde_yaml` with `yaml_serde` ([#1011]).
+- All pods now set `securityContext.seccompProfile.type` to `RuntimeDefault` ([#1011]).
 - test: Update OPA to 1.20.2 in integration tests ([#1010]).
 
 ### Fixed
@@ -79,6 +81,7 @@ All notable changes to this project will be documented in this file.
 [#1002]: https://github.com/stackabletech/nifi-operator/pull/1002
 [#1006]: https://github.com/stackabletech/nifi-operator/pull/1006
 [#1010]: https://github.com/stackabletech/nifi-operator/pull/1010
+[#1011]: https://github.com/stackabletech/nifi-operator/pull/1011
 
 ## [26.7.0] - 2026-07-21
 

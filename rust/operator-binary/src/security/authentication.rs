@@ -442,7 +442,7 @@ mod tests {
     }
 
     fn static_auth_class() -> auth_core::v1alpha1::AuthenticationClass {
-        serde_yaml::from_str(indoc! {r#"
+        yaml_serde::from_str(indoc! {r#"
             metadata:
               name: nifi-admin
             spec:
@@ -454,7 +454,7 @@ mod tests {
     }
 
     fn auth_details() -> auth_core::v1alpha1::ClientAuthenticationDetails {
-        serde_yaml::from_str("authenticationClass: nifi-admin").expect("valid auth details")
+        yaml_serde::from_str("authenticationClass: nifi-admin").expect("valid auth details")
     }
 
     #[test]
@@ -495,7 +495,7 @@ mod tests {
 
     /// An LDAP provider that uses TLS but disables certificate verification.
     fn ldap_auth_class_without_tls_verification() -> auth_core::v1alpha1::AuthenticationClass {
-        serde_yaml::from_str(indoc! {r#"
+        yaml_serde::from_str(indoc! {r#"
             metadata:
               name: nifi-ldap
             spec:
@@ -509,7 +509,7 @@ mod tests {
     }
 
     fn oidc_auth_class() -> auth_core::v1alpha1::AuthenticationClass {
-        serde_yaml::from_str(indoc! {r#"
+        yaml_serde::from_str(indoc! {r#"
             metadata:
               name: nifi-oidc
             spec:
