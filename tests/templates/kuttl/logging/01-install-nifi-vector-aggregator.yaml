@@ -14,4 +14,4 @@ kind: ConfigMap
 metadata:
   name: nifi-vector-aggregator-discovery
 data:
-  ADDRESS: nifi-vector-aggregator:6123
+  ADDRESS: http://nifi-vector-aggregator:6123
