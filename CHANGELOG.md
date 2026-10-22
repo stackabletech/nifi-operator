@@ -51,6 +51,7 @@ All notable changes to this project will be documented in this file.
 - Replace the unmaintained `serde_yaml` with `yaml_serde` ([#1011]).
 - All pods now set `securityContext.seccompProfile.type` to `RuntimeDefault` ([#1011]).
 - test: Update OPA to 1.20.2 in integration tests ([#1010]).
+- The operator Deployment runs with a restricted security context and a read-only root filesystem, so it can be deployed into namespaces that enforce the `restricted` Pod Security Standard ([#1015]).
 
 ### Fixed
 
@@ -83,6 +84,7 @@ All notable changes to this project will be documented in this file.
 [#1011]: https://github.com/stackabletech/nifi-operator/pull/1011
 [#1012]: https://github.com/stackabletech/nifi-operator/pull/1012
 [#1013]: https://github.com/stackabletech/nifi-operator/pull/1013
+[#1015]: https://github.com/stackabletech/nifi-operator/pull/1015
 
 ## [26.7.0] - 2026-07-21
 
