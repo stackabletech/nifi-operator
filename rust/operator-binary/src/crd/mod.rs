@@ -243,8 +243,7 @@ impl Deref for NifiRole {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, Serialize)]
-// FIXME: See FIXME comment below
-// #[serde(rename_all = "camelCase")]
+// #[serde(rename_all = "camelCase")] // FIXME: See FIXME comment below
 pub struct NifiStatus {
     // FIXME: We should change the field name to `deployedVersion` instead.
     pub deployed_version: Option<ProductVersion>,
