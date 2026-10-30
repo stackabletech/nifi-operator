@@ -731,8 +731,7 @@ fn get_volume_claim_templates(
         ),
     ];
 
-    // Used for PVC templates, which cannot be modified once they are deployed. The version label
-    // is omitted so the labels stay stable across version upgrades.
+    // The PVC template is immutable once deployed, so its labels must stay stable.
     let unversioned_recommended_labels = recommended_labels_for_unversioned_role_group_resources(
         cluster,
         &NifiRole::Node,

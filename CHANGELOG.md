@@ -39,12 +39,8 @@ All notable changes to this project will be documented in this file.
   environment variables by name, so an override replaces the operator's value instead of
   producing a duplicated entry whose precedence depended on Kubernetes' duplicate-name
   handling ([#984]).
-- BREAKING: Remove the `app.kubernetes.io/component` and `app.kubernetes.io/role-group` labels
-  from the resources they don't apply to, and the `app.kubernetes.io/version` label from PVC
-  templates (all previously set to the placeholder value `none`). Because the PVC templates of
-  a StatefulSet are immutable, StatefulSets created by older operator versions cannot be
-  updated in place: after the operator upgrade, delete each node StatefulSet so that the
-  operator immediately recreates it with the new labels ([#984]).
+- Remove the `app.kubernetes.io/component` and `app.kubernetes.io/role-group` labels from the
+  resources they don't apply to ([#984], [#1017]).
 - Make operations infallible where dependent on static inputs ([#990]).
 - Deprecate support for 2.9.0 ([#997]).
 - Support Vector 0.58.0 ([#1006], [#1012], [#1013]).
@@ -85,6 +81,7 @@ All notable changes to this project will be documented in this file.
 [#1012]: https://github.com/stackabletech/nifi-operator/pull/1012
 [#1013]: https://github.com/stackabletech/nifi-operator/pull/1013
 [#1015]: https://github.com/stackabletech/nifi-operator/pull/1015
+[#1017]: https://github.com/stackabletech/nifi-operator/pull/1017
 
 ## [26.7.0] - 2026-07-21
 
