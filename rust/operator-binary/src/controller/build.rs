@@ -2,7 +2,7 @@
 //!
 //! [`ValidatedCluster`]: crate::controller::ValidatedCluster
 
-use std::marker::PhantomData;
+use std::{marker::PhantomData, str::FromStr};
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
@@ -13,7 +13,7 @@ use stackable_operator::{
         kvp::label,
         types::{
             common::Port,
-            operator::{RoleGroupName, RoleName},
+            operator::{ProductVersion, RoleGroupName, RoleName},
         },
     },
 };
@@ -41,6 +41,10 @@ pub mod jvm;
 pub mod properties;
 pub mod proxy_hosts;
 pub mod resource;
+
+// Placeholder value for the `app.kubernetes.io/version` label on resources whose labels are
+// immutable once deployed. See `recommended_labels_for_unversioned_role_group_resources`.
+stackable_operator::constant!(UNVERSIONED_PRODUCT_VERSION: ProductVersion = "none");
 
 pub const HTTPS_PORT_NAME: &str = "https";
 pub const HTTPS_PORT: Port = Port(8443);
@@ -209,14 +213,25 @@ pub(crate) fn recommended_labels_for_role_group_resources(
     )
 }
 
+/// The recommended labels for role-group resources that carry no product version.
+///
+/// The `app.kubernetes.io/version` label is set to the placeholder `none` rather than being
+/// omitted, because that is what operator versions up to 26.7 wrote. Omitting it would change the
+/// `volumeClaimTemplates` of already deployed StatefulSets, and since those templates are
+/// immutable, Kubernetes rejects the update and the operator can no longer reconcile the
+/// StatefulSet.
+///
+/// This is also why `label::recommended_labels_for_unversioned_role_group_resources`, which drops
+/// the label entirely, is not used here.
 pub(crate) fn recommended_labels_for_unversioned_role_group_resources(
     cluster: &ValidatedCluster,
     role_name: &RoleName,
     role_group_name: &RoleGroupName,
 ) -> Labels {
-    label::recommended_labels_for_unversioned_role_group_resources(
+    label::recommended_labels_for_role_group_resources(
         &cluster.name,
         &PRODUCT_NAME,
+        &UNVERSIONED_PRODUCT_VERSION,
         &OPERATOR_NAME,
         &CONTROLLER_NAME,
         role_name,
@@ -237,7 +252,9 @@ pub(crate) fn role_group_selector(
 mod tests {
     use stackable_operator::kube::Resource;
 
-    use super::{build, properties::test_support::minimal_validated_cluster};
+    use super::{
+        UNVERSIONED_PRODUCT_VERSION, build, properties::test_support::minimal_validated_cluster,
+    };
 
     fn sorted_names(resources: &[impl Resource]) -> Vec<&str> {
         let mut names: Vec<&str> = resources
@@ -246,6 +263,12 @@ mod tests {
             .collect();
         names.sort();
         names
+    }
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constant does not panic.
+        let _ = *UNVERSIONED_PRODUCT_VERSION;
     }
 
     #[test]
