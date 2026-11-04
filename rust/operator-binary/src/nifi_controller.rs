@@ -48,7 +48,8 @@ pub struct Ctx {
 pub enum Error {
     #[snafu(display("NifiCluster object is invalid"))]
     InvalidNifiCluster {
-        source: error_boundary::InvalidObject,
+        #[snafu(source(from(error_boundary::InvalidObject, Box::new)))]
+        source: Box<error_boundary::InvalidObject>,
     },
 
     #[snafu(display("failed to dereference resources"))]
