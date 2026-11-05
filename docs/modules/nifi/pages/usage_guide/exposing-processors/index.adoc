@@ -1,4 +1,5 @@
 = Exposing processors
+:description: Exposing Apache NiFi processors outside the Kubernetes cluster, covering HTTP and generic TCP traffic and the mechanism that fits each.
 
 There are two mechanisms to expose Nifi processors to the outside world.
 
