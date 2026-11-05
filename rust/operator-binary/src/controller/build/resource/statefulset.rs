@@ -2,6 +2,7 @@
 
 use std::str::FromStr;
 
+use const_format::concatcp;
 use indoc::formatdoc;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -176,8 +177,13 @@ constant!(ZOOKEEPER_CHROOT_CONFIG_MAP_KEY: ConfigMapKey = "ZOOKEEPER_CHROOT");
 
 // The POD_NAME env var is needed to overwrite `nifi.cluster.node.address` later.
 constant!(POD_NAME_ENV: EnvVarName = "POD_NAME");
-// Needed for the `containerdebug` process to log its tracing information to.
-constant!(CONTAINERDEBUG_LOG_DIRECTORY_ENV: EnvVarName = "CONTAINERDEBUG_LOG_DIRECTORY");
+// Let the `containerdebug` process write its tracing information to a file. These are the generic
+// `stackable-telemetry` variables and apply to the whole NiFi container, so any other
+// telemetry-based process in it would log into the same directory and the Vector agent would label
+// its events with `container: containerdebug`.
+constant!(FILE_LOG_DIRECTORY_ENV: EnvVarName = "FILE_LOG_DIRECTORY");
+constant!(FILE_LOG_MAX_FILES_ENV: EnvVarName = "FILE_LOG_MAX_FILES");
+constant!(FILE_LOG_ROTATION_PERIOD_ENV: EnvVarName = "FILE_LOG_ROTATION_PERIOD");
 
 // Names of environment variables exported by shell commands in the containers (never set as
 // Kubernetes `EnvVar`s by the operator) and referenced as `${env:...}` placeholders by the
@@ -216,10 +222,15 @@ pub(crate) fn build_node_rolegroup_statefulset(
     // occurs only once.
     let mut env = EnvVarSet::new()
         .with_field_path(&POD_NAME_ENV, &FieldPathEnvVar::Name)
+        // The directory must be exactly one level below the log directory, because the Vector
+        // agent derives the container name from that path segment.
         .with_value(
-            &CONTAINERDEBUG_LOG_DIRECTORY_ENV,
-            format!("{STACKABLE_LOG_DIR}/containerdebug"),
+            &FILE_LOG_DIRECTORY_ENV,
+            concatcp!(STACKABLE_LOG_DIR, "/containerdebug"),
         )
+        // Rotation is opt-in, so without these the file would grow unbounded.
+        .with_value(&FILE_LOG_ROTATION_PERIOD_ENV, "hourly")
+        .with_value(&FILE_LOG_MAX_FILES_ENV, "2")
         .with_value(&STACKLET_NAME_ENV, cluster.name.to_string());
 
     match &cluster.cluster_config.clustering_backend {
@@ -400,6 +411,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
             {COMMON_BASH_TRAP_FUNCTIONS}
             {remove_vector_shutdown_file_command}
             prepare_signal_handlers
+            mkdir --parents \"$FILE_LOG_DIRECTORY\"
             containerdebug --output={STACKABLE_LOG_DIR}/containerdebug-state.json --loop &
             bin/nifi.sh run &
             wait_for_termination $!
@@ -788,18 +800,20 @@ mod tests {
         let _ = *ZOOKEEPER_HOSTS_CONFIG_MAP_KEY;
         let _ = *ZOOKEEPER_CHROOT_CONFIG_MAP_KEY;
         let _ = *POD_NAME_ENV;
-        let _ = *CONTAINERDEBUG_LOG_DIRECTORY_ENV;
+        let _ = *FILE_LOG_DIRECTORY_ENV;
+        let _ = *FILE_LOG_MAX_FILES_ENV;
+        let _ = *FILE_LOG_ROTATION_PERIOD_ENV;
     }
 
     /// `envOverrides` are applied after every operator-set environment variable, so users can
     /// override any of them (previously the operator-set variables were appended after the
     /// overrides, so the operator's values always took precedence).
-    /// `CONTAINERDEBUG_LOG_DIRECTORY` is used as the example here because it is set
+    /// `FILE_LOG_DIRECTORY` is used as the example here because it is set
     /// unconditionally by the operator.
     #[test]
     fn env_overrides_take_precedence_over_operator_set_env_vars() {
         // The minimal fixture cluster, plus an `envOverrides` entry on the `default` role group
-        // that collides with the operator-set `CONTAINERDEBUG_LOG_DIRECTORY`.
+        // that collides with the operator-set `FILE_LOG_DIRECTORY`.
         let cluster = validated_cluster_from_yaml(
             r#"
             apiVersion: nifi.stackable.tech/v1alpha1
@@ -821,7 +835,7 @@ mod tests {
                   default:
                     replicas: 1
                     envOverrides:
-                      CONTAINERDEBUG_LOG_DIRECTORY: /custom/log/dir
+                      FILE_LOG_DIRECTORY: /custom/log/dir
             "#,
         );
         let role_group_name = RoleGroupName::from_str("default").expect("valid role group name");
@@ -843,7 +857,7 @@ mod tests {
             .env
             .expect("the nifi container has env vars")
             .into_iter()
-            .filter(|env_var| env_var.name == "CONTAINERDEBUG_LOG_DIRECTORY")
+            .filter(|env_var| env_var.name == "FILE_LOG_DIRECTORY")
             .map(|env_var| (env_var.name, env_var.value.unwrap_or_default()))
             .collect();
 
@@ -851,7 +865,7 @@ mod tests {
         assert_eq!(
             containerdebug,
             [(
-                "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+                "FILE_LOG_DIRECTORY".to_string(),
                 "/custom/log/dir".to_string()
             )]
         );
