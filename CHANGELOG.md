@@ -10,7 +10,7 @@ All notable changes to this project will be documented in this file.
   ([#994]).
 - Add support for 2.12.0 ([#997]).
 - The logs of the `containerdebug` process are now collected by the Vector agent and forwarded to
-  the Vector aggregator ([#1018]).
+  the Vector aggregator ([#1020]).
 - Add `/ready` endpoint to the operator Deployment, which reports the CRD installation status ([#999]).
 - Nodes now have a default affinity to the OPA Pods when OPA authorization is configured ([#1002]).
 
@@ -61,7 +61,7 @@ All notable changes to this project will be documented in this file.
 - The `containerdebug` process writes its log file again. The operator set
   `CONTAINERDEBUG_LOG_DIRECTORY`, which containerdebug stopped reading in its version 0.2.0 when it
   moved to `stackable-telemetry`; the directory is now set via `FILE_LOG_DIRECTORY`. The file is
-  rotated hourly and at most two files are kept, because rotation is opt-in ([#1018]).
+  rotated hourly and at most two files are kept, because rotation is opt-in ([#1020]).
 
 ### Removed
 
@@ -88,7 +88,7 @@ All notable changes to this project will be documented in this file.
 [#1013]: https://github.com/stackabletech/nifi-operator/pull/1013
 [#1015]: https://github.com/stackabletech/nifi-operator/pull/1015
 [#1017]: https://github.com/stackabletech/nifi-operator/pull/1017
-[#1018]: https://github.com/stackabletech/nifi-operator/pull/1018
+[#1020]: https://github.com/stackabletech/nifi-operator/pull/1020
 
 ## [26.7.0] - 2026-07-21
 
