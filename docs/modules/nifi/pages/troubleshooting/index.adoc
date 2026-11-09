@@ -1,4 +1,5 @@
 = Troubleshooting
+:description: Troubleshooting Apache NiFi on Kubernetes, covering a full log volume, Invalid SNI errors behind Ingress, OIDC login errors and nipyapi versions.
 :nipyapi: https://github.com/Chaffelson/nipyapi
 
 == Usage of EmptyDir volume "log" exceeds the limit

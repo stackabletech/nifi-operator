@@ -1,4 +1,5 @@
 = Flow Versioning
+:description: Flow versioning for Apache NiFi in GitHub or GitLab repositories with flow registry clients, without a separate NiFi Registry service.
 
 You can connect directly to Git repositories using either GitHub or GitLab as your flow registry without requiring a separate NiFi Registry service.
 This document explains how to configure and use these registry clients to version your NiFi flows.

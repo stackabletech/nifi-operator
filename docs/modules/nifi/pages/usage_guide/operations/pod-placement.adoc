@@ -1,4 +1,5 @@
 = Pod placement
+:description: Pod placement for Apache NiFi, covering the default affinities and placement next to OPA when OPA authorization is configured.
 
 You can configure the Pod placement of the NiFi pods as described in xref:concepts:operations/pod_placement.adoc[].
 
