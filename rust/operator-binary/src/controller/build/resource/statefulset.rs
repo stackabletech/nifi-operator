@@ -222,15 +222,6 @@ pub(crate) fn build_node_rolegroup_statefulset(
     // occurs only once.
     let mut env = EnvVarSet::new()
         .with_field_path(&POD_NAME_ENV, &FieldPathEnvVar::Name)
-        // The directory must be exactly one level below the log directory, because the Vector
-        // agent derives the container name from that path segment.
-        .with_value(
-            &FILE_LOG_DIRECTORY_ENV,
-            concatcp!(STACKABLE_LOG_DIR, "/containerdebug"),
-        )
-        // Rotation is opt-in, so without these the file would grow unbounded.
-        .with_value(&FILE_LOG_ROTATION_PERIOD_ENV, "hourly")
-        .with_value(&FILE_LOG_MAX_FILES_ENV, "2")
         .with_value(&STACKLET_NAME_ENV, cluster.name.to_string());
 
     match &cluster.cluster_config.clustering_backend {
@@ -267,7 +258,23 @@ pub(crate) fn build_node_rolegroup_statefulset(
     // Environment variable overrides (highest precedence), merged from role and role group.
     // They are merged in last of all so that they override any operator-set environment
     // variable; `EnvVarSet` is keyed by name, so an override replaces the operator's value.
-    let env_vars: Vec<EnvVar> = env.merge(rg.env_overrides.clone()).into();
+    let env_vars: Vec<EnvVar> = env.clone().merge(rg.env_overrides.clone()).into();
+
+    // Only the NiFi container runs `containerdebug`, so these variables would have no effect on
+    // the prepare container. The overrides are merged in last here as well, so that users can
+    // still override them.
+    let nifi_env_vars: Vec<EnvVar> = env
+        // The directory must be exactly one level below the log directory, because the Vector
+        // agent derives the container name from that path segment.
+        .with_value(
+            &FILE_LOG_DIRECTORY_ENV,
+            concatcp!(STACKABLE_LOG_DIR, "/containerdebug"),
+        )
+        // Rotation is opt-in, so without these the file would grow unbounded.
+        .with_value(&FILE_LOG_ROTATION_PERIOD_ENV, "hourly")
+        .with_value(&FILE_LOG_MAX_FILES_ENV, "2")
+        .merge(rg.env_overrides.clone())
+        .into();
 
     let node_address = format!(
         "$POD_NAME.{service_name}.{namespace}.svc.{cluster_domain}",
@@ -411,7 +418,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
             {COMMON_BASH_TRAP_FUNCTIONS}
             {remove_vector_shutdown_file_command}
             prepare_signal_handlers
-            mkdir --parents \"$FILE_LOG_DIRECTORY\"
+            mkdir --parents \"${file_log_directory}\" || true
             containerdebug --output={STACKABLE_LOG_DIR}/containerdebug-state.json --loop &
             bin/nifi.sh run &
             wait_for_termination $!
@@ -419,6 +426,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
             ",
     remove_vector_shutdown_file_command =
         remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
+    file_log_directory = FILE_LOG_DIRECTORY_ENV.as_ref(),
     create_vector_shutdown_file_command =
         create_vector_shutdown_file_command(STACKABLE_LOG_DIR),
     }];
@@ -433,7 +441,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
             "-c".to_string(),
         ])
         .args(nifi_args)
-        .add_env_vars(env_vars)
+        .add_env_vars(nifi_env_vars)
         .add_volume_mount(
             KEYSTORE_VOLUME_NAME.to_string(),
             KEYSTORE_NIFI_CONTAINER_MOUNT,
