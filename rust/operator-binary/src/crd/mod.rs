@@ -23,7 +23,11 @@ use stackable_operator::{
     },
     config::{fragment::Fragment, merge::Merge},
     constant,
-    crd::{authentication::core as auth_core, git_sync},
+    crd::{
+        authentication::core as auth_core,
+        containerdebug::{default_containerdebug_config, v1alpha1::ContainerdebugConfig},
+        git_sync,
+    },
     deep_merger::ObjectOverrides,
     k8s_openapi::{api::core::v1::Volume, apimachinery::pkg::api::resource::Quantity},
     kube::CustomResource,
@@ -273,7 +277,7 @@ pub enum Container {
     GitSync,
 }
 
-#[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
+#[derive(Clone, Debug, Fragment, JsonSchema, PartialEq)]
 #[fragment_attrs(
     derive(
         Clone,
@@ -299,6 +303,9 @@ pub struct NifiConfig {
 
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
+
+    #[fragment_attrs(serde(default))]
+    pub containerdebug: ContainerdebugConfig,
 
     /// Time period Pods have to gracefully shut down, e.g. `30m`, `1h` or `2d`. Consult the operator documentation for details.
     #[fragment_attrs(serde(default))]
@@ -364,6 +371,7 @@ impl NifiConfig {
                 },
             },
             affinity: get_affinity(cluster_name, role, opa_config),
+            containerdebug: default_containerdebug_config(),
             graceful_shutdown_timeout: Some(DEFAULT_NODE_GRACEFUL_SHUTDOWN_TIMEOUT),
             requested_secret_lifetime: Some(Self::DEFAULT_NODE_SECRET_LIFETIME),
         }

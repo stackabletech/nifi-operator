@@ -10,6 +10,7 @@ use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     commons::product_image_selection,
     config::fragment,
+    crd::containerdebug,
     k8s_openapi::api::core::v1::Secret,
     kube::{ResourceExt as _, runtime::reflector::ObjectRef},
     product_logging::spec::Logging,
@@ -69,6 +70,12 @@ pub enum Error {
 
     #[snafu(display("failed to validate the rolegroup config fragment"))]
     ValidateRoleGroupConfig { source: fragment::ValidationError },
+
+    #[snafu(display("invalid containerdebug configuration for role group {role_group}"))]
+    InvalidContainerdebugConfig {
+        source: containerdebug::Error,
+        role_group: RoleGroupName,
+    },
 
     #[snafu(display("the role-group name {role_group:?} is invalid"))]
     ParseRoleGroupName {
@@ -326,6 +333,12 @@ pub(crate) fn build_role_group_configs(
         // type; only the conversion into an `EnvVarSet` remains.
         let env_overrides_set: EnvVarSet = env_overrides.into();
 
+        let containerdebug = config.containerdebug.validate().with_context(|_| {
+            InvalidContainerdebugConfigSnafu {
+                role_group: role_group_name.clone(),
+            }
+        })?;
+
         // Validate the logging config (NiFi + optional Vector container) up-front so an invalid
         // custom log ConfigMap name, or a missing Vector aggregator discovery ConfigMap name, fails
         // during validation rather than at resource-build time.
@@ -345,7 +358,12 @@ pub(crate) fn build_role_group_configs(
             role_group_name,
             NifiRoleGroupConfig {
                 replicas: validated.replicas,
-                config: ValidatedNifiConfig::from_merged(config, logging, git_sync_resources),
+                config: ValidatedNifiConfig::from_merged(
+                    config,
+                    containerdebug,
+                    logging,
+                    git_sync_resources,
+                ),
                 config_overrides,
                 env_overrides: env_overrides_set,
                 cli_overrides,

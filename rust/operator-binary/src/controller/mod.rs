@@ -12,7 +12,7 @@ use stackable_operator::{
         resources::{NoRuntimeLimits, Resources},
     },
     constant,
-    crd::{git_sync, listener},
+    crd::{containerdebug::ValidatedContainerdebugConfig, git_sync, listener},
     k8s_openapi::{
         api::{
             apps::v1::StatefulSet,
@@ -100,6 +100,8 @@ pub struct ValidatedNifiConfig {
     pub resources: Resources<NifiStorageConfig, NoRuntimeLimits>,
     /// Pod (anti-)affinity for the role group.
     pub affinity: StackableAffinity,
+    /// The validated `containerdebug` configuration.
+    pub containerdebug: ValidatedContainerdebugConfig,
     /// Time period Pods have to gracefully shut down.
     pub graceful_shutdown_timeout: Option<Duration>,
     /// Requested lifetime of the auto-TLS secret.
@@ -117,12 +119,14 @@ pub struct ValidatedNifiConfig {
 impl ValidatedNifiConfig {
     pub(crate) fn from_merged(
         merged: NifiConfig,
+        containerdebug: ValidatedContainerdebugConfig,
         logging: ValidatedLogging,
         git_sync_resources: git_sync::v1alpha2::GitSyncResources,
     ) -> Self {
         Self {
             resources: merged.resources,
             affinity: merged.affinity,
+            containerdebug,
             graceful_shutdown_timeout: merged.graceful_shutdown_timeout,
             requested_secret_lifetime: merged.requested_secret_lifetime,
             logging,
@@ -134,8 +138,14 @@ impl ValidatedNifiConfig {
     pub(crate) fn from_merged_for_test(merged: NifiConfig) -> Self {
         use stackable_operator::product_logging::spec::AutomaticContainerLogConfig;
 
+        let containerdebug = merged
+            .containerdebug
+            .validate()
+            .expect("the containerdebug config is valid");
+
         Self::from_merged(
             merged,
+            containerdebug,
             ValidatedLogging {
                 nifi_container: ValidatedContainerLogConfigChoice::Automatic(
                     AutomaticContainerLogConfig::default(),
