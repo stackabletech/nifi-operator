@@ -419,7 +419,7 @@ pub(crate) fn build_node_rolegroup_statefulset(
             {remove_vector_shutdown_file_command}
             prepare_signal_handlers
             mkdir --parents \"${file_log_directory}\" || true
-            containerdebug --output={STACKABLE_LOG_DIR}/containerdebug-state.json --loop &
+            {containerdebug_command}
             bin/nifi.sh run &
             wait_for_termination $!
             {create_vector_shutdown_file_command}
@@ -427,6 +427,10 @@ pub(crate) fn build_node_rolegroup_statefulset(
     remove_vector_shutdown_file_command =
         remove_vector_shutdown_file_command(STACKABLE_LOG_DIR),
     file_log_directory = FILE_LOG_DIRECTORY_ENV.as_ref(),
+    containerdebug_command = merged_config
+        .containerdebug
+        .background_command(STACKABLE_LOG_DIR)
+        .unwrap_or_default(),
     create_vector_shutdown_file_command =
         create_vector_shutdown_file_command(STACKABLE_LOG_DIR),
     }];
@@ -783,9 +787,14 @@ fn get_volume_claim_templates(
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+    use stackable_operator::{
+        crd::containerdebug::ValidatedContainerdebugConfig, shared::time::Duration,
+    };
+
     use super::*;
     use crate::controller::build::properties::test_support::{
-        default_rg, validated_cluster_from_yaml,
+        default_rg, minimal_validated_cluster, validated_cluster_from_yaml,
     };
 
     #[test]
@@ -919,6 +928,53 @@ mod tests {
         assert!(
             matches!(error, Error::AddVolume { .. }),
             "unexpected error: {error:?}"
+        );
+    }
+
+    /// The nifi container starts `containerdebug` from the role group's validated config. The
+    /// command itself is owned (and tested) by operator-rs, so only the wiring is checked here.
+    #[rstest]
+    #[case::enabled(ValidatedContainerdebugConfig::Enabled {
+        interval: Duration::from_minutes_unchecked(10)
+    })]
+    #[case::disabled(ValidatedContainerdebugConfig::Disabled)]
+    fn nifi_container_starts_containerdebug_from_config(
+        #[case] containerdebug: ValidatedContainerdebugConfig,
+    ) {
+        let expected = containerdebug.background_command(STACKABLE_LOG_DIR);
+        let mut cluster = minimal_validated_cluster();
+        let role_group_name = RoleGroupName::from_str("default").expect("valid role group name");
+        cluster
+            .role_group_configs
+            .get_mut(&NifiRole::Node)
+            .and_then(|role_groups| role_groups.get_mut(&role_group_name))
+            .expect("the default role group exists")
+            .config
+            .containerdebug = containerdebug;
+        let rg = default_rg(&cluster);
+
+        let stateful_set = build_node_rolegroup_statefulset(&cluster, &role_group_name, rg, None)
+            .expect("the StatefulSet builds");
+
+        let args = stateful_set
+            .spec
+            .expect("the StatefulSet has a spec")
+            .template
+            .spec
+            .expect("the pod template has a spec")
+            .containers
+            .into_iter()
+            .find(|container| container.name == NIFI_CONTAINER_NAME.to_string())
+            .expect("the nifi container exists")
+            .args
+            .expect("the nifi container has args")
+            .join("\n");
+        assert_eq!(
+            args.lines()
+                .map(str::trim)
+                .find(|line| line.starts_with("containerdebug ")),
+            expected.as_deref(),
+            "args: {args}"
         );
     }
 }
