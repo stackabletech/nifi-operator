@@ -8,8 +8,9 @@ metadata:
 spec:
   connector:
     iceberg:
-      metastore:
-        configMap: hive
+      catalog:
+        hiveMetastore:
+          configMap: hive
       s3:
         reference: garage
       hdfs:
