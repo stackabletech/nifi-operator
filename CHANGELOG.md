@@ -13,7 +13,7 @@ All notable changes to this project will be documented in this file.
   the Vector aggregator ([#1020]).
 - Add `/ready` endpoint to the operator Deployment, which reports the CRD installation status ([#999]).
 - Nodes now have a default affinity to the OPA Pods when OPA authorization is configured ([#1002]).
-- Add `containerdebug` config CRD ([#1023]).
+- Add the `config.containerdebug` field to roles and role groups ([#1023]).
 
 ### Changed
 
