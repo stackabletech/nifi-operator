@@ -10,6 +10,16 @@ metadata:
 status:
   readyReplicas: 3
   replicas: 3
+  # `readyReplicas` alone is not sufficient: During a rolling update it returns to 3 after every
+  # single pod has been replaced, so the assertion would already succeed when just one of the three
+  # pods runs the new version. `updatedReplicas` counts the pods which were created from the
+  # StatefulSet's current `updateRevision`. It drops below 3 as soon as the operator patches the
+  # StatefulSet and only reaches 3 again once every pod runs the new revision.
+  #
+  # Both fields are also 3 *before* the rotation starts, so this assertion on its own would still
+  # succeed against the old version. The sleep in 06-sleep.yaml gives the operator time to patch
+  # the StatefulSet first and is therefore required.
+  updatedReplicas: 3
 ---
 apiVersion: nifi.stackable.tech/v1alpha1
 kind: NifiCluster
