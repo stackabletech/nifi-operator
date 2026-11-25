@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Add the `config.containerdebug` field to roles and role groups ([#1023]).
+
+[#1023]: https://github.com/stackabletech/nifi-operator/pull/1023
+
+## [26.11.0] - 2026-11-20
+
+## [26.11.0-rc1] - 2026-11-19
+
+### Added
+
 - Support floating tags for product images via the new `spec.image.stackableVersionPolicy` field
   ([#994]).
 - Add support for 2.12.0 ([#997]).
@@ -13,7 +23,6 @@ All notable changes to this project will be documented in this file.
   the Vector aggregator ([#1020]).
 - Add `/ready` endpoint to the operator Deployment, which reports the CRD installation status ([#999]).
 - Nodes now have a default affinity to the OPA Pods when OPA authorization is configured ([#1002]).
-- Add the `config.containerdebug` field to roles and role groups ([#1023]).
 
 ### Changed
 
@@ -90,7 +99,6 @@ All notable changes to this project will be documented in this file.
 [#1015]: https://github.com/stackabletech/nifi-operator/pull/1015
 [#1017]: https://github.com/stackabletech/nifi-operator/pull/1017
 [#1020]: https://github.com/stackabletech/nifi-operator/pull/1020
-[#1023]: https://github.com/stackabletech/nifi-operator/pull/1023
 
 ## [26.7.0] - 2026-07-21
 
