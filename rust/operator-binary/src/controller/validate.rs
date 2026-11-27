@@ -10,6 +10,7 @@ use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     commons::product_image_selection,
     config::fragment,
+    crd::containerdebug,
     k8s_openapi::api::core::v1::Secret,
     kube::{ResourceExt as _, runtime::reflector::ObjectRef},
     product_logging::spec::Logging,
@@ -69,6 +70,12 @@ pub enum Error {
 
     #[snafu(display("failed to validate the rolegroup config fragment"))]
     ValidateRoleGroupConfig { source: fragment::ValidationError },
+
+    #[snafu(display("invalid containerdebug configuration for role group {role_group}"))]
+    InvalidContainerdebugConfig {
+        source: containerdebug::Error,
+        role_group: RoleGroupName,
+    },
 
     #[snafu(display("the role-group name {role_group:?} is invalid"))]
     ParseRoleGroupName {
@@ -326,6 +333,12 @@ pub(crate) fn build_role_group_configs(
         // type; only the conversion into an `EnvVarSet` remains.
         let env_overrides_set: EnvVarSet = env_overrides.into();
 
+        let containerdebug = config.containerdebug.validate().with_context(|_| {
+            InvalidContainerdebugConfigSnafu {
+                role_group: role_group_name.clone(),
+            }
+        })?;
+
         // Validate the logging config (NiFi + optional Vector container) up-front so an invalid
         // custom log ConfigMap name, or a missing Vector aggregator discovery ConfigMap name, fails
         // during validation rather than at resource-build time.
@@ -345,7 +358,12 @@ pub(crate) fn build_role_group_configs(
             role_group_name,
             NifiRoleGroupConfig {
                 replicas: validated.replicas,
-                config: ValidatedNifiConfig::from_merged(config, logging, git_sync_resources),
+                config: ValidatedNifiConfig::from_merged(
+                    config,
+                    containerdebug,
+                    logging,
+                    git_sync_resources,
+                ),
                 config_overrides,
                 env_overrides: env_overrides_set,
                 cli_overrides,
@@ -834,6 +852,103 @@ mod tests {
                 .logging
                 .vector_container
                 .is_none()
+        );
+    }
+
+    /// A role `config` that does not mention `containerdebug` still gets the default, so the
+    /// `containerdebug` field of the CRD must be optional.
+    #[test]
+    fn containerdebug_defaults_when_not_configured() {
+        use stackable_operator::crd::containerdebug::{
+            DEFAULT_INTERVAL, ValidatedContainerdebugConfig,
+        };
+
+        let nifi: v1alpha1::NifiCluster = yaml_serde::from_str(
+            r#"
+            apiVersion: nifi.stackable.tech/v1alpha1
+            kind: NifiCluster
+            metadata:
+              name: simple-nifi
+              namespace: default
+            spec:
+              image:
+                productVersion: 2.9.0
+              clusterConfig:
+                authentication:
+                  - authenticationClass: nifi-admin-credentials-simple
+                sensitiveProperties:
+                  keySecret: simple-nifi-sensitive-property-key
+                  autoGenerate: true
+              nodes:
+                config:
+                  gracefulShutdownTimeout: 1h
+                roleGroups:
+                  default:
+                    replicas: 1
+            "#,
+        )
+        .expect("invalid test YAML");
+
+        let configs = build_role_group_configs(&nifi, &test_resolved_product_image(), &None)
+            .expect("role group configs should validate");
+
+        assert_eq!(
+            default_rg(&configs).config.containerdebug,
+            ValidatedContainerdebugConfig::Enabled {
+                interval: DEFAULT_INTERVAL
+            }
+        );
+    }
+
+    /// An invalid `containerdebug` config fails the validation, naming the role group.
+    #[test]
+    fn zero_containerdebug_interval_fails_validation() {
+        let nifi: v1alpha1::NifiCluster = yaml_serde::from_str(
+            r#"
+            apiVersion: nifi.stackable.tech/v1alpha1
+            kind: NifiCluster
+            metadata:
+              name: simple-nifi
+              namespace: default
+            spec:
+              image:
+                productVersion: 2.9.0
+              clusterConfig:
+                authentication:
+                  - authenticationClass: nifi-admin-credentials-simple
+                sensitiveProperties:
+                  keySecret: simple-nifi-sensitive-property-key
+                  autoGenerate: true
+              nodes:
+                config:
+                  containerdebug:
+                    interval: 0s
+                roleGroups:
+                  default:
+                    replicas: 1
+            "#,
+        )
+        .expect("invalid test YAML");
+
+        // `NifiRoleGroupConfig` is not `Debug`, so match on the result rather than using
+        // `expect_err`.
+        let Err(error) = build_role_group_configs(&nifi, &test_resolved_product_image(), &None)
+        else {
+            panic!("the validation should fail");
+        };
+        let chain: Vec<String> =
+            std::iter::successors(Some(&error as &dyn std::error::Error), |error| {
+                error.source()
+            })
+            .map(ToString::to_string)
+            .collect();
+
+        assert_eq!(
+            chain,
+            [
+                "invalid containerdebug configuration for role group default",
+                "the containerdebug interval must not be zero",
+            ]
         );
     }
 }

@@ -24,14 +24,15 @@ pub fn build(rg: &NifiRoleGroupConfig) -> Result<String, PropertiesWriterError> 
 mod tests {
     use std::collections::BTreeMap;
 
-    use stackable_operator::v2::{
-        builder::pod::container::EnvVarSet, config_overrides::KeyValueConfigOverrides,
+    use stackable_operator::{
+        config::fragment,
+        v2::{builder::pod::container::EnvVarSet, config_overrides::KeyValueConfigOverrides},
     };
 
     use super::*;
     use crate::{
         controller::ValidatedNifiConfig,
-        crd::{NifiConfig, v1alpha1::NifiConfigOverrides},
+        crd::{NifiConfig, NifiRole, v1alpha1::NifiConfigOverrides},
     };
 
     fn make_rg(overrides: Option<BTreeMap<String, String>>) -> NifiRoleGroupConfig {
@@ -39,7 +40,14 @@ mod tests {
 
         NifiRoleGroupConfig {
             replicas: Some(1),
-            config: ValidatedNifiConfig::from_merged_for_test(NifiConfig::default()),
+            config: ValidatedNifiConfig::from_merged_for_test(
+                fragment::validate(NifiConfig::default_config(
+                    "simple-nifi",
+                    &NifiRole::Node,
+                    None,
+                ))
+                .expect("the default config is complete"),
+            ),
             config_overrides: NifiConfigOverrides {
                 security_properties: KeyValueConfigOverrides {
                     overrides: overrides.unwrap_or_default(),
