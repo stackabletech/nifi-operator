@@ -4,5 +4,5 @@ kind: TestStep
 commands:
   # Sleep for a little while to ensure the pod rotation of the NiFi cluster has started. Otherwise,
   # the assertion in 06 will immediately succeed because it is run _before_ the pod rotation has
-  # started.
+  # started. See the comment on `updatedReplicas` in 06-assert.yaml.j2.
   - script: sleep 15
